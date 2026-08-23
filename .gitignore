@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# Android / IDE
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 密钥文件 - 绝不提交
+secrets.properties
+*.keystore
+*.jks
+
+# APK 输出
+*.apk
+*.aab
