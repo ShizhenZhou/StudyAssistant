@@ -58,6 +58,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var savedQuestionId: Long? = null
         private set
+    var isFromNotebook by mutableStateOf(false)
+        private set
     private var saving = false
     private var cancelPending = false
     private var isPhoto = false
@@ -80,6 +82,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         savedToNotebook = false
         savedQuestionId = null
+        isFromNotebook = false
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
@@ -144,6 +147,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         resetSession()
         imageBytes = bytes
         isPhoto = true
+        isFromNotebook = false
         runCall(StudyAssistant.MODEL_VISION) { output ->
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
@@ -156,6 +160,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun solveText(question: String) {
         resetSession()
         isPhoto = false
+        isFromNotebook = false
         questionText = question
         runCall(StudyAssistant.MODEL_TEXT) { reply ->
             addItem("question", question)
@@ -269,6 +274,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isPhoto = q.imageBytes != null
         savedToNotebook = true
         savedQuestionId = q.id
+        isFromNotebook = true
         error = null
     }
 }
