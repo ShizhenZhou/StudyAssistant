@@ -1,4 +1,3 @@
-import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -8,13 +7,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.kapt)
 }
-
-// 读取 secrets.properties（gitignored，不入库）
-val secretsFile = rootProject.file("secrets.properties")
-val secrets = Properties().apply {
-    if (secretsFile.exists()) secretsFile.inputStream().use { load(it) }
-}
-fun secret(key: String, def: String = ""): String = secrets.getProperty(key, def)
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -26,10 +18,7 @@ android {
         minSdk = 28
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0"
-
-        // API 密钥注入 BuildConfig（来自不入库的 secrets.properties）
-        buildConfigField("String", "DEEPSEEK_API_KEY", "\"${secret("DEEPSEEK_API_KEY")}\"")
+        versionName = "0.3.0"
     }
 
     buildTypes {
@@ -45,7 +34,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     packaging {

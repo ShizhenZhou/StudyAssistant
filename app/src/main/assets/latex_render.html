@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="katex/katex.min.css">
+<script src="katex/katex.min.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:transparent;color:#000;}
+  body{padding:4px 6px;font-size:16px;line-height:1.5;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;}
+  .m{display:block;margin:4px 0;}
+  .katex{font-size:1.15em;}
+</style>
+</head>
+<body><div id="out"></div>
+<script>
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function render(text){
+  var html='';
+  var i;
+  // 先按 $$...$$ 切分显示公式
+  var parts=text.split(/(\$\$[\s\S]*?\$\$)/g);
+  for(i=0;i<parts.length;i++){
+    var p=parts[i];
+    if(/^\$\$[\s\S]*\$\$$/.test(p)){
+      html+='<div class="m">'+katex.renderToString(p.slice(2,-2),{throwOnError:false,displayMode:true})+'</div>';
+    } else {
+      // 再按 $...$ 切分行内公式
+      var inl=p.split(/(\$[^$\n]+\$)/g);
+      for(var j=0;j<inl.length;j++){
+        var q=inl[j];
+        if(/^\$[^$\n]+\$$/.test(q)){
+          html+=katex.renderToString(q.slice(1,-1),{throwOnError:false,displayMode:false});
+        } else {
+          html+=esc(q).replace(/\n/g,'<br>');
+        }
+      }
+    }
+  }
+  document.getElementById('out').innerHTML=html;
+  setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },60);
+}
+function loadText(t){ render(t||''); }
+</script>
+</body></html>

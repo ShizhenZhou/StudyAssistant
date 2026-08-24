@@ -1,6 +1,5 @@
 package com.zsz.studyassistant.data
 
-import com.zsz.studyassistant.BuildConfig
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -21,8 +20,10 @@ object ApiClient {
     val deepSeek: DeepSeekService by lazy {
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
+                // 运行时动态读取用户填写的 key（Keystore 解密）
+                val key = KeyManager.getApiKey()
                 val req = chain.request().newBuilder()
-                    .header("Authorization", "Bearer ${BuildConfig.DEEPSEEK_API_KEY}")
+                    .header("Authorization", "Bearer $key")
                     .build()
                 chain.proceed(req)
             }

@@ -3,7 +3,6 @@ package com.zsz.studyassistant.data
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.util.Base64
-import com.zsz.studyassistant.BuildConfig
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlinx.serialization.json.JsonElement
@@ -14,19 +13,24 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 
 /**
- * 核心业务逻辑：DeepSeek 视觉模型直接识别图片题目并解答 + 文字题目解答 + 图片预处理
+ * 核心业务逻辑：DeepSeek 视觉/文本模型 + 对话流 + 图片预处理
+ * API Key 由 KeyManager（Keystore 解密）运行时提供
  */
 object StudyAssistant {
 
-    private fun requireKey() {
-        if (BuildConfig.DEEPSEEK_API_KEY.isBlank()) {
-            throw IllegalStateException("未配置 DeepSeek API Key\n请在 secrets.properties 中填写 DEEPSEEK_API_KEY")
+    const val MODEL_VISION = "deepseek-v4-flash-vision-exp"
+    const val MODEL_TEXT = "deepseek-v4-pro"
+
+    fun requireKey() {
+        if (KeyManager.getApiKey().isBlank()) {
+            throw IllegalStateException("尚未配置 DeepSeek API Key\n请到首页 ⚙️ 设置 里填写")
         }
     }
 
-    /** 拍照解答：图片 -> 视觉模型识别并解答，返回 (识别出的题目, 完整解答) */
-    suspend fun solveWithImage(imageBytes: ByteArray): SolveResult {
-        requireKey()
+    data class SolveResult(val question: String, val answer: String)
+
+    /** 视觉模型首条用户消息（文字 + 图片） */
+    fun visionUserMessage(imageBytes: ByteArray): DeepSeekMessage {
         val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
         val content = buildJsonArray {
             addJsonObject {
@@ -43,43 +47,29 @@ object StudyAssistant {
                 putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$base64") }
             }
         }
-        val resp = ApiClient.deepSeek.chat(
-            DeepSeekRequest(
-                model = "deepseek-v4-flash-vision-exp",
-                messages = listOf(DeepSeekMessage("user", content)),
-                maxTokens = 4096
-            )
-        )
-        val output = resp.choices.firstOrNull()?.message?.content?.asText()
-            ?: throw IllegalStateException("视觉模型返回为空")
-        return parseVisionOutput(output)
+        return DeepSeekMessage("user", content)
     }
 
-    /** 文字解答：手动输入的题目 -> 文本模型（v4-pro，推理更强） */
-    suspend fun solveText(question: String): String {
+    fun textUserMessage(text: String): DeepSeekMessage =
+        DeepSeekMessage("user", JsonPrimitive(text))
+
+    fun systemMessage(): DeepSeekMessage = DeepSeekMessage(
+        "system",
+        JsonPrimitive(
+            "你是一名理工科大学解题助手。请给出清晰、分步的解答过程，包含必要的公式推导，" +
+                "数学公式请用 LaTeX 书写（$...$ 或 $$...$$），最后明确给出结论。"
+        )
+    )
+
+    /** 通用调用：发送一组消息，返回助手回复文本 */
+    suspend fun chatOnce(model: String, messages: List<DeepSeekMessage>): String {
         requireKey()
         val resp = ApiClient.deepSeek.chat(
-            DeepSeekRequest(
-                model = "deepseek-v4-pro",
-                messages = listOf(
-                    DeepSeekMessage(
-                        "system",
-                        JsonPrimitive(
-                            "你是一名理工科大学解题助手。请给出清晰、分步的解答过程，" +
-                                "包含必要的公式推导，数学公式请用 LaTeX 书写（$...$ 或 $$...$$），最后明确给出结论。"
-                        )
-                    ),
-                    DeepSeekMessage("user", JsonPrimitive(question))
-                ),
-                maxTokens = 4096
-            )
+            DeepSeekRequest(model = model, messages = messages, maxTokens = 4096)
         )
         return resp.choices.firstOrNull()?.message?.content?.asText()
             ?: throw IllegalStateException("DeepSeek 返回为空")
     }
-
-    /** 视觉模型输出的解析结果 */
-    data class SolveResult(val question: String, val answer: String)
 
     /** 从视觉模型输出中分离「题目」与「解答」 */
     fun parseVisionOutput(output: String): SolveResult {

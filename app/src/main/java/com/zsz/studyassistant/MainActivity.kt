@@ -12,8 +12,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.zsz.studyassistant.ui.CameraScreen
+import com.zsz.studyassistant.ui.CropScreen
 import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.NotebookScreen
+import com.zsz.studyassistant.ui.SettingsScreen
 import com.zsz.studyassistant.ui.SolveScreen
 
 class MainActivity : ComponentActivity() {
@@ -29,8 +31,10 @@ class MainActivity : ComponentActivity() {
                     NavHost(nav, startDestination = "home") {
                         composable("home") { HomeScreen(nav, viewModel) }
                         composable("camera") { CameraScreen(nav, viewModel) }
+                        composable("crop") { CropScreen(nav, viewModel) }
                         composable("solve") { SolveScreen(nav, viewModel) }
                         composable("notebook") { NotebookScreen(nav, viewModel) }
+                        composable("settings") { SettingsScreen(nav) }
                     }
                 }
             }

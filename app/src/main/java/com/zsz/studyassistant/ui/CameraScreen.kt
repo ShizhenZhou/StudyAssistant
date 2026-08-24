@@ -97,9 +97,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                            val bytes = StudyAssistant.compressImage(file)
-                            vm.solveWithImage(bytes)
-                            nav.navigate("solve") { popUpTo("camera") { inclusive = true } }
+                            // 先进入框选页挑选题目区域
+                            vm.updatePendingImagePath(file.absolutePath)
+                            nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
                         }
 
                         override fun onError(e: ImageCaptureException) {
