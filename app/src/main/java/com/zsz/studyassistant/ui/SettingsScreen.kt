@@ -101,12 +101,18 @@ fun SettingsTab(vm: MainViewModel) {
         Spacer(Modifier.height(20.dp))
 
         // ℹ️ 关于
+        // 读取真实安装版本号，保持与 App 实际版本一致
+        val appVersion = remember {
+            try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            } catch (e: Exception) { "0.0.0" }
+        }
         Text("ℹ️ 关于", style = MaterialTheme.typography.titleMedium)
         Card(Modifier.fillMaxWidth().padding(top = 8.dp)) {
             Column(Modifier.padding(12.dp)) {
                 Text("Study Assistant", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
-                Text("版本 0.3.2", style = MaterialTheme.typography.bodyMedium)
+                Text("版本 $appVersion", style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "作者：zsz\n" +
