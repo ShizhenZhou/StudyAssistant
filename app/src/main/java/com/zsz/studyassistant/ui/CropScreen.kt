@@ -42,7 +42,8 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import java.io.ByteArrayOutputStream
 
-private const val EDGE = 36f        // 边缘命中带宽度(px)
+private const val EDGE = 48f        // 边缘命中带宽度(px)（加粗，增大判定面积）
+private const val CORNER = 56f      // 四角命中半径(px)
 private const val MIN_SIZE = 60f    // 选框最小尺寸(px)
 private val DIM = Color(0x66000000) // 选区外部遮罩
 private val BORDER = Color(0xFFFF5252)
@@ -107,17 +108,17 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         drawRect(DIM, Offset(d2.left, r.bottom), Size(d2.width, (d2.bottom - r.bottom).coerceAtLeast(0f)))
                         drawRect(DIM, Offset(d2.left, r.top), Size((r.left - d2.left).coerceAtLeast(0f), r.height))
                         drawRect(DIM, Offset(r.right, r.top), Size((d2.right - r.right).coerceAtLeast(0f), r.height))
-                        // 边框
+                        // 边框（加粗，红色可拖拽判定条）
                         drawRect(Color(0xFF000000), topLeft = Offset(r.left, r.top),
-                            size = Size(r.width, r.height), style = Stroke(1.5.dp.toPx()))
+                            size = Size(r.width, r.height), style = Stroke(3.dp.toPx()))
                         drawRect(BORDER, topLeft = Offset(r.left, r.top),
-                            size = Size(r.width, r.height), style = Stroke(2.dp.toPx()))
-                        // 四条边的高亮手柄
-                        val e = 6.dp.toPx()
-                        drawRect(Color(0xAA2196F3), Offset(r.left, r.top), Size(r.width, e))
-                        drawRect(Color(0xAA2196F3), Offset(r.left, r.bottom - e), Size(r.width, e))
-                        drawRect(Color(0xAA2196F3), Offset(r.left, r.top), Size(e, r.height))
-                        drawRect(Color(0xAA2196F3), Offset(r.right - e, r.top), Size(e, r.height))
+                            size = Size(r.width, r.height), style = Stroke(4.dp.toPx()))
+                        // 四个角手柄（可任意方向拖拽同时改长宽）
+                        val ch = 10.dp.toPx()
+                        drawRect(BORDER, Offset(r.left - ch / 2, r.top - ch / 2), Size(ch, ch))
+                        drawRect(BORDER, Offset(r.right - ch / 2, r.top - ch / 2), Size(ch, ch))
+                        drawRect(BORDER, Offset(r.left - ch / 2, r.bottom - ch / 2), Size(ch, ch))
+                        drawRect(BORDER, Offset(r.right - ch / 2, r.bottom - ch / 2), Size(ch, ch))
                     }
                 }
 
@@ -129,6 +130,11 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                             mode = if (r == null) "NONE" else {
                                 val d2 = dispRect
                                 when {
+                                    // 四角优先
+                                    d2 != Rect.Zero && pos.x <= r.left + CORNER && pos.y <= r.top + CORNER -> "TL"
+                                    d2 != Rect.Zero && pos.x >= r.right - CORNER && pos.y <= r.top + CORNER -> "TR"
+                                    d2 != Rect.Zero && pos.x <= r.left + CORNER && pos.y >= r.bottom - CORNER -> "BL"
+                                    d2 != Rect.Zero && pos.x >= r.right - CORNER && pos.y >= r.bottom - CORNER -> "BR"
                                     d2 != Rect.Zero && pos.y >= r.top - EDGE && pos.y <= r.top + EDGE &&
                                         pos.x >= r.left - EDGE && pos.x <= r.right + EDGE -> "TOP"
                                     d2 != Rect.Zero && pos.y >= r.bottom - EDGE && pos.y <= r.bottom + EDGE &&
@@ -151,6 +157,16 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                                     "BOTTOM" -> Rect(r.left, r.top, r.right, (r.bottom + drag.y).coerceIn(r.top + MIN_SIZE, d2.bottom))
                                     "LEFT" -> Rect((r.left + drag.x).coerceIn(d2.left, r.right - MIN_SIZE), r.top, r.right, r.bottom)
                                     "RIGHT" -> Rect(r.left, r.top, (r.right + drag.x).coerceIn(r.left + MIN_SIZE, d2.right), r.bottom)
+                                    // 四角：同时改长宽
+                                    "TL" -> Rect((r.left + drag.x).coerceIn(d2.left, r.right - MIN_SIZE),
+                                        (r.top + drag.y).coerceIn(d2.top, r.bottom - MIN_SIZE), r.right, r.bottom)
+                                    "TR" -> Rect(r.left, (r.top + drag.y).coerceIn(d2.top, r.bottom - MIN_SIZE),
+                                        (r.right + drag.x).coerceIn(r.left + MIN_SIZE, d2.right), r.bottom)
+                                    "BL" -> Rect((r.left + drag.x).coerceIn(d2.left, r.right - MIN_SIZE), r.top,
+                                        r.right, (r.bottom + drag.y).coerceIn(r.top + MIN_SIZE, d2.bottom))
+                                    "BR" -> Rect(r.left, r.top,
+                                        (r.right + drag.x).coerceIn(r.left + MIN_SIZE, d2.right),
+                                        (r.bottom + drag.y).coerceIn(r.top + MIN_SIZE, d2.bottom))
                                     "MOVE" -> {
                                         val dt = (r.left + drag.x).coerceIn(d2.left, d2.right - r.width)
                                         val dtp = (r.top + drag.y).coerceIn(d2.top, d2.bottom - r.height)

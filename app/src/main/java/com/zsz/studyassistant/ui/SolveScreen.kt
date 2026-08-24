@@ -98,7 +98,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             if (vm.chatItems.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        "正在等待题目…\n（拍照后会出现题目与解答）",
+                        if (vm.busy) "答案生成中……" else "正在等待题目…\n（拍照后会出现题目与解答）",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium
                     )
