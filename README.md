@@ -2,15 +2,34 @@
 
 个人自用安卓应用：**拍照搜题 → AI 解答 → 错题整理**（面向理工科大学题目）。
 
-## 功能（v0.2）
+## 功能（v0.3.1）
 
-- 📷 **拍照解答**：相机拍照 → 直接发送给 **DeepSeek 视觉模型**（deepseek-v4-flash-vision-exp），识别题目并给出分步解答（公式零损失，无需单独 OCR）
-- ⌨️ **手动输入**：粘贴/手输题目 → DeepSeek 文本模型（deepseek-v4-pro）解答
+- 📷 **拍照解答**：相机拍照 → **框选出题目区域** → DeepSeek 视觉模型（deepseek-v4-flash-vision-exp）识别并解答
+- 🖐 **框选**：拍照后可框选题目区域（四条边单独可拖），或整张图直接识别
+- 🤖 **AI 解答**：分步推导，公式用 **LaTeX/KaTeX** 渲染（积分、分式、矩阵等正确排版）
+- 🔄 **重新生成** / 💬 **接续提问**：答案区可重新生成，也可继续追问（多轮对话）
 - 📚 **错题本**：本地保存题目+解答（Room），随时回看、删除
+- 🔑 **API Key 应用内填写**：在 ⚙️ 设置里填自己的 DeepSeek Key（**Android Keystore 加密**存储，便于分享给朋友）
 
 ## 技术栈
 
-Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · 阿里云 Maven 镜像
+Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebView+KaTeX（公式渲染）· 阿里云 Maven 镜像
+
+## 版本记录
+
+### v0.3.1（当前）
+- ✨ 答案区支持 **Markdown 排版**：`**加粗**`、`# 标题`、`- 列表`、行内代码等不再显示源码
+- ✨ **长答案滚动修复**：WebView 自动测量高度、外层列表滑动，不再卡住
+- ✨ **宽公式**：过宽自动缩小（最多 2 档）+ 公式内横向滚动，页面不再左右滑动
+- 🆕 拍题界面加 **重新拍摄** 按钮
+- 🆕 问答界面加 **拍下一题** 方形相机按钮
+- 🔧 首页 **⚙️ 填Key** 按钮下移，更好点击
+
+### v0.3.0（上一版）
+- 🆕 **拍题框选**：拍照后框选出题目区域（矩形框、四边单独可拖），或整张图识别
+- 🆕 **重新生成 + 接续对话**：答案区可重新生成；底部输入框可继续追问（多轮对话流）
+- 🆕 **API Key 应用内自填**：在 ⚙️ 设置里填 Key，**Android Keystore 加密**存储（不再写死，便于分享）
+- 🆕 **KaTeX 公式渲染**：答案里的公式（积分、分式、矩阵）渲染为真正的数学排版
 
 ## 构建
 
@@ -20,13 +39,11 @@ gradlew.bat assembleDebug
 # 产物: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## 配置 API Key（不入库）
+## 配置 API Key（应用内）
 
-编辑 `secrets.properties`（已被 .gitignore 排除）：
-
-```properties
-DEEPSEEK_API_KEY=sk-xxx
-```
+1. 打开 App → 右上角 **⚙️ 设置**
+2. 粘贴你的 DeepSeek API Key（sk- 开头）→ 保存
+3. Key 用 **Android Keystore 加密** 存于本机，不写入代码、不提交仓库
 
 Key 获取：https://platform.deepseek.com（账号需开通视觉模型权限）
 

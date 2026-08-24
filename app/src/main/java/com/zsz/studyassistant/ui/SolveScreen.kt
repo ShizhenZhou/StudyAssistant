@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
@@ -113,6 +115,17 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
+                    // 拍下一题（方形相机按钮）
+                    Button(
+                        onClick = {
+                            vm.startNewQuestion()
+                            nav.navigate("camera")
+                        },
+                        modifier = Modifier.size(56.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                        enabled = !vm.busy
+                    ) { Text("📷", fontSize = 22.sp) }
+                    Spacer(Modifier.width(8.dp))
                     OutlinedTextField(
                         value = followUp,
                         onValueChange = { followUp = it },

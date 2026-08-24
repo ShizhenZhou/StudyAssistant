@@ -41,11 +41,19 @@ fun LatexText(content: String, modifier: Modifier = Modifier) {
                 settings.allowContentAccess = true
                 @Suppress("DEPRECATION")
                 settings.allowFileAccessFromFileURLs = true
+                // 禁止 WebView 自身滚动，交给外层 LazyColumn 滚动
+                isVerticalScrollBarEnabled = false
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = android.view.View.OVER_SCROLL_NEVER
                 setBackgroundColor(Color.TRANSPARENT)
                 addJavascriptInterface(object {
                     @JavascriptInterface
                     fun onHeightChange(h: Int) {
-                        if (h > 0) mainHandler.post { height = with(density) { h.toFloat().toDp() } }
+                        if (h > 0) mainHandler.post {
+                            // 取最大值，避免字面加载后高度回缩
+                            val newH = with(density) { h.toFloat().toDp() }
+                            if (newH > height) height = newH
+                        }
                     }
                 }, "Android")
                 webViewClient = object : WebViewClient() {

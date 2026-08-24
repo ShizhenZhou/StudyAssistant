@@ -32,7 +32,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
         // 右上角设置入口
         TextButton(
             onClick = { nav.navigate("settings") },
-            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 56.dp, end = 16.dp)
         ) { Text(if (keyOk) "⚙️" else "⚙️ 填Key") }
 
         Column(

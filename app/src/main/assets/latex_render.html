@@ -5,53 +5,111 @@
 <link rel="stylesheet" href="katex/katex.min.css">
 <script src="katex/katex.min.js"></script>
 <style>
-  html,body{margin:0;padding:0;background:transparent;color:#111;}
-  body{padding:4px 6px;font-size:16px;line-height:1.6;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;}
+  html,body{margin:0;padding:0;background:transparent;color:#111;overflow:hidden;}
+  body{padding:6px 8px;font-size:16px;line-height:1.6;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;}
   .katex{font-size:1.12em;}
-  .disp{display:block;margin:6px 0;}
-  strong,b{font-weight:bold;}
+  .katex-display{text-align:center;max-width:100%;overflow-x:auto;overflow-y:hidden;margin:8px 0;}
+  code{background:#f2f2f2;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}
+  pre{background:#f6f6f6;padding:8px;border-radius:4px;overflow-x:auto;}
+  strong,b{font-weight:bold;} em,i{font-style:italic;}
+  h1{font-size:1.4em;} h2{font-size:1.25em;} h3{font-size:1.1em;}
+  ul,ol{margin:4px 0;padding-left:22px;} li{margin:2px 0;}
+  hr{border:none;border-top:1px solid #ddd;margin:8px 0;}
 </style>
 </head>
 <body><div id="out"></div>
 <script>
+var PH='\uE000';
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-// 用正则把文本切成【数学段】和【普通段】，数学段交给 KaTeX 渲染
-function renderMath(text){
+// 1) 把数学段替换成占位符，交给 Markdown 处理时不会被破坏
+function tokenize(t){
   var re=/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\begin\{[a-zA-Z*]+\}[\s\S]*?\\end\{[a-zA-Z*]+\}|\$[^$\n]+\$/g;
-  var parts=[], last=0, m;
-  while((m=re.exec(text))!==null){
-    if(m.index>last) parts.push({t:'t',s:text.slice(last,m.index)});
-    parts.push({t:'m',s:m[0]});
+  var store=[],last=0,m,out='';
+  while((m=re.exec(t))!==null){
+    if(m.index>last) out+=t.slice(last,m.index);
+    store.push(m[0]);
+    out+=PH+(store.length-1)+PH;
     last=m.index+m[0].length;
   }
-  if(last<text.length) parts.push({t:'t',s:text.slice(last)});
-  var html='';
-  for(var i=0;i<parts.length;i++){
-    var tok=parts[i];
-    if(tok.t==='m'){ html += renderOne(tok.s); }
-    else { html += esc(tok.s).replace(/\n/g,'<br>'); }
-  }
-  return html;
+  if(last<t.length) out+=t.slice(last);
+  return {text:out,store:store};
 }
 
+// 2) 轻量 Markdown -> HTML（标题/列表/加粗/斜体/行内代码/分隔线）
+function mdToHtml(s){
+  var lines=s.split('\n'),out='',ol=false,ul=false,pre=false,preBuf=[];
+  function closeList(){ if(ol){out+='</ol>';ol=false;} if(ul){out+='</ul>';ul=false;} }
+  function inline(t){
+    t=t.replace(/`([^`]+)`/g,'<code>$1</code>');
+    t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+    t=t.replace(/__([^_]+)__/g,'<strong>$1</strong>');
+    t=t.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>');
+    t=t.replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
+    return t;
+  }
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    if(/^\s*```/.test(line)){
+      if(!pre){pre=true;preBuf=[];} else {pre=false;out+='<pre>'+esc(preBuf.join('\n'))+'</pre>';}
+      continue;
+    }
+    if(pre){preBuf.push(line);continue;}
+    var t=inline(line);
+    var h=t.match(/^(#{1,4})\s+(\S.*)$/);
+    if(h){closeList();var n=h[1].length;out+='<h'+n+'>'+h[2]+'</h'+n+'>';continue;}
+    if(/^\s*---+\s*$/.test(t)){closeList();out+='<hr>';continue;}
+    if(/^\s*[-*]\s+/.test(t)){ if(!ul){closeList();out+='<ul>';ul=true;} out+='<li>'+t.replace(/^\s*[-*]\s+/,'')+'</li>';continue; }
+    if(/^\s*\d+\.\s+/.test(t)){ if(!ol){closeList();out+='<ol>';ol=true;} out+='<li>'+t.replace(/^\s*\d+\.\s+/,'')+'</li>';continue; }
+    var bl=t.replace(/\s+$/,'');
+    if(bl===''&&!ul&&!ol&&out!==''){ continue; }
+    out+=t+'<br>';
+  }
+  if(pre){out+='<pre>'+esc(preBuf.join('\n'))+'</pre>';}
+  closeList();
+  return out;
+}
+
+// 3) 单个数学段 -> KaTeX HTML
 function renderOne(raw){
-  var tex=raw, display=false;
-  if(/^\$\$/.test(raw)){ tex=raw.slice(2,-2); display=true; }
-  else if(/^\\\[/.test(raw)){ tex=raw.slice(2,-2); display=true; }
-  else if(/^\\\(/.test(raw)){ tex=raw.slice(2,-2); display=false; }
-  else if(/^\\begin\{/.test(raw)){ display=true; }
-  else if(/^\$/.test(raw)){ tex=raw.slice(1,-1); display=false; }
+  var tex=raw,display=false;
+  if(/^\$\$/.test(raw)){tex=raw.slice(2,-2);display=true;}
+  else if(/^\\\[/.test(raw)){tex=raw.slice(2,-2);display=true;}
+  else if(/^\\\(/.test(raw)){tex=raw.slice(2,-2);display=false;}
+  else if(/^\\begin\{/.test(raw)){display=true;}
+  else if(/^\$/.test(raw)){tex=raw.slice(1,-1);display=false;}
   try{
     var r=katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false});
-    return display? '<div class="disp">'+r+'</div>' : r;
+    return display?'<div class="katex-display">'+r+'</div>':r;
   }catch(e){ return esc(raw); }
 }
 
+// 4) 过宽带公式：最多缩小 2 档字号，container 内部横向滚动，页面不横滚
+function fitWideDisplay(){
+  var out=document.getElementById('out');
+  if(!out)return;
+  var disps=out.querySelectorAll('.katex-display');
+  for(var i=0;i<disps.length;i++){
+    var d=disps[i],lvl=0;
+    while(d.scrollWidth>d.clientWidth+2&&lvl<2){ lvl++; d.style.fontSize=(lvl===1?'0.92em':'0.8em'); }
+  }
+}
+
+function reportHeight(){
+  var h=document.body.scrollHeight;
+  if(window.Android&&h>0) Android.onHeightChange(h);
+}
+
 function loadText(t){
-  var html=renderMath(t||'');
-  document.getElementById('out').innerHTML=html;
-  setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
+  var tok=tokenize(t||'');
+  var body=mdToHtml(esc(tok.text));
+  body=body.replace(/[\uE000](\d+)\uE000/g,function(m,idx){return renderOne(tok.store[+idx]);});
+  document.getElementById('out').innerHTML=body;
+  try{fitWideDisplay();}catch(e){}
+  reportHeight();
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){try{fitWideDisplay();}catch(e){} reportHeight();});}
+  setTimeout(reportHeight,200);
+  setTimeout(reportHeight,450);
 }
 </script>
 </body></html>

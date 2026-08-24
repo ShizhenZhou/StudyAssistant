@@ -52,6 +52,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun showError(msg: String) { error = msg }
     fun hasApiKey(): Boolean = KeyManager.getApiKey().isNotBlank()
 
+    /** 开始新一题：清空当前对话与状态 */
+    fun startNewQuestion() {
+        chatItems = emptyList()
+        apiMessages.clear()
+        questionText = ""
+        imageBytes = null
+        error = null
+    }
+
     private fun friendlyError(e: Exception, fallback: String): String {
         val msg = e.message.orEmpty().lowercase()
         return when {

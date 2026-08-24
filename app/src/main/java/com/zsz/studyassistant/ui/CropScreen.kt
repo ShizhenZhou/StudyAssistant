@@ -196,7 +196,10 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { sel = dispRect }) { Text("重置框选") }
-                TextButton(onClick = { nav.popBackStack() }) { Text("← 返回") }
+                Row {
+                    TextButton(onClick = { nav.navigate("camera") }) { Text("📷 重新拍摄") }
+                    TextButton(onClick = { nav.popBackStack() }) { Text("← 返回") }
+                }
             }
         }
     }
