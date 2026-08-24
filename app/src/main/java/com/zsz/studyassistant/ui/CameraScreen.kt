@@ -12,6 +12,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,6 +36,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -107,19 +117,28 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
 
-        Button(
+        // 从图库选图（左下角，圆角正方形 + 花瓣图标）
+        Surface(
             onClick = {
                 galleryLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             },
+            enabled = !vm.busy,
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(24.dp),
-            enabled = !vm.busy
-        ) { Text("🖼️ 相册搜题") }
+                .padding(20.dp)
+                .size(60.dp)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                FlowerIcon(size = 34.dp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        }
 
-        Button(
+        // 拍照解题（底部居中，圆形快门按钮）
+        Surface(
             onClick = {
                 val file = File.createTempFile("capture", ".jpg", context.cacheDir)
                 val options = ImageCapture.OutputFileOptions.Builder(file).build()
@@ -139,11 +158,18 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 )
             },
+            enabled = !vm.busy,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(24.dp),
-            enabled = !vm.busy
-        ) { Text(if (vm.busy) "识别解答中..." else "📸 拍照解答") }
+                .padding(20.dp)
+                .size(76.dp)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                ShutterIcon(size = 40.dp, color = Color.White)
+            }
+        }
 
         TextButton(
             onClick = { nav.popBackStack() },
@@ -162,3 +188,34 @@ private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider
             ContextCompat.getMainExecutor(context)
         )
     }
+
+/** 快门图标：外环 + 中心（相机光圈） */
+@Composable
+private fun ShutterIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
+    Canvas(Modifier.size(size)) {
+        val c = center
+        val r = this.size.minDimension / 2f
+        drawCircle(color = color, radius = r, center = c)
+        drawCircle(color = Color(0x33000000), radius = r * 0.52f, center = c)
+        drawCircle(color = color, radius = r * 0.5f, center = c)
+    }
+}
+
+/** 花瓣图标：四片花瓣环绕中心点（图库） */
+@Composable
+private fun FlowerIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
+    Canvas(Modifier.size(size)) {
+        val c = center
+        val r = this.size.minDimension / 5f
+        for (i in 0 until 4) {
+            rotate(i * 90f, c) {
+                drawOval(
+                    color = color,
+                    topLeft = Offset(c.x - r * 0.5f, c.y - r * 2f),
+                    size = Size(r, r * 2f)
+                )
+            }
+        }
+        drawCircle(color = color, radius = r * 0.6f, center = c)
+    }
+}

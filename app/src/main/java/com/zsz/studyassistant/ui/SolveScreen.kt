@@ -51,14 +51,20 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("题目与解答") },
+                title = { Text("解题") },
                 navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
                 actions = {
                     TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
                         Text("🔄 重新生成")
                     }
-                    TextButton(onClick = { vm.saveToNotebook() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
-                        Text("📚 存错题本")
+                    TextButton(
+                        onClick = { vm.toggleSaveNotebook() },
+                        enabled = vm.chatItems.isNotEmpty() && !vm.busy
+                    ) {
+                        Text(
+                            if (vm.savedToNotebook) "已存错题" else "📚 存错题本",
+                            color = if (vm.savedToNotebook) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             )

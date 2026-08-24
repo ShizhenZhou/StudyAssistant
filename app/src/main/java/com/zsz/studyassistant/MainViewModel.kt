@@ -59,6 +59,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         questionText = ""
         imageBytes = null
         error = null
+        savedToNotebook = false
+        savedQuestionId = null
     }
 
     private fun friendlyError(e: Exception, fallback: String): String {
@@ -161,18 +163,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 加入错题本：题目 + 最后一次助手解答 + 框选原图 */
-    fun saveToNotebook() {
-        val items = chatItems
-        val q = items.firstOrNull { it.role == "question" }?.content ?: questionText
-        val a = items.lastOrNull { it.role == "assistant" }?.content ?: ""
-        if (q.isBlank() || a.isBlank()) return
-        viewModelScope.launch {
-            dao.insert(Question(text = q, answer = a, imageBytes = imageBytes))
+    /** 加入/取消错题本（切换）：已存则删除，未存则保存 */
+    fun toggleSaveNotebook() {
+        if (savedToNotebook) {
+            savedQuestionId?.let { id -> viewModelScope.launch { dao.deleteById(id) } }
+            savedToNotebook = false
+            savedQuestionId = null
+        } else {
+            val items = chatItems
+            val q = items.firstOrNull { it.role == "question" }?.content ?: questionText
+            val a = items.lastOrNull { it.role == "assistant" }?.content ?: ""
+            if (q.isBlank() || a.isBlank()) return
+            viewModelScope.launch {
+                val id = dao.insert(Question(text = q, answer = a, imageBytes = imageBytes))
+                savedQuestionId = id
+                savedToNotebook = true
+            }
         }
     }
 
     fun deleteFromNotebook(q: Question) {
         viewModelScope.launch { dao.delete(q) }
     }
+
+    /** 选中某条错题（用于跳转详情页） */
+    fun viewQuestion(q: Question) { selectedQuestion = q }
+
+    /** 当前是否已存入错题本 */
+    var savedToNotebook by mutableStateOf(false)
+        private set
+    private var savedQuestionId: Long? = null
+    var selectedQuestion by mutableStateOf<Question?>(null)
+        private set
 }

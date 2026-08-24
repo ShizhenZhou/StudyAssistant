@@ -5,20 +5,16 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,9 +26,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -74,70 +67,50 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(questions, key = { it.id }) { q ->
-                    NotebookItem(q, onDelete = { vm.deleteFromNotebook(q) })
+                    NotebookItem(q, onClick = {
+                        vm.viewQuestion(q)
+                        nav.navigate("detail")
+                    })
                 }
             }
         }
     }
 }
 
-/** 错题卡片：显示框选原图，点击展开查看解答（LaTeX 渲染） */
+/** 错题条目：只显示题目图片（无图显示文字），单击进入详情页 */
 @Composable
-private fun NotebookItem(q: Question, onDelete: () -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
+private fun NotebookItem(q: Question, onClick: () -> Unit) {
     val bitmap = q.imageBytes?.let {
         try { BitmapFactory.decodeByteArray(it, 0, it.size) } catch (e: Exception) { null }
     }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { expanded = !expanded }
+            .clickable(onClick = onClick)
     ) {
-        Column(Modifier.padding(12.dp)) {
-            // 原图（有图）或文字题目
+        Column(Modifier.padding(10.dp)) {
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "错题原图",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = if (expanded) 320.dp else 200.dp),
+                        .heightIn(max = 180.dp),
                     contentScale = ContentScale.Fit
                 )
             } else {
                 Text(
                     q.text.replace('\n', ' '),
-                    maxLines = if (expanded) 8 else 3,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
-
-            Spacer(Modifier.height(6.dp))
             Text(
-                if (expanded) "▲ 收起" else "▼ 点开查看解答",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(q.createdAt)),
+                modifier = Modifier.padding(top = 6.dp),
+                style = MaterialTheme.typography.labelSmall
             )
-
-            // 解答（展开时，LaTeX 排版）
-            if (expanded && q.answer.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                LatexText(q.answer)
-            }
-
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(q.createdAt)),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除")
-                }
-            }
         }
     }
 }
