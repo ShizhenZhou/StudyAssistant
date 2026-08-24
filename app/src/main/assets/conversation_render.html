@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="katex/katex.min.css">
+<script src="katex/katex.min.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:transparent;color:#111;}
+  body{padding:10px 8px;font-size:16px;line-height:1.6;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;overflow-x:hidden;}
+  .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:15px;line-height:1.6;}
+  .bubble.assistant{background:#E9E9E9;color:#111;align-self:flex-start;border:1px solid #ddd;}
+  .bubble.user{background:#D8F2D8;color:#111;align-self:flex-end;border:1px solid #bfe6bf;}
+  .katex{font-size:1.1em;}
+  .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:6px 0;}
+</style>
+</head>
+<body><div id="out"></div>
+<script>
+var PH='\uE000';
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function tokenize(t){
+  var re=/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\begin\{[a-zA-Z*]+\}[\s\S]*?\\end\{[a-zA-Z*]+\}|\$[^$\n]+\$/g;
+  var store=[],last=0,m,out='';
+  while((m=re.exec(t))!==null){ if(m.index>last) out+=t.slice(last,m.index); store.push(m[0]); out+=PH+(store.length-1)+PH; last=m.index+m[0].length; }
+  if(last<t.length) out+=t.slice(last);
+  return {text:out,store:store};
+}
+function mdToHtml(s){
+  var lines=s.split('\n'),out='',ol=false,ul=false,pre=false,preBuf=[];
+  function closeList(){ if(ol){out+='</ol>';ol=false;} if(ul){out+='</ul>';ul=false;} }
+  function inline(t){
+    t=t.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>');
+    t=t.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
+    return t;
+  }
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    if(/^\s*```/.test(line)){ if(!pre){pre=true;preBuf=[];} else {pre=false;out+='<pre>'+esc(preBuf.join('\n'))+'</pre>';} continue; }
+    if(pre){preBuf.push(line);continue;}
+    var t=inline(line);
+    var h=t.match(/^(#{1,4})\s+(\S.*)$/); if(h){closeList();var n=h[1].length;out+='<h'+n+'>'+h[2]+'</h'+n+'>';continue;}
+    if(/^\s*---+\s*$/.test(t)){closeList();out+='<hr>';continue;}
+    if(/^\s*[-*]\s+/.test(t)){ if(!ul){closeList();out+='<ul>';ul=true;} out+='<li>'+t.replace(/^\s*[-*]\s+/,'')+'</li>';continue; }
+    if(/^\s*\d+\.\s+/.test(t)){ if(!ol){closeList();out+='<ol>';ol=true;} out+='<li>'+t.replace(/^\s*\d+\.\s+/,'')+'</li>';continue; }
+    out+=t+'<br>';
+  }
+  if(pre){out+='<pre>'+esc(preBuf.join('\n'))+'</pre>';}
+  closeList(); return out;
+}
+function renderOne(raw){
+  var tex=raw,display=false;
+  if(/^\$\$/.test(raw)){tex=raw.slice(2,-2);display=true;}
+  else if(/^\\\[/.test(raw)){tex=raw.slice(2,-2);display=true;}
+  else if(/^\\\(/.test(raw)){tex=raw.slice(2,-2);display=false;}
+  else if(/^\\begin\{/.test(raw)){display=true;}
+  else if(/^\$/.test(raw)){tex=raw.slice(1,-1);display=false;}
+  try{ var r=katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false}); return display?'<div class="katex-display">'+r+'</div>':r; }catch(e){ return esc(raw); }
+}
+function renderMath(text){
+  var tok=tokenize(text||''), body=mdToHtml(esc(tok.text));
+  return body.replace(/[\uE000](\d+)\uE000/g,function(m,idx){return renderOne(tok.store[+idx]);});
+}
+function renderMessages(arr){
+  var html='';
+  for(var i=0;i<arr.length;i++){
+    var m=arr[i], cls=(m.role==='assistant')?'assistant':'user';
+    html+='<div class="bubble '+cls+'">'+renderMath(m.content||'')+'</div>';
+  }
+  document.getElementById('out').innerHTML=html;
+  setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
+}
+</script>
+</body></html>

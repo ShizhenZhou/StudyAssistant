@@ -43,13 +43,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var followUp by remember { mutableStateOf("") }
     val hasKey = vm.hasApiKey()
 
-    // 对话正文（不含题目；题目用上方图片/文字单独显示）
-    val conv = vm.chatItems
-        .filter { it.role != "question" }
-        .joinToString("\n\n") { c ->
-            if (c.role == "assistant") c.content else "**追问：**\n" + c.content
-        }
-    val questionText = vm.chatItems.firstOrNull { it.role == "question" }?.content.orEmpty()
+    // 对话消息：照片模式排除文字题目(用上方原图显示)；文字模式题目作为 user 气泡
+    val messages = vm.chatItems
+        .filter { it.role != "question" || vm.imageBytes == null }
+        .map { c -> ChatMsg(role = if (c.role == "assistant") "assistant" else "user", content = c.content) }
 
     Scaffold(
         topBar = {
@@ -86,19 +83,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            // 题目（原图折叠显示 / 文字）
-            if (vm.chatItems.any { it.role == "question" }) {
-                if (vm.imageBytes != null) {
-                    CollapsibleQuestionImage(vm.imageBytes)
-                } else if (questionText.isNotBlank()) {
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-                        Text(questionText, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
+            // 题目（照片模式：折叠原图）
+            if (vm.imageBytes != null) {
+                CollapsibleQuestionImage(vm.imageBytes)
             }
 
-            // 对话正文：固定区域 + WebView 内部滚动（滚动条常驻）
-            if (conv.isBlank() && vm.chatItems.isEmpty()) {
+            // 对话正文：固定区域 + WebView 内部滚动（滚动条常驻，聊天气泡）
+            if (vm.chatItems.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
                         "正在等待题目…\n（拍照后会出现题目与解答）",
@@ -108,7 +99,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             } else {
                 ConversationWebView(
-                    content = conv,
+                    messages = messages,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
