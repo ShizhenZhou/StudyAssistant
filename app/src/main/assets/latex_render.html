@@ -96,8 +96,10 @@ function fitWideDisplay(){
 }
 
 function reportHeight(){
-  var h=document.documentElement.scrollHeight||document.body.scrollHeight;
-  if(window.Android&&h>0) Android.onHeightChange(h);
+  // 用内容元素 #out 的实际高度(非视口高度)，避免短内容被撑到全屏
+  var out=document.getElementById('out');
+  var h=out?out.getBoundingClientRect().height+12:0;
+  if(window.Android&&h>0) Android.onHeightChange(Math.round(h));
 }
 
 function loadText(t){

@@ -22,15 +22,15 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 /**
  * 用 WebView + KaTeX 渲染含 LaTeX 的内容。
- * - 高度 = 内容高度，但**只增不减**（取测量最大值，避免抖动缩小导致裁剪）
- * - 超过 maxHeight 时，**WebView 内部上下滚动**（标准 WebView，滚动条常驻），保证长答案可完整浏览
+ * - 高度 = #out 内容真实高度（短=短，长=长），只增不减防抖动，上限 maxHeight
+ * - **标准 WebView，内部上下滚动（滚动条常驻）** —— 内容超过上限时在框内滚动，保证可完整看答案
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun LatexText(content: String, maxHeight: Dp = 1200.dp, modifier: Modifier = Modifier) {
+fun LatexText(content: String, maxHeight: Dp = 700.dp, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val currentContent by rememberUpdatedState(content)
-    var height by remember { mutableStateOf(with(density) { 80.dp }) }
+    var height by remember { mutableStateOf(with(density) { 60.dp }) }
     var loaded by remember { mutableStateOf(false) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
@@ -49,7 +49,6 @@ fun LatexText(content: String, maxHeight: Dp = 1200.dp, modifier: Modifier = Mod
                     fun onHeightChange(h: Int) {
                         if (h > 0) mainHandler.post {
                             val nh = with(density) { h.toFloat().toDp() }
-                            // 只增不减；超上限则固定在上限，交由 WebView 内部滚动
                             val target = if (nh > maxHeight) maxHeight else nh
                             if (target > height) height = target
                         }
