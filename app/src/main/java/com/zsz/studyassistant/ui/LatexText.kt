@@ -16,43 +16,42 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 
 /**
- * 用 WebView + KaTeX(auto-render) 渲染含 LaTeX 的内容，自动测量高度。
- * 支持 $$..$$、\[..\]、\(..\)、$..$、\begin{align} 等常见分隔符。
+ * 用 WebView + KaTeX 渲染含 LaTeX 的内容。
+ * 高度自适应内容；当内容超过 maxHeight 时，WebView 自身上下滚动（保证长答案可看全）。
+ * 支持 $$..$$、\[..\]、\(..\)、$..$、\begin{align} 等分隔符 + Markdown。
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun LatexText(content: String, modifier: Modifier = Modifier) {
+fun LatexText(content: String, maxHeight: Dp = 600.dp, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val currentContent by rememberUpdatedState(content)
-    var height by remember { mutableStateOf(with(density) { 28.dp }) }
+    var height by remember { mutableStateOf(with(density) { 60.dp }) }
     var loaded by remember { mutableStateOf(false) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    val maxPx = with(density) { maxHeight.toPx() }
 
     AndroidView(
         factory = { ctx ->
-            NoScrollWebView(ctx).apply {
+            WebView(ctx).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = true
                 settings.allowContentAccess = true
                 @Suppress("DEPRECATION")
                 settings.allowFileAccessFromFileURLs = true
-                // 禁止 WebView 自身滚动，交给外层 LazyColumn 滚动
-                isVerticalScrollBarEnabled = false
-                isHorizontalScrollBarEnabled = false
-                overScrollMode = android.view.View.OVER_SCROLL_NEVER
                 setBackgroundColor(Color.TRANSPARENT)
                 addJavascriptInterface(object {
                     @JavascriptInterface
                     fun onHeightChange(h: Int) {
                         if (h > 0) mainHandler.post {
-                            // 取最大值，避免字面加载后高度回缩
                             val newH = with(density) { h.toFloat().toDp() }
-                            if (newH > height) height = newH
+                            // 不超过 maxHeight，超出部分交给 WebView 内部滚动
+                            height = if (newH > maxHeight) maxHeight else newH
                         }
                     }
                 }, "Android")
