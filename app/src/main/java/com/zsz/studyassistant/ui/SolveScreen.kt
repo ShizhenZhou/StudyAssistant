@@ -1,11 +1,14 @@
 package com.zsz.studyassistant.ui
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,7 +100,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(vm.chatItems, key = { it.id }) { item ->
-                        ChatBubble(item)
+                        // 题目项：有原图则显示可折叠图片，否则显示文字
+                        if (item.role == "question" && vm.imageBytes != null) {
+                            CollapsibleQuestionImage(vm.imageBytes)
+                        } else {
+                            ChatBubble(item)
+                        }
                     }
                     if (vm.busy) {
                         item(key = "typing") {
@@ -161,6 +171,34 @@ private fun ChatBubble(item: ChatItem) {
                 } else {
                     Text(item.content, style = MaterialTheme.typography.bodyLarge)
                 }
+            }
+        }
+    }
+}
+
+/** 折叠的原题图片：默认一小条，点击展开当初框选的图 */
+@Composable
+private fun CollapsibleQuestionImage(imageBytes: ByteArray?) {
+    if (imageBytes == null) return
+    var expanded by remember { mutableStateOf(false) }
+    val bitmap = remember(imageBytes) {
+        try { BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) } catch (e: Exception) { null }
+    }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        Column(Modifier.padding(8.dp)) {
+            TextButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (expanded) "▴ 收起原题图片" else "▾ 点击查看原题图片")
+            }
+            if (expanded && bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "原题图片",
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    contentScale = ContentScale.Fit
+                )
             }
         }
     }

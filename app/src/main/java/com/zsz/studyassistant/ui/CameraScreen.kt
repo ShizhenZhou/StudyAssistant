@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -87,6 +88,36 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         }
 
         AndroidView({ previewView }, modifier = Modifier.fillMaxSize())
+
+        // 从相册选图 → 转存临时文件 → 进入框选页
+        val galleryLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                try {
+                    val file = File.createTempFile("gallery", ".jpg", context.cacheDir)
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        file.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    vm.updatePendingImagePath(file.absolutePath)
+                    nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
+                } catch (e: Exception) {
+                    vm.showError("读取图片失败：${e.message}")
+                }
+            }
+        }
+
+        Button(
+            onClick = {
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(24.dp),
+            enabled = !vm.busy
+        ) { Text("🖼️ 相册搜题") }
 
         Button(
             onClick = {

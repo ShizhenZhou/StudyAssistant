@@ -32,7 +32,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- 对话流状态 ----
     private val apiMessages = mutableListOf<DeepSeekMessage>()
-    private var imageBytes: ByteArray? = null
+    var imageBytes by mutableStateOf<ByteArray?>(null)   // 框选出的原图(用于解答页折叠显示)
     private var isPhoto = false
     private var questionText = ""
     private var nextId = 0L
