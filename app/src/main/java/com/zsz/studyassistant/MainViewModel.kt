@@ -58,6 +58,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var savedQuestionId: Long? = null
         private set
+    private var saving = false
+    private var cancelPending = false
     private var isPhoto = false
     private var questionText = ""
 
@@ -188,24 +190,64 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 加入/取消错题本（切换），保存完整对话会话 */
+    private fun lastAnswer(): String =
+        chatItems.lastOrNull { it.role == "assistant" }?.content ?: ""
+
+    /** 加入/取消错题本（切换），保存完整对话会话；带去重保护 */
     fun toggleSaveNotebook() {
-        if (savedToNotebook) {
-            savedQuestionId?.let { id -> viewModelScope.launch { dao.deleteById(id) } }
-            savedToNotebook = false
+        if (saving) {
+            // 正在保存中又点击 → 取消此次保存（避免重复）
+            cancelPending = true
+            return
+        }
+        if (savedQuestionId != null) {
+            val id = savedQuestionId
             savedQuestionId = null
+            savedToNotebook = false
+            viewModelScope.launch { dao.deleteById(id!!) }
         } else {
             val q = questionText
-            val a = chatItems.lastOrNull { it.role == "assistant" }?.content ?: ""
-            if (q.isBlank() || a.isBlank()) return
+            if (q.isBlank()) return
             val convJson = json.encodeToString(chatItems)
             val img = imageBytes
+            val a = lastAnswer()
+            saving = true
+            cancelPending = false
             viewModelScope.launch {
                 val id = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson))
-                savedQuestionId = id
-                savedToNotebook = true
+                if (cancelPending) {
+                    dao.deleteById(id)
+                    savedQuestionId = null
+                    savedToNotebook = false
+                    cancelPending = false
+                } else {
+                    savedQuestionId = id
+                    savedToNotebook = true
+                }
+                saving = false
             }
         }
+    }
+
+    /** 退出页面/应用时：若已加入错题本，把当前完整对话更新进该条错题 */
+    fun saveSessionOnExit() {
+        val id = savedQuestionId ?: return
+        if (id <= 0) return
+        val q = questionText
+        val a = lastAnswer()
+        val conv = json.encodeToString(chatItems)
+        val img = imageBytes
+        viewModelScope.launch {
+            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv))
+        }
+    }
+
+    /** 从解题页删除当前已存的这条错题（带确认提示由 UI 处理） */
+    fun deleteSavedQuestion() {
+        val id = savedQuestionId ?: return
+        savedQuestionId = null
+        savedToNotebook = false
+        viewModelScope.launch { dao.deleteById(id) }
     }
 
     fun deleteFromNotebook(q: Question) {

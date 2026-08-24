@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +34,9 @@ interface QuestionDao {
 
     @Insert
     suspend fun insert(q: Question): Long
+
+    @Update
+    suspend fun update(q: Question)
 
     @Delete
     suspend fun delete(q: Question)

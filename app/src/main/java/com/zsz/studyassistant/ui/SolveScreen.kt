@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +43,13 @@ import com.zsz.studyassistant.MainViewModel
 @Composable
 fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var followUp by remember { mutableStateOf("") }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
+
+    // 退出本页时：若已加入错题本，把当前完整对话更新保存
+    DisposableEffect(Unit) {
+        onDispose { vm.saveSessionOnExit() }
+    }
 
     // 对话消息：照片模式排除文字题目(用上方原图显示)；文字模式题目作为 user 气泡
     val messages = vm.chatItems
@@ -66,10 +74,30 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             color = if (vm.savedToNotebook) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
                         )
                     }
+                    if (vm.savedToNotebook) {
+                        TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
+                    }
                 }
             )
         }
     ) { padding ->
+        // 删除确认
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                title = { Text("确认删除") },
+                text = { Text("确定要将这道错题从错题本中删除吗？") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.deleteSavedQuestion()
+                        showDeleteConfirm = false
+                    }) { Text("删除") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+                }
+            )
+        }
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (!hasKey) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
