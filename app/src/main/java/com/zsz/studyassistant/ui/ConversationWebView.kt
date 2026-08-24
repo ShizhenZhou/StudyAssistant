@@ -2,12 +2,9 @@ package com.zsz.studyassistant.ui
 
 import android.annotation.SuppressLint
 import android.graphics.Color
-import android.os.Handler
-import android.os.Looper
-import android.webkit.JavascriptInterface
+import android.view.MotionEvent
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,24 +12,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 
 /**
- * 用 WebView + KaTeX 渲染含 LaTeX 的内容。
- * - 高度 = #out 内容真实高度（短=短，长=长），只增不减防抖动，上限 maxHeight
- * - **标准 WebView，内部上下滚动（滚动条常驻）** —— 内容超过上限时在框内滚动，保证可完整看答案
+ * 对话正文 WebView：占满给定区域(modifier 决定大小)，**内部上下滚动**，
+ * 滚动条常驻、手势不被父级拦截（用于解答区，可靠滚动）。
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun LatexText(content: String, maxHeight: Dp = 700.dp, modifier: Modifier = Modifier) {
-    val density = LocalDensity.current
+fun ConversationWebView(content: String, modifier: Modifier = Modifier) {
     val currentContent by rememberUpdatedState(content)
-    var height by remember { mutableStateOf(with(density) { 60.dp }) }
     var loaded by remember { mutableStateOf(false) }
-    val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
     AndroidView(
         factory = { ctx ->
@@ -45,41 +35,31 @@ fun LatexText(content: String, maxHeight: Dp = 700.dp, modifier: Modifier = Modi
                 settings.allowFileAccessFromFileURLs = true
                 setBackgroundColor(Color.TRANSPARENT)
                 isVerticalScrollBarEnabled = true
-                isScrollbarFadingEnabled = false
-                // 不让父级抢走竖向滚动手势，保证 WebView 内部可滚
+                isScrollbarFadingEnabled = false   // 滚动条常驻
+                // 关键修复：不让父级(LazyColumn/Column)抢走竖向滚动手势
                 setOnTouchListener { _, event ->
                     when (event.actionMasked) {
-                        android.view.MotionEvent.ACTION_DOWN -> parent?.requestDisallowInterceptTouchEvent(true)
-                        android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                        MotionEvent.ACTION_DOWN -> parent?.requestDisallowInterceptTouchEvent(true)
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
                             parent?.requestDisallowInterceptTouchEvent(false)
                     }
                     false
                 }
-                addJavascriptInterface(object {
-                    @JavascriptInterface
-                    fun onHeightChange(h: Int) {
-                        if (h > 0) mainHandler.post {
-                            val nh = with(density) { h.toFloat().toDp() }
-                            val target = if (nh > maxHeight) maxHeight else nh
-                            if (target > height) height = target
-                        }
-                    }
-                }, "Android")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         loaded = true
-                        view?.let { renderLaTeX(it, currentContent) }
+                        view?.let { renderConversation(it, currentContent) }
                     }
                 }
                 loadUrl("file:///android_asset/latex_render.html")
             }
         },
-        update = { v -> if (loaded) renderLaTeX(v, currentContent) },
-        modifier = modifier.height(height)
+        update = { v -> if (loaded) renderConversation(v, currentContent) },
+        modifier = modifier
     )
 }
 
-private fun renderLaTeX(v: WebView, content: String) {
+private fun renderConversation(v: WebView, content: String) {
     val escaped = content
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")

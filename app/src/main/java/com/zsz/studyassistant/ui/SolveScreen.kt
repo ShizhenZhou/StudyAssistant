@@ -3,6 +3,7 @@ package com.zsz.studyassistant.ui
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,8 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +42,14 @@ import com.zsz.studyassistant.MainViewModel
 fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var followUp by remember { mutableStateOf("") }
     val hasKey = vm.hasApiKey()
+
+    // 对话正文（不含题目；题目用上方图片/文字单独显示）
+    val conv = vm.chatItems
+        .filter { it.role != "question" }
+        .joinToString("\n\n") { c ->
+            if (c.role == "assistant") c.content else "**追问：**\n" + c.content
+        }
+    val questionText = vm.chatItems.firstOrNull { it.role == "question" }?.content.orEmpty()
 
     Scaffold(
         topBar = {
@@ -66,7 +72,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
                     Column(Modifier.padding(12.dp)) {
                         Text("⚠️ 尚未配置 DeepSeek API Key", color = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.padding(4.dp))
                         TextButton(onClick = { nav.navigate("settings") }) { Text("去设置") }
                     }
                 }
@@ -81,54 +86,50 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            if (vm.chatItems.isEmpty() && !vm.busy) {
-                Column(
-                    Modifier.weight(1f).fillMaxWidth().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
+            // 题目（原图折叠显示 / 文字）
+            if (vm.chatItems.any { it.role == "question" }) {
+                if (vm.imageBytes != null) {
+                    CollapsibleQuestionImage(vm.imageBytes)
+                } else if (questionText.isNotBlank()) {
+                    Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                        Text(questionText, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+
+            // 对话正文：固定区域 + WebView 内部滚动（滚动条常驻）
+            if (conv.isBlank() && vm.chatItems.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        "正在等待题目…\n（拍照后会自动出现题目与解答）",
+                        "正在等待题目…\n（拍照后会出现题目与解答）",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(vm.chatItems, key = { it.id }) { item ->
-                        // 题目项：有原图则显示可折叠图片，否则显示文字
-                        if (item.role == "question" && vm.imageBytes != null) {
-                            CollapsibleQuestionImage(vm.imageBytes)
-                        } else {
-                            ChatBubble(item)
-                        }
-                    }
-                    if (vm.busy) {
-                        item(key = "typing") {
-                            Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-                                Text(
-                                    "答案生成中……",
-                                    modifier = Modifier.padding(12.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                        }
-                    }
+                ConversationWebView(
+                    content = conv,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                )
+                if (vm.busy) {
+                    Text(
+                        "答案生成中……",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
             }
 
-            // 底部追问输入
+            // 底部：拍下一题 + 追问输入 + 发送
             if (vm.chatItems.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    // 拍下一题（方形相机按钮）
                     Button(
                         onClick = {
                             vm.startNewQuestion()
@@ -160,25 +161,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     }
 }
 
-@Composable
-private fun ChatBubble(item: ChatItem) {
-    val isMine = item.role == "question" || item.role == "user"
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start
-    ) {
-        Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-            Column(Modifier.padding(10.dp)) {
-                if (item.role == "assistant") {
-                    LatexText(item.content)
-                } else {
-                    Text(item.content, style = MaterialTheme.typography.bodyLarge)
-                }
-            }
-        }
-    }
-}
-
 /** 折叠的原题图片：默认一小条，点击展开当初框选的图 */
 @Composable
 private fun CollapsibleQuestionImage(imageBytes: ByteArray?) {
@@ -199,7 +181,7 @@ private fun CollapsibleQuestionImage(imageBytes: ByteArray?) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "原题图片",
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp),
                     contentScale = ContentScale.Fit
                 )
             }
