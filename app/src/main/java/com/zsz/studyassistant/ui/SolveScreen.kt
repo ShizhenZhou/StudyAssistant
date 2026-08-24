@@ -109,11 +109,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                     if (vm.busy) {
                         item(key = "typing") {
-                            Text(
-                                "正在思考…",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
+                            Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                                Text(
+                                    "答案生成中……",
+                                    modifier = Modifier.padding(12.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
                         }
                     }
                 }
