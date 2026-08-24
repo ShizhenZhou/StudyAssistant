@@ -34,7 +34,7 @@ fun LatexText(content: String, modifier: Modifier = Modifier) {
 
     AndroidView(
         factory = { ctx ->
-            WebView(ctx).apply {
+            NoScrollWebView(ctx).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = true
