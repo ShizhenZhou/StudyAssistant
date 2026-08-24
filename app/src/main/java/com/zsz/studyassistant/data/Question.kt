@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "questions")
@@ -17,7 +19,9 @@ data class Question(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val text: String,
     val answer: String,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    // 框选出的错题图片（JPEG 字节，可空；纯文字题为 null）
+    val imageBytes: ByteArray? = null
 )
 
 @Dao
@@ -35,7 +39,14 @@ interface QuestionDao {
     suspend fun clear()
 }
 
-@Database(entities = [Question::class], version = 1, exportSchema = false)
+/** 数据库 1 -> 2：给 questions 表加 imageBytes 列，保留现有错题 */
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE questions ADD COLUMN imageBytes BLOB")
+    }
+}
+
+@Database(entities = [Question::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
@@ -49,7 +60,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "study_assistant.db"
-                ).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
             }
     }
 }

@@ -161,13 +161,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 加入错题本：题目 + 最后一次助手解答 */
+    /** 加入错题本：题目 + 最后一次助手解答 + 框选原图 */
     fun saveToNotebook() {
         val items = chatItems
         val q = items.firstOrNull { it.role == "question" }?.content ?: questionText
         val a = items.lastOrNull { it.role == "assistant" }?.content ?: ""
         if (q.isBlank() || a.isBlank()) return
-        viewModelScope.launch { dao.insert(Question(text = q, answer = a)) }
+        viewModelScope.launch {
+            dao.insert(Question(text = q, answer = a, imageBytes = imageBytes))
+        }
     }
 
     fun deleteFromNotebook(q: Question) {

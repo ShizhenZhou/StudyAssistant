@@ -1,5 +1,8 @@
 package com.zsz.studyassistant.ui
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,8 +30,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -72,23 +81,52 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     }
 }
 
+/** 错题卡片：显示框选原图，点击展开查看解答（LaTeX 渲染） */
 @Composable
 private fun NotebookItem(q: Question, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    var expanded by remember { mutableStateOf(false) }
+    val bitmap = q.imageBytes?.let {
+        try { BitmapFactory.decodeByteArray(it, 0, it.size) } catch (e: Exception) { null }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+    ) {
         Column(Modifier.padding(12.dp)) {
-            Text(
-                q.text.replace('\n', ' '),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyLarge
-            )
+            // 原图（有图）或文字题目
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "错题原图",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = if (expanded) 320.dp else 200.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Text(
+                    q.text.replace('\n', ' '),
+                    maxLines = if (expanded) 8 else 3,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+
             Spacer(Modifier.height(6.dp))
             Text(
-                "解答：${q.answer.replace('\n', ' ')}",
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium
+                if (expanded) "▲ 收起" else "▼ 点开查看解答",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
             )
+
+            // 解答（展开时，LaTeX 排版）
+            if (expanded && q.answer.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                LatexText(q.answer)
+            }
+
             Spacer(Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
