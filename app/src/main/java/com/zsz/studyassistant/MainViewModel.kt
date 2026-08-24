@@ -60,6 +60,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var isFromNotebook by mutableStateOf(false)
         private set
+    var networkError by mutableStateOf(false)
+        private set
+    private var retryAction: (() -> Unit)? = null
     private var saving = false
     private var cancelPending = false
     private var isPhoto = false
@@ -126,20 +129,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         savedQuestionId = null
     }
 
-    private fun runCall(model: String, onDone: (String) -> Unit) {
+    private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
         val messages = buildMessages().toList()
         viewModelScope.launch {
             busy = true
             error = null
+            networkError = false
+            retryAction = null
             try {
                 val reply = StudyAssistant.chatOnce(model, messages)
                 onDone(reply)
             } catch (e: Exception) {
                 error = friendlyError(e, "请求失败")
+                val msg = e.message.orEmpty().lowercase()
+                if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
+                    msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")) {
+                    networkError = true
+                    retryAction = repeat
+                }
             } finally {
                 busy = false
             }
         }
+    }
+
+    /** 网络断开后点击"继续生成"：用最后一次提问内容重新调用 */
+    fun retry() {
+        retryAction?.invoke()
     }
 
     /** 拍照解答 */
@@ -148,12 +164,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         imageBytes = bytes
         isPhoto = true
         isFromNotebook = false
-        runCall(StudyAssistant.MODEL_VISION) { output ->
+        runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
             addItem("question", r.question)
             addItem("assistant", r.answer)
-        }
+        }, repeat = { solveWithImage(bytes) })
     }
 
     /** 文字解答 */
@@ -162,10 +178,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isPhoto = false
         isFromNotebook = false
         questionText = question
-        runCall(StudyAssistant.MODEL_TEXT) { reply ->
+        runCall(StudyAssistant.MODEL_TEXT, onDone = { reply ->
             addItem("question", question)
             addItem("assistant", reply)
-        }
+        }, repeat = { solveText(question) })
     }
 
     /** 接续追问 */
@@ -173,7 +189,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (text.isBlank()) return
         addItem("user", text)
         val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        runCall(model) { reply -> addItem("assistant", reply) }
+        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp() })
+    }
+
+    /** 网络失败后重新发送最后一次追问（不重复添加 user 消息） */
+    private fun retryFollowUp() {
+        val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp() })
     }
 
     /** 重新生成 */
@@ -181,17 +203,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         chatItems = emptyList()
         val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         if (isPhoto) {
-            runCall(model) { output ->
+            runCall(model, onDone = { output ->
                 val r = StudyAssistant.parseVisionOutput(output)
                 questionText = r.question
                 addItem("question", r.question)
                 addItem("assistant", r.answer)
-            }
+            }, repeat = { regenerate() })
         } else {
-            runCall(model) { reply ->
+            runCall(model, onDone = { reply ->
                 addItem("question", questionText)
                 addItem("assistant", reply)
-            }
+            }, repeat = { regenerate() })
         }
     }
 

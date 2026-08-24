@@ -31,9 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -116,6 +118,22 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     Column(Modifier.padding(12.dp)) {
                         Text(err, color = MaterialTheme.colorScheme.error)
                         TextButton(onClick = { vm.clearError() }) { Text("知道了") }
+                    }
+                }
+            }
+
+            // 网络意外断开 → 蓝色下划线"继续生成"，点击后用最后提问内容重新生成
+            if (vm.networkError) {
+                Card(Modifier.fillMaxWidth().padding(8.dp)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("网络连接似乎中断了", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { vm.retry() }) {
+                            Text(
+                                "继续生成",
+                                color = Color(0xFF2196F3),
+                                textDecoration = TextDecoration.Underline
+                            )
+                        }
                     }
                 }
             }
