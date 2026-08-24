@@ -24,7 +24,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.zsz.studyassistant.ui.CameraScreen
 import com.zsz.studyassistant.ui.CropScreen
-import com.zsz.studyassistant.ui.DetailScreen
 import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.NotebookScreen
 import com.zsz.studyassistant.ui.SettingsTab
@@ -59,7 +58,6 @@ class MainActivity : ComponentActivity() {
                                 composable("crop") { CropScreen(nav, viewModel) }
                                 composable("solve") { SolveScreen(nav, viewModel) }
                                 composable("notebook") { NotebookScreen(nav, viewModel) }
-                                composable("detail") { DetailScreen(nav, viewModel) }
                                 composable("settings") { SettingsTab(viewModel) }
                             }
                         }

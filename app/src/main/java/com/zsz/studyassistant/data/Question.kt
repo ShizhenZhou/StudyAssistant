@@ -21,7 +21,9 @@ data class Question(
     val answer: String,
     val createdAt: Long = System.currentTimeMillis(),
     // 框选出的错题图片（JPEG 字节，可空；纯文字题为 null）
-    val imageBytes: ByteArray? = null
+    val imageBytes: ByteArray? = null,
+    // 完整对话会话（chatItems 的 JSON，用于续答）
+    val conversationJson: String? = null
 )
 
 @Dao
@@ -49,7 +51,14 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
-@Database(entities = [Question::class], version = 2, exportSchema = false)
+/** 数据库 2 -> 3：加 conversationJson 列（对话会话） */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE questions ADD COLUMN conversationJson TEXT")
+    }
+}
+
+@Database(entities = [Question::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
@@ -63,7 +72,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "study_assistant.db"
-                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
             }
     }
 }

@@ -68,8 +68,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
             ) {
                 items(questions, key = { it.id }) { q ->
                     NotebookItem(q, onClick = {
-                        vm.viewQuestion(q)
-                        nav.navigate("detail")
+                        vm.loadQuestion(q)
+                        nav.navigate("solve")
                     })
                 }
             }
