@@ -35,6 +35,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun clearError() { error = null }
     fun showError(msg: String) { error = msg }
 
+    /** 把网络/超时异常转成友好提示 */
+    private fun friendlyError(e: Exception, fallback: String): String {
+        val msg = e.message.orEmpty().lowercase()
+        return when {
+            msg.contains("timed out") || msg.contains("timeout") || msg.contains("socket") ->
+                "请求超时了，请检查网络后重试"
+            msg.contains("failed to connect") || msg.contains("unreachable") || msg.contains("connect") ->
+                "无法连接到服务器，请检查网络"
+            else -> e.message ?: fallback
+        }
+    }
+
     /** 拍照后：直接发送图片给 DeepSeek 视觉模型识别并解答 */
     fun solveWithImage(imageBytes: ByteArray) {
         viewModelScope.launch {
@@ -45,7 +57,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 questionText = result.question
                 answer = result.answer
             } catch (e: Exception) {
-                error = e.message ?: "识别/解答失败"
+                error = friendlyError(e, "识别/解答失败")
             } finally {
                 busy = false
             }
@@ -60,7 +72,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 answer = StudyAssistant.solveText(questionText)
             } catch (e: Exception) {
-                error = e.message ?: "解答失败"
+                error = friendlyError(e, "解答失败")
             } finally {
                 busy = false
             }

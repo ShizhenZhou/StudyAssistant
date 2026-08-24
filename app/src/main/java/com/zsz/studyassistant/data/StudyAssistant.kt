@@ -94,7 +94,7 @@ object StudyAssistant {
     private fun JsonElement.asText(): String = (this as? JsonPrimitive)?.content ?: toString()
 
     /** 图片压缩为 JPEG 字节（发送前处理，最大边长 maxDim，质量 quality） */
-    fun compressImage(file: File, maxDim: Int = 1600, quality: Int = 85): ByteArray {
+    fun compressImage(file: File, maxDim: Int = 1280, quality: Int = 80): ByteArray {
         val src = ImageDecoder.createSource(file)
         val bitmap = ImageDecoder.decodeBitmap(src) { decoder, info, _ ->
             val scale = maxOf(info.size.width, info.size.height).toFloat() / maxDim
