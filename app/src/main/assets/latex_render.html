@@ -96,7 +96,7 @@ function fitWideDisplay(){
 }
 
 function reportHeight(){
-  var h=document.body.scrollHeight;
+  var h=document.documentElement.scrollHeight||document.body.scrollHeight;
   if(window.Android&&h>0) Android.onHeightChange(h);
 }
 
