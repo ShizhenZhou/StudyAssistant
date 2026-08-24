@@ -1,3 +1,5 @@
+import java.text.SimpleDateFormat
+import java.util.Date
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -7,6 +9,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.kapt)
 }
+
+// 应用版本（供 versionName 与 APK 命名使用）
+val appVersionName = "0.3.2"
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -18,7 +23,7 @@ android {
         minSdk = 28
         targetSdk = 37
         versionCode = 3
-        versionName = "0.3.2"
+        versionName = appVersionName
     }
 
     buildTypes {
@@ -74,4 +79,23 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     kapt(libs.room.compiler)
+}
+
+// APK naming: StudyAssistant-<version>-<yyyyMMddHHmm>.apk
+tasks.whenTaskAdded {
+    if (name == "assembleDebug") {
+        doLast {
+            try {
+                val src = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+                if (src.exists()) {
+                    val ts = SimpleDateFormat("yyyyMMddHHmm").format(Date())
+                    val name = "StudyAssistant-$appVersionName-$ts.apk"
+                    src.copyTo(src.parentFile.resolve(name), overwrite = true)
+                    println("APK named: $name")
+                }
+            } catch (e: Exception) {
+                // ignore rename failure
+            }
+        }
+    }
 }
