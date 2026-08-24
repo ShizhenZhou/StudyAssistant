@@ -40,11 +40,6 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
     LaunchedEffect(keyOk) { if (!keyOk) showDialog = true }
 
     Box(Modifier.fillMaxSize()) {
-        TextButton(
-            onClick = { nav.navigate("settings") },
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 56.dp, end = 16.dp)
-        ) { Text(if (keyOk) "⚙️" else "⚙️ 填Key") }
-
         Column(
             modifier = Modifier
                 .fillMaxSize()

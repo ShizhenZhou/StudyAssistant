@@ -62,7 +62,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         enabled = vm.chatItems.isNotEmpty() && !vm.busy
                     ) {
                         Text(
-                            if (vm.savedToNotebook) "已存错题" else "📚 存错题本",
+                            if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本",
                             color = if (vm.savedToNotebook) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
                         )
                     }

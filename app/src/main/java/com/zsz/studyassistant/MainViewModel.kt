@@ -26,6 +26,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val dao = AppDatabase.get(app).questionDao()
 
+    // ---- 应用主题（system/light/dark，默认 system）----
+    var theme by mutableStateOf(
+        app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .getString("theme", "system") ?: "system"
+    )
+        private set
+    fun updateTheme(t: String) {
+        theme = t
+        getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit().putString("theme", t).apply()
+    }
+
     /** 错题本数据流 */
     val notebook: StateFlow<List<Question>> =
         dao.getAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
