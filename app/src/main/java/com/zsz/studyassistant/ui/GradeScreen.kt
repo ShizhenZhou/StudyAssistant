@@ -6,15 +6,19 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -48,6 +55,7 @@ import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.StudyAssistant
 import java.io.File
 import kotlin.coroutines.resume
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /** 批改题目：拍照（单张=题目；两张=题目+手写答案）→ AI 批改正误/错误步骤/针对性讲解 */
@@ -77,13 +85,42 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         val previewView = remember { PreviewView(context) }
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
+        var camera by remember { mutableStateOf<Camera?>(null) }
         LaunchedEffect(lifecycleOwner) {
             val p = awaitCameraProvider(context)
             p.unbindAll()
-            p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA,
+            camera = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA,
                 Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }, imageCapture)
         }
-        AndroidView({ previewView }, Modifier.fillMaxSize())
+
+        // 点击对焦：tap 位置显示对焦框并触发 AF
+        var focusPoint by remember { mutableStateOf<Offset?>(null) }
+        var focusDone by remember { mutableStateOf(false) }
+
+        AndroidView(
+            { previewView },
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val pt = previewView.meteringPointFactory.createPoint(offset.x, offset.y)
+                        camera?.cameraControl?.startFocusAndMetering(FocusMeteringAction.Builder(pt).build())
+                        focusPoint = offset
+                        focusDone = false
+                    }
+                }
+        )
+
+        LaunchedEffect(focusPoint) {
+            if (focusPoint != null) {
+                delay(700)
+                focusDone = true
+                delay(900)
+                focusPoint = null
+                focusDone = false
+            }
+        }
+        focusPoint?.let { fp -> FocusRing(center = fp, focused = focusDone) }
 
         // 统一处理一张图片：单张→直接批改；两张→先存题目，再拍/选答案后批改
         val processImage: (ByteArray) -> Unit = { bytes ->
@@ -120,53 +157,57 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             style = MaterialTheme.typography.bodyMedium
         )
 
-        // 图库按钮（左下角，与拍题模式一致）
-        Surface(
-            onClick = {
-                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            },
-            enabled = !vm.gradeBusy,
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 20.dp, bottom = 28.dp).size(60.dp)
+        // 底部三键：图库 / 快门 / 单张·两张切换（同一水平，中心齐平）
+        Row(
+            Modifier.fillMaxWidth().align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FlowerIcon(size = 34.dp) }
-        }
-
-        // 底部居中快门
-        Surface(
-            onClick = {
-                val file = File.createTempFile("grade", ".jpg", context.cacheDir)
-                imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(),
-                    ContextCompat.getMainExecutor(context),
-                    object : ImageCapture.OnImageSavedCallback {
-                        override fun onImageSaved(o: ImageCapture.OutputFileResults) {
-                            processImage(StudyAssistant.compressImage(file))
-                        }
-                        override fun onError(e: ImageCaptureException) { vm.showError("拍照失败：${e.message}") }
-                    })
-            },
-            enabled = !vm.gradeBusy,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp).size(76.dp)
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("📷", style = MaterialTheme.typography.headlineMedium) }
-        }
-
-        // 右下角单张/两张切换（带圆角胶囊形状，明显可点）
-        Surface(
-            onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false },
-            enabled = !vm.gradeBusy,
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
-            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp)
-        ) {
-            Text(
-                if (doubleMode) "两张拍摄" else "单张拍摄",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.labelLarge
-            )
+            // 图库按钮（左下，与拍题模式一致）
+            Surface(
+                onClick = {
+                    galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                enabled = !vm.gradeBusy,
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(60.dp)
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FlowerIcon(size = 34.dp) }
+            }
+            // 快门（拍题页同款）
+            Surface(
+                onClick = {
+                    val file = File.createTempFile("grade", ".jpg", context.cacheDir)
+                    imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(),
+                        ContextCompat.getMainExecutor(context),
+                        object : ImageCapture.OnImageSavedCallback {
+                            override fun onImageSaved(o: ImageCapture.OutputFileResults) {
+                                processImage(StudyAssistant.compressImage(file))
+                            }
+                            override fun onError(e: ImageCaptureException) { vm.showError("拍照失败：${e.message}") }
+                        })
+                },
+                enabled = !vm.gradeBusy,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(76.dp)
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ShutterIcon(size = 40.dp, color = Color.White) }
+            }
+            // 单张/两张切换（带圆角胶囊形状，明显可点）
+            Surface(
+                onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false },
+                enabled = !vm.gradeBusy,
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f)
+            ) {
+                Text(
+                    if (doubleMode) "两张拍摄" else "单张拍摄",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
         }
 
         TextButton(onClick = { nav.popBackStack() }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) { Text("← 返回") }

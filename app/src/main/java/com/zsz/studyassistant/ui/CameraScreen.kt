@@ -6,13 +6,17 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +48,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -54,6 +59,7 @@ import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.StudyAssistant
 import java.io.File
 import kotlin.coroutines.resume
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 @Composable
@@ -89,11 +95,12 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         val previewView = remember { PreviewView(context) }
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
+        var camera by remember { mutableStateOf<Camera?>(null) }
 
         LaunchedEffect(lifecycleOwner) {
             val provider = awaitCameraProvider(context)
             provider.unbindAll()
-            provider.bindToLifecycle(
+            camera = provider.bindToLifecycle(
                 lifecycleOwner,
                 CameraSelector.DEFAULT_BACK_CAMERA,
                 Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) },
@@ -101,7 +108,38 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             )
         }
 
-        AndroidView({ previewView }, modifier = Modifier.fillMaxSize())
+        // 点击对焦：tap 位置显示对焦框并触发 AF
+        var focusPoint by remember { mutableStateOf<Offset?>(null) }
+        var focusDone by remember { mutableStateOf(false) }
+
+        AndroidView(
+            { previewView },
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val pt = previewView.meteringPointFactory.createPoint(offset.x, offset.y)
+                        camera?.cameraControl?.startFocusAndMetering(
+                            FocusMeteringAction.Builder(pt).build()
+                        )
+                        focusPoint = offset
+                        focusDone = false
+                    }
+                }
+        )
+
+        LaunchedEffect(focusPoint) {
+            if (focusPoint != null) {
+                delay(700)
+                focusDone = true
+                delay(900)
+                focusPoint = null
+                focusDone = false
+            }
+        }
+        focusPoint?.let { fp ->
+            FocusRing(center = fp, focused = focusDone)
+        }
 
         // 从相册选图 → 转存临时文件 → 进入框选页
         val galleryLauncher = rememberLauncherForActivityResult(
@@ -196,9 +234,34 @@ private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider
         )
     }
 
+/** 点击对焦框：出现 → 转绿(对焦完成) → 淡出 */
+@Composable
+internal fun FocusRing(center: Offset, focused: Boolean) {
+    val scale by animateFloatAsState(targetValue = if (focused) 1f else 0.7f, label = "focusScale")
+    val alpha by animateFloatAsState(targetValue = if (focused) 1f else 0.55f, label = "focusAlpha")
+    Canvas(Modifier.fillMaxSize()) {
+        val c = center
+        val half = 42f * scale
+        val le = 22f * scale   // 角长
+        val th = 5f            // 线宽
+        val color = if (focused) Color(0xFF4CAF50) else Color.White
+        // 四个 L 形角
+        drawLine(color, Offset(c.x - half, c.y - half), Offset(c.x - half + le, c.y - half), th)
+        drawLine(color, Offset(c.x - half, c.y - half), Offset(c.x - half, c.y - half + le), th)
+        drawLine(color, Offset(c.x + half, c.y - half), Offset(c.x + half - le, c.y - half), th)
+        drawLine(color, Offset(c.x + half, c.y - half), Offset(c.x + half, c.y - half + le), th)
+        drawLine(color, Offset(c.x - half, c.y + half), Offset(c.x - half + le, c.y + half), th)
+        drawLine(color, Offset(c.x - half, c.y + half), Offset(c.x - half, c.y + half - le), th)
+        drawLine(color, Offset(c.x + half, c.y + half), Offset(c.x + half - le, c.y + half), th)
+        drawLine(color, Offset(c.x + half, c.y + half), Offset(c.x + half, c.y + half - le), th)
+        // 中心小点
+        drawCircle(color.copy(alpha = alpha * 0.8f), radius = 3f, center = c)
+    }
+}
+
 /** 快门图标：外环 + 中心（相机光圈） */
 @Composable
-private fun ShutterIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
+internal fun ShutterIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
     Canvas(Modifier.size(size)) {
         val c = center
         val r = this.size.minDimension / 2f

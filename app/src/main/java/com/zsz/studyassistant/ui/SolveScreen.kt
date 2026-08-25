@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -126,16 +127,20 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         }
                     } else {
                         // 拍题解题：重新生成 + 存错题本
+                        val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
                         TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
                             Text("🔄 重新生成")
                         }
                         TextButton(
                             onClick = { vm.toggleSaveNotebook() },
-                            enabled = vm.chatItems.isNotEmpty() && !vm.busy
+                            enabled = saveEnabled
                         ) {
                             Text(
                                 if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本",
-                                color = if (vm.savedToNotebook) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
+                                color = if (!saveEnabled || vm.savedToNotebook)
+                                    MaterialTheme.colorScheme.outline
+                                else
+                                    MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -263,7 +268,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
                 Row(
                     Modifier.fillMaxWidth().padding(12.dp),
-                    verticalAlignment = Alignment.Bottom
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 图库选图按钮（选 1~3 张附在追问里）
                     Surface(
@@ -271,18 +276,19 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         enabled = !vm.busy,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(44.dp)
                     ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("🖼") }
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("🖼", fontSize = 18.sp) }
                     }
                     Spacer(Modifier.width(8.dp))
                     OutlinedTextField(
                         value = followUp,
                         onValueChange = { followUp = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("继续追问（可带图）…") },
+                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                        placeholder = { Text("继续追问（可带图）…", fontSize = 14.sp) },
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                         maxLines = 3,
-                        shape = RoundedCornerShape(24.dp)
+                        shape = RoundedCornerShape(22.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                     Button(
@@ -292,8 +298,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             selectedImages = emptyList()
                         },
                         enabled = followUp.isNotBlank() && !vm.busy,
-                        shape = RoundedCornerShape(24.dp)
-                    ) { Text("发送") }
+                        shape = RoundedCornerShape(22.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                    ) { Text("发送", fontSize = 14.sp) }
                 }
             }
         }
