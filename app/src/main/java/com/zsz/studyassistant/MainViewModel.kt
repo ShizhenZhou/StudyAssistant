@@ -310,6 +310,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 批量改分类：name 非空→新建分类，categoryId 为 null→暂不分类 */
+    fun batchSetCategory(ids: List<Long>, name: String?, categoryId: Long?) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            var cid = categoryId
+            if (!name.isNullOrBlank()) {
+                cid = dao.insertCategory(Category(name = name.trim()))
+            }
+            dao.setCategoryForIds(ids, cid)
+        }
+    }
+
+    /** 批量彻底删除 */
+    fun batchDelete(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch { dao.deleteByIds(ids) }
+    }
+
     /** 退出页面/应用时：若已加入错题本，把当前完整对话更新进该条错题 */
     fun saveSessionOnExit() {
         val id = savedQuestionId ?: return

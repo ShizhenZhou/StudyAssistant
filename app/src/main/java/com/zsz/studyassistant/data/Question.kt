@@ -68,6 +68,14 @@ interface QuestionDao {
     @Query("DELETE FROM questions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    // 批量：改分类（cid = null → 暂不分类），支持空列表直接返回
+    @Query("UPDATE questions SET categoryId = :cid WHERE id IN (:ids)")
+    suspend fun setCategoryForIds(ids: List<Long>, cid: Long?)
+
+    // 批量：彻底删除
+    @Query("DELETE FROM questions WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
     @Query("UPDATE questions SET deleted = 1 WHERE id = :id")
     suspend fun softDelete(id: Long)
 

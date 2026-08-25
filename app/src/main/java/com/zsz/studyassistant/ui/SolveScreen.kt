@@ -386,7 +386,7 @@ private fun CollapsibleQuestionImage(imageBytes: ByteArray?) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryDialog(
+internal fun CategoryDialog(
     title: String,
     categories: List<Category>,
     initialSelectedId: Long?,
