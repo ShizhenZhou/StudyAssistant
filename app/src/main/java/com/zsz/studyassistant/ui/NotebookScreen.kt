@@ -7,13 +7,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -50,7 +53,8 @@ import java.util.Locale
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val questions by vm.notebook.collectAsState()
     val categories by vm.categories.collectAsState()
-    var filterCategoryId by remember { mutableStateOf<Long?>(null) }
+    var filterCategoryId by remember { mutableStateOf<Long?>(null) } // null = 全部
+    var showUncategorized by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -65,39 +69,58 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // 分类筛选 chips
+            // 分类筛选 chips（全部 / 未分类 / 各分类）
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
                     FilterChip(
-                        selected = filterCategoryId == null,
-                        onClick = { filterCategoryId = null },
+                        selected = filterCategoryId == null && !showUncategorized,
+                        onClick = { filterCategoryId = null; showUncategorized = false },
                         label = { Text("全部") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = showUncategorized,
+                        onClick = { showUncategorized = true; filterCategoryId = null },
+                        label = { Text("未分类") }
                     )
                 }
                 items(categories, key = { it.id }) { c ->
                     FilterChip(
-                        selected = filterCategoryId == c.id,
-                        onClick = { filterCategoryId = c.id },
+                        selected = filterCategoryId == c.id && !showUncategorized,
+                        onClick = { filterCategoryId = c.id; showUncategorized = false },
                         label = { Text(c.name) }
                     )
                 }
             }
 
-            val filtered = if (filterCategoryId == null) questions else questions.filter { it.categoryId == filterCategoryId }
+            val filtered = when {
+                showUncategorized -> questions.filter { it.categoryId == null }
+                filterCategoryId != null -> questions.filter { it.categoryId == filterCategoryId }
+                else -> questions
+            }
             if (filtered.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (filterCategoryId == null) "还没有错题，去拍照搜题吧 📷" else "该分类下暂无错题")
+                    Text(
+                        when {
+                            showUncategorized -> "还没有「未分类」的错题"
+                            filterCategoryId != null -> "该分类下暂无错题"
+                            else -> "还没有错题，去拍照搜题吧 📷"
+                        }
+                    )
                 }
             } else {
-                LazyColumn(
+                LazyVerticalStaggeredGrid(
+                    columns = StaggeredGridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalItemSpacing = 8.dp
                 ) {
-                    items(filtered, key = { it.id }) { q ->
+                    // 瀑布流：卡片高度随图片比例错开，新→旧 从左到右、从上到下
+                    staggeredItems(filtered, key = { it.id }) { q ->
                         NotebookItem(q, onClick = {
                             vm.loadQuestion(q)
                             nav.navigate("solve")
@@ -109,7 +132,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     }
 }
 
-/** 错题条目：只显示题目图片（无图显示文字），单击进入详情页 */
+/** 错题条目（双列瀑布流卡片）：图片按比例显示（错开），无图显示文字，单击进入详情页 */
 @Composable
 private fun NotebookItem(q: Question, onClick: () -> Unit) {
     val bitmap = q.imageBytes?.let {
@@ -117,29 +140,31 @@ private fun NotebookItem(q: Question, onClick: () -> Unit) {
     }
     Card(
         modifier = Modifier
+            .padding(horizontal = 4.dp)
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Column(Modifier.padding(10.dp)) {
+        Column(Modifier.padding(8.dp)) {
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "错题原图",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 180.dp),
+                        .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat()),
                     contentScale = ContentScale.Fit
                 )
             } else {
                 Text(
                     q.text.replace('\n', ' '),
-                    maxLines = 3,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
             Text(
-                SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(q.createdAt)),
+                SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(q.createdAt)),
                 modifier = Modifier.padding(top = 6.dp),
                 style = MaterialTheme.typography.labelSmall
             )
