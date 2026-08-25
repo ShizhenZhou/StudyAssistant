@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -192,7 +193,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ShutterIcon(size = 40.dp, color = Color.White) }
         }
 
-        // 单张/两张切换（右下，缩小）
+        // 单张/两张切换（右下，正常大小）
         Surface(
             onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false },
             enabled = !vm.gradeBusy,
@@ -200,7 +201,8 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 36.dp).height(44.dp)
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            // 宽度随文字自适应（fillMaxSize 会撑满整屏，勿用）
+            Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
                 Text(if (doubleMode) "两张" else "单张", style = MaterialTheme.typography.labelLarge)
             }
         }
