@@ -153,7 +153,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             },
                             enabled = saveEnabled
                         ) {
-                            Text(if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本")
+                            val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
+                            if (vm.savedToNotebook && saveEnabled) {
+                                // 已存且可用：绿色表示已存入错题本
+                                Text(label, color = Color(0xFF4CAF50))
+                            } else {
+                                // 其它交给 M3：busy 时自动变暗，与「重新生成」一致
+                                Text(label)
+                            }
                         }
                     }
                 }
