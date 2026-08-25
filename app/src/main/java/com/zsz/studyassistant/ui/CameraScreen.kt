@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
@@ -163,6 +166,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(20.dp)
                 .size(76.dp)
         ) {
@@ -175,6 +179,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             onClick = { nav.popBackStack() },
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .statusBarsPadding()
                 .padding(8.dp)
         ) { Text("← 返回") }
     }
@@ -201,21 +206,28 @@ private fun ShutterIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
     }
 }
 
-/** 花瓣图标：四片花瓣环绕中心点（图库） */
+/** 花瓣图标：6 片渐变花瓣环绕中心（图库），更美观 */
 @Composable
 private fun FlowerIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
     Canvas(Modifier.size(size)) {
         val c = center
-        val r = this.size.minDimension / 5f
-        for (i in 0 until 4) {
-            rotate(i * 90f, c) {
+        val r = this.size.minDimension / 5.2f
+        // 花瓣渐变：由花瓣中心向外渐淡（径向渐变）
+        val brush = Brush.radialGradient(
+            colors = listOf(color, color.copy(alpha = 0.30f)),
+            center = c,
+            radius = this.size.minDimension * 0.5f
+        )
+        for (i in 0 until 6) {
+            rotate(i * 60f, c) {
                 drawOval(
-                    color = color,
-                    topLeft = Offset(c.x - r * 0.5f, c.y - r * 2f),
-                    size = Size(r, r * 2f)
+                    brush = brush,
+                    topLeft = Offset(c.x - r * 0.52f, c.y - r * 2.2f),
+                    size = Size(r, r * 2.2f)
                 )
             }
         }
-        drawCircle(color = color, radius = r * 0.6f, center = c)
+        drawCircle(color = Color.White, radius = r * 0.5f, center = c)
+        drawCircle(color = color, radius = r * 0.3f, center = c)
     }
 }
