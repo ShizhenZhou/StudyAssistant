@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -37,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
+import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.StudyAssistant
 import java.io.File
 
@@ -64,6 +69,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
+    val categories by vm.categories.collectAsState()
+    var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
 
     // 从相册选 1~3 张图，附到追问消息里
     val imagePicker = rememberLauncherForActivityResult(
@@ -125,6 +132,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         } else {
                             TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
                         }
+                        // 分类（已保存时可改）
+                        val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
+                        TextButton(onClick = { categoryDialogFor = "change" }) {
+                            Text(if (curCat != null) "📁 ${curCat.name}" else "📁 暂不分类")
+                        }
                     } else {
                         // 拍题解题：重新生成 + 存错题本
                         val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
@@ -132,7 +144,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             Text("🔄 重新生成")
                         }
                         TextButton(
-                            onClick = { vm.toggleSaveNotebook() },
+                            onClick = {
+                                if (vm.savedToNotebook) {
+                                    vm.unsaveFromNotebook()
+                                } else {
+                                    categoryDialogFor = "save"
+                                }
+                            },
                             enabled = saveEnabled
                         ) {
                             Text(
@@ -164,6 +182,31 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
                 }
             )
+        }
+        // 分类选择对话框（存题 / 改分类）
+        when (categoryDialogFor) {
+            "save" -> {
+                val default = vm.suggestedCategory
+                val initId = categories.firstOrNull { it.name == default }?.id
+                CategoryDialog(
+                    title = "选择分类",
+                    categories = categories,
+                    initialSelectedId = initId,
+                    initialNewName = if (initId == null) default else null,
+                    onConfirm = { name, cid -> vm.saveToNotebook(name, cid); categoryDialogFor = null },
+                    onDismiss = { categoryDialogFor = null }
+                )
+            }
+            "change" -> {
+                CategoryDialog(
+                    title = "修改分类",
+                    categories = categories,
+                    initialSelectedId = vm.currentQuestionCategoryId,
+                    initialNewName = null,
+                    onConfirm = { name, cid -> vm.changeCurrentCategory(name, cid); categoryDialogFor = null },
+                    onDismiss = { categoryDialogFor = null }
+                )
+            }
         }
         Column(Modifier.fillMaxSize().imePadding().padding(padding)) {
             if (!hasKey) {
@@ -333,4 +376,78 @@ private fun CollapsibleQuestionImage(imageBytes: ByteArray?) {
             }
         }
     }
+}
+
+/**
+ * 分类选择对话框：暂不分类 / 已有分类 / 新建分类。
+ * initialNewName 非空 → 进入新建模式；否则按 initialSelectedId（null=暂不分类）。
+ * onConfirm(name, categoryId)：name 非空表示新建分类，categoryId 为 null 表示暂不分类。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryDialog(
+    title: String,
+    categories: List<Category>,
+    initialSelectedId: Long?,
+    initialNewName: String?,
+    onConfirm: (name: String?, categoryId: Long?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selId by remember { mutableStateOf(initialSelectedId) }
+    var newMode by remember { mutableStateOf(!initialNewName.isNullOrBlank()) }
+    var newName by remember { mutableStateOf(initialNewName ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Text("请选择分类，或新建一个", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                FilterChip(
+                    selected = !newMode && selId == null,
+                    onClick = { selId = null; newMode = false },
+                    label = { Text("暂不分类") }
+                )
+                Spacer(Modifier.height(4.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(categories, key = { it.id }) { c ->
+                        FilterChip(
+                            selected = !newMode && selId == c.id,
+                            onClick = { selId = c.id; newMode = false },
+                            label = { Text(c.name) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                FilterChip(
+                    selected = newMode,
+                    onClick = { newMode = true },
+                    label = { Text("➕ 新建分类") }
+                )
+                if (newMode) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("分类名") },
+                        singleLine = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (newMode && newName.isNotBlank()) {
+                    onConfirm(newName.trim(), null)
+                } else {
+                    onConfirm(null, selId)
+                }
+            }) { Text("保存") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }

@@ -27,7 +27,7 @@ object StudyAssistant {
         }
     }
 
-    data class SolveResult(val question: String, val answer: String)
+    data class SolveResult(val question: String, val answer: String, val category: String? = null)
 
     /** 视觉模型首条用户消息（文字 + 图片） */
     fun visionUserMessage(imageBytes: ByteArray): DeepSeekMessage {
@@ -39,7 +39,8 @@ object StudyAssistant {
                     "text",
                     "请识别图片中的理工科题目并给出详细分步解答。" +
                         "先输出一行“题目：<识别到的题目>”，再输出“解答：<详细步骤与结论>”。" +
-                        "数学公式请用 LaTeX 书写。"
+                        "解答最后另起一行输出“分类：<所属科目>”（如：高等数学、线性代数、概率论与数理统计、大学物理、英语等），" +
+                        "只用一句简短科目名，不要写其它内容。数学公式请用 LaTeX 书写。"
                 )
             }
             addJsonObject {
@@ -125,13 +126,15 @@ object StudyAssistant {
             ?: throw IllegalStateException("批改返回为空")
     }
 
-    /** 从视觉模型输出中分离「题目」与「解答」 */
+    /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
     fun parseVisionOutput(output: String): SolveResult {
         val question = Regex("题目[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
         val answer = Regex("解答[:：]([\\s\\S]+)").find(output)?.groupValues?.get(1)?.trim()
+        val category = Regex("分类[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
         return SolveResult(
             question = question?.takeIf { it.isNotBlank() } ?: output.take(80),
-            answer = answer ?: output
+            answer = answer ?: output,
+            category = category?.takeIf { it.isNotBlank() }
         )
     }
 

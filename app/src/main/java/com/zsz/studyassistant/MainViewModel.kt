@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.zsz.studyassistant.data.AppDatabase
+import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
@@ -48,6 +49,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val notebook: StateFlow<List<Question>> =
         dao.getAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 用户自定义分类列表 */
+    val categories: StateFlow<List<Category>> =
+        dao.categories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // ---- 对话流状态 ----
     var imageBytes by mutableStateOf<ByteArray?>(null)
     var chatItems by mutableStateOf<List<ChatItem>>(emptyList())
@@ -69,6 +74,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var isPhoto = false
     private var questionText = ""
 
+    /** AI 推测的科目（存题时作为默认分类建议，可改/可暂不分类） */
+    var suggestedCategory by mutableStateOf<String?>(null)
+        private set
+    /** 当前题目所属分类 id（存题/加载/详情页改分类用；null = 暂不分类） */
+    var currentQuestionCategoryId by mutableStateOf<Long?>(null)
+        private set
+
     /** 框选用：暂存拍照生成的图片文件路径 */
     var pendingImagePath by mutableStateOf<String?>(null)
         private set
@@ -87,6 +99,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         savedToNotebook = false
         savedQuestionId = null
         isFromNotebook = false
+        suggestedCategory = null
+        currentQuestionCategoryId = null
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
@@ -137,6 +151,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         savedToNotebook = false
         savedQuestionId = null
+        suggestedCategory = null
+        currentQuestionCategoryId = null
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
@@ -177,6 +193,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
+            suggestedCategory = r.category
             addItem("question", r.question)
             addItem("assistant", r.answer)
         }, repeat = { solveWithImage(bytes) })
@@ -188,6 +205,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isPhoto = false
         isFromNotebook = false
         questionText = question
+        suggestedCategory = null
         runCall(StudyAssistant.MODEL_TEXT, onDone = { reply ->
             addItem("question", question)
             addItem("assistant", reply)
@@ -217,6 +235,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runCall(model, onDone = { output ->
                 val r = StudyAssistant.parseVisionOutput(output)
                 questionText = r.question
+                suggestedCategory = r.category
                 addItem("question", r.question)
                 addItem("assistant", r.answer)
             }, repeat = { regenerate() })
@@ -231,39 +250,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun lastAnswer(): String =
         chatItems.lastOrNull { it.role == "assistant" }?.content ?: ""
 
-    /** 加入/取消错题本（切换），保存完整对话会话；带去重保护 */
-    fun toggleSaveNotebook() {
+    /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
+    fun saveToNotebook(name: String?, categoryId: Long?) {
         if (saving) {
-            // 正在保存中又点击 → 取消此次保存（避免重复）
             cancelPending = true
             return
         }
-        if (savedQuestionId != null) {
-            val id = savedQuestionId
-            savedQuestionId = null
-            savedToNotebook = false
-            viewModelScope.launch { dao.deleteById(id!!) }
-        } else {
-            val q = questionText
-            if (q.isBlank()) return
-            val convJson = json.encodeToString(chatItems)
-            val img = imageBytes
-            val a = lastAnswer()
-            saving = true
-            cancelPending = false
-            viewModelScope.launch {
-                val id = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson))
-                if (cancelPending) {
-                    dao.deleteById(id)
-                    savedQuestionId = null
-                    savedToNotebook = false
-                    cancelPending = false
-                } else {
-                    savedQuestionId = id
-                    savedToNotebook = true
-                }
-                saving = false
+        if (savedQuestionId != null) return
+        val q = questionText
+        if (q.isBlank()) return
+        val convJson = json.encodeToString(chatItems)
+        val img = imageBytes
+        val a = lastAnswer()
+        saving = true
+        cancelPending = false
+        viewModelScope.launch {
+            var cid = categoryId
+            if (!name.isNullOrBlank()) {
+                cid = dao.insertCategory(Category(name = name.trim()))
             }
+            currentQuestionCategoryId = cid
+            val id = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson, categoryId = cid))
+            if (cancelPending) {
+                dao.deleteById(id)
+                savedQuestionId = null
+                savedToNotebook = false
+                cancelPending = false
+            } else {
+                savedQuestionId = id
+                savedToNotebook = true
+            }
+            saving = false
+        }
+    }
+
+    /** 取消保存当前错题（从错题本移除） */
+    fun unsaveFromNotebook() {
+        val id = savedQuestionId ?: return
+        savedQuestionId = null
+        savedToNotebook = false
+        currentQuestionCategoryId = null
+        viewModelScope.launch { dao.deleteById(id) }
+    }
+
+    /** 修改当前题目的分类（详情页用）；name 非空→新建分类，categoryId 为 null→暂不分类 */
+    fun changeCurrentCategory(name: String?, categoryId: Long?) {
+        viewModelScope.launch {
+            var cid = categoryId
+            if (!name.isNullOrBlank()) {
+                cid = dao.insertCategory(Category(name = name.trim()))
+            }
+            currentQuestionCategoryId = cid
+            val id = savedQuestionId ?: return@launch
+            val q = questionText
+            val a = lastAnswer()
+            val conv = json.encodeToString(chatItems)
+            val img = imageBytes
+            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = cid))
         }
     }
 
@@ -276,7 +319,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val conv = json.encodeToString(chatItems)
         val img = imageBytes
         viewModelScope.launch {
-            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted))
+            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = currentQuestionCategoryId))
         }
     }
 
@@ -341,6 +384,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         savedQuestionId = q.id
         isFromNotebook = true
         isDeleted = q.deleted
+        currentQuestionCategoryId = q.categoryId
+        suggestedCategory = null
         error = null
     }
 }
