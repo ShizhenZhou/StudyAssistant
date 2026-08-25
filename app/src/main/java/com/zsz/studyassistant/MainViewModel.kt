@@ -107,7 +107,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun buildMessages(): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
         if (isPhoto && imageBytes != null) {
-            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!))
+            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categories.value.map { it.name }))
         } else if (questionText.isNotBlank()) {
             msgs.add(StudyAssistant.textUserMessage(questionText))
         }
