@@ -133,6 +133,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
                 .align(Alignment.BottomStart)
+                .navigationBarsPadding()
                 .padding(start = 20.dp, bottom = 28.dp)
                 .size(60.dp)
         ) {
@@ -209,7 +210,7 @@ private fun ShutterIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
 
 /** 花瓣图标：6 片花瓣环绕中心，粉→紫渐变，中心黄色花蕊（图库） */
 @Composable
-private fun FlowerIcon(size: androidx.compose.ui.unit.Dp) {
+internal fun FlowerIcon(size: androidx.compose.ui.unit.Dp) {
     Canvas(Modifier.size(size)) {
         val c = center
         val r = this.size.minDimension / 5.2f

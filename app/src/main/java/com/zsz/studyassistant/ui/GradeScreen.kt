@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -83,11 +85,53 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         }
         AndroidView({ previewView }, Modifier.fillMaxSize())
 
+        // 统一处理一张图片：单张→直接批改；两张→先存题目，再拍/选答案后批改
+        val processImage: (ByteArray) -> Unit = { bytes ->
+            if (doubleMode && questionBytes == null) {
+                questionBytes = bytes
+                awaitingAnswer = true
+            } else {
+                val ans = if (doubleMode) bytes else null
+                vm.grade(questionBytes ?: bytes, ans)
+                awaitingAnswer = false
+            }
+        }
+
+        // 从相册选图 → 转存临时文件 → 与拍照同流程
+        val galleryLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                try {
+                    val file = File.createTempFile("gradeGallery", ".jpg", context.cacheDir)
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        file.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    processImage(StudyAssistant.compressImage(file))
+                } catch (e: Exception) {
+                    vm.showError("读取图片失败：${e.message}")
+                }
+            }
+        }
+
         Text(
             if (awaitingAnswer) "请拍摄手写答案" else (if (doubleMode) "两张模式：先拍题目" else "单张模式：拍题目"),
             modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),
             style = MaterialTheme.typography.bodyMedium
         )
+
+        // 图库按钮（左下角，与拍题模式一致）
+        Surface(
+            onClick = {
+                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            enabled = !vm.gradeBusy,
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 20.dp, bottom = 28.dp).size(60.dp)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FlowerIcon(size = 34.dp) }
+        }
 
         // 底部居中快门
         Surface(
@@ -97,15 +141,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(o: ImageCapture.OutputFileResults) {
-                            val bytes = StudyAssistant.compressImage(file)
-                            if (doubleMode && questionBytes == null) {
-                                questionBytes = bytes
-                                awaitingAnswer = true
-                            } else {
-                                val ans = if (doubleMode) bytes else null
-                                vm.grade(questionBytes ?: bytes, ans)
-                                awaitingAnswer = false
-                            }
+                            processImage(StudyAssistant.compressImage(file))
                         }
                         override fun onError(e: ImageCaptureException) { vm.showError("拍照失败：${e.message}") }
                     })
@@ -118,11 +154,20 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("📷", style = MaterialTheme.typography.headlineMedium) }
         }
 
-        // 右下角单张/两张切换
-        TextButton(
+        // 右下角单张/两张切换（带圆角胶囊形状，明显可点）
+        Surface(
             onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false },
+            enabled = !vm.gradeBusy,
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp)
-        ) { Text(if (doubleMode) "两张拍摄" else "单张拍摄") }
+        ) {
+            Text(
+                if (doubleMode) "两张拍摄" else "单张拍摄",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
 
         TextButton(onClick = { nav.popBackStack() }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) { Text("← 返回") }
 
