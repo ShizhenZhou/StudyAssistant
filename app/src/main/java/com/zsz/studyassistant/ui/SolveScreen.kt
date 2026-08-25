@@ -153,13 +153,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             },
                             enabled = saveEnabled
                         ) {
-                            Text(
-                                if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本",
-                                color = if (!saveEnabled || vm.savedToNotebook)
-                                    MaterialTheme.colorScheme.outline
-                                else
-                                    MaterialTheme.colorScheme.primary
-                            )
+                            val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
+                            if (vm.savedToNotebook && saveEnabled) {
+                                // 已存且可用：灰色区分“已存”
+                                Text(label, color = MaterialTheme.colorScheme.outline)
+                            } else {
+                                // 其它交给 M3：busy 时自动变暗，与「重新生成」一致
+                                Text(label)
+                            }
                         }
                     }
                 }
