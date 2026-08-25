@@ -14,8 +14,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 
-/** 一条对话消息（用于气泡渲染） */
-data class ChatMsg(val role: String, val content: String)
+/** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
+data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList())
 
 /**
  * 对话正文 WebView：占满给定区域，内部上下滚动，滚动条常驻、手势不被父级拦截。
@@ -66,7 +66,10 @@ private fun renderMessages(v: WebView, messages: List<ChatMsg>) {
         val c = m.content
             .replace("\\", "\\\\").replace("\"", "\\\"")
             .replace("\n", "\\n").replace("\r", "\\r")
-        "{\"role\":\"${m.role}\",\"content\":\"$c\"}"
+        val imgs = m.images.joinToString(",", "[", "]") { b ->
+            "\"$b\""
+        }
+        "{\"role\":\"${m.role}\",\"content\":\"$c\",\"images\":$imgs}"
     }
     v.evaluateJavascript("renderMessages($json);", null)
 }

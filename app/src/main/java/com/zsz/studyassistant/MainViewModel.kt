@@ -1,6 +1,7 @@
 package com.zsz.studyassistant
 
 import android.app.Application
+import android.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,7 +23,7 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** 聊天界面显示的一条消息（可序列化，用于保存对话会话） */
 @Serializable
-data class ChatItem(val id: Long, val role: String, val content: String)
+data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null)
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -99,7 +100,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         for (item in chatItems) {
             when (item.role) {
                 "assistant" -> msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.content)))
-                "user" -> msgs.add(DeepSeekMessage("user", JsonPrimitive(item.content)))
+                "user" -> {
+                    val imgs = item.images
+                    if (imgs.isNullOrEmpty()) {
+                        msgs.add(DeepSeekMessage("user", JsonPrimitive(item.content)))
+                    } else {
+                        // 追问带有附图的 user 消息 → 视觉模型（文字 + 多图）
+                        val bytes = imgs.map { Base64.decode(it, Base64.NO_WRAP) }
+                        msgs.add(StudyAssistant.userMessageWithImages(item.content, bytes))
+                    }
+                }
                 // "question" 已作为题目消息
             }
         }
@@ -116,8 +126,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun addItem(role: String, content: String) {
-        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content)
+    private fun addItem(role: String, content: String, images: List<String>? = null) {
+        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images)
     }
 
     private fun resetSession() {
@@ -184,18 +194,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }, repeat = { solveText(question) })
     }
 
-    /** 接续追问 */
-    fun sendFollowUp(text: String) {
+    /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */
+    fun sendFollowUp(text: String, images: List<ByteArray> = emptyList()) {
         if (text.isBlank()) return
-        addItem("user", text)
-        val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp() })
+        val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
+        addItem("user", text, encoded)
+        val model = if (isPhoto || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp(encoded) })
     }
 
-    /** 网络失败后重新发送最后一次追问（不重复添加 user 消息） */
-    private fun retryFollowUp() {
-        val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp() })
+    /** 网络失败后重新发送最后一次追问（不重复添加 user 消息，保留附图） */
+    private fun retryFollowUp(images: List<String>? = null) {
+        val model = if (isPhoto || !images.isNullOrEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp(images) })
     }
 
     /** 重新生成 */

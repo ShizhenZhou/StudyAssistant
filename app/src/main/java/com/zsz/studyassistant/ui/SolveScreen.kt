@@ -1,7 +1,13 @@
 package com.zsz.studyassistant.ui
 
 import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,11 +15,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -21,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -35,19 +45,45 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
+import com.zsz.studyassistant.data.StudyAssistant
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
+    val context = LocalContext.current
     var followUp by remember { mutableStateOf("") }
+    var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
+
+    // 从相册选 1~3 张图，附到追问消息里
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(3)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val newOnes = uris.mapNotNull { uri ->
+                try {
+                    val file = File.createTempFile("fup", ".jpg", context.cacheDir)
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        file.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    StudyAssistant.compressImage(file)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            // 最多保留 3 张
+            selectedImages = (selectedImages + newOnes).take(3)
+        }
+    }
 
     // 退出本页时：若已加入错题本，把当前完整对话更新保存
     DisposableEffect(Unit) {
@@ -57,13 +93,29 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 对话消息：照片模式排除文字题目(用上方原图显示)；文字模式题目作为 user 气泡
     val messages = vm.chatItems
         .filter { it.role != "question" || vm.imageBytes == null }
-        .map { c -> ChatMsg(role = if (c.role == "assistant") "assistant" else "user", content = c.content) }
+        .map { c ->
+            ChatMsg(
+                role = if (c.role == "assistant") "assistant" else "user",
+                content = c.content,
+                images = c.images ?: emptyList()
+            )
+        }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("解题") },
-                navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
+                navigationIcon = {
+                    TextButton(onClick = {
+                        if (vm.isFromNotebook) {
+                            nav.popBackStack()
+                        } else {
+                            // 拍题流程：返回直接回拍题界面
+                            vm.startNewQuestion()
+                            nav.navigate("camera") { popUpTo("home") }
+                        }
+                    }) { Text("←") }
+                },
                 actions = {
                     if (vm.isFromNotebook) {
                         // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
@@ -175,36 +227,72 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            // 底部：拍下一题 + 追问输入 + 发送
+            // 底部：已选附图预览 + 图库选图 + 追问输入 + 发送
             if (vm.chatItems.isNotEmpty()) {
+                // 已选 1~3 张附图缩略图（可删除）
+                if (selectedImages.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        selectedImages.forEach { img ->
+                            val bmp = remember(img) {
+                                try { BitmapFactory.decodeByteArray(img, 0, img.size) } catch (e: Exception) { null }
+                            }
+                            if (bmp != null) {
+                                Box(Modifier.size(60.dp)) {
+                                    Image(
+                                        bitmap = bmp.asImageBitmap(),
+                                        contentDescription = "附图",
+                                        modifier = Modifier.size(60.dp),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    // 右上角删除
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(22.dp)
+                                            .clickable { selectedImages = selectedImages - img }
+                                            .background(Color(0xCC000000), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) { Text("✕", color = Color.White, fontSize = 12.sp) }
+                                }
+                            }
+                        }
+                    }
+                }
                 Row(
                     Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Button(
-                        onClick = {
-                            vm.startNewQuestion()
-                            nav.navigate("camera")
-                        },
-                        modifier = Modifier.size(56.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                        enabled = !vm.busy
-                    ) { Text("📷", fontSize = 22.sp) }
+                    // 图库选图按钮（选 1~3 张附在追问里）
+                    Surface(
+                        onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        enabled = !vm.busy,
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("🖼") }
+                    }
                     Spacer(Modifier.width(8.dp))
                     OutlinedTextField(
                         value = followUp,
                         onValueChange = { followUp = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("继续追问…") },
-                        maxLines = 3
+                        placeholder = { Text("继续追问（可带图）…") },
+                        maxLines = 3,
+                        shape = RoundedCornerShape(24.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            vm.sendFollowUp(followUp.trim())
+                            vm.sendFollowUp(followUp.trim(), selectedImages)
                             followUp = ""
+                            selectedImages = emptyList()
                         },
-                        enabled = followUp.isNotBlank() && !vm.busy
+                        enabled = followUp.isNotBlank() && !vm.busy,
+                        shape = RoundedCornerShape(24.dp)
                     ) { Text("发送") }
                 }
             }

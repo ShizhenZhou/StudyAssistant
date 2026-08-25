@@ -53,6 +53,24 @@ object StudyAssistant {
     fun textUserMessage(text: String): DeepSeekMessage =
         DeepSeekMessage("user", JsonPrimitive(text))
 
+    /** 追问等场景：文字 + 1~3 张图 → 视觉模型 user 消息（多图 image_url） */
+    fun userMessageWithImages(text: String, images: List<ByteArray>): DeepSeekMessage {
+        val content = buildJsonArray {
+            addJsonObject {
+                put("type", "text")
+                put("text", text)
+            }
+            for (img in images) {
+                val base64 = Base64.encodeToString(img, Base64.NO_WRAP)
+                addJsonObject {
+                    put("type", "image_url")
+                    putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$base64") }
+                }
+            }
+        }
+        return DeepSeekMessage("user", content)
+    }
+
     fun systemMessage(): DeepSeekMessage = DeepSeekMessage(
         "system",
         JsonPrimitive(

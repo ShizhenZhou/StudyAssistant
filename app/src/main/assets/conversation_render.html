@@ -10,6 +10,7 @@
   .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:15px;line-height:1.6;}
   .bubble.assistant{background:#E9E9E9;color:#111;align-self:flex-start;border:1px solid #ddd;}
   .bubble.user{background:#D8F2D8;color:#111;align-self:flex-end;border:1px solid #bfe6bf;}
+  .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid #ddd;}
   .katex{font-size:1.1em;}
   .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:6px 0;}
 </style>
@@ -64,7 +65,11 @@ function renderMessages(arr){
   var html='';
   for(var i=0;i<arr.length;i++){
     var m=arr[i], cls=(m.role==='assistant')?'assistant':'user';
-    html+='<div class="bubble '+cls+'">'+renderMath(m.content||'')+'</div>';
+    var imgHtml='';
+    if(m.images && m.images.length){
+      for(var j=0;j<m.images.length;j++){ imgHtml+='<img class="msgimg" src="data:image/jpeg;base64,'+m.images[j]+'">'; }
+    }
+    html+='<div class="bubble '+cls+'">'+renderMath(m.content||'')+imgHtml+'</div>';
   }
   document.getElementById('out').innerHTML=html;
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
