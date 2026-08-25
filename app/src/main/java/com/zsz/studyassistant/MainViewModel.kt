@@ -265,25 +265,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val conv = json.encodeToString(chatItems)
         val img = imageBytes
         viewModelScope.launch {
-            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv))
+            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted))
         }
     }
 
-    /** 从解题页删除当前已存的这条错题（带确认提示由 UI 处理） */
+    /** 从解题页软删除当前已存的这条错题（可恢复） */
+    var isDeleted by mutableStateOf(false)
+        private set
     fun deleteSavedQuestion() {
         val id = savedQuestionId ?: return
-        savedQuestionId = null
+        isDeleted = true
         savedToNotebook = false
-        viewModelScope.launch { dao.deleteById(id) }
+        viewModelScope.launch { dao.softDelete(id) }
+    }
+
+    /** 恢复已软删除的错题 */
+    fun restoreSavedQuestion() {
+        val id = savedQuestionId ?: return
+        isDeleted = false
+        savedToNotebook = true
+        viewModelScope.launch { dao.restore(id) }
     }
 
     fun deleteFromNotebook(q: Question) {
         viewModelScope.launch { dao.delete(q) }
     }
 
+    /** 批改题目：单张(题目)或两张(题目+手写答案) */
+    var gradeResult by mutableStateOf("")
+        private set
+    var gradeBusy by mutableStateOf(false)
+        private set
+
+    fun grade(questionBytes: ByteArray, answerBytes: ByteArray?) {
+        viewModelScope.launch {
+            gradeBusy = true
+            gradeResult = ""
+            try {
+                gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes)
+            } catch (e: Exception) {
+                gradeResult = "批改失败：${e.message}"
+            } finally {
+                gradeBusy = false
+            }
+        }
+    }
+
+    fun clearGradeResult() { gradeResult = "" }
+
+
     /** 加载某条错题的完整对话会话（用于续答） */
-    fun loadQuestion(q: Question) {
-        chatItems = try {
+    fun loadQuestion(q: Question) {        chatItems = try {
             json.decodeFromString<List<ChatItem>>(q.conversationJson ?: "")
         } catch (e: Exception) {
             emptyList()
@@ -297,6 +329,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         savedToNotebook = true
         savedQuestionId = q.id
         isFromNotebook = true
+        isDeleted = q.deleted
         error = null
     }
 }

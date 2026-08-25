@@ -61,6 +61,15 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 Text("📷  拍照搜题", fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = { nav.navigate("grade") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+            ) {
+                Text("✏️  批改题目", fontSize = 20.sp)
+            }
+            Spacer(Modifier.height(16.dp))
             OutlinedButton(
                 onClick = { nav.navigate("notebook") },
                 modifier = Modifier

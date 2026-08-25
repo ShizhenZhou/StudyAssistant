@@ -133,7 +133,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(20.dp)
+                .padding(start = 20.dp, bottom = 28.dp)
                 .size(60.dp)
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

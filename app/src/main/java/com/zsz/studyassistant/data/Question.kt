@@ -24,12 +24,14 @@ data class Question(
     // 框选出的错题图片（JPEG 字节，可空；纯文字题为 null）
     val imageBytes: ByteArray? = null,
     // 完整对话会话（chatItems 的 JSON，用于续答）
-    val conversationJson: String? = null
+    val conversationJson: String? = null,
+    // 是否已软删除（可从错题本恢复）
+    val deleted: Boolean = false
 )
 
 @Dao
 interface QuestionDao {
-    @Query("SELECT * FROM questions ORDER BY createdAt DESC")
+    @Query("SELECT * FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
     fun getAll(): Flow<List<Question>>
 
     @Insert
@@ -43,6 +45,12 @@ interface QuestionDao {
 
     @Query("DELETE FROM questions WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("UPDATE questions SET deleted = 1 WHERE id = :id")
+    suspend fun softDelete(id: Long)
+
+    @Query("UPDATE questions SET deleted = 0 WHERE id = :id")
+    suspend fun restore(id: Long)
 
     @Query("DELETE FROM questions")
     suspend fun clear()
@@ -62,7 +70,14 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
-@Database(entities = [Question::class], version = 3, exportSchema = false)
+/** 数据库 3 -> 4：加 deleted 列（软删除/恢复） */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE questions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+@Database(entities = [Question::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
@@ -76,7 +91,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "study_assistant.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
             }
     }
 }

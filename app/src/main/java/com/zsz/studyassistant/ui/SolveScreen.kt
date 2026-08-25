@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,8 +66,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
                 actions = {
                     if (vm.isFromNotebook) {
-                        // 错题本回顾：只显示删除
-                        TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
+                        // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
+                        if (vm.isDeleted) {
+                            TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
+                        } else {
+                            TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
+                        }
                     } else {
                         // 拍题解题：重新生成 + 存错题本
                         TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
@@ -103,7 +108,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             )
         }
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().imePadding().padding(padding)) {
             if (!hasKey) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
                     Column(Modifier.padding(12.dp)) {

@@ -71,6 +71,42 @@ object StudyAssistant {
             ?: throw IllegalStateException("DeepSeek 返回为空")
     }
 
+    /** 批改：单张(仅题目)或两张(题目+手写答案)，AI 判断正误、指出错误步骤、针对性讲解 */
+    suspend fun gradeWithImages(questionBytes: ByteArray, answerBytes: ByteArray?): String {
+        requireKey()
+        val q = Base64.encodeToString(questionBytes, Base64.NO_WRAP)
+        val parts = buildJsonArray {
+            addJsonObject {
+                put("type", "text")
+                put(
+                    "text",
+                    if (answerBytes != null)
+                        "你是一名批改老师。图片中是{题目}和{学生的手写作答}。" +
+                            "请批改：①判断作答是否正确；②若不正确，指出错在哪一步、为什么错；" +
+                            "③给出正确的解题过程，并针对错误点做针对性讲解。用 LaTeX 写公式，先输出「结论：」再输出「讲解：」。"
+                    else
+                        "请识别图片中的题目，并给出完整、分步的解答过程，用 LaTeX 写公式。"
+                )
+            }
+            addJsonObject {
+                put("type", "image_url")
+                putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$q") }
+            }
+            if (answerBytes != null) {
+                val a = Base64.encodeToString(answerBytes, Base64.NO_WRAP)
+                addJsonObject {
+                    put("type", "image_url")
+                    putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$a") }
+                }
+            }
+        }
+        val resp = ApiClient.deepSeek.chat(
+            DeepSeekRequest(model = MODEL_VISION, messages = listOf(DeepSeekMessage("user", parts)), maxTokens = 4096)
+        )
+        return resp.choices.firstOrNull()?.message?.content?.asText()
+            ?: throw IllegalStateException("批改返回为空")
+    }
+
     /** 从视觉模型输出中分离「题目」与「解答」 */
     fun parseVisionOutput(output: String): SolveResult {
         val question = Regex("题目[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
