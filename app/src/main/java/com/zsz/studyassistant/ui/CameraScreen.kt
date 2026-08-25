@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -136,7 +137,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .size(60.dp)
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                FlowerIcon(size = 34.dp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                FlowerIcon(size = 34.dp)
             }
         }
 
@@ -206,17 +207,17 @@ private fun ShutterIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
     }
 }
 
-/** 花瓣图标：6 片渐变花瓣环绕中心（图库），更美观 */
+/** 花瓣图标：6 片花瓣环绕中心，粉→紫渐变，中心黄色花蕊（图库） */
 @Composable
-private fun FlowerIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
+private fun FlowerIcon(size: androidx.compose.ui.unit.Dp) {
     Canvas(Modifier.size(size)) {
         val c = center
         val r = this.size.minDimension / 5.2f
-        // 花瓣渐变：由花瓣中心向外渐淡（径向渐变）
+        // 花瓣：由中心向外 粉→紫 径向渐变
         val brush = Brush.radialGradient(
-            colors = listOf(color, color.copy(alpha = 0.30f)),
+            colors = listOf(Color(0xFFF48FB1), Color(0xFFAB47BC)),
             center = c,
-            radius = this.size.minDimension * 0.5f
+            radius = this.size.minDimension * 0.55f
         )
         for (i in 0 until 6) {
             rotate(i * 60f, c) {
@@ -227,7 +228,8 @@ private fun FlowerIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
                 )
             }
         }
-        drawCircle(color = Color.White, radius = r * 0.5f, center = c)
-        drawCircle(color = color, radius = r * 0.3f, center = c)
+        // 花蕊：黄色圆心 + 白色描边
+        drawCircle(color = Color(0xFFFFD54F), radius = r * 0.55f, center = c)
+        drawCircle(color = Color.White, radius = r * 0.55f, center = c, style = Stroke(2f))
     }
 }
