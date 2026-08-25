@@ -49,6 +49,12 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 - 🆕 **API Key 应用内自填**：在 ⚙️ 设置里填 Key，**Android Keystore 加密**存储（不再写死，便于分享）
 - 🆕 **KaTeX 公式渲染**：答案里的公式（积分、分式、矩阵）渲染为真正的数学排版
 
+### v0.2（早期版本）
+- 🔄 **改用 DeepSeek 处理图像**：把图片直接发给 DeepSeek 视觉模型识别并解答，**不再使用百度 OCR**
+
+### v0.1（项目建立）
+- 🆕 项目搭建：**百度智能云 OCR 识别图像 + DeepSeek 解题**，拍照搜题、AI 解答、错题整理雏形
+
 ## 构建
 
 ```bash
