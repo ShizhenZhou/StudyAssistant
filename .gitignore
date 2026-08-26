@@ -11,10 +11,19 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# 密钥文件 - 绝不提交
+# 密钥/令牌 - 绝不提交（无论命名）
 secrets.properties
 *.keystore
 *.jks
+local_secrets*
+LOCAL_SECRETS.txt
+local_secrets.txt
+local_secret
+*.secret
+*.key
+*.pem
+api_key*
+.env
 
 # APK 输出
 *.apk
