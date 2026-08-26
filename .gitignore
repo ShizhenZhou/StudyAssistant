@@ -28,3 +28,8 @@ api_key*
 # APK 输出
 *.apk
 *.aab
+
+# 构建日志（统一放项目内，也不提交）
+*.log
+build-logs/
+
