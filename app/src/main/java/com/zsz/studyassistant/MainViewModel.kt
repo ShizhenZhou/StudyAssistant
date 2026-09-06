@@ -80,6 +80,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 当前题目所属分类 id（存题/加载/详情页改分类用；null = 暂不分类） */
     var currentQuestionCategoryId by mutableStateOf<Long?>(null)
         private set
+    /** 当前题目的原始时间戳（loadQuestion 时记录，更新时保持原值，避免时间戳被刷新） */
+    private var currentQuestionCreatedAt = 0L
 
     /** 框选用：暂存拍照生成的图片文件路径 */
     var pendingImagePath by mutableStateOf<String?>(null)
@@ -270,7 +272,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 cid = dao.insertCategory(Category(name = name.trim()))
             }
             currentQuestionCategoryId = cid
-            val id = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson, categoryId = cid))
+            val now = System.currentTimeMillis()
+            currentQuestionCreatedAt = now
+            val id = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson, categoryId = cid, createdAt = now))
             if (cancelPending) {
                 dao.deleteById(id)
                 savedQuestionId = null
@@ -306,7 +310,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val a = lastAnswer()
             val conv = json.encodeToString(chatItems)
             val img = imageBytes
-            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = cid))
+            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = cid, createdAt = currentQuestionCreatedAt.ifZeroToNow()))
         }
     }
 
@@ -328,6 +332,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { dao.deleteByIds(ids) }
     }
 
+    /** 删除追问消息（按 chatItems 索引）。删除后构建消息仅基于剩余，AI 接续对话 */
+    fun deleteMessages(indices: List<Int>) {
+        if (indices.isEmpty()) return
+        val toRemove = indices.toSet()
+        chatItems = chatItems.filterIndexed { i, _ -> i !in toRemove }
+    }
+
     /** 退出页面/应用时：若已加入错题本，把当前完整对话更新进该条错题 */
     fun saveSessionOnExit() {
         val id = savedQuestionId ?: return
@@ -337,7 +348,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val conv = json.encodeToString(chatItems)
         val img = imageBytes
         viewModelScope.launch {
-            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = currentQuestionCategoryId))
+            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = currentQuestionCategoryId, createdAt = currentQuestionCreatedAt.ifZeroToNow()))
         }
     }
 
@@ -403,7 +414,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isFromNotebook = true
         isDeleted = q.deleted
         currentQuestionCategoryId = q.categoryId
+        currentQuestionCreatedAt = q.createdAt
         suggestedCategory = null
         error = null
     }
 }
+
+/** 时间戳若无有效值(0)则回退为当前时间 */
+private fun Long.ifZeroToNow(): Long = if (this > 0) this else System.currentTimeMillis()

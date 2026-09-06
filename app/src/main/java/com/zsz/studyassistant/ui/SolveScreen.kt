@@ -2,14 +2,21 @@ package com.zsz.studyassistant.ui
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +31,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -51,10 +59,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
@@ -71,6 +82,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     val hasKey = vm.hasApiKey()
     val categories by vm.categories.collectAsState()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var showMsgDelete by remember { mutableStateOf(false) }
 
     // 从相册选 1~3 张图，附到追问消息里
     val imagePicker = rememberLauncherForActivityResult(
@@ -98,34 +112,31 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         onDispose { vm.saveSessionOnExit() }
     }
 
-    // 对话消息：照片模式排除文字题目(用上方原图显示)；文字模式题目作为 user 气泡
-    val messages = vm.chatItems
-        .filter { it.role != "question" || vm.imageBytes == null }
-        .map { c ->
-            ChatMsg(
-                role = if (c.role == "assistant") "assistant" else "user",
-                content = c.content,
-                images = c.images ?: emptyList()
-            )
-        }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("解题") },
+                title = { Text(if (selectionMode) "已选 ${selectedIndices.size} 条" else "解题") },
                 navigationIcon = {
-                    TextButton(onClick = {
-                        if (vm.isFromNotebook) {
-                            nav.popBackStack()
-                        } else {
-                            // 拍题流程：返回直接回拍题界面
-                            vm.startNewQuestion()
-                            nav.navigate("camera") { popUpTo("home") }
-                        }
-                    }) { Text("←") }
+                    if (selectionMode) {
+                        TextButton(onClick = { selectionMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
+                    } else {
+                        TextButton(onClick = {
+                            if (vm.isFromNotebook) {
+                                nav.popBackStack()
+                            } else {
+                                // 拍题流程：返回直接回拍题界面
+                                vm.startNewQuestion()
+                                nav.navigate("camera") { popUpTo("home") }
+                            }
+                        }) { Text("←") }
+                    }
                 },
                 actions = {
-                    if (vm.isFromNotebook) {
+                    if (selectionMode) {
+                        // 追问消息多选：删除 + 完成
+                        TextButton(onClick = { showMsgDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
+                        TextButton(onClick = { selectionMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
+                    } else if (vm.isFromNotebook) {
                         // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
                         if (vm.isDeleted) {
                             TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
@@ -181,6 +192,25 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+                }
+            )
+        }
+        // 追问消息批量删除确认（删除后 AI 基于剩余继续对话）
+        if (showMsgDelete) {
+            AlertDialog(
+                onDismissRequest = { showMsgDelete = false },
+                title = { Text("删除消息") },
+                text = { Text("确定删除选中的 ${selectedIndices.size} 条消息吗？删除后 AI 会基于剩余消息继续对话。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.deleteMessages(selectedIndices.toList())
+                        showMsgDelete = false
+                        selectionMode = false
+                        selectedIndices = emptySet()
+                    }) { Text("删除") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showMsgDelete = false }) { Text("取消") }
                 }
             )
         }
@@ -249,7 +279,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 CollapsibleQuestionImage(vm.imageBytes)
             }
 
-            // 对话正文：固定区域 + WebView 内部滚动（滚动条常驻，聊天气泡）
+            // 对话正文：Compose 列表 + 单条内嵌 WebView 保公式（支持长按多选）
             if (vm.chatItems.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
@@ -259,20 +289,48 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     )
                 }
             } else {
-                ConversationWebView(
-                    messages = messages,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                )
-                if (vm.busy) {
-                    Text(
-                        "答案生成中……",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    reverseLayout = false
+                ) {
+                    // 显示列表 = chatItems（photo 时排除 question），记住在 chatItems 里的原索引
+                    val displayList = vm.chatItems.withIndex()
+                        .filter { it.value.role != "question" || vm.imageBytes == null }
+                        .map { it.index to ChatMsg(
+                            role = if (it.value.role == "assistant") "assistant" else "user",
+                            content = it.value.content,
+                            images = it.value.images ?: emptyList()
+                        ) }
+                    itemsIndexed(displayList, key = { _, pair -> pair.first }) { _, (chatIdx, msg) ->
+                        ChatBubble(
+                            msg = msg,
+                            selectionMode = selectionMode,
+                            selected = selectedIndices.contains(chatIdx),
+                            onClick = {
+                                if (selectionMode) {
+                                    selectedIndices = if (selectedIndices.contains(chatIdx)) selectedIndices - chatIdx else selectedIndices + chatIdx
+                                }
+                            },
+                            onLongClick = {
+                                if (!selectionMode) {
+                                    selectionMode = true
+                                    selectedIndices = setOf(chatIdx)
+                                }
+                            }
+                        )
+                    }
+                    if (vm.busy) {
+                        item {
+                            Text(
+                                "答案生成中……",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
                 }
             }
 
@@ -451,4 +509,81 @@ internal fun CategoryDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         }
     )
+}
+
+/** 单条聊天气泡：内嵌 WebView 渲染(保 KaTeX)，支持长按进入多选 */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ChatBubble(
+    msg: ChatMsg,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val isAssistant = msg.role == "assistant"
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp),
+        horizontalArrangement = if (isAssistant) Arrangement.Start else Arrangement.End
+    ) {
+        Box(
+            Modifier
+                .widthIn(max = 320.dp)
+                .background(if (isAssistant) Color(0xFFE9E9E9) else Color(0xFFD8F2D8), RoundedCornerShape(14.dp))
+                .then(if (selected) Modifier.border(2.dp, Color(0xFF4CAF50), RoundedCornerShape(14.dp)) else Modifier)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+        ) {
+            Box {
+                InlineWebView(msg.role, msg.content, msg.images, Modifier.padding(10.dp))
+                if (selectionMode) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(20.dp)
+                            .background(if (selected) Color(0xFF4CAF50) else Color(0x88000000), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) { if (selected) Text("✓", color = Color.White, fontSize = 12.sp) }
+                }
+            }
+        }
+    }
+}
+
+/** 用 NoScrollWebView 渲染单条消息（KaTeX），高度按内容自适应 */
+@Composable
+private fun InlineWebView(
+    role: String,
+    content: String,
+    images: List<String>,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    var h by remember { mutableStateOf<Dp?>(null) }
+    AndroidView(
+        factory = { ctx ->
+            NoScrollWebView(ctx).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        view?.evaluateJavascript("renderMessages(${buildSingleMsgJson(role, content, images)});", null)
+                        view?.evaluateJavascript("document.body.scrollHeight") { v ->
+                            val px = (v ?: "").trim().trim('"').toFloatOrNull()
+                            if (px != null && px > 0) h = with(density) { px.toDp() }
+                        }
+                    }
+                }
+                loadUrl("file:///android_asset/conversation_render.html")
+            }
+        },
+        modifier = modifier.fillMaxWidth().height(h ?: 48.dp)
+    )
+}
+
+private fun buildSingleMsgJson(role: String, content: String, images: List<String>): String {
+    val c = content.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+    val imgs = images.joinToString(",", "[", "]") { "\"$it\"" }
+    return """[{"role":"$role","content":"$c","images":$imgs}]"""
 }
