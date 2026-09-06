@@ -223,7 +223,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedCategory = r.category
             suggestedTags = r.tags
             addItem("question", r.question)
-            addItem("assistant", r.answer)
+            addItem("assistant", r.withHint())
         }, repeat = { solveWithImage(bytes) })
     }
 
@@ -266,7 +266,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedCategory = r.category
                 suggestedTags = r.tags
                 addItem("question", r.question)
-                addItem("assistant", r.answer)
+                addItem("assistant", r.withHint())
             }, repeat = { regenerate() })
         } else {
             runCall(model, onDone = { reply ->
@@ -561,3 +561,7 @@ private fun Long.ifZeroToNow(): Long = if (this > 0) this else System.currentTim
 /** 艾宾浩斯间隔档位（天级）：0,1,2,4,7,15,30 */
 private val INTERVAL_DAYS = intArrayOf(0, 1, 2, 4, 7, 15, 30)
 private const val DAY_MS = 86400000L
+
+/** 在解答底部附加「核心知识点/难点」提示 */
+private fun com.zsz.studyassistant.data.StudyAssistant.SolveResult.withHint(): String =
+    if (tags.isNotEmpty()) answer + "\n\n💡 核心知识点/难点：" + tags.joinToString("、") else answer

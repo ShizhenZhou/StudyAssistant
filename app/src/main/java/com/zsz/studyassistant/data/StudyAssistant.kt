@@ -135,7 +135,6 @@ object StudyAssistant {
     /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
     fun parseVisionOutput(output: String): SolveResult {
         val question = Regex("题目[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
-        val answer = Regex("解答[:：]([\\s\\S]+)").find(output)?.groupValues?.get(1)?.trim()
         val category = Regex("分类[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
         // 知识点：按 、 / ， / 逗号 拆分，最多 5 个
         val tags = Regex("知识点[:：]\\s*(.+)").find(output)?.groupValues?.get(1)
@@ -144,9 +143,12 @@ object StudyAssistant {
             ?.filter { it.isNotBlank() }
             ?.take(5)
             ?: emptyList()
+        // 解答：取"解答："之后，去掉末尾的"分类：/知识点："整块
+        var answer = Regex("解答[:：]([\\s\\S]+)").find(output)?.groupValues?.get(1)?.trim() ?: output
+        answer = answer.replace(Regex("\\n*\\s*(?:分类|知识点)[:：].*$", RegexOption.DOT_MATCHES_ALL), "").trim()
         return SolveResult(
             question = question?.takeIf { it.isNotBlank() } ?: output.take(80),
-            answer = answer ?: output,
+            answer = answer,
             category = category?.takeIf { it.isNotBlank() },
             tags = tags
         )
