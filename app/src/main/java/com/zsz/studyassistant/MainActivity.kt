@@ -33,6 +33,7 @@ import com.zsz.studyassistant.ui.CropScreen
 import com.zsz.studyassistant.ui.GradeScreen
 import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.NotebookScreen
+import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
 import com.zsz.studyassistant.ui.SolveScreen
 
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
                                 composable("grade") { GradeScreen(nav, viewModel) }
                                 composable("solve") { SolveScreen(nav, viewModel) }
                                 composable("notebook") { NotebookScreen(nav, viewModel) }
+                                composable("review") { ReviewScreen(nav, viewModel) }
                                 composable("settings") { SettingsTab(viewModel) }
                             }
                         }

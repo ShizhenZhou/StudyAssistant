@@ -6,6 +6,7 @@ import androidx.room.Database
 import androidx.room.Delete
 import androidx.room.Entity
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
@@ -54,6 +55,18 @@ data class QuestionTag(
     val tagId: Long
 )
 
+/** 复习调度（艾宾浩斯）；questionId 为主键，一题一条 */
+@Entity(tableName = "review")
+data class Review(
+    @PrimaryKey val questionId: Long,
+    // 当前间隔档位（0..6，对应 intervalDays）
+    val intervalStep: Int = 0,
+    // 下次复习时间戳
+    val nextReviewAt: Long = System.currentTimeMillis(),
+    val lastReviewedAt: Long = 0,
+    val reviewCount: Int = 0
+)
+
 @Dao
 interface QuestionDao {
     @Query("SELECT * FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
@@ -91,6 +104,20 @@ interface QuestionDao {
 
     @Query("DELETE FROM question_tags WHERE questionId = :questionId")
     suspend fun clearQuestionTags(questionId: Long)
+
+    // ---- 复习调度 ----
+    /** 到期错题（nextReviewAt <= until），按下次复习时间升序 */
+    @Query("SELECT q.* FROM questions q INNER JOIN review r ON q.id = r.questionId WHERE q.deleted = 0 AND r.nextReviewAt <= :until ORDER BY r.nextReviewAt ASC")
+    fun dueQuestions(until: Long): Flow<List<Question>>
+
+    @Query("SELECT * FROM review WHERE questionId = :questionId")
+    suspend fun reviewFor(questionId: Long): Review?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReview(r: Review)
+
+    @Query("UPDATE review SET intervalStep = :step, nextReviewAt = :next, lastReviewedAt = :last, reviewCount = reviewCount + 1 WHERE questionId = :questionId")
+    suspend fun updateReview(questionId: Long, step: Int, next: Long, last: Long)
 
     @Update
     suspend fun update(q: Question)
@@ -162,7 +189,14 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
-@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class], version = 6, exportSchema = false)
+/** 数据库 6 -> 7：加 review 表（艾宾浩斯复习调度） */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS review (questionId INTEGER PRIMARY KEY NOT NULL, intervalStep INTEGER NOT NULL, nextReviewAt INTEGER NOT NULL, lastReviewedAt INTEGER NOT NULL, reviewCount INTEGER NOT NULL)")
+    }
+}
+
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class], version = 7, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
@@ -176,7 +210,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "study_assistant.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build().also { INSTANCE = it }
             }
     }
 }

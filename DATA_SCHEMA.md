@@ -21,8 +21,8 @@
 
 ## 1. Room 数据库 `study_assistant.db`
 
-- 当前 **schema version = 6**（`AppDatabase.version`）。
-- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6`，全部用 `Migration` + `addMigrations(...)`。
+- 当前 **schema version = 7**（`AppDatabase.version`）。
+- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7`，全部用 `Migration` + `addMigrations(...)`。
 
 ### 1.1 表 `questions`（最新结构 = v5）
 
@@ -66,6 +66,18 @@
 
 > 复合主键 `(questionId, tagId)`；一道题最多 5 个 tag（业务层限制）。
 
+### 1.2.3 表 `review`（v7 新增，艾宾浩斯复习调度）
+
+| 列名 | 类型 | 含义 |
+|---|---|---|
+| `questionId` | INTEGER (PK) | 外键 → `questions.id`，一题一条 |
+| `intervalStep` | INTEGER | 当前间隔档位（0..6，对应 `[0,1,2,4,7,15,30]` 天） |
+| `nextReviewAt` | INTEGER | 下次复习时间戳 |
+| `lastReviewedAt` | INTEGER | 上次复习时间戳 |
+| `reviewCount` | INTEGER | 复习次数 |
+
+> 三按钮：熟悉=+1 档；模糊=保持档位；忘记=重置第 0 档（今天）。
+
 ### 1.3 迁移历史（每个版本对应的结构）
 
 | 迁移 | App 版本 | 结构变化 | SQL |
@@ -76,6 +88,7 @@
 | `MIGRATION_3_4` | v0.3.4 | questions 加 `deleted`(INT NOT NULL DEFAULT 0) | `ALTER TABLE questions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0` |
 | `MIGRATION_4_5` | v0.3.6 | questions 加 `categoryId`(INT)；新建表 `categories` | `ALTER TABLE questions ADD COLUMN categoryId INTEGER`；`CREATE TABLE categories(...)` |
 | `MIGRATION_5_6` | v0.3.9 | 新建表 `tags` 与 `question_tags` | `CREATE TABLE tags(...)`；`CREATE TABLE question_tags(...)` |
+| `MIGRATION_6_7` | v0.4.0 | 新建表 `review`（艾宾浩斯复习调度） | `CREATE TABLE review(questionId PK, intervalStep, nextReviewAt, lastReviewedAt, reviewCount)` |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）。
 

@@ -13,8 +13,11 @@ import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.Review
 import com.zsz.studyassistant.data.StudyAssistant
 import com.zsz.studyassistant.data.Tag
+import java.util.Calendar
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -121,6 +124,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         suggestedTags = emptyList()
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
+        reviewMode = false
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
@@ -175,6 +179,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         suggestedTags = emptyList()
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
+        reviewMode = false
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
@@ -308,6 +313,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             for (tid in finalIds.take(5)) dao.insertQuestionTag(QuestionTag(qid, tid))
             currentQuestionTags = finalIds.take(5)
+            // 新建复习调度（第 0 档，今天到期）
+            dao.insertReview(Review(questionId = qid, intervalStep = 0, nextReviewAt = now, reviewCount = 0))
             if (cancelPending) {
                 dao.deleteById(qid)
                 savedQuestionId = null
@@ -409,6 +416,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { dao.deleteByIds(ids) }
     }
 
+    // ---- 复习（艾宾浩斯）----
+
+    /** 今天到期的错题 */
+    fun dueQuestionsToday(): Flow<List<Question>> = dao.dueQuestions(endOfToday())
+    /** 本周（截止周日）到期的错题 */
+    fun dueQuestionsWeek(): Flow<List<Question>> = dao.dueQuestions(endOfWeek())
+
+    /** 三个按钮更新调度：level 0=忘记, 1=模糊, 2=熟悉 */
+    fun reviewQuestion(questionId: Long, level: Int) {
+        viewModelScope.launch {
+            val r = dao.reviewFor(questionId) ?: Review(questionId)
+            val base = startOfToday()
+            val step = when (level) {
+                2 -> (r.intervalStep + 1).coerceIn(0, INTERVAL_DAYS.size - 1) // 熟悉：+1 档
+                1 -> r.intervalStep                                            // 模糊：保持档位
+                else -> 0                                                      // 忘记：重置第 0 档
+            }
+            val next = base + INTERVAL_DAYS[step] * DAY_MS
+            dao.updateReview(questionId, step, next, System.currentTimeMillis())
+        }
+    }
+
+    /** 复习模式：点进错题查看；详情页底部为 熟悉/模糊/忘记 三按钮 */
+    var reviewMode by mutableStateOf(false)
+        private set
+    fun loadForReview(q: Question) {
+        loadQuestion(q)
+        reviewMode = true
+    }
+    fun exitReviewMode() { reviewMode = false }
+
+    private fun startOfToday(): Long {
+        val c = Calendar.getInstance()
+        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+        return c.timeInMillis
+    }
+    private fun endOfToday(): Long = startOfToday() + DAY_MS - 1
+    private fun endOfWeek(): Long {
+        val c = Calendar.getInstance()
+        var add = Calendar.SUNDAY - c.get(Calendar.DAY_OF_WEEK)
+        if (add < 0) add += 7
+        c.add(Calendar.DAY_OF_MONTH, add)
+        c.set(Calendar.HOUR_OF_DAY, 23); c.set(Calendar.MINUTE, 59); c.set(Calendar.SECOND, 59); c.set(Calendar.MILLISECOND, 999)
+        return c.timeInMillis
+    }
+
     /** 删除追问消息（按 chatItems 索引）。删除后构建消息仅基于剩余，AI 接续对话 */
     fun deleteMessages(indices: List<Int>) {
         if (indices.isEmpty()) return
@@ -504,3 +557,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
 /** 时间戳若无有效值(0)则回退为当前时间 */
 private fun Long.ifZeroToNow(): Long = if (this > 0) this else System.currentTimeMillis()
+
+/** 艾宾浩斯间隔档位（天级）：0,1,2,4,7,15,30 */
+private val INTERVAL_DAYS = intArrayOf(0, 1, 2, 4, 7, 15, 30)
+private const val DAY_MS = 86400000L

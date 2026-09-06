@@ -78,6 +78,15 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             ) {
                 Text("📚  错题本", fontSize = 20.sp)
             }
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = { nav.navigate("review") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+            ) {
+                Text("📖  复习", fontSize = 20.sp)
+            }
         }
     }
 

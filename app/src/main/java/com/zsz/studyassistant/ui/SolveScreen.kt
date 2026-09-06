@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +39,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -140,7 +142,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     }) { Text("←") }
                 },
                 actions = {
-                    if (vm.isFromNotebook) {
+                    if (vm.reviewMode) {
+                        // 复习模式：只保留「完成」退出
+                        TextButton(onClick = { vm.exitReviewMode(); nav.popBackStack() }) { Text("✓ 完成") }
+                    } else if (vm.isFromNotebook) {
                         // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
                         if (vm.isDeleted) {
                             TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
@@ -304,8 +309,31 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            // 底部：已选附图预览 + 图库选图 + 追问输入 + 发送
-            if (vm.chatItems.isNotEmpty()) {
+            // 复习模式：底部为 熟悉/模糊/忘记 三按钮
+            if (vm.reviewMode) {
+                val qid = vm.savedQuestionId
+                Row(
+                    Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { qid?.let { vm.reviewQuestion(it, 2) }; nav.popBackStack() },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) { Text("🌱 熟悉") }
+                    Button(
+                        onClick = { qid?.let { vm.reviewQuestion(it, 1) }; nav.popBackStack() },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
+                    ) { Text("🌤 模糊") }
+                    Button(
+                        onClick = { qid?.let { vm.reviewQuestion(it, 0) }; nav.popBackStack() },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                    ) { Text("🔥 忘记") }
+                }
+            } else if (vm.chatItems.isNotEmpty()) {
                 // 已选 1~3 张附图缩略图（可删除）
                 if (selectedImages.isNotEmpty()) {
                     Row(

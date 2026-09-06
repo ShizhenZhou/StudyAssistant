@@ -154,6 +154,12 @@ object StudyAssistant {
 
     private fun JsonElement.asText(): String = (this as? JsonPrimitive)?.content ?: toString()
 
+    /** 预留：根据错题生成一道近似题（同知识点）。后续版本接入 UI 时实现并返回题目文本。 */
+    suspend fun generateSimilarQuestion(question: Question): String {
+        // TODO: 后续接入近似题生成（基于 question.text / 知识点 tags 让模型出一题同难度近似题）
+        return ""
+    }
+
     /** 图片压缩为 JPEG 字节（发送前处理，最大边长 maxDim，质量 quality） */
     fun compressImage(file: File, maxDim: Int = 1280, quality: Int = 80): ByteArray {
         val src = ImageDecoder.createSource(file)
