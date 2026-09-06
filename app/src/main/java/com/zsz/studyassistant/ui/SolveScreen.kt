@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -70,6 +72,7 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.StudyAssistant
+import com.zsz.studyassistant.data.Tag
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,6 +84,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
     val categories by vm.categories.collectAsState()
+    val tags by vm.tags.collectAsState()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
 
     // 从相册选 1~3 张图，附到追问消息里
@@ -195,27 +199,40 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             )
         }
-        // 分类选择对话框（存题 / 改分类）
+        // 分类 + 标签选择对话框（存题 / 详情页改）
         when (categoryDialogFor) {
             "save" -> {
-                val default = vm.suggestedCategory
-                val initId = categories.firstOrNull { it.name == default }?.id
-                CategoryDialog(
-                    title = "选择分类",
+                val defaultCat = vm.suggestedCategory
+                val initCatId = categories.firstOrNull { it.name == defaultCat }?.id
+                SaveDialog(
+                    title = "选择分类与标签",
                     categories = categories,
-                    initialSelectedId = initId,
-                    initialNewName = if (initId == null) default else null,
-                    onConfirm = { name, cid -> vm.saveToNotebook(name, cid); categoryDialogFor = null },
+                    tags = tags,
+                    initialSelectedId = initCatId,
+                    initialNewName = if (initCatId == null) defaultCat else null,
+                    initialSelectedTagIds = emptyList(),
+                    suggestedTagNames = vm.suggestedTags,
+                    onConfirm = { name, cid, tagNames, tagIds ->
+                        vm.saveToNotebook(name, cid, tagNames, tagIds)
+                        categoryDialogFor = null
+                    },
                     onDismiss = { categoryDialogFor = null }
                 )
             }
             "change" -> {
-                CategoryDialog(
-                    title = "修改分类",
+                SaveDialog(
+                    title = "修改分类与标签",
                     categories = categories,
+                    tags = tags,
                     initialSelectedId = vm.currentQuestionCategoryId,
                     initialNewName = null,
-                    onConfirm = { name, cid -> vm.changeCurrentCategory(name, cid); categoryDialogFor = null },
+                    initialSelectedTagIds = vm.currentQuestionTags,
+                    suggestedTagNames = emptyList(),
+                    onConfirm = { name, cid, tagNames, tagIds ->
+                        vm.changeCurrentCategory(name, cid)
+                        vm.setCurrentTags(tagIds, tagNames)
+                        categoryDialogFor = null
+                    },
                     onDismiss = { categoryDialogFor = null }
                 )
             }
@@ -464,4 +481,111 @@ internal fun CategoryDialog(
     )
 }
 
+/**
+ * 存题 / 详情页修改用：分类（单选）+ 知识点标签（多选 ≤5）。
+ * onConfirm(name, categoryId, tagNames, tagIds)：name/tagNames 非空 → 新建分类/标签；categoryId/tagIds 为空 → 暂不分类/无标签。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SaveDialog(
+    title: String,
+    categories: List<Category>,
+    tags: List<Tag>,
+    initialSelectedId: Long?,
+    initialNewName: String?,
+    initialSelectedTagIds: List<Long>,
+    suggestedTagNames: List<String>,
+    onConfirm: (name: String?, categoryId: Long?, tagNames: List<String>, tagIds: List<Long>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    // 分类状态
+    var selCatId by remember { mutableStateOf(initialSelectedId) }
+    var newCatMode by remember { mutableStateOf(!initialNewName.isNullOrBlank()) }
+    var newCatName by remember { mutableStateOf(initialNewName ?: "") }
+
+    // 标签状态：已有 tag id → name；把 suggested 里匹配已有的选中、不匹配的作为待新建
+    val tagIdByName = remember(tags) { tags.associateBy { it.name } }
+    val initSelected = remember(initialSelectedTagIds, suggestedTagNames, tags) {
+        val sel = mutableSetOf<Long>()
+        sel += initialSelectedTagIds
+        for (s in suggestedTagNames) {
+            if (sel.size >= 5) break
+            val t = tagIdByName[s]
+            if (t != null) sel += t.id
+        }
+        sel
+    }
+    var selTagIds by remember { mutableStateOf<Set<Long>>(initSelected) }
+    var pendingNew by remember { mutableStateOf(suggestedTagNames.filter { tagIdByName[it] == null }.take(5).toSet()) }
+    var newTag by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("分类", style = MaterialTheme.typography.labelMedium)
+                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !newCatMode && selCatId == null, onClick = { selCatId = null; newCatMode = false }, label = { Text("暂不分类") })
+                }
+                if (categories.isNotEmpty()) {
+                    LazyRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(categories, key = { it.id }) { c ->
+                            FilterChip(selected = !newCatMode && selCatId == c.id, onClick = { selCatId = c.id; newCatMode = false }, label = { Text(c.name) })
+                        }
+                    }
+                }
+                FilterChip(selected = newCatMode, onClick = { newCatMode = true }, label = { Text("➕ 新建分类") })
+                if (newCatMode) {
+                    OutlinedTextField(value = newCatName, onValueChange = { newCatName = it }, label = { Text("分类名") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                }
+
+                Spacer(Modifier.height(14.dp))
+                Text("知识点标签（最多 5 个）", style = MaterialTheme.typography.labelMedium)
+                if (tags.isNotEmpty()) {
+                    LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(tags, key = { it.id }) { t ->
+                            FilterChip(
+                                selected = selTagIds.contains(t.id),
+                                onClick = {
+                                    if (selTagIds.contains(t.id)) selTagIds = selTagIds - t.id
+                                    else if (selTagIds.size < 5) selTagIds = selTagIds + t.id
+                                },
+                                label = { Text(t.name) }
+                            )
+                        }
+                    }
+                }
+                if (pendingNew.isNotEmpty()) {
+                    LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(pendingNew.toList(), key = { it }) { name ->
+                            FilterChip(selected = true, onClick = { pendingNew = pendingNew - name }, label = { Text("✕ $name") })
+                        }
+                    }
+                }
+                Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newTag,
+                        onValueChange = { newTag = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("新增标签") },
+                        singleLine = true,
+                        placeholder = { Text("如 分部积分") }
+                    )
+                    TextButton(onClick = {
+                        val n = newTag.trim()
+                        if (n.isNotEmpty() && (selTagIds.size + pendingNew.size) < 5) { pendingNew = pendingNew + n; newTag = "" }
+                    }) { Text("加") }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val cname = if (newCatMode && newCatName.isNotBlank()) newCatName.trim() else null
+                onConfirm(cname, selCatId, pendingNew.toList(), selTagIds.toList())
+            }) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
 

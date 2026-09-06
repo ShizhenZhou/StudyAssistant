@@ -39,6 +39,21 @@ data class Category(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+/** 知识点标签（独立于科目分类，全局不分科），一道题可多个 */
+@Entity(tableName = "tags")
+data class Tag(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/** 错题 ↔ 知识点标签 的多对多关联表 */
+@Entity(tableName = "question_tags", primaryKeys = ["questionId", "tagId"])
+data class QuestionTag(
+    val questionId: Long,
+    val tagId: Long
+)
+
 @Dao
 interface QuestionDao {
     @Query("SELECT * FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
@@ -47,11 +62,35 @@ interface QuestionDao {
     @Query("SELECT * FROM categories ORDER BY createdAt ASC")
     fun categories(): Flow<List<Category>>
 
+    @Query("SELECT * FROM tags ORDER BY name ASC")
+    fun tags(): Flow<List<Tag>>
+
+    @Query("SELECT * FROM tags")
+    suspend fun getAllTagsOnce(): List<Tag>
+
+    @Query("SELECT tagId FROM question_tags WHERE questionId = :questionId")
+    suspend fun tagIdsForQuestion(questionId: Long): List<Long>
+
+    @Query("SELECT * FROM question_tags")
+    fun allQuestionTags(): Flow<List<QuestionTag>>
+
     @Insert
     suspend fun insert(q: Question): Long
 
     @Insert
     suspend fun insertCategory(c: Category): Long
+
+    @Insert
+    suspend fun insertTag(t: Tag): Long
+
+    @Insert
+    suspend fun insertQuestionTag(qt: QuestionTag)
+
+    @Query("DELETE FROM question_tags WHERE questionId = :questionId AND tagId = :tagId")
+    suspend fun deleteQuestionTag(questionId: Long, tagId: Long)
+
+    @Query("DELETE FROM question_tags WHERE questionId = :questionId")
+    suspend fun clearQuestionTags(questionId: Long)
 
     @Update
     suspend fun update(q: Question)
@@ -115,7 +154,15 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
-@Database(entities = [Question::class, Category::class], version = 5, exportSchema = false)
+/** 数据库 5 -> 6：加 tags 表 + question_tags 关联表（知识点 tag，多对多） */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS question_tags (questionId INTEGER NOT NULL, tagId INTEGER NOT NULL, PRIMARY KEY(questionId, tagId))")
+    }
+}
+
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class], version = 6, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
@@ -129,7 +176,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "study_assistant.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { INSTANCE = it }
             }
     }
 }

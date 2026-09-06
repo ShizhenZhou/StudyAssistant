@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,6 +55,8 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.Tag
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -63,8 +66,11 @@ import java.util.Locale
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val questions by vm.notebook.collectAsState()
     val categories by vm.categories.collectAsState()
+    val tags by vm.tags.collectAsState()
+    val questionTags by vm.questionTags.collectAsState()
     var filterCategoryId by remember { mutableStateOf<Long?>(null) } // null = 全部
     var showUncategorized by remember { mutableStateOf(false) }
+    var filterTagIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showBatchCategory by remember { mutableStateOf(false) }
@@ -72,10 +78,17 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
 
     fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
 
+    // 每题 → 其 tagId 列表；tagId → Tag
+    val qTagIds = remember(questionTags) { questionTags.groupBy { it.questionId }.mapValues { e -> e.value.map { it.tagId } } }
+    val tagById = remember(tags) { tags.associateBy { it.id } }
+
     val filtered = when {
         showUncategorized -> questions.filter { it.categoryId == null }
         filterCategoryId != null -> questions.filter { it.categoryId == filterCategoryId }
         else -> questions
+    }.filter { q ->
+        // 按选中的 tag 多选（命中任一即显示）
+        filterTagIds.isEmpty() || (qTagIds[q.id] ?: emptyList()).any { it in filterTagIds }
     }
 
     Scaffold(
@@ -130,6 +143,31 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         )
                     }
                 }
+                // 标签多选筛选
+                if (tags.isNotEmpty()) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            Text(
+                                "标签",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        items(tags, key = { it.id }) { tag ->
+                            FilterChip(
+                                selected = filterTagIds.contains(tag.id),
+                                onClick = {
+                                    filterTagIds = if (filterTagIds.contains(tag.id)) filterTagIds - tag.id else filterTagIds + tag.id
+                                },
+                                label = { Text(tag.name) }
+                            )
+                        }
+                    }
+                }
             }
 
             if (filtered.isEmpty()) {
@@ -138,6 +176,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         when {
                             showUncategorized -> "还没有「未分类」的错题"
                             filterCategoryId != null -> "该分类下暂无错题"
+                            filterTagIds.isNotEmpty() -> "该标签下暂无错题"
                             else -> "还没有错题，去拍照搜题吧 📷"
                         }
                     )
@@ -153,6 +192,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                     staggeredItems(filtered, key = { it.id }) { q ->
                         NotebookItem(
                             q = q,
+                            tags = (qTagIds[q.id] ?: emptyList()).mapNotNull { tagById[it] },
                             selectionMode = selectionMode,
                             selected = selectedIds.contains(q.id),
                             onClick = {
@@ -210,11 +250,12 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     }
 }
 
-/** 错题条目（双列瀑布流卡片）：图片按比例显示（错开），无图显示文字；支持多选勾选 */
+/** 错题条目（双列瀑布流卡片）：图片按比例显示（错开），无图显示文字；支持多选勾选 + 显示知识点标签 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NotebookItem(
     q: Question,
+    tags: List<Tag>,
     selectionMode: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
@@ -255,6 +296,20 @@ private fun NotebookItem(
                     modifier = Modifier.padding(top = 6.dp),
                     style = MaterialTheme.typography.labelSmall
                 )
+                if (tags.isNotEmpty()) {
+                    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        tags.take(3).forEach { t ->
+                            Text(
+                                t.name,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
             // 多选：右上角勾选框
             if (selectionMode) {

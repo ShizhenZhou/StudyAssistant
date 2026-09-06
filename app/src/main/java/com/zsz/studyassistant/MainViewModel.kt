@@ -12,7 +12,9 @@ import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.QuestionTag
 import com.zsz.studyassistant.data.StudyAssistant
+import com.zsz.studyassistant.data.Tag
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -53,6 +55,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val categories: StateFlow<List<Category>> =
         dao.categories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 知识点标签列表 */
+    val tags: StateFlow<List<Tag>> =
+        dao.tags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 错题↔标签 关联（用于按 tag 筛选） */
+    val questionTags: StateFlow<List<QuestionTag>> =
+        dao.allQuestionTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // ---- 对话流状态 ----
     var imageBytes by mutableStateOf<ByteArray?>(null)
     var chatItems by mutableStateOf<List<ChatItem>>(emptyList())
@@ -82,6 +92,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     /** 当前题目的原始时间戳（loadQuestion 时记录，更新时保持原值，避免时间戳被刷新） */
     private var currentQuestionCreatedAt = 0L
+    /** AI 推测的知识点标签（存题时作为默认候选，可改） */
+    var suggestedTags by mutableStateOf<List<String>>(emptyList())
+        private set
+    /** 当前题目的知识点标签 id 列表（存题/加载/详情页改标签用） */
+    var currentQuestionTags by mutableStateOf<List<Long>>(emptyList())
+        private set
 
     /** 框选用：暂存拍照生成的图片文件路径 */
     var pendingImagePath by mutableStateOf<String?>(null)
@@ -102,14 +118,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         savedQuestionId = null
         isFromNotebook = false
         suggestedCategory = null
+        suggestedTags = emptyList()
         currentQuestionCategoryId = null
+        currentQuestionTags = emptyList()
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
     private fun buildMessages(): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
         if (isPhoto && imageBytes != null) {
-            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categories.value.map { it.name }))
+            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categories.value.map { it.name }, tags.value.map { it.name }))
         } else if (questionText.isNotBlank()) {
             msgs.add(StudyAssistant.textUserMessage(questionText))
         }
@@ -154,7 +172,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         savedToNotebook = false
         savedQuestionId = null
         suggestedCategory = null
+        suggestedTags = emptyList()
         currentQuestionCategoryId = null
+        currentQuestionTags = emptyList()
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
@@ -196,6 +216,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
             suggestedCategory = r.category
+            suggestedTags = r.tags
             addItem("question", r.question)
             addItem("assistant", r.answer)
         }, repeat = { solveWithImage(bytes) })
@@ -238,6 +259,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val r = StudyAssistant.parseVisionOutput(output)
                 questionText = r.question
                 suggestedCategory = r.category
+                suggestedTags = r.tags
                 addItem("question", r.question)
                 addItem("assistant", r.answer)
             }, repeat = { regenerate() })
@@ -253,7 +275,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         chatItems.lastOrNull { it.role == "assistant" }?.content ?: ""
 
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
-    fun saveToNotebook(name: String?, categoryId: Long?) {
+    fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {
         if (saving) {
             cancelPending = true
             return
@@ -274,14 +296,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             currentQuestionCategoryId = cid
             val now = System.currentTimeMillis()
             currentQuestionCreatedAt = now
-            val id = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson, categoryId = cid, createdAt = now))
+            val qid = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson, categoryId = cid, createdAt = now))
+            // 关联知识点标签（合并已有 id + 新建名，最多 5 个）
+            val finalIds = tagIds.toMutableList()
+            for (tn in tagNames.take(5)) {
+                val name2 = tn.trim()
+                if (name2.isBlank()) continue
+                val existing = dao.getAllTagsOnce().firstOrNull { it.name == name2 }
+                val tid = existing?.id ?: dao.insertTag(Tag(name = name2))
+                if (!finalIds.contains(tid)) finalIds += tid
+            }
+            for (tid in finalIds.take(5)) dao.insertQuestionTag(QuestionTag(qid, tid))
+            currentQuestionTags = finalIds.take(5)
             if (cancelPending) {
-                dao.deleteById(id)
+                dao.deleteById(qid)
                 savedQuestionId = null
                 savedToNotebook = false
                 cancelPending = false
             } else {
-                savedQuestionId = id
+                savedQuestionId = qid
                 savedToNotebook = true
             }
             saving = false
@@ -294,6 +327,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         savedQuestionId = null
         savedToNotebook = false
         currentQuestionCategoryId = null
+        currentQuestionTags = emptyList()
         viewModelScope.launch { dao.deleteById(id) }
     }
 
@@ -323,6 +357,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 cid = dao.insertCategory(Category(name = name.trim()))
             }
             dao.setCategoryForIds(ids, cid)
+        }
+    }
+
+    /** 给当前题目加一个标签；name 非空→新建标签。返回是否成功 */
+    fun addTagToCurrent(name: String?, tagId: Long?) {
+        val id = savedQuestionId ?: return
+        viewModelScope.launch {
+            var tid = tagId
+            if (!name.isNullOrBlank()) {
+                val existing = dao.getAllTagsOnce().firstOrNull { it.name == name.trim() }
+                tid = existing?.id ?: dao.insertTag(Tag(name = name.trim()))
+            }
+            if (tid == null) return@launch
+            if (currentQuestionTags.contains(tid)) return@launch
+            dao.insertQuestionTag(QuestionTag(id, tid))
+            currentQuestionTags = currentQuestionTags + tid
+        }
+    }
+
+    /** 移除当前题目的一个标签 */
+    fun removeTagFromCurrent(tagId: Long) {
+        val id = savedQuestionId ?: return
+        viewModelScope.launch {
+            dao.deleteQuestionTag(id, tagId)
+            currentQuestionTags = currentQuestionTags - tagId
+        }
+    }
+
+    /** 重置当前题目的标签（详情页批量改；tagIds + 新建 tagNames，≤5 个） */
+    fun setCurrentTags(tagIds: List<Long>, newTagNames: List<String>) {
+        val id = savedQuestionId ?: return
+        viewModelScope.launch {
+            dao.clearQuestionTags(id)
+            val finalIds = tagIds.toMutableList()
+            for (tn in newTagNames.take(5)) {
+                val n = tn.trim()
+                if (n.isBlank()) continue
+                val ex = dao.getAllTagsOnce().firstOrNull { it.name == n }
+                val tid = ex?.id ?: dao.insertTag(Tag(name = n))
+                if (!finalIds.contains(tid)) finalIds += tid
+            }
+            for (tid in finalIds.take(5)) dao.insertQuestionTag(QuestionTag(id, tid))
+            currentQuestionTags = finalIds.take(5)
         }
     }
 
@@ -416,7 +493,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCategoryId = q.categoryId
         currentQuestionCreatedAt = q.createdAt
         suggestedCategory = null
+        currentQuestionTags = emptyList()
         error = null
+        // 异步加载该题的知识点标签
+        viewModelScope.launch {
+            currentQuestionTags = dao.tagIdsForQuestion(q.id)
+        }
     }
 }
 

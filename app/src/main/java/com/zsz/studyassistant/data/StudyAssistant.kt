@@ -27,12 +27,13 @@ object StudyAssistant {
         }
     }
 
-    data class SolveResult(val question: String, val answer: String, val category: String? = null)
+    data class SolveResult(val question: String, val answer: String, val category: String? = null, val tags: List<String> = emptyList())
 
     /** 视觉模型首条用户消息（文字 + 图片）；带已有分类名，让模型优先归入已有分类 */
-    fun visionUserMessage(imageBytes: ByteArray, categories: List<String> = emptyList()): DeepSeekMessage {
+    fun visionUserMessage(imageBytes: ByteArray, categories: List<String> = emptyList(), tags: List<String> = emptyList()): DeepSeekMessage {
         val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
         val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
+        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
         val content = buildJsonArray {
             addJsonObject {
                 put("type", "text")
@@ -43,6 +44,8 @@ object StudyAssistant {
                         "解答最后另起一行输出“分类：<所属科目>”。" +
                         "已知分类：$catHint。若题目属于其中某一个，请直接用该分类名作为“分类”，不要新造；" +
                         "若都不符合，才给出一个新的简短科目名。" +
+                        "再在“分类”之后另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。" +
+                        "已知知识点标签：$tagHint。若题目涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签。" +
                         "数学公式请用 LaTeX 书写。"
                 )
             }
@@ -134,10 +137,18 @@ object StudyAssistant {
         val question = Regex("题目[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
         val answer = Regex("解答[:：]([\\s\\S]+)").find(output)?.groupValues?.get(1)?.trim()
         val category = Regex("分类[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
+        // 知识点：按 、 / ， / 逗号 拆分，最多 5 个
+        val tags = Regex("知识点[:：]\\s*(.+)").find(output)?.groupValues?.get(1)
+            ?.split('、', '，', ',')
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.take(5)
+            ?: emptyList()
         return SolveResult(
             question = question?.takeIf { it.isNotBlank() } ?: output.take(80),
             answer = answer ?: output,
-            category = category?.takeIf { it.isNotBlank() }
+            category = category?.takeIf { it.isNotBlank() },
+            tags = tags
         )
     }
 

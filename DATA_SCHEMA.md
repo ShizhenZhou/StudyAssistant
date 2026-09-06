@@ -21,8 +21,8 @@
 
 ## 1. Room 数据库 `study_assistant.db`
 
-- 当前 **schema version = 5**（`AppDatabase.version`）。
-- 迁移路径：`v1 → v2 → v3 → v4 → v5`，全部用 `Migration` + `addMigrations(...)`。
+- 当前 **schema version = 6**（`AppDatabase.version`）。
+- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6`，全部用 `Migration` + `addMigrations(...)`。
 
 ### 1.1 表 `questions`（最新结构 = v5）
 
@@ -49,6 +49,23 @@
 
 > `questions.categoryId` 为外键语义引用 `categories.id`；`GET`DB 删除分类时用 `DELETE FROM categories WHERE id=:id`。
 
+### 1.2.1 表 `tags`（v6 新增）
+
+| 列名 | 类型 | 默认 | 含义 |
+|---|---|---|---|
+| `id` | INTEGER (PK, auto) | — | 主键 |
+| `name` | TEXT | — | 知识点标签名（如 分部积分、二重积分） |
+| `createdAt` | INTEGER | `System.currentTimeMillis()` | 创建时间 |
+
+### 1.2.2 表 `question_tags`（v6 新增，多对多关联）
+
+| 列名 | 类型 | 说明 |
+|---|---|---|
+| `questionId` | INTEGER | 外键 → `questions.id` |
+| `tagId` | INTEGER | 外键 → `tags.id` |
+
+> 复合主键 `(questionId, tagId)`；一道题最多 5 个 tag（业务层限制）。
+
 ### 1.3 迁移历史（每个版本对应的结构）
 
 | 迁移 | App 版本 | 结构变化 | SQL |
@@ -58,6 +75,7 @@
 | `MIGRATION_2_3` | v0.3.3 | questions 加 `conversationJson`(TEXT) | `ALTER TABLE questions ADD COLUMN conversationJson TEXT` |
 | `MIGRATION_3_4` | v0.3.4 | questions 加 `deleted`(INT NOT NULL DEFAULT 0) | `ALTER TABLE questions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0` |
 | `MIGRATION_4_5` | v0.3.6 | questions 加 `categoryId`(INT)；新建表 `categories` | `ALTER TABLE questions ADD COLUMN categoryId INTEGER`；`CREATE TABLE categories(...)` |
+| `MIGRATION_5_6` | v0.3.9 | 新建表 `tags` 与 `question_tags` | `CREATE TABLE tags(...)`；`CREATE TABLE question_tags(...)` |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）。
 
