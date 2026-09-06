@@ -531,21 +531,24 @@ internal fun SaveDialog(
     var newCatMode by remember { mutableStateOf(!initialNewName.isNullOrBlank()) }
     var newCatName by remember { mutableStateOf(initialNewName ?: "") }
 
-    // 标签状态：已有 tag id → name；把 suggested 里匹配已有的选中、不匹配的作为待新建
-    val tagIdByName = remember(tags) { tags.associateBy { it.name } }
-    val initSelected = remember(initialSelectedTagIds, suggestedTagNames, tags) {
-        val sel = mutableSetOf<Long>()
-        sel += initialSelectedTagIds
-        for (s in suggestedTagNames) {
-            if (sel.size >= 5) break
-            val t = tagIdByName[s]
-            if (t != null) sel += t.id
-        }
-        sel
+    // 标签：统一用"标签名"集合表示选中（含已有 tag 名与 AI 建议/新建名），最多 5 个
+    val existingNames = remember(tags) { tags.map { it.name }.toSet() }
+    val initNames = remember(initialSelectedTagIds, suggestedTagNames, tags) {
+        val set = LinkedHashSet<String>()
+        for (id in initialSelectedTagIds) tags.firstOrNull { it.id == id }?.name?.let { set += it }
+        for (s in suggestedTagNames) { if (set.size < 5) set += s }
+        set
     }
-    var selTagIds by remember { mutableStateOf<Set<Long>>(initSelected) }
-    var pendingNew by remember { mutableStateOf(suggestedTagNames.filter { tagIdByName[it] == null }.take(5).toSet()) }
+    var selectedNames by remember { mutableStateOf(initNames) }
     var newTag by remember { mutableStateOf("") }
+
+    fun toggleTagName(name: String) {
+        if (selectedNames.contains(name)) {
+            selectedNames = LinkedHashSet(selectedNames.apply { remove(name) })
+        } else if (selectedNames.size < 5) {
+            selectedNames = LinkedHashSet(selectedNames.apply { add(name) })
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -570,24 +573,28 @@ internal fun SaveDialog(
 
                 Spacer(Modifier.height(14.dp))
                 Text("知识点标签（最多 5 个）", style = MaterialTheme.typography.labelMedium)
+                // 已有标签（点击选中/取消）
                 if (tags.isNotEmpty()) {
                     LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(tags, key = { it.id }) { t ->
                             FilterChip(
-                                selected = selTagIds.contains(t.id),
-                                onClick = {
-                                    if (selTagIds.contains(t.id)) selTagIds = selTagIds - t.id
-                                    else if (selTagIds.size < 5) selTagIds = selTagIds + t.id
-                                },
+                                selected = selectedNames.contains(t.name),
+                                onClick = { toggleTagName(t.name) },
                                 label = { Text(t.name) }
                             )
                         }
                     }
                 }
-                if (pendingNew.isNotEmpty()) {
+                // 将新建的标签（AI 建议/手动添加，不在已有 tag 里），选中态
+                val toCreate = selectedNames.filter { it !in existingNames && it.isNotBlank() }
+                if (toCreate.isNotEmpty()) {
                     LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(pendingNew.toList(), key = { it }) { name ->
-                            FilterChip(selected = true, onClick = { pendingNew = pendingNew - name }, label = { Text("✕ $name") })
+                        items(toCreate, key = { it }) { name ->
+                            FilterChip(
+                                selected = true,
+                                onClick = { toggleTagName(name) },
+                                label = { Text(name) }
+                            )
                         }
                     }
                 }
@@ -602,7 +609,7 @@ internal fun SaveDialog(
                     )
                     TextButton(onClick = {
                         val n = newTag.trim()
-                        if (n.isNotEmpty() && (selTagIds.size + pendingNew.size) < 5) { pendingNew = pendingNew + n; newTag = "" }
+                        if (n.isNotEmpty() && n !in selectedNames && selectedNames.size < 5) { toggleTagName(n); newTag = "" }
                     }) { Text("加") }
                 }
             }
@@ -610,7 +617,14 @@ internal fun SaveDialog(
         confirmButton = {
             TextButton(onClick = {
                 val cname = if (newCatMode && newCatName.isNotBlank()) newCatName.trim() else null
-                onConfirm(cname, selCatId, pendingNew.toList(), selTagIds.toList())
+                // 拆分为已有 id + 待新建名
+                val tagIds = mutableListOf<Long>()
+                val newNames = mutableListOf<String>()
+                for (name in selectedNames) {
+                    val t = tags.firstOrNull { it.name == name }
+                    if (t != null) tagIds += t.id else newNames += name
+                }
+                onConfirm(cname, selCatId, newNames, tagIds)
             }) { Text("保存") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
