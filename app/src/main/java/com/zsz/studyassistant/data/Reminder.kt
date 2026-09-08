@@ -47,15 +47,19 @@ object ReminderScheduler {
 
     /** 设置/开关调用：用 setAlarmClock 精确到点，国产机也尽量按时、Doze 下也触发 */
     fun applySchedule(c: Context) {
-        val am = c.getSystemService(AlarmManager::class.java) ?: return
-        if (!isEnabled(c)) {
-            am.cancel(pending(c))
-            return
+        try {
+            val am = c.getSystemService(AlarmManager::class.java) ?: return
+            if (!isEnabled(c)) {
+                am.cancel(pending(c))
+                return
+            }
+            ensureChannel(c)
+            val trigger = nextTriggerAt(c)
+            val showIntent = PendingIntent.getActivity(c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, showIntent), pending(c))
+        } catch (_: Exception) {
+            // 个别系统/厂商对精确闹钟有限制，忽略避免崩溃
         }
-        ensureChannel(c)
-        val trigger = nextTriggerAt(c)
-        val showIntent = PendingIntent.getActivity(c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, showIntent), pending(c))
     }
 }
 
