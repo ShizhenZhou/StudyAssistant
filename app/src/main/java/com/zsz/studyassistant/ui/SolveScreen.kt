@@ -138,10 +138,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    val titleText = if (editMode) "已选 ${selectedIndices.size} 条" else "解题"
                     Text(
-                        titleText,
-                        fontSize = if (titleText.length > 6) 16.sp else 18.sp,
+                        if (editMode) "已选 ${selectedIndices.size} 条" else "解题",
+                        fontSize = 18.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -177,7 +176,17 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
                             TextButton(onClick = { categoryDialogFor = "change" }) {
-                                Text(if (curCat != null) "📁 ${curCat.name}" else "📁 暂不分类", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val catName = curCat?.name ?: "暂不分类"
+                                Text(
+                                    if (curCat != null) "📁 ${catName}" else "📁 暂不分类",
+                                    fontSize = when {
+                                        catName.length <= 3 -> 14.sp
+                                        catName.length <= 5 -> 12.sp
+                                        else -> 11.sp
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
