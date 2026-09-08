@@ -7,6 +7,7 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -64,13 +65,16 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
+import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.StudyAssistant
@@ -88,6 +92,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     val categories by vm.categories.collectAsState()
     val tags by vm.tags.collectAsState()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
+    var editMode by remember { mutableStateOf(false) }
+    var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var showEditDelete by remember { mutableStateOf(false) }
 
     // 从相册选 1~3 张图，附到追问消息里
     val imagePicker = rememberLauncherForActivityResult(
@@ -129,23 +136,34 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("解题") },
+                title = { Text(if (editMode) "已选 ${selectedIndices.size} 条" else "解题") },
                 navigationIcon = {
-                    TextButton(onClick = {
-                        if (vm.isFromNotebook) {
-                            nav.popBackStack()
-                        } else {
-                            // 拍题流程：返回直接回拍题界面
-                            vm.startNewQuestion()
-                            nav.navigate("camera") { popUpTo("home") }
-                        }
-                    }) { Text("←") }
+                    if (editMode) {
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
+                    } else {
+                        TextButton(onClick = {
+                            if (vm.isFromNotebook) {
+                                nav.popBackStack()
+                            } else {
+                                // 拍题流程：返回直接回拍题界面
+                                vm.startNewQuestion()
+                                nav.navigate("camera") { popUpTo("home") }
+                            }
+                        }) { Text("←") }
+                    }
                 },
                 actions = {
                     if (vm.reviewMode) {
                         // 复习模式：只保留「完成」退出
                         TextButton(onClick = { vm.exitReviewMode(); nav.popBackStack() }) { Text("✓ 完成") }
-                    } else if (vm.isFromNotebook) {
+                    } else if (editMode) {
+                        // 编辑（多选删除消息）
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
+                    } else {
+                        // 编辑入口（进入多选删除消息）
+                        TextButton(onClick = { editMode = true }) { Text("✏️ 编辑") }
+                        if (vm.isFromNotebook) {
                         // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
                         if (vm.isDeleted) {
                             TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
@@ -183,6 +201,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         }
                     }
+                    }
                 }
             )
         }
@@ -202,6 +221,23 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
                 }
+            )
+        }
+        // 编辑模式：删除选中消息确认
+        if (showEditDelete) {
+            AlertDialog(
+                onDismissRequest = { showEditDelete = false },
+                title = { Text("删除消息") },
+                text = { Text("确定删除选中的 ${selectedIndices.size} 条消息吗？删除后 AI 会基于剩余消息继续对话。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.deleteMessages(selectedIndices.toList())
+                        showEditDelete = false
+                        editMode = false
+                        selectedIndices = emptySet()
+                    }) { Text("删除") }
+                },
+                dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text("取消") } }
             )
         }
         // 分类 + 标签选择对话框（存题 / 详情页改）
@@ -282,8 +318,24 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 CollapsibleQuestionImage(vm.imageBytes)
             }
 
-            // 对话正文：固定区域 + WebView 内部滚动（滚动条常驻，聊天气泡）——单 WebView，滚动稳定
-            if (vm.chatItems.isEmpty()) {
+            // 编辑模式：Compose 列表（可勾选删除），否则单 WebView 稳定滚动
+            if (editMode) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    itemsIndexed(vm.chatItems, key = { _, it -> it.id }) { idx, item ->
+                        EditMsgRow(
+                            item = item,
+                            selected = selectedIndices.contains(idx),
+                            onClick = {
+                                selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
+                            }
+                        )
+                    }
+                }
+            } else if (vm.chatItems.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
                         if (vm.busy) "答案生成中……" else "正在等待题目…\n（拍照后会出现题目与解答）",
@@ -507,6 +559,39 @@ internal fun CategoryDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         }
     )
+}
+
+/** 编辑（多选删除）模式下的一条消息 */
+@Composable
+private fun EditMsgRow(item: ChatItem, selected: Boolean, onClick: () -> Unit) {
+    val isAssistant = item.role == "assistant"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isAssistant) Color(0xFFE9E9E9) else Color(0xFFD8F2D8))
+            .then(if (selected) Modifier.border(2.dp, Color(0xFF4CAF50), RoundedCornerShape(10.dp)) else Modifier)
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                (if (isAssistant) "🤖 " else "🧑 ") + item.content.replace('\n', ' '),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall
+            )
+            if (!item.images.isNullOrEmpty()) {
+                Text("[图]", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            }
+        }
+        Box(
+            Modifier.size(20.dp).background(if (selected) Color(0xFF4CAF50) else Color(0x88000000), CircleShape),
+            contentAlignment = Alignment.Center
+        ) { if (selected) Text("✓", color = Color.White, fontSize = 12.sp) }
+    }
 }
 
 /**
