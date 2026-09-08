@@ -142,6 +142,32 @@ fun SettingsTab(vm: MainViewModel) {
         }
         Text("到点会提醒：今天还有 xx 道错题要复习！本周末前还有 xx 道！", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 
+        // 后台保活（国产机要允许自启动/后台运行，关掉 app 也能收到提醒）
+        val powerManager = context.getSystemService(android.os.PowerManager::class.java)
+        val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("允许后台运行（不漏提醒）", style = MaterialTheme.typography.bodySmall)
+            if (ignoringBattery) {
+                Text("✅ 已开启", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            } else {
+                TextButton(onClick = {
+                    try {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            )
+                        )
+                    } catch (_: Exception) { }
+                }) { Text("去开启") }
+            }
+        }
+        Text(
+            "提示：国产手机（荣耀/华为等）还需在「手机管家 → 应用 → 自启动/后台运行」中允许本应用，才能在关闭后仍收到提醒。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+
         Spacer(Modifier.height(20.dp))
 
         // ℹ️ 关于
