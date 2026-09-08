@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -135,9 +136,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(if (editMode) "已选 ${selectedIndices.size} 条" else "解题") },
-                navigationIcon = {
+            Column(Modifier.fillMaxWidth().statusBarsPadding().background(MaterialTheme.colorScheme.surface)) {
+                // 行1：返回 + 标题（不竖排）
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (editMode) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
                     } else {
@@ -151,59 +152,69 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         }) { Text("←") }
                     }
-                },
-                actions = {
-                    if (vm.reviewMode) {
-                        // 复习模式：只保留「完成」退出
-                        TextButton(onClick = { vm.exitReviewMode(); nav.popBackStack() }) { Text("✓ 完成") }
-                    } else if (editMode) {
-                        // 编辑（多选删除消息）
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
-                    } else {
-                        // 编辑入口（进入多选删除消息）
-                        TextButton(onClick = { editMode = true }) { Text("✏️ 编辑") }
-                        if (vm.isFromNotebook) {
-                        // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
-                        if (vm.isDeleted) {
-                            TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
-                        } else {
-                            TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
+                    Text(
+                        if (editMode) "已选 ${selectedIndices.size} 条" else "解题",
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(start = 4.dp)
+                    )
+                }
+                // 行2：操作按钮（独立一行，避免挤到标题）
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    when {
+                        vm.reviewMode -> {
+                            // 复习模式：只保留「完成」退出
+                            TextButton(onClick = { vm.exitReviewMode(); nav.popBackStack() }) { Text("✓ 完成") }
                         }
-                        // 分类（已保存时可改）
-                        val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
-                        TextButton(onClick = { categoryDialogFor = "change" }) {
-                            Text(if (curCat != null) "📁 ${curCat.name}" else "📁 暂不分类")
+                        editMode -> {
+                            // 编辑（多选删除消息）
+                            TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
+                            TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
                         }
-                    } else {
-                        // 拍题解题：重新生成 + 存错题本
-                        val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
-                        TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
-                            Text("🔄 重新生成")
-                        }
-                        TextButton(
-                            onClick = {
-                                if (vm.savedToNotebook) {
-                                    vm.unsaveFromNotebook()
+                        else -> {
+                            // 编辑入口
+                            TextButton(onClick = { editMode = true }) { Text("✏️ 编辑") }
+                            if (vm.isFromNotebook) {
+                                // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
+                                if (vm.isDeleted) {
+                                    TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
                                 } else {
-                                    categoryDialogFor = "save"
+                                    TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
                                 }
-                            },
-                            enabled = saveEnabled
-                        ) {
-                            val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
-                            if (vm.savedToNotebook && saveEnabled) {
-                                // 已存且可用：绿色表示已存入错题本
-                                Text(label, color = Color(0xFF4CAF50))
+                                // 分类（已保存时可改）
+                                val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
+                                TextButton(onClick = { categoryDialogFor = "change" }) {
+                                    Text(if (curCat != null) "📁 ${curCat.name}" else "📁 暂不分类")
+                                }
                             } else {
-                                // 其它交给 M3：busy 时自动变暗，与「重新生成」一致
-                                Text(label)
+                                // 拍题解题：重新生成 + 存错题本
+                                val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
+                                TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
+                                    Text("🔄 重新生成")
+                                }
+                                TextButton(
+                                    onClick = {
+                                        if (vm.savedToNotebook) {
+                                            vm.unsaveFromNotebook()
+                                        } else {
+                                            categoryDialogFor = "save"
+                                        }
+                                    },
+                                    enabled = saveEnabled
+                                ) {
+                                    val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
+                                    if (vm.savedToNotebook && saveEnabled) Text(label, color = Color(0xFF4CAF50)) else Text(label)
+                                }
                             }
                         }
                     }
-                    }
                 }
-            )
+            }
         }
     ) { padding ->
         // 删除确认
@@ -581,7 +592,8 @@ private fun EditMsgRow(item: ChatItem, selected: Boolean, onClick: () -> Unit) {
                 (if (isAssistant) "🤖 " else "🧑 ") + item.content.replace('\n', ' '),
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF111111)
             )
             if (!item.images.isNullOrEmpty()) {
                 Text("[图]", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
