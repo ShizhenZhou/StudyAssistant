@@ -1,5 +1,10 @@
 package com.zsz.studyassistant.ui
 
+import android.Manifest
+import android.app.TimePickerDialog
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +21,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,6 +36,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.ApiKeyStore
+import com.zsz.studyassistant.data.ReminderScheduler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +45,21 @@ fun SettingsTab(vm: MainViewModel) {
     var input by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
     var hasKey by remember { mutableStateOf(ApiKeyStore.hasKey(context)) }
+
+    // 通知设置
+    val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+    var notifyEnabled by remember { mutableStateOf(prefs.getBoolean("notify_enabled", false)) }
+    var notifyHour by remember { mutableStateOf(prefs.getInt("notify_hour", 20)) }
+    var notifyMinute by remember { mutableStateOf(prefs.getInt("notify_minute", 0)) }
+    val notifyPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    fun saveNotify(enabled: Boolean) {
+        prefs.edit().putBoolean("notify_enabled", enabled).apply()
+        notifyEnabled = enabled
+        ReminderScheduler.applySchedule(context)
+        if (enabled && android.os.Build.VERSION.SDK_INT >= 33) {
+            notifyPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     Column(
         Modifier
@@ -99,6 +121,26 @@ fun SettingsTab(vm: MainViewModel) {
                 Text(label, Modifier.padding(start = 8.dp))
             }
         }
+
+        Spacer(Modifier.height(20.dp))
+
+        // 🔔 复习提醒
+        Text("🔔 复习提醒", style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("开启每日提醒")
+            Switch(checked = notifyEnabled, onCheckedChange = { saveNotify(it) })
+        }
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("提醒时间")
+            TextButton(onClick = {
+                TimePickerDialog(context, { _, h, m ->
+                    prefs.edit().putInt("notify_hour", h).putInt("notify_minute", m).apply()
+                    notifyHour = h; notifyMinute = m
+                    ReminderScheduler.applySchedule(context)
+                }, notifyHour, notifyMinute, true).show()
+            }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
+        }
+        Text("到点会提醒：今天还有 xx 道错题要复习！本周末前还有 xx 道！", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 
         Spacer(Modifier.height(20.dp))
 

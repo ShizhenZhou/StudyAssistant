@@ -35,6 +35,7 @@ import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.NotebookScreen
 import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
+import com.zsz.studyassistant.ui.SimilarScreen
 import com.zsz.studyassistant.ui.SolveScreen
 
 class MainActivity : ComponentActivity() {
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
                                 composable("solve") { SolveScreen(nav, viewModel) }
                                 composable("notebook") { NotebookScreen(nav, viewModel) }
                                 composable("review") { ReviewScreen(nav, viewModel) }
+                                composable("similar") { SimilarScreen(nav, viewModel) }
                                 composable("settings") { SettingsTab(viewModel) }
                             }
                         }

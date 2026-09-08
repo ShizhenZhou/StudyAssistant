@@ -156,10 +156,26 @@ object StudyAssistant {
 
     private fun JsonElement.asText(): String = (this as? JsonPrimitive)?.content ?: toString()
 
-    /** 预留：根据错题生成一道近似题（同知识点）。后续版本接入 UI 时实现并返回题目文本。 */
-    suspend fun generateSimilarQuestion(question: Question): String {
-        // TODO: 后续接入近似题生成（基于 question.text / 知识点 tags 让模型出一题同难度近似题）
-        return ""
+    /** 同类题结果：AI 出的题目 + 完整解答 */
+    data class SimilarResult(val question: String, val answer: String)
+
+    /** 根据错题出一道同知识点、同类题型、难度相近的近似题，并自备完整解答（确保可解） */
+    suspend fun generateSimilarQuestion(question: Question): SimilarResult {
+        requireKey()
+        val content = "请根据下面这道题，出一道同知识点、同类题型、难度相近的“近似题”，并自行给出完整、正确的解答（务必确保题目可解）。" +
+            "原题：${question.text}\n\n请先输出一行“题目：<新题>”，再输出“解答：<完整步骤与结论>”。数学公式用 LaTeX。"
+        val msgs = listOf(
+            systemMessage(),
+            DeepSeekMessage("user", JsonPrimitive(content))
+        )
+        val resp = ApiClient.deepSeek.chat(
+            DeepSeekRequest(model = MODEL_TEXT, messages = msgs, maxTokens = 4096)
+        )
+        val out = resp.choices.firstOrNull()?.message?.content?.asText()
+            ?: throw IllegalStateException("出题返回为空")
+        val q = Regex("题目[:：]\\s*(.+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out.take(120)
+        val a = Regex("解答[:：]([\\s\\S]+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out
+        return SimilarResult(q, a)
     }
 
     /** 图片压缩为 JPEG 字节（发送前处理，最大边长 maxDim，质量 quality） */

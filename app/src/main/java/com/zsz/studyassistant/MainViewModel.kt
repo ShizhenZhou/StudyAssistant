@@ -20,6 +20,7 @@ import java.util.Calendar
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -441,11 +442,85 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 复习模式：点进错题查看；详情页底部为 熟悉/模糊/忘记 三按钮 */
     var reviewMode by mutableStateOf(false)
         private set
+    private var reviewQueue: List<Question> = emptyList()
+    private var currentReviewQuestion: Question? = null
+
     fun loadForReview(q: Question) {
         loadQuestion(q)
         reviewMode = true
+        currentReviewQuestion = q
+        viewModelScope.launch {
+            reviewQueue = dao.dueQuestions(endOfToday()).first()
+        }
     }
+
+    /** 点三按钮后：更新调度并自动跳到下一题；无下一题时回调 onNoMore */
+    fun reviewNext(level: Int, onNoMore: () -> Unit) {
+        val qid = savedQuestionId ?: return
+        reviewQuestion(qid, level)
+        viewModelScope.launch {
+            val due = dao.dueQuestions(endOfToday()).first()
+            val cat = currentQuestionCategoryId
+            val next = due.firstOrNull { it.categoryId == cat } ?: due.firstOrNull()
+            if (next != null) {
+                reviewQueue = due
+                loadForReview(next)
+            } else {
+                onNoMore()
+            }
+        }
+    }
+
     fun exitReviewMode() { reviewMode = false }
+
+    // ---- 练同类题 ----
+    var similarQuestion by mutableStateOf<String?>(null)
+        private set
+    var similarAnswer by mutableStateOf<String?>(null)
+        private set
+    var similarBusy by mutableStateOf(false)
+        private set
+    var similarMessages by mutableStateOf<List<ChatItem>>(emptyList())
+        private set
+
+    fun startSimilar() {
+        val q = currentReviewQuestion ?: return
+        viewModelScope.launch {
+            similarBusy = true
+            similarQuestion = null; similarAnswer = null; similarMessages = emptyList()
+            try {
+                val r = StudyAssistant.generateSimilarQuestion(q)
+                similarQuestion = r.question
+                similarAnswer = r.answer
+            } catch (e: Exception) {
+                similarQuestion = "出题失败：${e.message}"
+                similarAnswer = null
+            }
+            similarBusy = false
+        }
+    }
+
+    fun sendSimilar(text: String) {
+        val qTitle = similarQuestion ?: return
+        val txt = text.trim()
+        if (txt.isEmpty()) return
+        similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "user", txt)
+        similarBusy = true
+        viewModelScope.launch {
+            try {
+                val msgs = mutableListOf<DeepSeekMessage>()
+                msgs.add(StudyAssistant.systemMessage())
+                msgs.add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
+                for (m in similarMessages) msgs.add(DeepSeekMessage(if (m.role == "assistant") "assistant" else "user", JsonPrimitive(m.content)))
+                msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
+                val reply = StudyAssistant.chatOnce(StudyAssistant.MODEL_TEXT, msgs)
+                similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", reply)
+            } catch (e: Exception) {
+                similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", "出错：${e.message}")
+            }
+            similarBusy = false
+        }
+    }
 
     private fun startOfToday(): Long {
         val c = Calendar.getInstance()

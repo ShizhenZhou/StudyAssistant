@@ -162,7 +162,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 actions = {
                     if (vm.reviewMode) {
-                        TextButton(onClick = { vm.exitReviewMode(); nav.popBackStack() }) { Text("✓ 完成") }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }) { Text("✏️ 练同类题") }
                     } else if (editMode) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
@@ -367,26 +367,30 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            // 复习模式：底部为 熟悉/模糊/忘记 三按钮
+            // 复习模式：底部为 熟悉/模糊/忘记 三按钮；点后自动跳下一题（同科目优先），全部复习完才退出
             if (vm.reviewMode) {
-                val qid = vm.savedQuestionId
+                val onNoMore: () -> Unit = {
+                    vm.exitReviewMode()
+                    nav.popBackStack()
+                    android.widget.Toast.makeText(context, "今日要复习的错题已全部完成 🎉", android.widget.Toast.LENGTH_SHORT).show()
+                }
                 Row(
                     Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
-                        onClick = { qid?.let { vm.reviewQuestion(it, 2) }; nav.popBackStack() },
+                        onClick = { vm.reviewNext(2, onNoMore) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) { Text("🌱 熟悉") }
                     Button(
-                        onClick = { qid?.let { vm.reviewQuestion(it, 1) }; nav.popBackStack() },
+                        onClick = { vm.reviewNext(1, onNoMore) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
                     ) { Text("🌤 模糊") }
                     Button(
-                        onClick = { qid?.let { vm.reviewQuestion(it, 0) }; nav.popBackStack() },
+                        onClick = { vm.reviewNext(0, onNoMore) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
                     ) { Text("🔥 忘记") }
