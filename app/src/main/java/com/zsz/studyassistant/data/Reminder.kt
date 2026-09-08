@@ -1,23 +1,27 @@
 package com.zsz.studyassistant.data
 
-import android.app.AlarmManager
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.zsz.studyassistant.MainActivity
+import androidx.core.content.ContextCompat
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
 
-/** 复习提醒：设置读取/保存、每日定时调度 + 广播发通知 */
+/** 复习提醒：设置读写 + 每日定时任务调度 + 发通知 */
 object ReminderScheduler {
     private const val PREFS = "settings"
-    private const val CHANNEL_ID = "review_reminder"
+    private const val WORK_NAME = "review_reminder"
+    const val CHANNEL_ID = "review_reminder"
 
     fun isEnabled(c: Context): Boolean = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("notify_enabled", false)
     private fun hour(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("notify_hour", 20)
@@ -25,57 +29,52 @@ object ReminderScheduler {
 
     fun ensureChannel(c: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = c.getSystemService(NotificationManager::class.java)
-            val ch = NotificationChannel(CHANNEL_ID, "复习提醒", NotificationManager.IMPORTANCE_DEFAULT)
-            nm.createNotificationChannel(ch)
+            c.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "复习提醒", NotificationManager.IMPORTANCE_DEFAULT)
+            )
         }
     }
 
-    private fun pendingIntent(c: Context): PendingIntent {
-        val intent = Intent(c, ReminderReceiver::class.java)
-        return PendingIntent.getBroadcast(c, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-    }
-
-    /** 根据设置的开关与时间，安排每日定时提醒 */
+    /** 根据开关与时间，调度一个每日任务（首日在设定时刻，之后每 24h） */
     fun applySchedule(c: Context) {
-        val am = c.getSystemService(AlarmManager::class.java) ?: return
-        val pi = pendingIntent(c)
+        val wm = WorkManager.getInstance(c)
         if (!isEnabled(c)) {
-            am.cancel(pi)
+            wm.cancelUniqueWork(WORK_NAME)
             return
         }
+        val now = System.currentTimeMillis()
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour(c))
             set(Calendar.MINUTE, minute(c))
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
-            if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_MONTH, 1)
+            if (timeInMillis <= now) add(Calendar.DAY_OF_MONTH, 1)
         }
-        // 每日重复（时间大致稳定，每天一次）
-        am.setInexactRepeating(AlarmManager.RTC_WAKEUP, cal.timeInMillis, 24 * 60 * 60 * 1000L, pi)
+        val delay = (cal.timeInMillis - now).coerceAtLeast(15000L)
+        val req = PeriodicWorkRequestBuilder<ReviewReminderWorker>(1, TimeUnit.DAYS)
+            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+            .build()
+        wm.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, req)
     }
 }
 
-/** 到点后：查询今日/本周待复习错题数，发系统通知 */
-class ReminderReceiver : BroadcastReceiver() {
-    override fun onReceive(c: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            // 重启后闹钟会丢失，重设
-            ReminderScheduler.applySchedule(c)
-            return
+/** 每日检查：今天/本周还有多少待复习错题，并发系统通知 */
+class ReviewReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result {
+        val c = applicationContext
+        if (!ReminderScheduler.isEnabled(c)) return Result.success()
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(c, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return Result.success() // 无通知权限，静默跳过
         }
-        if (!ReminderScheduler.isEnabled(c)) return
         val dao = AppDatabase.get(c).questionDao()
-        val (today, week) = runBlocking {
-            val t = dao.dueQuestions(endOfToday()).first().size
-            val w = dao.dueQuestions(endOfWeek()).first().size
-            t to w
-        }
-        if (today <= 0 && week <= 0) return
+        val today = dao.dueQuestions(endOfToday()).first().size
+        val week = dao.dueQuestions(endOfWeek()).first().size
+        if (today <= 0 && week <= 0) return Result.success()
         ReminderScheduler.ensureChannel(c)
         val text = "今天还有 ${today} 道错题要复习！本周末前还有 ${week} 道！"
-        val nm = c.getSystemService(NotificationManager::class.java) ?: return
-        val n = NotificationCompat.Builder(c, "review_reminder")
+        val nm = c.getSystemService(NotificationManager::class.java) ?: return Result.success()
+        val n = NotificationCompat.Builder(c, ReminderScheduler.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("复习提醒")
             .setContentText(text)
@@ -83,7 +82,8 @@ class ReminderReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
-        try { nm.notify(1001, n) } catch (_: SecurityException) { }
+        try { nm.notify(1001, n) } catch (_: SecurityException) {}
+        return Result.success()
     }
 
     private fun startOfToday(): Long {
