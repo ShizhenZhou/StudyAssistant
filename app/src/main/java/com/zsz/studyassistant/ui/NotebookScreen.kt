@@ -11,12 +11,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -250,8 +253,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     }
 }
 
-/** 错题条目（双列瀑布流卡片）：图片按比例显示（错开），无图显示文字；支持多选勾选 + 显示知识点标签 */
-@OptIn(ExperimentalFoundationApi::class)
+/* 错题条目（双列瀑布流卡片）：图片按比例显示（错开），无图显示文字；支持多选勾选 + 显示知识点标签 */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun NotebookItem(
     q: Question,
@@ -297,15 +300,22 @@ private fun NotebookItem(
                     style = MaterialTheme.typography.labelSmall
                 )
                 if (tags.isNotEmpty()) {
-                    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FlowRow(
+                        Modifier.padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         tags.take(3).forEach { t ->
                             Text(
                                 t.name,
                                 fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
                                     .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp))
                                     .padding(horizontal = 5.dp, vertical = 2.dp)
+                                    .widthIn(max = 110.dp)
                             )
                         }
                     }
