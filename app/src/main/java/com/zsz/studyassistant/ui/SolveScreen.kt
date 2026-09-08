@@ -136,9 +136,17 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
 
     Scaffold(
         topBar = {
-            Column(Modifier.fillMaxWidth().statusBarsPadding().background(MaterialTheme.colorScheme.surface)) {
-                // 行1：返回 + 标题（不竖排）
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            TopAppBar(
+                title = {
+                    val titleText = if (editMode) "已选 ${selectedIndices.size} 条" else "解题"
+                    Text(
+                        titleText,
+                        fontSize = if (titleText.length > 6) 16.sp else 18.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
                     if (editMode) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
                     } else {
@@ -152,69 +160,47 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         }) { Text("←") }
                     }
-                    Text(
-                        if (editMode) "已选 ${selectedIndices.size} 条" else "解题",
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(start = 4.dp)
-                    )
-                }
-                // 行2：操作按钮（独立一行，避免挤到标题）
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(bottom = 4.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    when {
-                        vm.reviewMode -> {
-                            // 复习模式：只保留「完成」退出
-                            TextButton(onClick = { vm.exitReviewMode(); nav.popBackStack() }) { Text("✓ 完成") }
-                        }
-                        editMode -> {
-                            // 编辑（多选删除消息）
-                            TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
-                            TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
-                        }
-                        else -> {
-                            // 编辑入口
-                            TextButton(onClick = { editMode = true }) { Text("✏️ 编辑") }
-                            if (vm.isFromNotebook) {
-                                // 错题本回顾：已软删除 → 恢复；否则 → 删除（带确认）
-                                if (vm.isDeleted) {
-                                    TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
-                                } else {
-                                    TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
-                                }
-                                // 分类（已保存时可改）
-                                val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
-                                TextButton(onClick = { categoryDialogFor = "change" }) {
-                                    Text(if (curCat != null) "📁 ${curCat.name}" else "📁 暂不分类")
-                                }
+                },
+                actions = {
+                    if (vm.reviewMode) {
+                        TextButton(onClick = { vm.exitReviewMode(); nav.popBackStack() }) { Text("✓ 完成") }
+                    } else if (editMode) {
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
+                    } else {
+                        TextButton(onClick = { editMode = true }) { Text("✏️ 编辑") }
+                        if (vm.isFromNotebook) {
+                            if (vm.isDeleted) {
+                                TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
                             } else {
-                                // 拍题解题：重新生成 + 存错题本
-                                val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
-                                TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
-                                    Text("🔄 重新生成")
-                                }
-                                TextButton(
-                                    onClick = {
-                                        if (vm.savedToNotebook) {
-                                            vm.unsaveFromNotebook()
-                                        } else {
-                                            categoryDialogFor = "save"
-                                        }
-                                    },
-                                    enabled = saveEnabled
-                                ) {
-                                    val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
-                                    if (vm.savedToNotebook && saveEnabled) Text(label, color = Color(0xFF4CAF50)) else Text(label)
-                                }
+                                TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
+                            }
+                            val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
+                            TextButton(onClick = { categoryDialogFor = "change" }) {
+                                Text(if (curCat != null) "📁 ${curCat.name}" else "📁 暂不分类", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        } else {
+                            val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
+                            TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
+                                Text("🔄 重新生成")
+                            }
+                            TextButton(
+                                onClick = {
+                                    if (vm.savedToNotebook) {
+                                        vm.unsaveFromNotebook()
+                                    } else {
+                                        categoryDialogFor = "save"
+                                    }
+                                },
+                                enabled = saveEnabled
+                            ) {
+                                val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
+                                if (vm.savedToNotebook && saveEnabled) Text(label, color = Color(0xFF4CAF50)) else Text(label)
                             }
                         }
                     }
                 }
-            }
+            )
         }
     ) { padding ->
         // 删除确认
