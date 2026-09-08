@@ -1,6 +1,5 @@
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -13,15 +12,6 @@ plugins {
 
 // 应用版本（供 versionName 与 APK 命名使用）
 val appVersionName = "0.4.0"
-
-// 正式签名：密钥文件在项目 app/release-keystore.key（是 .gitignore 忽略项，绝不提交）。
-// 如本地缺失则回退到默认 debug 签名。密码只在构建时读取，不写入仓库。
-val releaseKeyFile = rootProject.file("app/release-keystore.key")
-val releaseProps = Properties()
-if (releaseKeyFile.exists()) {
-    releaseKeyFile.inputStream().use { releaseProps.load(it) }
-}
-val hasReleaseKey = releaseKeyFile.exists()
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -36,24 +26,9 @@ android {
         versionName = appVersionName
     }
 
-    signingConfigs {
-        if (hasReleaseKey) {
-            create("release") {
-                storeFile = rootProject.file("app/release.jks")
-                storePassword = releaseProps.getProperty("storepass") ?: ""
-                keyAlias = "studyassistant"
-                keyPassword = releaseProps.getProperty("keypass") ?: ""
-            }
-        }
-    }
-
     buildTypes {
-        getByName("debug") {
-            if (hasReleaseKey) signingConfig = signingConfigs.getByName("release")
-        }
         release {
             isMinifyEnabled = false
-            if (hasReleaseKey) signingConfig = signingConfigs.getByName("release")
         }
     }
 
