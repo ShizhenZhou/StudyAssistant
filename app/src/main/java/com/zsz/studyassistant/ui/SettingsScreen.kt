@@ -167,6 +167,31 @@ fun SettingsTab(vm: MainViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("自启动/后台运行权限", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = {
+                fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
+                var ok = false
+                for (pkg in listOf(
+                    "com.huawei.systemmanager/.startupmgr.ui.StartupNormalAppListActivity",
+                    "com.honor.appmarket/.hms.startupmgr.ui.StartupNormalAppListActivity",
+                    "com.coloros.safecenter/.startupapp.StartupAppListActivity",
+                    "com.miui.securitycenter/.ui.AutoStartManagementActivity",
+                    "com.vivo.permissionmanager/.activity.BgStartUpManagerActivity",
+                    "com.oplus.battery/.ui.StartupAppListActivity"
+                )) { if (tryPkg(pkg)) { ok = true; break } }
+                if (!ok) {
+                    try {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            )
+                        )
+                    } catch (_: Exception) { }
+                }
+            }) { Text("一键开启") }
+        }
 
         Spacer(Modifier.height(20.dp))
 

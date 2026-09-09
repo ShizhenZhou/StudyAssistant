@@ -87,6 +87,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var cancelPending = false
     private var isPhoto = false
     private var questionText = ""
+    /** 直接提问携带的附图（文字 + 多图） */
+    private var directImages: List<ByteArray> = emptyList()
 
     /** AI 推测的科目（存题时作为默认分类建议，可改/可暂不分类） */
     var suggestedCategory by mutableStateOf<String?>(null)
@@ -126,12 +128,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
         reviewMode = false
+        directImages = emptyList()
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
     private fun buildMessages(): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
-        if (isPhoto && imageBytes != null) {
+        if (directImages.isNotEmpty()) {
+            // 直接提问：文字 + 多图一起作为问题
+            msgs.add(StudyAssistant.userMessageWithImages(questionText, directImages))
+        } else if (isPhoto && imageBytes != null) {
             msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categories.value.map { it.name }, tags.value.map { it.name }))
         } else if (questionText.isNotBlank()) {
             msgs.add(StudyAssistant.textUserMessage(questionText))
@@ -181,6 +187,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
         reviewMode = false
+        directImages = emptyList()
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
@@ -239,6 +246,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             addItem("question", question)
             addItem("assistant", reply)
         }, repeat = { solveText(question) })
+    }
+
+    /** 直接提问：文字 + 可选多张图，作为一条问题解答 */
+    fun solveDirect(text: String, images: List<ByteArray>) {
+        resetSession()
+        isPhoto = images.isNotEmpty()
+        isFromNotebook = false
+        questionText = text
+        directImages = images
+        suggestedCategory = null
+        suggestedTags = emptyList()
+        val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        runCall(model, onDone = { reply ->
+            if (images.isNotEmpty()) {
+                val r = StudyAssistant.parseVisionOutput(reply)
+                questionText = r.question.ifBlank { text }
+                suggestedCategory = r.category
+                suggestedTags = r.tags
+                addItem("question", r.question)
+                addItem("assistant", r.withHint())
+            } else {
+                addItem("question", text)
+                addItem("assistant", reply)
+            }
+        }, repeat = { solveDirect(text, images) })
     }
 
     /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */

@@ -30,6 +30,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.zsz.studyassistant.ui.CameraScreen
 import com.zsz.studyassistant.ui.CropScreen
+import com.zsz.studyassistant.ui.AskScreen
 import com.zsz.studyassistant.ui.GradeScreen
 import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.NotebookScreen
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
             }
         }
+        val openReview = intent?.getBooleanExtra("open_review", false) ?: false
         enableEdgeToEdge()
         setContent {
             val dark = when (viewModel.theme) {
@@ -80,6 +82,7 @@ class MainActivity : ComponentActivity() {
                             NavHost(nav, startDestination = "home") {
                                 composable("home") { HomeScreen(nav, viewModel) }
                                 composable("camera") { CameraScreen(nav, viewModel) }
+                                composable("ask") { AskScreen(nav, viewModel) }
                                 composable("crop") { CropScreen(nav, viewModel) }
                                 composable("grade") { GradeScreen(nav, viewModel) }
                                 composable("solve") { SolveScreen(nav, viewModel) }
@@ -87,6 +90,10 @@ class MainActivity : ComponentActivity() {
                                 composable("review") { ReviewScreen(nav, viewModel) }
                                 composable("similar") { SimilarScreen(nav, viewModel) }
                                 composable("settings") { SettingsTab(viewModel) }
+                            }
+                            // 从通知点进来 → 直接打开复习页
+                            androidx.compose.runtime.LaunchedEffect(openReview) {
+                                if (openReview) nav.navigate("review")
                             }
                         }
                         if (showBottomBar) {

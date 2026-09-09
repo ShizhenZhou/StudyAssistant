@@ -222,6 +222,15 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .statusBarsPadding()
                 .padding(8.dp)
         ) { Text("← 返回") }
+
+        // 右上角：直接提问（文字/图文，不必拍照）
+        TextButton(
+            onClick = { nav.navigate("ask") },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(8.dp)
+        ) { Text("✏️ 直接提问") }
     }
 }
 

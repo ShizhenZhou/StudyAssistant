@@ -90,6 +90,13 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setContentTitle("复习提醒")
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .setContentIntent(
+                    PendingIntent.getActivity(
+                        c, 0,
+                        Intent(c, MainActivity::class.java).putExtra("open_review", true),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                )
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .build()
