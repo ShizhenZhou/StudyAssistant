@@ -140,9 +140,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 title = {
                     Text(
                         if (editMode) "已选 ${selectedIndices.size} 条" else "解题",
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(min = 40.dp)
                     )
                 },
                 navigationIcon = {
@@ -167,7 +168,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
                     } else {
-                        TextButton(onClick = { editMode = true }) { Text("✏️ 编辑") }
+                        TextButton(onClick = { editMode = true }) { Text("✏️") }
                         if (vm.isFromNotebook) {
                             if (vm.isDeleted) {
                                 TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
@@ -191,7 +192,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
                             TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
-                                Text("🔄 重新生成")
+                                Text("🔄")
                             }
                             TextButton(
                                 onClick = {
