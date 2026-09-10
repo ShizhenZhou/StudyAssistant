@@ -51,6 +51,7 @@ fun SettingsTab(vm: MainViewModel) {
     var notifyEnabled by remember { mutableStateOf(prefs.getBoolean("notify_enabled", false)) }
     var notifyHour by remember { mutableStateOf(prefs.getInt("notify_hour", 20)) }
     var notifyMinute by remember { mutableStateOf(prefs.getInt("notify_minute", 0)) }
+    var showTimePicker by remember { mutableStateOf(false) }
     val notifyPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     fun saveNotify(enabled: Boolean) {
         prefs.edit().putBoolean("notify_enabled", enabled).apply()
@@ -132,13 +133,20 @@ fun SettingsTab(vm: MainViewModel) {
         }
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("提醒时间")
-            TextButton(onClick = {
-                TimePickerDialog(context, { _, h, m ->
+            TextButton(onClick = { showTimePicker = true }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
+        }
+        if (showTimePicker) {
+            WheelTimePickerDialog(
+                initialHour = notifyHour,
+                initialMinute = notifyMinute,
+                onConfirm = { h, m ->
                     prefs.edit().putInt("notify_hour", h).putInt("notify_minute", m).apply()
                     notifyHour = h; notifyMinute = m
                     ReminderScheduler.applySchedule(context)
-                }, notifyHour, notifyMinute, true).show()
-            }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
+                    showTimePicker = false
+                },
+                onDismiss = { showTimePicker = false }
+            )
         }
         Text("到点会提醒：今天还有 xx 道错题要复习！本周末前还有 xx 道！", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 
