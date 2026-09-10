@@ -18,8 +18,10 @@ import kotlinx.serialization.json.putJsonObject
  */
 object StudyAssistant {
 
-    const val MODEL_VISION = "deepseek-v4-flash-vision-exp"
-    const val MODEL_TEXT = "deepseek-v4-pro"
+    // V4.1-Flash：原生多模态，文字/图片通用。
+    // （旧 deepseek-v4-flash-vision-exp 已退役、deepseek-v4-pro 于 2026/09/14 起被路由到 V4.1-Flash）
+    const val MODEL_VISION = "deepseek-flash"
+    const val MODEL_TEXT = "deepseek-flash"
 
     fun requireKey() {
         if (KeyManager.getApiKey().isBlank()) {

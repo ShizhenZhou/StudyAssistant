@@ -17,7 +17,11 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 
 ## 版本记录
 
-### v0.4.2（当前）
+### v0.4.3（当前）
+- 🔄 **模型升级到 DeepSeek-V4.1-Flash**（`deepseek-flash`，原生多模态）：视觉与文本统一用该模型
+- 原因：`deepseek-v4-flash-vision-exp` 已退役、`deepseek-v4-pro` 于 2026/09/14 起被路由到 V4.1-Flash
+
+### v0.4.2
 - 🆕 **点击复习提醒通知**直接打开「复习」界面
 - 🆕 设置页「**一键开启自启动**」（适配荣耀/华为/小米/OPPO/vivo，回退应用详情页）
 - 🆕 拍题界面右上角「**✏️ 直接提问**」：可用文字 + 可选 1~3 张图直接提问，不必先拍照
