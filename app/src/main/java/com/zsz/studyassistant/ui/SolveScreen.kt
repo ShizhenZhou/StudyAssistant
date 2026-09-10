@@ -162,28 +162,29 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 },
                 actions = {
+                    val smallPad = PaddingValues(horizontal = 6.dp)
                     if (vm.reviewMode) {
-                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }) { Text("✏️ 练同类题") }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text("✏️ 练同类题", fontSize = 13.sp) }
                     } else if (editMode) {
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty()) { Text("🗑 删除") }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✓ 完成") }
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text("🗑 删除", fontSize = 13.sp) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text("✓ 完成", fontSize = 13.sp) }
                     } else {
-                        TextButton(onClick = { editMode = true }) { Text("✏️") }
+                        TextButton(onClick = { editMode = true }, contentPadding = smallPad) { Text("✏️ 编辑", fontSize = 13.sp) }
                         if (vm.isFromNotebook) {
                             if (vm.isDeleted) {
-                                TextButton(onClick = { vm.restoreSavedQuestion() }) { Text("↩ 恢复") }
+                                TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) { Text("↩ 恢复", fontSize = 13.sp) }
                             } else {
-                                TextButton(onClick = { showDeleteConfirm = true }) { Text("🗑 删除") }
+                                TextButton(onClick = { showDeleteConfirm = true }, contentPadding = smallPad) { Text("🗑 删除", fontSize = 13.sp) }
                             }
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
-                            TextButton(onClick = { categoryDialogFor = "change" }) {
+                            TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
                                 val catName = curCat?.name ?: "暂不分类"
                                 Text(
                                     if (curCat != null) "📁 ${catName}" else "📁 暂不分类",
                                     fontSize = when {
-                                        catName.length <= 3 -> 14.sp
-                                        catName.length <= 5 -> 12.sp
-                                        else -> 11.sp
+                                        catName.length <= 3 -> 12.sp
+                                        catName.length <= 5 -> 11.sp
+                                        else -> 10.sp
                                     },
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -191,8 +192,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
-                            TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy) {
-                                Text("🔄")
+                            TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy, contentPadding = smallPad) {
+                                Text("🔄 重新生成", fontSize = 13.sp)
                             }
                             TextButton(
                                 onClick = {
@@ -202,10 +203,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                         categoryDialogFor = "save"
                                     }
                                 },
-                                enabled = saveEnabled
+                                enabled = saveEnabled,
+                                contentPadding = smallPad
                             ) {
                                 val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
-                                if (vm.savedToNotebook && saveEnabled) Text(label, color = Color(0xFF4CAF50)) else Text(label)
+                                if (vm.savedToNotebook && saveEnabled) Text(label, color = Color(0xFF4CAF50), fontSize = 13.sp) else Text(label, fontSize = 13.sp)
                             }
                         }
                     }

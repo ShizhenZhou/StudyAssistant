@@ -24,7 +24,7 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 ### v0.4.3（当前）
 - 🔄 **模型升级到 DeepSeek-V4.1-Flash**（`deepseek-flash`，原生多模态）：视觉与文本统一用该模型
 - 原因：`deepseek-v4-flash-vision-exp` 已退役、`deepseek-v4-pro` 于 2026/09/14 起被路由到 V4.1-Flash
-- 🐛 修复：拍题/错题本解题页标题「解题」被右侧按钮挤压成省略号——操作按钮图标化并给标题保留最小宽度
+- 🐛 修复：解题页标题「解题」被右侧按钮挤压成省略号——**缩小操作按钮间距/字号**并给标题保留最小宽度（按钮文字保留）
 
 ### v0.4.2
 - 🆕 **点击复习提醒通知**直接打开「复习」界面
