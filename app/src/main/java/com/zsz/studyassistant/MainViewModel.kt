@@ -197,6 +197,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             error = null
             networkError = false
             retryAction = null
+            // 前台服务：切后台也不被冻结，保证请求跑完
+            val app = getApplication<Application>()
+            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 val reply = StudyAssistant.chatOnce(model, messages)
                 onDone(reply)
@@ -210,6 +213,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } finally {
                 busy = false
+                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
             }
         }
     }
@@ -520,6 +524,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             similarBusy = true
             similarQuestion = null; similarAnswer = null; similarMessages = emptyList()
+            val app = getApplication<Application>()
+            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 val r = StudyAssistant.generateSimilarQuestion(q)
                 similarQuestion = r.question
@@ -529,6 +535,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 similarAnswer = null
             }
             similarBusy = false
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
         }
     }
 
@@ -539,6 +546,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "user", txt)
         similarBusy = true
         viewModelScope.launch {
+            val app = getApplication<Application>()
+            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 val msgs = mutableListOf<DeepSeekMessage>()
                 msgs.add(StudyAssistant.systemMessage())
@@ -551,6 +560,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", "出错：${e.message}")
             }
             similarBusy = false
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
         }
     }
 
@@ -621,12 +631,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             gradeBusy = true
             gradeResult = ""
+            val app = getApplication<Application>()
+            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes)
             } catch (e: Exception) {
                 gradeResult = "批改失败：${e.message}"
             } finally {
                 gradeBusy = false
+                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
             }
         }
     }
