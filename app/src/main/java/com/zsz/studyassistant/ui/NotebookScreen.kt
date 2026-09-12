@@ -32,7 +32,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -148,27 +151,23 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         )
                     }
                 }
-                // 标签多选筛选（纵向滑动，标签多时上下滚动）
+                // 标签筛选：选择框「按标签搜索」，点开后才出现下拉选择（纵向可滑动，可多选）
                 if (tags.isNotEmpty()) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                        Text(
-                            "标签筛选（上下滑动，可多选）",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-                        )
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            items(tags, key = { it.id }) { tag ->
-                                FilterChip(
-                                    selected = filterTagIds.contains(tag.id),
+                    var tagMenu by remember { mutableStateOf(false) }
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                        Button(onClick = { tagMenu = true }) {
+                            Text(
+                                if (filterTagIds.isEmpty()) "按标签搜索" else "按标签搜索（已选 ${filterTagIds.size}）"
+                            )
+                        }
+                        DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
+                            tags.forEach { tag ->
+                                DropdownMenuItem(
+                                    text = { Text(tag.name) },
                                     onClick = {
                                         filterTagIds = if (filterTagIds.contains(tag.id)) filterTagIds - tag.id else filterTagIds + tag.id
                                     },
-                                    label = { Text(tag.name) },
-                                    modifier = Modifier.fillMaxWidth()
+                                    trailingIcon = { if (filterTagIds.contains(tag.id)) Text("✓") }
                                 )
                             }
                         }

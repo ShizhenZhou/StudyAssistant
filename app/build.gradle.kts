@@ -11,7 +11,7 @@ plugins {
 }
 
 // 应用版本（供 versionName 与 APK 命名使用）
-val appVersionName = "0.4.3.5"
+val appVersionName = "0.4.4"
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -22,7 +22,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 15
+        versionCode = 16
         versionName = appVersionName
     }
 
