@@ -43,6 +43,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -672,28 +674,31 @@ internal fun SaveDialog(
 
                 Spacer(Modifier.height(14.dp))
                 Text("知识点标签（最多 5 个）", style = MaterialTheme.typography.labelMedium)
-                // 已有标签（点击选中/取消）
-                if (tags.isNotEmpty()) {
-                    LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(tags, key = { it.id }) { t ->
-                            FilterChip(
-                                selected = selectedNames.contains(t.name),
-                                onClick = { toggleTagName(t.name) },
-                                label = { Text(t.name) }
-                            )
+                // 下拉菜单选择已有标签（标签多时可上下滑动）
+                var tagMenu by remember { mutableStateOf(false) }
+                Box {
+                    Button(onClick = { tagMenu = true }, modifier = Modifier.padding(top = 6.dp)) {
+                        Text("选择标签（已选 ${selectedNames.size}/5）")
+                    }
+                    DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
+                        if (tags.isEmpty()) {
+                            DropdownMenuItem(text = { Text("暂无已有标签") }, onClick = { tagMenu = false })
+                        } else {
+                            tags.forEach { t ->
+                                DropdownMenuItem(
+                                    text = { Text(t.name) },
+                                    onClick = { toggleTagName(t.name) },
+                                    trailingIcon = { if (selectedNames.contains(t.name)) Text("✓") }
+                                )
+                            }
                         }
                     }
                 }
-                // 将新建的标签（AI 建议/手动添加，不在已有 tag 里），选中态
-                val toCreate = selectedNames.filter { it !in existingNames && it.isNotBlank() }
-                if (toCreate.isNotEmpty()) {
+                // 已选（含 AI 自动预选、新建），点按可移除
+                if (selectedNames.isNotEmpty()) {
                     LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(toCreate, key = { it }) { name ->
-                            FilterChip(
-                                selected = true,
-                                onClick = { toggleTagName(name) },
-                                label = { Text(name) }
-                            )
+                        items(selectedNames.toList(), key = { it }) { name ->
+                            FilterChip(selected = true, onClick = { toggleTagName(name) }, label = { Text(name) })
                         }
                     }
                 }

@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -146,28 +148,29 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         )
                     }
                 }
-                // 标签多选筛选
+                // 标签多选筛选（纵向滑动，标签多时上下滚动）
                 if (tags.isNotEmpty()) {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            Text(
-                                "标签",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                        }
-                        items(tags, key = { it.id }) { tag ->
-                            FilterChip(
-                                selected = filterTagIds.contains(tag.id),
-                                onClick = {
-                                    filterTagIds = if (filterTagIds.contains(tag.id)) filterTagIds - tag.id else filterTagIds + tag.id
-                                },
-                                label = { Text(tag.name) }
-                            )
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                        Text(
+                            "标签筛选（上下滑动，可多选）",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                        )
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(tags, key = { it.id }) { tag ->
+                                FilterChip(
+                                    selected = filterTagIds.contains(tag.id),
+                                    onClick = {
+                                        filterTagIds = if (filterTagIds.contains(tag.id)) filterTagIds - tag.id else filterTagIds + tag.id
+                                    },
+                                    label = { Text(tag.name) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
