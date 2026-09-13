@@ -19,8 +19,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -33,11 +36,13 @@ import com.zsz.studyassistant.ui.CropScreen
 import com.zsz.studyassistant.ui.AskScreen
 import com.zsz.studyassistant.ui.GradeScreen
 import com.zsz.studyassistant.ui.HomeScreen
+import com.zsz.studyassistant.ui.LocalStrings
 import com.zsz.studyassistant.ui.NotebookScreen
 import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
 import com.zsz.studyassistant.ui.SimilarScreen
 import com.zsz.studyassistant.ui.SolveScreen
+import com.zsz.studyassistant.ui.stringsFor
 
 class MainActivity : ComponentActivity() {
 
@@ -60,6 +65,9 @@ class MainActivity : ComponentActivity() {
                 "dark" -> true
                 else -> isSystemInDarkTheme()
             }
+            // 界面语言：在整棵 Compose 树之上提供文案表，切换后立即全局生效
+            val strings = remember(viewModel.uiLang) { stringsFor(viewModel.uiLang) }
+            CompositionLocalProvider(LocalStrings provides strings) {
             MaterialTheme(
                 colorScheme = if (dark) darkColorScheme() else lightColorScheme()
             ) {
@@ -107,7 +115,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     icon = { Text("🏠") },
-                                    label = { Text("主页") }
+                                    label = { Text(strings["nav.home"]) }
                                 )
                                 NavigationBarItem(
                                     selected = current == "settings",
@@ -118,12 +126,13 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     icon = { Text("⚙️") },
-                                    label = { Text("设置") }
+                                    label = { Text(strings["nav.settings"]) }
                                 )
                             }
                         }
                     }
                 }
+            }
             }
         }
     }

@@ -35,6 +35,7 @@ import com.zsz.studyassistant.data.ApiKeyStore
 @Composable
 fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
     val context = LocalContext.current
+    val s = LocalStrings.current
     var keyOk by remember { mutableStateOf(vm.hasApiKey()) }
     var showDialog by remember { mutableStateOf(false) }
     // 首次打开且未配 Key → 自动弹填 Key 对话框
@@ -50,7 +51,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
         ) {
             Text("Study Assistant", fontSize = 32.sp, style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
-            Text("拍照搜题 · AI 解答 · 错题整理", style = MaterialTheme.typography.bodyMedium)
+            Text(s["home.subtitle"], style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(48.dp))
             Button(
                 onClick = { nav.navigate("camera") },
@@ -58,7 +59,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                Text("📷  拍照搜题", fontSize = 20.sp)
+                Text(s["home.camera"], fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
             Button(
@@ -67,7 +68,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                Text("✏️  批改题目", fontSize = 20.sp)
+                Text(s["home.grade"], fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(
@@ -76,7 +77,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                Text("📚  错题本", fontSize = 20.sp)
+                Text(s["home.notebook"], fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(
@@ -85,7 +86,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                Text("📖  复习", fontSize = 20.sp)
+                Text(s["home.review"], fontSize = 20.sp)
             }
         }
     }
@@ -95,10 +96,10 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
         var input by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text("配置 DeepSeek API Key") },
+            title = { Text(s["home.key.title"]) },
             text = {
                 Column {
-                    Text("请输入你的 DeepSeek API Key（sk- 开头，加密保存在本机）", style = MaterialTheme.typography.bodySmall)
+                    Text(s["home.key.hint"], style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = input,
@@ -116,10 +117,10 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                         keyOk = true
                         showDialog = false
                     }
-                }, enabled = input.isNotBlank()) { Text("保存") }
+                }, enabled = input.isNotBlank()) { Text(s["home.key.save"]) }
             },
             dismissButton = {
-                TextButton(onClick = { showDialog = false }) { Text("稍后") }
+                TextButton(onClick = { showDialog = false }) { Text(s["home.key.later"]) }
             }
         )
     }

@@ -62,6 +62,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         AiLangStore.save(getApplication(), lang)
     }
 
+    // ---- 界面语言（App 文案语言，默认跟随系统）----
+    var uiLang by mutableStateOf(com.zsz.studyassistant.ui.UiLangStore.load(app))
+        private set
+    fun updateUiLang(lang: com.zsz.studyassistant.ui.UiLang) {
+        uiLang = lang
+        com.zsz.studyassistant.ui.UiLangStore.save(getApplication(), lang)
+    }
+
     /** 错题本数据流 */
     val notebook: StateFlow<List<Question>> =
         dao.getAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
