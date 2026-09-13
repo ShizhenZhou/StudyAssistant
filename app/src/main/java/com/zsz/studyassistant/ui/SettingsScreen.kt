@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -153,7 +154,7 @@ private fun ApiSettings(vm: MainViewModel) {
         singleLine = true
     )
     Spacer(Modifier.height(6.dp))
-    Text(s["api.key.note"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Text(s["api.key.note"], style = MaterialTheme.typography.bodySmall, color = Color(0xFF4CAF50))
     Spacer(Modifier.height(8.dp))
     TextButton(
         onClick = {
@@ -283,16 +284,43 @@ private fun DataSettings(vm: MainViewModel) {
 
     if (showClearConfirm) {
         val n = summary?.first ?: 0
+        val phrase = s["data.clear.phrase"]
+        var typed by remember { mutableStateOf("") }
+        val matched = typed.trim() == phrase
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
             title = { Text(s["data.clear.title"]) },
-            text = { Text(s.format("data.clear.text", "n" to "$n")) },
+            text = {
+                Column {
+                    Text(s.format("data.clear.text", "n" to "$n"))
+                    Spacer(Modifier.height(12.dp))
+                    Text(s["data.clear.inputLabel"], style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(4.dp))
+                    Text(phrase, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = typed,
+                        onValueChange = { typed = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text(phrase, style = MaterialTheme.typography.bodySmall) }
+                    )
+                }
+            },
             confirmButton = {
-                TextButton(onClick = {
-                    vm.clearAllData()
-                    showClearConfirm = false
-                    vm.refreshDataSummary()
-                }) { Text(s["common.ok"]) }
+                // 只有输入完全一致才可点，且用红色按钮
+                TextButton(
+                    onClick = {
+                        vm.clearAllData()
+                        showClearConfirm = false
+                        vm.refreshDataSummary()
+                    },
+                    enabled = matched,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                        disabledContentColor = MaterialTheme.colorScheme.outline
+                    )
+                ) { Text(s["common.ok"]) }
             },
             dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text(s["common.cancel"]) } }
         )

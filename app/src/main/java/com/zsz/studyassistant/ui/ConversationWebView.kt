@@ -1,18 +1,45 @@
 package com.zsz.studyassistant.ui
 
 import android.annotation.SuppressLint
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
+import android.util.Base64
 import android.view.MotionEvent
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 /** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
 data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList())
@@ -20,6 +47,7 @@ data class ChatMsg(val role: String, val content: String, val images: List<Strin
 /**
  * 对话正文 WebView：占满给定区域，内部上下滚动，滚动条常驻、手势不被父级拦截。
  * 消息以聊天气泡显示：assistant=灰底，user=浅绿底。KaTeX 排版。
+ * 点击气泡里的图片 → 全屏放大（支持双指缩放/拖动，返回键或 ✕ 关闭）。
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -27,50 +55,132 @@ fun ConversationWebView(messages: List<ChatMsg>, modifier: Modifier = Modifier) 
     val currentMessages by rememberUpdatedState(messages)
     var loaded by remember { mutableStateOf(false) }
     var lastJson by remember { mutableStateOf<String?>(null) }
+    var zoomImage by remember { mutableStateOf<String?>(null) }
 
-    AndroidView(
-        factory = { ctx ->
-            WebView(ctx).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.allowFileAccess = true
-                settings.allowContentAccess = true
-                @Suppress("DEPRECATION")
-                settings.allowFileAccessFromFileURLs = true
-                setBackgroundColor(Color.TRANSPARENT)
-                isVerticalScrollBarEnabled = true
-                isScrollbarFadingEnabled = false   // 滚动条常驻
-                setOnTouchListener { _, event ->
-                    when (event.actionMasked) {
-                        MotionEvent.ACTION_DOWN -> parent?.requestDisallowInterceptTouchEvent(true)
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
-                            parent?.requestDisallowInterceptTouchEvent(false)
+    Box(modifier) {
+        AndroidView(
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.allowFileAccess = true
+                    settings.allowContentAccess = true
+                    @Suppress("DEPRECATION")
+                    settings.allowFileAccessFromFileURLs = true
+                    setBackgroundColor(Color.TRANSPARENT)
+                    isVerticalScrollBarEnabled = true
+                    isScrollbarFadingEnabled = false   // 滚动条常驻
+                    setOnTouchListener { _, event ->
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_DOWN -> parent?.requestDisallowInterceptTouchEvent(true)
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                                parent?.requestDisallowInterceptTouchEvent(false)
+                        }
+                        false
                     }
-                    false
+                    // 网页里的图片点击 → 交给 Kotlin 打开全屏查看（JS 线程回调，切回主线程改状态）
+                    addJavascriptInterface(object {
+                        @JavascriptInterface
+                        fun openImage(b64: String) {
+                            Handler(Looper.getMainLooper()).post { zoomImage = b64 }
+                        }
+
+                        @JavascriptInterface
+                        fun onHeightChange(h: Int) {
+                            // 占位：网页会尝试回调高度，这里无需处理
+                        }
+                    }, "Android")
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            loaded = true
+                            val json = buildMessagesJson(currentMessages)
+                            lastJson = json
+                            view?.evaluateJavascript("renderMessages($json);", null)
+                        }
+                    }
+                    loadUrl("file:///android_asset/conversation_render.html")
                 }
-                webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        loaded = true
-                        val json = buildMessagesJson(currentMessages)
+            },
+            update = { v ->
+                // 内容未变化时跳过重渲染，减少 WebView 开销
+                if (loaded) {
+                    val json = buildMessagesJson(currentMessages)
+                    if (json != lastJson) {
                         lastJson = json
-                        view?.evaluateJavascript("renderMessages($json);", null)
+                        v.evaluateJavascript("renderMessages($json);", null)
                     }
                 }
-                loadUrl("file:///android_asset/conversation_render.html")
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        zoomImage?.let { b64 -> ImageZoomView(b64) { zoomImage = null } }
+    }
+}
+
+/** 全屏图片查看：双指缩放（1~6 倍）+ 拖动；✕ 或返回键关闭 */
+@Composable
+private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
+    val bitmap = remember(b64) {
+        runCatching {
+            val bytes = Base64.decode(b64, Base64.NO_WRAP)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }.getOrNull()
+    }
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    BackHandler { onDismiss() }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color(0xF2000000))
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 6f)
+                        offset = if (scale > 1f) offset + pan else Offset.Zero
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offset.x,
+                            translationY = offset.y
+                        ),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Text("⚠️", color = androidx.compose.ui.graphics.Color.White, fontSize = 32.sp)
             }
-        },
-        update = { v ->
-            // 内容未变化时跳过重渲染，减少 WebView 开销
-            if (loaded) {
-                val json = buildMessagesJson(currentMessages)
-                if (json != lastJson) {
-                    lastJson = json
-                    v.evaluateJavascript("renderMessages($json);", null)
-                }
-            }
-        },
-        modifier = modifier
-    )
+            Text(
+                "✕",
+                color = androidx.compose.ui.graphics.Color.White,
+                fontSize = 26.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(16.dp)
+                    .clickable { onDismiss() }
+            )
+            Text(
+                "${"%.1f".format(scale)}×",   // 实时显示缩放比
+                color = androidx.compose.ui.graphics.Color(0x99FFFFFF),
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(24.dp)
+            )
+        }
+    }
 }
 
 private fun buildMessagesJson(messages: List<ChatMsg>): String =

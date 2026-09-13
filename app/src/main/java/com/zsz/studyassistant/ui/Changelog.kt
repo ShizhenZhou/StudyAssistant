@@ -13,6 +13,8 @@ v0.5.0
 · 错题本新增**全文搜索**：按题干（AI 转译文本）与解答检索
 · 直接提问与追问新增**公式快捷输入条**：∫ ∑ √ π 等符号 + LaTeX 模板（分式/上下标/积分上下限等）
 · 重做模式已预留接口（复习时手写重做 → 复用批改 → 自动更新掌握度），后续版本接入
+· 对话（解题/批改/同类题）里的图片**点击可全屏放大**：双指缩放、拖动，✕ 或返回键关闭
+· 「清空所有数据」需**手动输入确认语**后才可执行，确认按钮为红色；「API Key 加密保存」提示改为绿色字
 
 v0.5.0_beta
 · 新增「应用语言」（界面语言）：设置 → 🌐 语言设置，可选 跟随系统 / 简体中文 / 繁體中文 / English / 日本語 / 한국어，切换立即生效、无需重启
@@ -152,6 +154,8 @@ v0.5.0
 · Notebook gained full-text search over the transcribed question and the answer
 · Direct questions and follow-ups gained a formula bar: ∫ ∑ √ π symbols plus LaTeX templates (fractions, sub/superscripts, integral limits…)
 · Redo mode has a reserved interface (hand-write your solution → reuse grading → auto-update mastery); UI comes in a later version
+· Images in conversations (solve / grading / similar problems) can be **tapped to view full screen**: pinch to zoom, drag to pan, close with ✕ or Back
+· "Erase all data" now requires **typing a confirmation phrase** and the confirm button is red; the "API Key stored encrypted" note is green
 
 v0.5.0_beta
 · New "App language": Settings → 🌐 Language, choose Follow system / 简体中文 / 繁體中文 / English / 日本語 / 한국어 — applies instantly, no restart
@@ -291,6 +295,8 @@ v0.5.0
 · 間違いノートに全文検索を追加（問題文と解答）
 · 直接質問と追加質問に数式入力バーを追加：∫ ∑ √ π などの記号＋LaTeX テンプレート（分数・上下付き・積分区間など）
 · やり直しモードのインターフェースを予約（手書きで解き直し → 添削を再利用 → 習熟度を自動更新）。UI は後続版で
+· 会話（解答／添削／類似問題）内の画像を**タップで全画面表示**：ピンチで拡大、ドラッグで移動、✕ か戻るで閉じる
+· 「すべてのデータを削除」は**確認文の入力**が必要になり、確定ボタンは赤色。「API Key は暗号化保存」の注記は緑色に
 
 v0.5.0_beta
 · 「アプリの言語」を追加：設定 → 🌐 言語設定 で システムに従う / 简体中文 / 繁體中文 / English / 日本語 / 한국어 から選択。すぐに反映され、再起動は不要
@@ -430,6 +436,8 @@ v0.5.0
 · 오답 노트에 전체 검색 추가(문제 문장과 풀이)
 · 직접 질문과 추가 질문에 수식 입력 바 추가: ∫ ∑ √ π 기호와 LaTeX 템플릿(분수, 위/아래 첨자, 적분 구간 등)
 · 다시 풀기 모드의 인터페이스를 미리 마련해 둠(손으로 다시 풀기 → 채점 재사용 → 숙련도 자동 갱신). UI는 다음 버전에서
+· 대화(풀이/채점/유사 문제) 안의 이미지를 **탭하면 전체 화면으로 확대**: 두 손가락 확대, 드래그 이동, ✕ 또는 뒤로 가기로 닫기
+· '모든 데이터 삭제'는 **확인 문장을 직접 입력**해야 실행되며 확인 버튼이 빨간색입니다. 'API Key 암호화 저장' 안내는 초록색으로
 
 v0.5.0_beta
 · '앱 언어' 추가: 설정 → 🌐 언어 설정에서 시스템 설정 따르기 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 선택. 즉시 적용되며 재시작이 필요 없습니다

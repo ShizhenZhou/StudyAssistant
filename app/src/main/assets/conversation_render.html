@@ -61,13 +61,23 @@ function renderMath(text){
   var tok=tokenize(text||''), body=mdToHtml(esc(tok.text));
   return body.replace(/[\uE000](\d+)\uE000/g,function(m,idx){return renderOne(tok.store[+idx]);});
 }
+function openImg(el){
+  try{
+    var b=el.getAttribute('data-b64');
+    if(b && window.Android && Android.openImage){ Android.openImage(b); }
+  }catch(e){}
+}
 function renderMessages(arr){
   var html='';
   for(var i=0;i<arr.length;i++){
     var m=arr[i], cls=(m.role==='assistant')?'assistant':'user';
     var imgHtml='';
     if(m.images && m.images.length){
-      for(var j=0;j<m.images.length;j++){ imgHtml+='<img class="msgimg" src="data:image/jpeg;base64,'+m.images[j]+'">'; }
+      for(var j=0;j<m.images.length;j++){
+        var b64=m.images[j];
+        // data-b64 供点击放大时回传给原生；onclick 调 Kotlin 打开全屏查看
+        imgHtml+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="openImg(this)">';
+      }
     }
     // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
     var body = (m.content && m.content.length) ? renderMath(m.content) : '';
