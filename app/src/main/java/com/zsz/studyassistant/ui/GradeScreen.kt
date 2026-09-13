@@ -64,6 +64,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 @Composable
 fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
     val context = LocalContext.current
+    val s = LocalStrings.current
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -71,10 +72,10 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
 
     if (!hasPermission) {
         Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text("需要相机权限才能批改")
+            Text(s["grade.permNeeded"])
             Spacer(Modifier.padding(8.dp))
-            Button(onClick = { permLauncher.launch(Manifest.permission.CAMERA) }) { Text("授予相机权限") }
-            TextButton(onClick = { nav.popBackStack() }) { Text("返回") }
+            Button(onClick = { permLauncher.launch(Manifest.permission.CAMERA) }) { Text(s["camera.grantPerm"]) }
+            TextButton(onClick = { nav.popBackStack() }) { Text(s["common.back"]) }
         }
         return
     }
@@ -154,13 +155,13 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                     processImage(StudyAssistant.compressImage(file))
                 } catch (e: Exception) {
-                    vm.showError("读取图片失败：${e.message}")
+                    vm.showError(s.format("camera.errRead", "msg" to (e.message ?: "")))
                 }
             }
         }
 
         Text(
-            if (awaitingAnswer) "请拍摄手写答案" else (if (doubleMode) "两张模式：先拍题目" else "单张模式：拍题目"),
+            if (awaitingAnswer) s["grade.hint.answer"] else (if (doubleMode) s["grade.hint.twoFirst"] else s["grade.hint.one"]),
             modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),
             style = MaterialTheme.typography.bodyMedium
         )
@@ -188,7 +189,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                         override fun onImageSaved(o: ImageCapture.OutputFileResults) {
                             processImage(StudyAssistant.compressImage(file))
                         }
-                        override fun onError(e: ImageCaptureException) { vm.showError("拍照失败：${e.message}") }
+                        override fun onError(e: ImageCaptureException) { vm.showError(s.format("camera.errShot", "msg" to (e.message ?: ""))) }
                     })
             },
             enabled = !vm.gradeBusy,
@@ -209,26 +210,26 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         ) {
             // 宽度随文字自适应（fillMaxSize 会撑满整屏，勿用）
             Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                Text(if (doubleMode) "两张" else "单张", style = MaterialTheme.typography.labelLarge)
+                Text(if (doubleMode) s["camera.mode.two"] else s["camera.mode.one"], style = MaterialTheme.typography.labelLarge)
             }
         }
 
-        TextButton(onClick = { nav.popBackStack() }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) { Text("← 返回") }
+        TextButton(onClick = { nav.popBackStack() }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) { Text(s["common.backArrow"]) }
 
         // 批改结果
         if (vm.gradeBusy || vm.gradeResult.isNotBlank()) {
             Card(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp).fillMaxWidth().size(430.dp)) {
                 Column(Modifier.padding(12.dp).fillMaxSize()) {
                     if (vm.gradeBusy) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("批改中……") }
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(s["grade.busy"]) }
                     } else {
                         // 我的题目/作答图（浅绿用户气泡）+ 批改结果，保持一致
                         val msgs = buildList<ChatMsg> {
                             shownQuestion?.let { b ->
-                                add(ChatMsg("user", "题目", listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
+                                add(ChatMsg("user", s["grade.label.question"], listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
                             }
                             shownAnswer?.let { b ->
-                                add(ChatMsg("user", "我的作答", listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
+                                add(ChatMsg("user", s["grade.label.answer"], listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
                             }
                             add(ChatMsg("assistant", vm.gradeResult))
                         }
@@ -242,7 +243,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                                 awaitingAnswer = false
                             },
                             modifier = Modifier.align(Alignment.CenterHorizontally)
-                        ) { Text("重拍") }
+                        ) { Text(s["grade.retake"]) }
                     }
                 }
             }

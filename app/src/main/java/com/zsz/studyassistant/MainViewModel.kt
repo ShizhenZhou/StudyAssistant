@@ -208,11 +208,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun friendlyError(e: Exception, fallback: String): String {
+        val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
         val msg = e.message.orEmpty().lowercase()
         return when {
-            msg.contains("timed out") || msg.contains("timeout") || msg.contains("socket") -> "请求超时了，请检查网络后重试"
-            msg.contains("failed to connect") || msg.contains("unreachable") || msg.contains("connect") -> "无法连接到服务器，请检查网络"
-            msg.contains("api key") || msg.contains("unauthorized") || msg.contains("401") -> "API Key 无效或未配置，请到⚙️设置检查"
+            msg.contains("timed out") || msg.contains("timeout") || msg.contains("socket") -> s["err.timeout"]
+            msg.contains("failed to connect") || msg.contains("unreachable") || msg.contains("connect") -> s["err.connect"]
+            msg.contains("api key") || msg.contains("unauthorized") || msg.contains("401") -> s["err.apikey"]
+            msg.contains("返回为空") || msg.contains("returned nothing") -> s["err.emptyReply"]
             else -> e.message ?: fallback
         }
     }
@@ -253,7 +255,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val reply = StudyAssistant.chatOnce(model, messages)
                 onDone(reply)
             } catch (e: Exception) {
-                error = friendlyError(e, "请求失败")
+                error = friendlyError(e, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
                 val msg = e.message.orEmpty().lowercase()
                 if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
                     msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")) {
@@ -286,7 +288,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedCategory = r.category
             suggestedTags = r.tags
             addItem("question", r.question)
-            addItem("assistant", r.withHint())
+            addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
         }, repeat = { solveWithImage(bytes) })
     }
 
@@ -304,7 +306,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedCategory = r.category
             suggestedTags = r.tags
             addItem("question", r.question)
-            addItem("assistant", r.withHint())
+            addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
         }, repeat = { solveWithImages(images) })
     }
 
@@ -343,7 +345,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val r = StudyAssistant.parseVisionOutput(reply)
                 suggestedCategory = r.category
                 suggestedTags = r.tags
-                addItem("assistant", r.withHint())
+                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
             } else {
                 addItem("assistant", reply)
             }
@@ -376,7 +378,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedCategory = r.category
                 suggestedTags = r.tags
                 addItem("question", r.question)
-                addItem("assistant", r.withHint())
+                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
             }, repeat = { regenerate() })
         } else {
             runCall(model, onDone = { reply ->
@@ -604,7 +606,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 similarQuestion = r.question
                 similarAnswer = r.answer
             } catch (e: Exception) {
-                similarQuestion = "出题失败：${e.message}"
+                similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to (e.message ?: ""))
                 similarAnswer = null
             }
             similarBusy = false
@@ -630,7 +632,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val reply = StudyAssistant.chatOnce(StudyAssistant.MODEL_TEXT, msgs)
                 similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", reply)
             } catch (e: Exception) {
-                similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", "出错：${e.message}")
+                similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to (e.message ?: "")))
             }
             similarBusy = false
             com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
@@ -709,7 +711,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes, aiLang)
             } catch (e: Exception) {
-                gradeResult = "批改失败：${e.message}"
+                gradeResult = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.gradeFailed", "msg" to (e.message ?: ""))
             } finally {
                 gradeBusy = false
                 com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
@@ -759,6 +761,6 @@ private fun Long.ifZeroToNow(): Long = if (this > 0) this else System.currentTim
 private val INTERVAL_DAYS = intArrayOf(0, 1, 2, 4, 7, 15, 30)
 private const val DAY_MS = 86400000L
 
-/** 在解答底部附加「核心知识点/难点」提示 */
-private fun com.zsz.studyassistant.data.StudyAssistant.SolveResult.withHint(): String =
-    if (tags.isNotEmpty()) answer + "\n\n💡 核心知识点/难点：" + tags.joinToString("、") else answer
+/** 在解答底部附加「核心知识点/难点」提示（跟随界面语言） */
+private fun com.zsz.studyassistant.data.StudyAssistant.SolveResult.withHint(s: com.zsz.studyassistant.ui.Strings): String =
+    if (tags.isNotEmpty()) answer + s["solve.tagsHint"] + tags.joinToString("、") else answer

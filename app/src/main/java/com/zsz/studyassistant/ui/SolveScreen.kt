@@ -88,6 +88,7 @@ import java.io.File
 @Composable
 fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     val context = LocalContext.current
+    val s = LocalStrings.current
     var followUp by remember { mutableStateOf("") }
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -149,7 +150,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             TopAppBar(
                 title = {
                     Text(
-                        if (editMode) "已选 ${selectedIndices.size} 条" else "解题",
+                        if (editMode) s.format("solve.selectedCount", "n" to "${selectedIndices.size}") else s["solve.title"],
                         fontSize = 16.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -174,23 +175,23 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 actions = {
                     val smallPad = PaddingValues(horizontal = 6.dp)
                     if (vm.reviewMode) {
-                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text("✏️ 练同类题", fontSize = 13.sp) }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = 13.sp) }
                     } else if (editMode) {
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text("🗑 删除", fontSize = 13.sp) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text("✓ 完成", fontSize = 13.sp) }
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
                     } else {
-                        TextButton(onClick = { editMode = true }, contentPadding = smallPad) { Text("✏️ 编辑", fontSize = 13.sp) }
+                        TextButton(onClick = { editMode = true }, contentPadding = smallPad) { Text(s["solve.edit"], fontSize = 13.sp) }
                         if (vm.isFromNotebook) {
                             if (vm.isDeleted) {
-                                TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) { Text("↩ 恢复", fontSize = 13.sp) }
+                                TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) { Text(s["solve.restore"], fontSize = 13.sp) }
                             } else {
-                                TextButton(onClick = { showDeleteConfirm = true }, contentPadding = smallPad) { Text("🗑 删除", fontSize = 13.sp) }
+                                TextButton(onClick = { showDeleteConfirm = true }, contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
                             }
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
                             TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
-                                val catName = curCat?.name ?: "暂不分类"
+                                val catName = curCat?.name ?: s["solve.noCategory"]
                                 Text(
-                                    if (curCat != null) "📁 ${catName}" else "📁 暂不分类",
+                                    if (curCat != null) s.format("solve.category", "name" to catName) else s["solve.category.none"],
                                     fontSize = when {
                                         catName.length <= 3 -> 12.sp
                                         catName.length <= 5 -> 11.sp
@@ -203,7 +204,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
                             TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy, contentPadding = smallPad) {
-                                Text("🔄 重新生成", fontSize = 13.sp)
+                                Text(s["solve.regen"], fontSize = 13.sp)
                             }
                             TextButton(
                                 onClick = {
@@ -216,7 +217,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 enabled = saveEnabled,
                                 contentPadding = smallPad
                             ) {
-                                val label = if (vm.savedToNotebook) "📚 已存错题" else "📚 存错题本"
+                                val label = if (vm.savedToNotebook) s["solve.savedToNotebook"] else s["solve.saveToNotebook"]
                                 if (vm.savedToNotebook && saveEnabled) Text(label, color = Color(0xFF4CAF50), fontSize = 13.sp) else Text(label, fontSize = 13.sp)
                             }
                         }
@@ -229,16 +230,16 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         if (showDeleteConfirm) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirm = false },
-                title = { Text("确认删除") },
-                text = { Text("确定要将这道错题从错题本中删除吗？") },
+                title = { Text(s["solve.deleteConfirm.title"]) },
+                text = { Text(s["solve.deleteConfirm.text"]) },
                 confirmButton = {
                     TextButton(onClick = {
                         vm.deleteSavedQuestion()
                         showDeleteConfirm = false
-                    }) { Text("删除") }
+                    }) { Text(s["common.delete"]) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+                    TextButton(onClick = { showDeleteConfirm = false }) { Text(s["common.cancel"]) }
                 }
             )
         }
@@ -246,17 +247,17 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         if (showEditDelete) {
             AlertDialog(
                 onDismissRequest = { showEditDelete = false },
-                title = { Text("删除消息") },
-                text = { Text("确定删除选中的 ${selectedIndices.size} 条消息吗？删除后 AI 会基于剩余消息继续对话。") },
+                title = { Text(s["solve.deleteMessages.title"]) },
+                text = { Text(s.format("solve.deleteMessages.text", "n" to "${selectedIndices.size}")) },
                 confirmButton = {
                     TextButton(onClick = {
                         vm.deleteMessages(selectedIndices.toList())
                         showEditDelete = false
                         editMode = false
                         selectedIndices = emptySet()
-                    }) { Text("删除") }
+                    }) { Text(s["common.delete"]) }
                 },
-                dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text("取消") } }
+                dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text(s["common.cancel"]) } }
             )
         }
         // 分类 + 标签选择对话框（存题 / 详情页改）
@@ -265,7 +266,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 val defaultCat = vm.suggestedCategory
                 val initCatId = categories.firstOrNull { it.name == defaultCat }?.id
                 SaveDialog(
-                    title = "选择分类与标签",
+                    title = s["solve.catPicker.select"],
                     categories = categories,
                     tags = tags,
                     initialSelectedId = initCatId,
@@ -281,7 +282,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             }
             "change" -> {
                 SaveDialog(
-                    title = "修改分类与标签",
+                    title = s["solve.catPicker.edit"],
                     categories = categories,
                     tags = tags,
                     initialSelectedId = vm.currentQuestionCategoryId,
@@ -301,8 +302,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             if (!hasKey) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("⚠️ 尚未配置 DeepSeek API Key", color = MaterialTheme.colorScheme.error)
-                        TextButton(onClick = { nav.navigate("settings") }) { Text("去设置") }
+                        Text(s["solve.noKey"], color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = { nav.navigate("settings") }) { Text(s["solve.goSettings"]) }
                     }
                 }
             }
@@ -311,7 +312,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 Card(Modifier.fillMaxWidth().padding(8.dp)) {
                     Column(Modifier.padding(12.dp)) {
                         Text(err, color = MaterialTheme.colorScheme.error)
-                        TextButton(onClick = { vm.clearError() }) { Text("知道了") }
+                        TextButton(onClick = { vm.clearError() }) { Text(s["solve.gotIt"]) }
                     }
                 }
             }
@@ -320,10 +321,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             if (vm.networkError) {
                 Card(Modifier.fillMaxWidth().padding(8.dp)) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("网络连接似乎中断了", style = MaterialTheme.typography.bodySmall)
+                        Text(s["solve.networkLost"], style = MaterialTheme.typography.bodySmall)
                         TextButton(onClick = { vm.retry() }) {
                             Text(
-                                "继续生成",
+                                s["solve.continueGen"],
                                 color = Color(0xFF2196F3),
                                 textDecoration = TextDecoration.Underline
                             )
@@ -354,7 +355,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             } else if (vm.chatItems.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (vm.busy) "答案生成中……" else "正在等待题目…\n（拍照后会出现题目与解答）",
+                        if (vm.busy) s["solve.generating"] else s["solve.waitingQuestion"],
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -369,7 +370,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 )
                 if (vm.busy) {
                     Text(
-                        "答案生成中……",
+                        s["solve.generating"],
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
@@ -382,7 +383,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 val onNoMore: () -> Unit = {
                     vm.exitReviewMode()
                     nav.popBackStack()
-                    android.widget.Toast.makeText(context, "今日要复习的错题已全部完成 🎉", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(context, s["solve.reviewDone"], android.widget.Toast.LENGTH_SHORT).show()
                 }
                 Row(
                     Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
@@ -393,17 +394,17 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         onClick = { vm.reviewNext(2, onNoMore) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-                    ) { Text("🌱 熟悉") }
+                    ) { Text(s["solve.familiar"]) }
                     Button(
                         onClick = { vm.reviewNext(1, onNoMore) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
-                    ) { Text("🌤 模糊") }
+                    ) { Text(s["solve.vague"]) }
                     Button(
                         onClick = { vm.reviewNext(0, onNoMore) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
-                    ) { Text("🔥 忘记") }
+                    ) { Text(s["solve.forgot"]) }
                 }
             } else if (vm.chatItems.isNotEmpty()) {
                 // 已选 1~3 张附图缩略图（可删除）
@@ -420,7 +421,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 Box(Modifier.size(60.dp)) {
                                     Image(
                                         bitmap = bmp.asImageBitmap(),
-                                        contentDescription = "附图",
+                                        contentDescription = s["solve.imageDesc"],
                                         modifier = Modifier.size(60.dp),
                                         contentScale = ContentScale.Crop
                                     )
@@ -457,7 +458,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         value = followUp,
                         onValueChange = { followUp = it },
                         modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                        placeholder = { Text("继续追问（可带图）…", fontSize = 14.sp) },
+                        placeholder = { Text(s["solve.followUpHint"], fontSize = 14.sp) },
                         textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                         maxLines = 3,
                         shape = RoundedCornerShape(22.dp)
@@ -472,7 +473,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         enabled = followUp.isNotBlank() && !vm.busy,
                         shape = RoundedCornerShape(22.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-                    ) { Text("发送", fontSize = 14.sp) }
+                    ) { Text(s["solve.send"], fontSize = 14.sp) }
                 }
             }
         }
@@ -497,18 +498,19 @@ internal fun CategoryDialog(
     var selId by remember { mutableStateOf(initialSelectedId) }
     var newMode by remember { mutableStateOf(!initialNewName.isNullOrBlank()) }
     var newName by remember { mutableStateOf(initialNewName ?: "") }
+    val s = LocalStrings.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column {
-                Text("请选择分类，或新建一个", style = MaterialTheme.typography.bodySmall)
+                Text(s["solve.cat.choose"], style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
                 FilterChip(
                     selected = !newMode && selId == null,
                     onClick = { selId = null; newMode = false },
-                    label = { Text("暂不分类") }
+                    label = { Text(s["solve.noCategory"]) }
                 )
                 Spacer(Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -524,7 +526,7 @@ internal fun CategoryDialog(
                 FilterChip(
                     selected = newMode,
                     onClick = { newMode = true },
-                    label = { Text("➕ 新建分类") }
+                    label = { Text(s["solve.cat.new"]) }
                 )
                 if (newMode) {
                     Spacer(Modifier.height(8.dp))
@@ -532,7 +534,7 @@ internal fun CategoryDialog(
                         value = newName,
                         onValueChange = { newName = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("分类名") },
+                        label = { Text(s["solve.cat.name"]) },
                         singleLine = true
                     )
                 }
@@ -545,10 +547,10 @@ internal fun CategoryDialog(
                 } else {
                     onConfirm(null, selId)
                 }
-            }) { Text("保存") }
+            }) { Text(s["common.save"]) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
         }
     )
 }
@@ -556,6 +558,7 @@ internal fun CategoryDialog(
 /** 编辑（多选删除）模式下的一条消息 */
 @Composable
 private fun EditMsgRow(item: ChatItem, selected: Boolean, onClick: () -> Unit) {
+    val s = LocalStrings.current
     val isAssistant = item.role == "assistant"
     Row(
         Modifier
@@ -577,7 +580,7 @@ private fun EditMsgRow(item: ChatItem, selected: Boolean, onClick: () -> Unit) {
                 color = Color(0xFF111111)
             )
             if (!item.images.isNullOrEmpty()) {
-                Text("[图]", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Text(s["solve.textImageMark"], style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
         }
         Box(
@@ -608,6 +611,7 @@ internal fun SaveDialog(
     var selCatId by remember { mutableStateOf(initialSelectedId) }
     var newCatMode by remember { mutableStateOf(!initialNewName.isNullOrBlank()) }
     var newCatName by remember { mutableStateOf(initialNewName ?: "") }
+    val s = LocalStrings.current
 
     // 标签：统一用"标签名"集合表示选中（含已有 tag 名与 AI 建议/新建名），最多 5 个
     val existingNames = remember(tags) { tags.map { it.name }.toSet() }
@@ -633,9 +637,9 @@ internal fun SaveDialog(
         title = { Text(title) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("分类", style = MaterialTheme.typography.labelMedium)
+                Text(s["solve.cat.name"], style = MaterialTheme.typography.labelMedium)
                 Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !newCatMode && selCatId == null, onClick = { selCatId = null; newCatMode = false }, label = { Text("暂不分类") })
+                    FilterChip(selected = !newCatMode && selCatId == null, onClick = { selCatId = null; newCatMode = false }, label = { Text(s["solve.noCategory"]) })
                 }
                 if (categories.isNotEmpty()) {
                     LazyRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -644,22 +648,22 @@ internal fun SaveDialog(
                         }
                     }
                 }
-                FilterChip(selected = newCatMode, onClick = { newCatMode = true }, label = { Text("➕ 新建分类") })
+                FilterChip(selected = newCatMode, onClick = { newCatMode = true }, label = { Text(s["solve.cat.new"]) })
                 if (newCatMode) {
-                    OutlinedTextField(value = newCatName, onValueChange = { newCatName = it }, label = { Text("分类名") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                    OutlinedTextField(value = newCatName, onValueChange = { newCatName = it }, label = { Text(s["solve.cat.name"]) }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                 }
 
                 Spacer(Modifier.height(14.dp))
-                Text("知识点标签（最多 5 个）", style = MaterialTheme.typography.labelMedium)
+                Text(s["solve.tags"], style = MaterialTheme.typography.labelMedium)
                 // 下拉菜单选择已有标签（标签多时可上下滑动）
                 var tagMenu by remember { mutableStateOf(false) }
                 Box {
                     Button(onClick = { tagMenu = true }, modifier = Modifier.padding(top = 6.dp)) {
-                        Text("选择标签（已选 ${selectedNames.size}/5）")
+                        Text(s.format("solve.tags.selected", "n" to "${selectedNames.size}"))
                     }
                     DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
                         if (tags.isEmpty()) {
-                            DropdownMenuItem(text = { Text("暂无已有标签") }, onClick = { tagMenu = false })
+                            DropdownMenuItem(text = { Text(s["solve.tags.empty"]) }, onClick = { tagMenu = false })
                         } else {
                             tags.forEach { t ->
                                 DropdownMenuItem(
@@ -684,14 +688,14 @@ internal fun SaveDialog(
                         value = newTag,
                         onValueChange = { newTag = it },
                         modifier = Modifier.weight(1f),
-                        label = { Text("新增标签") },
+                        label = { Text(s["solve.tags.new"]) },
                         singleLine = true,
-                        placeholder = { Text("如 分部积分") }
+                        placeholder = { Text(s["solve.tags.newHint"]) }
                     )
                     TextButton(onClick = {
                         val n = newTag.trim()
                         if (n.isNotEmpty() && n !in selectedNames && selectedNames.size < 5) { toggleTagName(n); newTag = "" }
-                    }) { Text("加") }
+                    }) { Text(s["solve.tags.add"]) }
                 }
             }
         },
@@ -706,9 +710,9 @@ internal fun SaveDialog(
                     if (t != null) tagIds += t.id else newNames += name
                 }
                 onConfirm(cname, selCatId, newNames, tagIds)
-            }) { Text("保存") }
+            }) { Text(s["common.save"]) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s["common.cancel"]) } }
     )
 }
 

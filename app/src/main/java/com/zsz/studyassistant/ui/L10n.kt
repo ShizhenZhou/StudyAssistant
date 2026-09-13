@@ -14,11 +14,7 @@ enum class UiLang(val id: String) {
     ZH_TW("zh-TW"),
     EN("en"),
     JA("ja"),
-    KO("ko"),
-    DE("de"),
-    FR("fr"),
-    ES("es"),
-    RU("ru");
+    KO("ko");
 
     companion object {
         val DEFAULT = SYSTEM
@@ -33,6 +29,7 @@ internal fun nativeName(id: String): String = when (id) {
     "en" -> "English"
     "ja" -> "日本語"
     "ko" -> "한국어"
+    // 下面几种只用于「AI 生成语言」（界面语言不含它们）
     "de" -> "Deutsch"
     "fr" -> "Français"
     "es" -> "Español"
@@ -64,19 +61,17 @@ class Strings internal constructor(
 /** 当前语言的文案表（在 MainActivity 顶层 provide） */
 val LocalStrings = staticCompositionLocalOf { Strings(emptyMap()) }
 
+/** 当前界面语言（供需要整段语言相关文本的场景，如「更新内容」） */
+val LocalUiLang = staticCompositionLocalOf { UiLang.ZH_CN }
+
 /** 系统语言 → 支持的语言（未覆盖的系统语言用英文，而不是回落中文） */
 fun systemUiLang(): UiLang {
     val l = Locale.getDefault()
     return when {
         l.language == "zh" && (l.country == "TW" || l.country == "HK" || l.country == "MO") -> UiLang.ZH_TW
         l.language == "zh" -> UiLang.ZH_CN
-        l.language == "en" -> UiLang.EN
         l.language == "ja" -> UiLang.JA
         l.language == "ko" -> UiLang.KO
-        l.language == "de" -> UiLang.DE
-        l.language == "fr" -> UiLang.FR
-        l.language == "es" -> UiLang.ES
-        l.language == "ru" -> UiLang.RU
         else -> UiLang.EN
     }
 }
@@ -89,10 +84,6 @@ fun stringsFor(lang: UiLang): Strings = when (lang) {
     UiLang.EN -> Strings(EN)
     UiLang.JA -> Strings(JA)
     UiLang.KO -> Strings(KO)
-    UiLang.DE -> Strings(DE)
-    UiLang.FR -> Strings(FR)
-    UiLang.ES -> Strings(ES)
-    UiLang.RU -> Strings(RU)
 }
 
 /** 设置页显示的名称：「跟随系统」本地化，其余用语言自称 */
@@ -142,21 +133,43 @@ private val S2T_PAIRS: List<String> = listOf(
     "缓緩", "忆憶", "准準", "尽盡", "历歷", "丽麗", "词詞", "义義", "议議", "训訓"
 )
 
+/** 补充用字：更新内容等长文案里出现、且之前未收录的字（含修复：发→發 等） */
+private val S2T_PAIRS_EXTRA: List<String> = listOf(
+    "发發", "内內", "储儲", "届屆", "张張", "彻徹", "据據", "断斷", "暂暫", "残殘",
+    "没沒", "浅淺", "画畫", "细細", "给給", "联聯", "识識", "业業", "严嚴", "临臨",
+    "仓倉", "优優", "传傳", "冻凍", "减減", "创創", "区區", "势勢", "厂廠", "双雙",
+    "叠疊", "圆圓", "场場", "块塊", "实實", "宽寬", "宾賓", "层層", "库庫", "异異",
+    "弹彈", "径徑", "态態", "执執", "抢搶", "报報", "拦攔", "挤擠", "换換", "携攜",
+    "撑撐", "旧舊", "栏欄", "树樹", "样樣", "档檔", "横橫", "气氣", "决決", "测測",
+    "渐漸", "溃潰", "滚滾", "满滿", "滤濾", "状狀", "独獨", "环環", "畅暢", "码碼",
+    "离離", "种種", "稳穩", "竖豎", "筛篩", "范範", "红紅", "约約", "纯純", "纵縱",
+    "织織", "经經", "绕繞", "绿綠", "缘緣", "缩縮", "胀脹", "胶膠", "节節", "蓝藍",
+    "补補", "见見", "规規", "觉覺", "触觸", "订訂", "让讓", "译譯", "询詢", "调調",
+    "质質", "费費", "资資", "赖賴", "转轉", "轮輪", "载載", "边邊", "达達", "迁遷",
+    "进進", "适適", "逻邏", "违違", "钥鑰", "钮鈕", "链鏈", "销銷", "门門", "闹鬧",
+    "阅閱", "际際", "险險", "雏雛", "顶頂", "顺順", "须須", "预預", "颜顏", "风風",
+    "驻駐", "黄黃", "齐齊", "户戶", "采採", "里裡"
+)
+
 /** 词级替换：处理多义字（先于逐字映射执行，长的优先） */
 private val S2T_WORDS: List<String> = listOf(
     "复习複習",   // 复习 → 複習（不是「復習」）
     "复制複製",
+    "重复重複",
     "恢复恢復",
+    "修复修復",
     "关系關係",   // 关系 → 關係（而「系统」保持「系統」）
     "联系聯繫",
     "这里這裡", "哪里哪裡", "那里那裡", "里面裡面",
-    "剩余剩餘",
+    "剩余剩餘", "冗余冗餘",
+    "题干題幹",   // 题干 → 題幹（不是「題干」）
+    "复杂複雜",
     "头发頭髮",
     "标准標準"
 )
 
 private val S2T: Map<Char, Char> = buildMap {
-    for (p in S2T_PAIRS) {
+    for (p in S2T_PAIRS + S2T_PAIRS_EXTRA) {
         if (p.length == 2 && p[0] != p[1]) put(p[0], p[1])
     }
 }

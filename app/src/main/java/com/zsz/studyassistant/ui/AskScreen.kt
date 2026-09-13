@@ -52,6 +52,7 @@ import java.io.File
 @Composable
 fun AskScreen(nav: NavHostController, vm: MainViewModel) {
     val context = LocalContext.current
+    val s = LocalStrings.current
     var text by remember { mutableStateOf("") }
     var images by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
 
@@ -75,10 +76,10 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("直接提问") },
+                title = { Text(s["ask.title"]) },
                 navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
                 actions = {
-                    TextButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("🖼 加图") }
+                    TextButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(s["ask.addImage"]) }
                 }
             )
         }
@@ -88,7 +89,7 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                placeholder = { Text("输入你的问题，可直接用文字提问…") },
+                placeholder = { Text(s["ask.placeholder"]) },
                 shape = RoundedCornerShape(12.dp)
             )
             // 已选图预览
@@ -98,7 +99,7 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
                         val bmp = remember(img) { try { android.graphics.BitmapFactory.decodeByteArray(img, 0, img.size) } catch (e: Exception) { null } }
                         if (bmp != null) {
                             Box(Modifier.size(64.dp)) {
-                                Image(bitmap = bmp.asImageBitmap(), contentDescription = "附图", modifier = Modifier.size(64.dp), contentScale = ContentScale.Crop)
+                                Image(bitmap = bmp.asImageBitmap(), contentDescription = s["ask.imageDesc"], modifier = Modifier.size(64.dp), contentScale = ContentScale.Crop)
                             }
                         }
                     }
@@ -114,7 +115,7 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = text.isNotBlank() || images.isNotEmpty()
-            ) { Text("提问 AI") }
+            ) { Text(s["ask.send"]) }
         }
     }
 }

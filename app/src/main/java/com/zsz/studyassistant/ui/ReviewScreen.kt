@@ -61,6 +61,7 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
+    val s = LocalStrings.current
     var tab by remember { mutableIntStateOf(0) } // 0=今天 1=本周
     // 固定 Flow 实例，避免每次重组都重新订阅/查询数据库
     val todayFlow = remember { vm.dueQuestionsToday() }
@@ -77,10 +78,10 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     val qTagIds = remember(questionTags) { questionTags.groupBy { it.questionId }.mapValues { e -> e.value.map { it.tagId } } }
 
     // 按 科目 → 知识点 分组；组内保持 nextReviewAt 升序（dueQuestions 已排序）
-    val groups = remember(questions, catById, tagById, qTagIds) {
+    val groups = remember(questions, catById, tagById, qTagIds, s) {
         val m = LinkedHashMap<String, MutableList<Question>>()
         for (q in questions) {
-            val cn = q.categoryId?.let { catById[it]?.name } ?: "未分类"
+            val cn = q.categoryId?.let { catById[it]?.name } ?: s["notebook.filter.uncategorized"]
             val tn = (qTagIds[q.id] ?: emptyList()).mapNotNull { tagById[it]?.name }
             val key = if (tn.isEmpty()) cn else "$cn · ${tn.joinToString("/")}"
             m.getOrPut(key) { mutableListOf() }.add(q)
@@ -91,10 +92,10 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("复习") },
+                title = { Text(s["review.title"]) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
                     }
                 }
             )
@@ -102,12 +103,12 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = tab) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("今天") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("本周") })
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(s["review.tab.today"]) })
+                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(s["review.tab.week"]) })
             }
             if (questions.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (tab == 0) "今天没有要复习的错题 🎉" else "本周没有要复习的错题 🎉")
+                    Text(if (tab == 0) s["review.empty.today"] else s["review.empty.week"])
                 }
             } else {
                 LazyVerticalStaggeredGrid(
@@ -142,6 +143,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ReviewCard(q: Question, onClick: () -> Unit) {
+    val s = LocalStrings.current
     val bitmap = remember(q.id, q.imageBytes) { q.imageBytes?.let { decodeSampledBitmap(it, 900) } }
     Card(
         modifier = Modifier
@@ -154,7 +156,7 @@ private fun ReviewCard(q: Question, onClick: () -> Unit) {
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "复习题原图",
+                    contentDescription = s["review.imageDesc"],
                     modifier = Modifier.fillMaxWidth().aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat()),
                     contentScale = ContentScale.Fit
                 )

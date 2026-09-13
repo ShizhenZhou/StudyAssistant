@@ -39,7 +39,6 @@ import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AiLang
 import com.zsz.studyassistant.data.ApiKeyStore
 import com.zsz.studyassistant.data.ReminderScheduler
-import com.zsz.studyassistant.data.systemLangName
 
 /** 设置：主页面为入口列表，点进去到二级页面进行具体设置 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,10 +59,10 @@ fun SettingsTab(vm: MainViewModel) {
     }
 }
 
-/** 📝 更新内容：显示各版本更新记录 */
+/** 📝 更新内容：显示各版本更新记录（跟随界面语言） */
 @Composable
 private fun ChangelogSettings() {
-    Text(CHANGELOG, style = MaterialTheme.typography.bodySmall)
+    Text(changelogText(LocalUiLang.current), style = MaterialTheme.typography.bodySmall)
 }
 
 /** 二级页面容器：返回键 + 标题 + 可滚动内容 */
@@ -122,15 +121,16 @@ private fun SettingEntry(title: String, onClick: () -> Unit) {
 @Composable
 private fun ApiSettings() {
     val context = LocalContext.current
+    val s = LocalStrings.current
     var input by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
     var hasKey by remember { mutableStateOf(ApiKeyStore.hasKey(context)) }
 
     if (hasKey) {
-        Text("已配置（粘贴新的可覆盖）", style = MaterialTheme.typography.bodySmall)
+        Text(s["settings.api.configured"], style = MaterialTheme.typography.bodySmall)
     } else {
         Text(
-            "尚未配置，请粘贴你的 DeepSeek API Key（sk- 开头）",
+            s["settings.api.notConfigured"],
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error
         )
@@ -154,9 +154,9 @@ private fun ApiSettings() {
             }
         },
         enabled = input.isNotBlank()
-    ) { Text("保存") }
+    ) { Text(s["common.save"]) }
     if (saved) {
-        Text("✅ 已保存（加密存储，仅本机）", color = MaterialTheme.colorScheme.primary)
+        Text(s["settings.api.saved"], color = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -204,15 +204,29 @@ private fun LanguageSettings(vm: MainViewModel) {
 
 /** AI 语言在设置页的显示名（跟随模式本地化，固定语言用自称） */
 private fun aiLangLabel(lang: AiLang, s: Strings): String = when (lang) {
-    AiLang.FOLLOW_SYSTEM -> "${s["lang.followSystem"]}（${systemLangName()}）"
+    AiLang.FOLLOW_SYSTEM -> "${s["lang.followSystem"]}（${systemLangLabel()}）"
     AiLang.FOLLOW_QUESTION -> s["lang.followQuestion"]
     else -> nativeName(lang.id)
+}
+
+/** 系统语言名（用该语言自己的写法；覆盖 de/fr/es/ru，因为 AI 语言含这几种） */
+private fun systemLangLabel(): String {
+    val l = java.util.Locale.getDefault()
+    val id = when {
+        l.language == "zh" && (l.country == "TW" || l.country == "HK" || l.country == "MO") -> "zh-TW"
+        l.language == "zh" -> "zh-CN"
+        l.language == "en" || l.language == "ja" || l.language == "ko" ||
+            l.language == "de" || l.language == "fr" || l.language == "es" || l.language == "ru" -> l.language
+        else -> return l.displayName.ifBlank { l.language }
+    }
+    return nativeName(id)
 }
 
 /** 🎨 应用主题 */
 @Composable
 private fun ThemeSettings(vm: MainViewModel) {
-    val themes = listOf("跟随系统" to "system", "浅色" to "light", "深色" to "dark")
+    val s = LocalStrings.current
+    val themes = listOf(s["theme.option.system"] to "system", s["theme.option.light"] to "light", s["theme.option.dark"] to "dark")
     themes.forEach { (label, value) ->
         Row(
             Modifier
@@ -231,6 +245,7 @@ private fun ThemeSettings(vm: MainViewModel) {
 @Composable
 private fun NotifySettings() {
     val context = LocalContext.current
+    val s = LocalStrings.current
     val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
     var notifyEnabled by remember { mutableStateOf(prefs.getBoolean("notify_enabled", false)) }
     var notifyHour by remember { mutableStateOf(prefs.getInt("notify_hour", 20)) }
@@ -247,11 +262,11 @@ private fun NotifySettings() {
     }
 
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("开启每日提醒")
+        Text(s["notify.enable"])
         Switch(checked = notifyEnabled, onCheckedChange = { saveNotify(it) })
     }
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("提醒时间")
+        Text(s["notify.time"])
         TextButton(onClick = { showTimePicker = true }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
     }
     if (showTimePicker) {
@@ -267,20 +282,21 @@ private fun NotifySettings() {
             onDismiss = { showTimePicker = false }
         )
     }
-    Text("到点会提醒：今天还有 xx 道错题要复习！本周末前还有 xx 道！", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Text(s["notify.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 }
 
 /** 🔋 后台运行（保活引导） */
 @Composable
 private fun BackgroundSettings() {
     val context = LocalContext.current
+    val s = LocalStrings.current
     val powerManager = context.getSystemService(android.os.PowerManager::class.java)
     val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
 
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("允许后台运行（不漏提醒）", style = MaterialTheme.typography.bodySmall)
+        Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
         if (ignoringBattery) {
-            Text("✅ 已开启", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         } else {
             TextButton(onClick = {
                 try {
@@ -291,16 +307,16 @@ private fun BackgroundSettings() {
                         )
                     )
                 } catch (_: Exception) { }
-            }) { Text("去开启") }
+            }) { Text(s["background.goEnable"]) }
         }
     }
     Text(
-        "提示：国产手机（荣耀/华为等）还需在「手机管家 → 应用 → 自启动/后台运行」中允许本应用，才能在关闭后仍收到提醒、后台生成不中断。",
+        s["background.tip"],
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("自启动/后台运行权限", style = MaterialTheme.typography.bodySmall)
+        Text(s["background.autostart"], style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = {
             fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
             var ok = false
@@ -322,7 +338,7 @@ private fun BackgroundSettings() {
                     )
                 } catch (_: Exception) { }
             }
-        }) { Text("一键开启") }
+        }) { Text(s["background.oneTap"]) }
     }
 }
 
@@ -330,6 +346,7 @@ private fun BackgroundSettings() {
 @Composable
 private fun AboutSettings() {
     val context = LocalContext.current
+    val s = LocalStrings.current
     val appVersion = remember {
         try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -339,11 +356,10 @@ private fun AboutSettings() {
         Column(Modifier.padding(12.dp)) {
             Text("Study Assistant", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(6.dp))
-            Text("版本 $appVersion", style = MaterialTheme.typography.bodyMedium)
+            Text(s.format("about.version", "v" to "$appVersion"), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                "作者：zsz\n" +
-                    "本应用由 DeepSeek-V4 辅助编写，用于拍照搜题、AI 解答与错题整理。",
+                s["about.author"] + "\n" + s["about.desc"],
                 style = MaterialTheme.typography.bodySmall
             )
         }

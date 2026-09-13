@@ -21,9 +21,10 @@ class AnswerForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(this))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "生成答案", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL_ID, s["notif.answer.channel"], NotificationManager.IMPORTANCE_LOW)
             )
         }
         val contentIntent = PendingIntent.getActivity(
@@ -34,7 +35,7 @@ class AnswerForegroundService : Service() {
         val n = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Study Assistant")
-            .setContentText("正在生成答案…（点击回到生成页面）")
+            .setContentText(s["notif.answer.text"])
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

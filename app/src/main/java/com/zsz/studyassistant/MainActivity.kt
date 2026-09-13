@@ -37,6 +37,7 @@ import com.zsz.studyassistant.ui.AskScreen
 import com.zsz.studyassistant.ui.GradeScreen
 import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.LocalStrings
+import com.zsz.studyassistant.ui.LocalUiLang
 import com.zsz.studyassistant.ui.NotebookScreen
 import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
@@ -67,7 +68,10 @@ class MainActivity : ComponentActivity() {
             }
             // 界面语言：在整棵 Compose 树之上提供文案表，切换后立即全局生效
             val strings = remember(viewModel.uiLang) { stringsFor(viewModel.uiLang) }
-            CompositionLocalProvider(LocalStrings provides strings) {
+            val uiLangResolved = remember(viewModel.uiLang) {
+                if (viewModel.uiLang == com.zsz.studyassistant.ui.UiLang.SYSTEM) com.zsz.studyassistant.ui.systemUiLang() else viewModel.uiLang
+            }
+            CompositionLocalProvider(LocalStrings provides strings, LocalUiLang provides uiLangResolved) {
             MaterialTheme(
                 colorScheme = if (dark) darkColorScheme() else lightColorScheme()
             ) {

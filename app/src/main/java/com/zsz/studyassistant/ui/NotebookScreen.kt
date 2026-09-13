@@ -75,6 +75,7 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
+    val s = LocalStrings.current
     val questions by vm.notebook.collectAsState()
     val categories by vm.categories.collectAsState()
     val tags by vm.tags.collectAsState()
@@ -108,21 +109,21 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (selectionMode) "已选 ${selectedIds.size} 项" else "错题本（${questions.size}）") },
+                title = { Text(if (selectionMode) s.format("notebook.selectedCount", "n" to "${selectedIds.size}") else s.format("notebook.title", "n" to "${questions.size}")) },
                 navigationIcon = {
                     if (selectionMode) {
                         IconButton(onClick = { exitSelection() }) { Text("✕", fontSize = 18.sp) }
                     } else {
                         IconButton(onClick = { nav.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
                         }
                     }
                 },
                 actions = {
                     if (selectionMode) {
-                        TextButton(onClick = { showBatchCategory = true }) { Text("📁 分类") }
-                        TextButton(onClick = { showBatchDelete = true }) { Text("🗑 删除") }
-                        TextButton(onClick = { exitSelection() }) { Text("✓ 完成") }
+                        TextButton(onClick = { showBatchCategory = true }) { Text(s["notebook.category"]) }
+                        TextButton(onClick = { showBatchDelete = true }) { Text(s["solve.delete"]) }
+                        TextButton(onClick = { exitSelection() }) { Text(s["solve.done"]) }
                     }
                 }
             )
@@ -139,14 +140,14 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         FilterChip(
                             selected = filterCategoryId == null && !showUncategorized,
                             onClick = { filterCategoryId = null; showUncategorized = false },
-                            label = { Text("全部") }
+                            label = { Text(s["notebook.filter.all"]) }
                         )
                     }
                     item {
                         FilterChip(
                             selected = showUncategorized,
                             onClick = { showUncategorized = true; filterCategoryId = null },
-                            label = { Text("未分类") }
+                            label = { Text(s["notebook.filter.uncategorized"]) }
                         )
                     }
                     items(categories, key = { it.id }) { c ->
@@ -163,7 +164,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                     Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
                         Button(onClick = { tagMenu = true }) {
                             Text(
-                                if (filterTagIds.isEmpty()) "按标签搜索" else "按标签搜索（已选 ${filterTagIds.size}）"
+                                if (filterTagIds.isEmpty()) s["notebook.filter.tags"] else s.format("notebook.filter.tagsSelected", "n" to "${filterTagIds.size}")
                             )
                         }
                         DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
@@ -185,10 +186,10 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         when {
-                            showUncategorized -> "还没有「未分类」的错题"
-                            filterCategoryId != null -> "该分类下暂无错题"
-                            filterTagIds.isNotEmpty() -> "该标签下暂无错题"
-                            else -> "还没有错题，去拍照搜题吧 📷"
+                            showUncategorized -> s["notebook.empty.uncategorized"]
+                            filterCategoryId != null -> s["notebook.empty.category"]
+                            filterTagIds.isNotEmpty() -> s["notebook.empty.tag"]
+                            else -> s["notebook.empty.default"]
                         }
                     )
                 }
@@ -230,7 +231,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     // 批量分类对话框
     if (showBatchCategory) {
         CategoryDialog(
-            title = "批量设置分类",
+            title = s["notebook.batchCategory"],
             categories = categories,
             initialSelectedId = null,
             initialNewName = null,
@@ -247,16 +248,16 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     if (showBatchDelete) {
         AlertDialog(
             onDismissRequest = { showBatchDelete = false },
-            title = { Text("彻底删除") },
-            text = { Text("确定要彻底删除选中的 ${selectedIds.size} 项吗？此操作不可恢复。") },
+            title = { Text(s["notebook.purge.title"]) },
+            text = { Text(s.format("notebook.purge.text", "n" to "${selectedIds.size}")) },
             confirmButton = {
                 TextButton(onClick = {
                     vm.batchDelete(selectedIds.toList())
                     showBatchDelete = false
                     exitSelection()
-                }) { Text("删除") }
+                }) { Text(s["common.delete"]) }
             },
-            dismissButton = { TextButton(onClick = { showBatchDelete = false }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { showBatchDelete = false }) { Text(s["common.cancel"]) } }
         )
     }
 }
@@ -272,6 +273,7 @@ private fun NotebookItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val s = LocalStrings.current
     // 用 remember 缓存 + 降采样解码，避免每次重组都解码全尺寸大图
     val bitmap = remember(q.id, q.imageBytes) {
         q.imageBytes?.let { decodeSampledBitmap(it, 400) }
@@ -289,7 +291,7 @@ private fun NotebookItem(
                 if (bitmap != null) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "错题原图",
+                        contentDescription = s["notebook.imageDesc"],
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat()),

@@ -50,6 +50,7 @@ private val BORDER = Color(0xFFFF5252)
 
 @Composable
 fun CropScreen(nav: NavHostController, vm: MainViewModel) {
+    val s = LocalStrings.current
     val path = vm.pendingImagePath
     val bitmap = remember(path) {
         path?.let {
@@ -60,9 +61,9 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     if (bitmap == null) {
         Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center) {
-            Text("未找到图片，请重新拍照", style = MaterialTheme.typography.bodyLarge)
+            Text(s["crop.noImage"], style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(12.dp))
-            Button(onClick = { nav.popBackStack() }) { Text("返回") }
+            Button(onClick = { nav.popBackStack() }) { Text(s["common.back"]) }
         }
         return
     }
@@ -200,7 +201,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) { Text("✅ 确认框选并解答") }
+            ) { Text(s["crop.confirm"]) }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
                 onClick = {
@@ -208,13 +209,13 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     nav.navigate("solve") { popUpTo("crop") { inclusive = true } }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) { Text("整张图片（跳过框选）") }
+            ) { Text(s["crop.whole"]) }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { sel = dispRect }) { Text("重置框选") }
+                TextButton(onClick = { sel = dispRect }) { Text(s["crop.reset"]) }
                 Row {
-                    TextButton(onClick = { nav.navigate("camera") }) { Text("📷 重新拍摄") }
-                    TextButton(onClick = { nav.popBackStack() }) { Text("← 返回") }
+                    TextButton(onClick = { nav.navigate("camera") }) { Text(s["crop.reshoot"]) }
+                    TextButton(onClick = { nav.popBackStack() }) { Text(s["common.backArrow"]) }
                 }
             }
         }

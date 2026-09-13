@@ -48,11 +48,12 @@ fun WheelTimePickerDialog(
 ) {
     var hour by remember { mutableStateOf(initialHour) }
     var minute by remember { mutableStateOf(initialMinute) }
+    val s = LocalStrings.current
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("设置提醒时间", style = MaterialTheme.typography.titleMedium)
+                Text(s["timePicker.title"], style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     WheelColumn(0..23, hour, { hour = it }, Modifier.width(76.dp))
@@ -61,8 +62,8 @@ fun WheelTimePickerDialog(
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
-                    TextButton(onClick = { onConfirm(hour, minute) }) { Text("确定") }
+                    TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
+                    TextButton(onClick = { onConfirm(hour, minute) }) { Text(s["common.ok"]) }
                 }
             }
         }

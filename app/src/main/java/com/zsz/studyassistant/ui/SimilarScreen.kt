@@ -39,6 +39,7 @@ import com.zsz.studyassistant.MainViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
+    val s = LocalStrings.current
     var revealed by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     val question = vm.similarQuestion
@@ -47,20 +48,20 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         buildList {
             if (vm.similarQuestion != null) add(ChatMsg("assistant", vm.similarQuestion!!))
             for (m in vm.similarMessages) add(ChatMsg(if (m.role == "assistant") "assistant" else "user", m.content))
-            if (revealed && vm.similarAnswer != null) add(ChatMsg("assistant", "💡 答案\n\n${vm.similarAnswer}"))
+            if (revealed && vm.similarAnswer != null) add(ChatMsg("assistant", s.format("similar.answerPrefix", "body" to vm.similarAnswer!!)))
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("练同类题") },
+                title = { Text(s["similar.title"]) },
                 navigationIcon = {
                     TextButton(onClick = { nav.popBackStack() }) { Text("←") }
                 },
                 actions = {
                     if (answer != null) {
-                        TextButton(onClick = { revealed = true }) { Text("👁 查看答案") }
+                        TextButton(onClick = { revealed = true }) { Text(s["similar.showAnswer"]) }
                     }
                 }
             )
@@ -69,7 +70,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         Column(Modifier.fillMaxSize().imePadding().padding(padding)) {
             if (vm.similarBusy && question == null) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text("同类题生成中……", style = MaterialTheme.typography.bodyMedium)
+                    Text(s["similar.generating"], style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 ConversationWebView(messages, Modifier.weight(1f).fillMaxWidth().padding(horizontal = 4.dp))
@@ -83,7 +84,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("和 AI 互动，如：我不会这步…", fontSize = 14.sp) },
+                    placeholder = { Text(s["similar.hint"], fontSize = 14.sp) },
                     maxLines = 3,
                     shape = RoundedCornerShape(22.dp)
                 )
@@ -92,7 +93,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     onClick = { vm.sendSimilar(input); input = "" },
                     enabled = input.isNotBlank() && !vm.similarBusy,
                     shape = RoundedCornerShape(22.dp)
-                ) { Text("发送") }
+                ) { Text(s["solve.send"]) }
             }
         }
     }

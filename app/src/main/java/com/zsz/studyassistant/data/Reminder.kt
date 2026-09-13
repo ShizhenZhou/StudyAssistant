@@ -28,8 +28,9 @@ object ReminderScheduler {
     /** 启动时创建通知渠道（否则设置页通知管理会显示"未发布任何通知"） */
     fun ensureChannel(c: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(c))
             c.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "复习提醒", NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel(CHANNEL_ID, s["notif.review.channel"], NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
     }
@@ -83,11 +84,12 @@ class ReminderReceiver : BroadcastReceiver() {
         }
         if (today > 0 || week > 0) {
             ReminderScheduler.ensureChannel(c)
-            val text = "今天还有 ${today} 道错题要复习！本周末前还有 ${week} 道！"
+            val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(c))
+            val text = s.format("notif.review.text", "today" to "$today", "week" to "$week")
             val nm = c.getSystemService(NotificationManager::class.java) ?: return
             val n = NotificationCompat.Builder(c, ReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("复习提醒")
+                .setContentTitle(s["notif.review.channel"])
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setContentIntent(

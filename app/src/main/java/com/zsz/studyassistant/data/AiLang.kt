@@ -70,21 +70,6 @@ internal fun AiLang.zhNameWithNative(): String = when (this) {
     else -> "简体中文"
 }
 
-/** 设置页显示名称：固定语言用其本族写法；跟随模式把当前解析到的语言写在括号里，避免用户不知道「跟随」跟到哪 */
-fun AiLang.displayName(): String = when (this) {
-    AiLang.FOLLOW_SYSTEM -> "跟随系统（${systemLangName()}）"
-    AiLang.FOLLOW_QUESTION -> "跟随题目"
-    AiLang.ZH_CN -> "简体中文"
-    AiLang.ZH_TW -> "繁體中文"
-    AiLang.EN -> "English"
-    AiLang.JA -> "日本語"
-    AiLang.KO -> "한국어"
-    AiLang.DE -> "Deutsch"
-    AiLang.FR -> "Français"
-    AiLang.ES -> "Español"
-    AiLang.RU -> "Русский"
-}
-
 /** 发给模型的「回答语言」要求（统一由 Data 层拼，避免各调用点写法不一致） */
 fun languageInstruction(lang: AiLang): String = when (lang) {
     AiLang.FOLLOW_QUESTION ->

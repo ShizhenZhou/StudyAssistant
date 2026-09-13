@@ -66,6 +66,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 @Composable
 fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
     val context = LocalContext.current
+    val s = LocalStrings.current
 
     var hasPermission by remember {
         mutableStateOf(
@@ -83,11 +84,11 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("需要相机权限才能拍照搜题")
+            Text(s["camera.permNeeded"])
             Spacer(Modifier.height(16.dp))
-            Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("授予相机权限") }
+            Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text(s["camera.grantPerm"]) }
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = { nav.popBackStack() }) { Text("返回") }
+            TextButton(onClick = { nav.popBackStack() }) { Text(s["common.back"]) }
         }
         return
     }
@@ -177,7 +178,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                     processImageFile(file)
                 } catch (e: Exception) {
-                    vm.showError("读取图片失败：${e.message}")
+                    vm.showError(s.format("camera.errRead", "msg" to (e.message ?: "")))
                 }
             }
         }
@@ -217,7 +218,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                         }
 
                         override fun onError(e: ImageCaptureException) {
-                            vm.showError("拍照失败：${e.message}")
+                            vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
                         }
                     }
                 )
@@ -249,14 +250,14 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .height(44.dp)
         ) {
             Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                Text(if (doubleMode) "两张" else "单张", style = MaterialTheme.typography.labelLarge)
+                Text(if (doubleMode) s["camera.mode.two"] else s["camera.mode.one"], style = MaterialTheme.typography.labelLarge)
             }
         }
 
         // 两张模式提示
         if (doubleMode) {
             Text(
-                if (awaitingSecond) "两张模式：请拍第二张" else "两张模式：先拍第一张",
+                if (awaitingSecond) s["camera.hint.twoSecond"] else s["camera.hint.twoFirst"],
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -272,7 +273,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
                 .padding(8.dp)
-        ) { Text("← 返回") }
+        ) { Text(s["common.backArrow"]) }
 
         // 右上角：直接提问（文字/图文，不必拍照）
         TextButton(
@@ -281,7 +282,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(8.dp)
-        ) { Text("✏️ 直接提问") }
+        ) { Text(s["camera.askDirect"]) }
     }
 }
 
