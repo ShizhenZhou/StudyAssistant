@@ -25,6 +25,11 @@ local_secret
 api_key*
 .env
 
+# adb 调试私钥（工作区 .adb-keys/ 里那份；万一被拷进仓库也绝不提交）
+.adb-keys/
+adbkey
+adbkey.pub
+
 # APK 输出
 *.apk
 *.aab
