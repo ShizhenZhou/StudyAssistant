@@ -51,8 +51,15 @@ fun SettingsTab(vm: MainViewModel) {
         "theme" -> SettingsSubPage("🎨 应用主题", { page = "main" }) { ThemeSettings(vm) }
         "notify" -> SettingsSubPage("🔔 复习提醒", { page = "main" }) { NotifySettings() }
         "background" -> SettingsSubPage("🔋 后台运行", { page = "main" }) { BackgroundSettings() }
+        "changelog" -> SettingsSubPage("📝 更新内容", { page = "main" }) { ChangelogSettings() }
         else -> SettingsMain { page = it }
     }
+}
+
+/** 📝 更新内容：显示各版本更新记录 */
+@Composable
+private fun ChangelogSettings() {
+    Text(CHANGELOG, style = MaterialTheme.typography.bodySmall)
 }
 
 /** 二级页面容器：返回键 + 标题 + 可滚动内容 */
@@ -80,6 +87,7 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         SettingEntry("🎨 应用主题") { onOpen("theme") }
         SettingEntry("🔔 复习提醒") { onOpen("notify") }
         SettingEntry("🔋 后台运行") { onOpen("background") }
+        SettingEntry("📝 更新内容") { onOpen("changelog") }
 
         Spacer(Modifier.height(16.dp))
 

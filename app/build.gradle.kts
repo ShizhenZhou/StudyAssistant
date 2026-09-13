@@ -11,7 +11,7 @@ plugins {
 }
 
 // 应用版本（供 versionName 与 APK 命名使用）
-val appVersionName = "0.4.7"
+val appVersionName = "0.4.7.5"
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -22,13 +22,21 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 19
+        versionCode = 20
         versionName = appVersionName
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 代码裁剪/混淆 + 资源压缩（仅 release 变体；debug 保持可调试）
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // 用 debug 签名（与已安装版本同签名，便于覆盖安装）
+            signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
@@ -82,17 +90,18 @@ dependencies {
     kapt(libs.room.compiler)
 }
 
-// APK naming: StudyAssistant-<version>-<yyyyMMddHHmm>.apk
+// APK naming: StudyAssistant-<version>-<yyyyMMddHHmm>.apk（debug / release 各自目录）
 tasks.whenTaskAdded {
-    if (name == "assembleDebug") {
+    if (name == "assembleDebug" || name == "assembleRelease") {
         doLast {
             try {
-                val src = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+                val variant = if (name == "assembleDebug") "debug" else "release"
+                val src = layout.buildDirectory.file("outputs/apk/$variant/app-$variant.apk").get().asFile
                 if (src.exists()) {
                     val ts = SimpleDateFormat("yyyyMMddHHmm").format(Date())
-                    val name = "StudyAssistant-$appVersionName-$ts.apk"
-                    src.copyTo(src.parentFile.resolve(name), overwrite = true)
-                    println("APK named: $name")
+                    val newName = "StudyAssistant-$appVersionName-$ts.apk"
+                    src.copyTo(src.parentFile.resolve(newName), overwrite = true)
+                    println("APK named: $variant/$newName")
                 }
             } catch (e: Exception) {
                 // ignore rename failure
