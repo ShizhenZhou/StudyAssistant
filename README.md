@@ -161,6 +161,23 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 ### v0.1（项目建立）
 - 🆕 项目搭建：**百度智能云 OCR 识别图像 + DeepSeek 解题**，拍照搜题、AI 解答、错题整理雏形
 
+## 密钥与安全约定
+
+- **仓库里绝不出现任何密钥**。`.gitignore` 已覆盖 `*.key`、`*.jks`、`*.keystore`、`*.pem`、`secrets.properties`、`local.properties`、`.env`、`LOCAL_SECRETS.txt`，以及 adb 调试私钥（`.adb-keys/`、`adbkey`、`adbkey.pub`）。
+- **adb 调试私钥的位置**：本项目所在的**工作区根目录**（即仓库之外的 `..\.adb-keys\`），用于免授权连接调试手机。**不要把它拷进仓库**——`.gitignore` 里那三条是防御性忽略，防的就是这种手滑。
+- **应用内的 API Key**：运行时由使用者在本 App 设置页填写，用 Android Keystore 加密存于手机；代码与仓库中不含任何真实 Key（`git grep` 全量扫描过 `sk-`/`AKID` 等模式，为空）。
+- **提交前本地扫描（建议一次性开启）**：
+
+  ```bash
+  git config core.hooksPath .githooks
+  ```
+
+  之后每次 `git commit` 都会先扫描暂存区：文件名命中密钥名单、或内容里出现 `sk-…`、私钥头、各类云厂商 AK 模式时**直接拦下**（确认不是密钥可用 `git commit --no-verify` 绕过）。
+
+  手动运行（不提交也能查）：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-secrets.ps1`
+
+- **GitHub 端说明**：本仓库是**私有仓库**，GitHub 的 secret scanning / push protection 属于付费的 *GitHub Secret Protection*，免费版开不了（实测 REST API 返回 `422 Secret scanning is not available for this repository`），所以用上面的本地钩子兜底。
+
 ## 构建
 
 ```bash
