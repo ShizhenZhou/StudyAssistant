@@ -51,7 +51,6 @@ fun SettingsTab(vm: MainViewModel) {
         "theme" -> SettingsSubPage("🎨 应用主题", { page = "main" }) { ThemeSettings(vm) }
         "notify" -> SettingsSubPage("🔔 复习提醒", { page = "main" }) { NotifySettings() }
         "background" -> SettingsSubPage("🔋 后台运行", { page = "main" }) { BackgroundSettings() }
-        "about" -> SettingsSubPage("ℹ️ 关于", { page = "main" }) { AboutSettings() }
         else -> SettingsMain { page = it }
     }
 }
@@ -81,7 +80,13 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         SettingEntry("🎨 应用主题") { onOpen("theme") }
         SettingEntry("🔔 复习提醒") { onOpen("notify") }
         SettingEntry("🔋 后台运行") { onOpen("background") }
-        SettingEntry("ℹ️ 关于") { onOpen("about") }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ℹ️ 关于：直接显示在主页，不做二级菜单
+        Text("ℹ️ 关于", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        AboutSettings()
     }
 }
 
