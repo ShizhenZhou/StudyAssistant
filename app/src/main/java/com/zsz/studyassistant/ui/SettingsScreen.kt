@@ -1,9 +1,10 @@
 package com.zsz.studyassistant.ui
 
 import android.Manifest
-import android.app.TimePickerDialog
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,15 +39,130 @@ import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.ApiKeyStore
 import com.zsz.studyassistant.data.ReminderScheduler
 
+/** 设置：主页面为入口列表，点进去到二级页面进行具体设置 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTab(vm: MainViewModel) {
+    var page by remember { mutableStateOf("main") }
+    BackHandler(enabled = page != "main") { page = "main" }
+
+    when (page) {
+        "api" -> SettingsSubPage("🔑 DeepSeek API Key", { page = "main" }) { ApiSettings() }
+        "theme" -> SettingsSubPage("🎨 应用主题", { page = "main" }) { ThemeSettings(vm) }
+        "notify" -> SettingsSubPage("🔔 复习提醒", { page = "main" }) { NotifySettings() }
+        "background" -> SettingsSubPage("🔋 后台运行", { page = "main" }) { BackgroundSettings() }
+        "about" -> SettingsSubPage("ℹ️ 关于", { page = "main" }) { AboutSettings() }
+        else -> SettingsMain { page = it }
+    }
+}
+
+/** 二级页面容器：返回键 + 标题 + 可滚动内容 */
+@Composable
+private fun SettingsSubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("←") }
+            Text(title, style = MaterialTheme.typography.titleLarge)
+        }
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) { content() }
+    }
+}
+
+/** 设置主页面：入口列表 */
+@Composable
+private fun SettingsMain(onOpen: (String) -> Unit) {
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
+    ) {
+        Text("设置", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(16.dp))
+        SettingEntry("🔑 DeepSeek API Key") { onOpen("api") }
+        SettingEntry("🎨 应用主题") { onOpen("theme") }
+        SettingEntry("🔔 复习提醒") { onOpen("notify") }
+        SettingEntry("🔋 后台运行") { onOpen("background") }
+        SettingEntry("ℹ️ 关于") { onOpen("about") }
+    }
+}
+
+@Composable
+private fun SettingEntry(title: String, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick)) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+/** 🔑 API Key 设置 */
+@Composable
+private fun ApiSettings() {
     val context = LocalContext.current
     var input by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
     var hasKey by remember { mutableStateOf(ApiKeyStore.hasKey(context)) }
 
-    // 通知设置
+    if (hasKey) {
+        Text("已配置（粘贴新的可覆盖）", style = MaterialTheme.typography.bodySmall)
+    } else {
+        Text(
+            "尚未配置，请粘贴你的 DeepSeek API Key（sk- 开头）",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    OutlinedTextField(
+        value = input,
+        onValueChange = { input = it; saved = false },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("API Key") },
+        placeholder = { Text("sk-...") },
+        visualTransformation = PasswordVisualTransformation(),
+        singleLine = true
+    )
+    Spacer(Modifier.height(8.dp))
+    TextButton(
+        onClick = {
+            if (input.isNotBlank()) {
+                ApiKeyStore.saveKey(context, input.trim())
+                saved = true; hasKey = true; input = ""
+            }
+        },
+        enabled = input.isNotBlank()
+    ) { Text("保存") }
+    if (saved) {
+        Text("✅ 已保存（加密存储，仅本机）", color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** 🎨 应用主题 */
+@Composable
+private fun ThemeSettings(vm: MainViewModel) {
+    val themes = listOf("跟随系统" to "system", "浅色" to "light", "深色" to "dark")
+    themes.forEach { (label, value) ->
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .selectable(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
+            Text(label, Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+/** 🔔 复习提醒 */
+@Composable
+private fun NotifySettings() {
+    val context = LocalContext.current
     val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
     var notifyEnabled by remember { mutableStateOf(prefs.getBoolean("notify_enabled", false)) }
     var notifyHour by remember { mutableStateOf(prefs.getInt("notify_hour", 20)) }
@@ -62,167 +178,106 @@ fun SettingsTab(vm: MainViewModel) {
         }
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Text("设置", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(16.dp))
-
-        // 🔑 Key 设置
-        Text("🔑 DeepSeek API Key", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        if (hasKey) {
-            Text("已配置（粘贴新的可覆盖）", style = MaterialTheme.typography.bodySmall)
-        } else {
-            Text("尚未配置，请粘贴你的 DeepSeek API Key（sk- 开头）",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = input,
-            onValueChange = { input = it; saved = false },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("API Key") },
-            placeholder = { Text("sk-...") },
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true
-        )
-        Spacer(Modifier.height(8.dp))
-        TextButton(
-            onClick = {
-                if (input.isNotBlank()) {
-                    ApiKeyStore.saveKey(context, input.trim())
-                    saved = true; hasKey = true; input = ""
-                }
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("开启每日提醒")
+        Switch(checked = notifyEnabled, onCheckedChange = { saveNotify(it) })
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("提醒时间")
+        TextButton(onClick = { showTimePicker = true }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
+    }
+    if (showTimePicker) {
+        WheelTimePickerDialog(
+            initialHour = notifyHour,
+            initialMinute = notifyMinute,
+            onConfirm = { h, m ->
+                prefs.edit().putInt("notify_hour", h).putInt("notify_minute", m).apply()
+                notifyHour = h; notifyMinute = m
+                ReminderScheduler.applySchedule(context)
+                showTimePicker = false
             },
-            enabled = input.isNotBlank()
-        ) { Text("保存") }
-        if (saved) {
-            Text("✅ 已保存（加密存储，仅本机）", color = MaterialTheme.colorScheme.primary)
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // 🎨 应用主题
-        Text("🎨 应用主题", style = MaterialTheme.typography.titleMedium)
-        val themes = listOf("跟随系统" to "system", "浅色" to "light", "深色" to "dark")
-        themes.forEach { (label, value) ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .selectable(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
-                Text(label, Modifier.padding(start = 8.dp))
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // 🔔 复习提醒
-        Text("🔔 复习提醒", style = MaterialTheme.typography.titleMedium)
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("开启每日提醒")
-            Switch(checked = notifyEnabled, onCheckedChange = { saveNotify(it) })
-        }
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("提醒时间")
-            TextButton(onClick = { showTimePicker = true }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
-        }
-        if (showTimePicker) {
-            WheelTimePickerDialog(
-                initialHour = notifyHour,
-                initialMinute = notifyMinute,
-                onConfirm = { h, m ->
-                    prefs.edit().putInt("notify_hour", h).putInt("notify_minute", m).apply()
-                    notifyHour = h; notifyMinute = m
-                    ReminderScheduler.applySchedule(context)
-                    showTimePicker = false
-                },
-                onDismiss = { showTimePicker = false }
-            )
-        }
-        Text("到点会提醒：今天还有 xx 道错题要复习！本周末前还有 xx 道！", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-
-        // 后台保活（国产机要允许自启动/后台运行，关掉 app 也能收到提醒）
-        val powerManager = context.getSystemService(android.os.PowerManager::class.java)
-        val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("允许后台运行（不漏提醒）", style = MaterialTheme.typography.bodySmall)
-            if (ignoringBattery) {
-                Text("✅ 已开启", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            } else {
-                TextButton(onClick = {
-                    try {
-                        context.startActivity(
-                            android.content.Intent(
-                                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                android.net.Uri.parse("package:${context.packageName}")
-                            )
-                        )
-                    } catch (_: Exception) { }
-                }) { Text("去开启") }
-            }
-        }
-        Text(
-            "提示：国产手机（荣耀/华为等）还需在「手机管家 → 应用 → 自启动/后台运行」中允许本应用，才能在关闭后仍收到提醒。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline
+            onDismiss = { showTimePicker = false }
         )
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("自启动/后台运行权限", style = MaterialTheme.typography.bodySmall)
+    }
+    Text("到点会提醒：今天还有 xx 道错题要复习！本周末前还有 xx 道！", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+}
+
+/** 🔋 后台运行（保活引导） */
+@Composable
+private fun BackgroundSettings() {
+    val context = LocalContext.current
+    val powerManager = context.getSystemService(android.os.PowerManager::class.java)
+    val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("允许后台运行（不漏提醒）", style = MaterialTheme.typography.bodySmall)
+        if (ignoringBattery) {
+            Text("✅ 已开启", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        } else {
             TextButton(onClick = {
-                fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
-                var ok = false
-                for (pkg in listOf(
-                    "com.huawei.systemmanager/.startupmgr.ui.StartupNormalAppListActivity",
-                    "com.honor.appmarket/.hms.startupmgr.ui.StartupNormalAppListActivity",
-                    "com.coloros.safecenter/.startupapp.StartupAppListActivity",
-                    "com.miui.securitycenter/.ui.AutoStartManagementActivity",
-                    "com.vivo.permissionmanager/.activity.BgStartUpManagerActivity",
-                    "com.oplus.battery/.ui.StartupAppListActivity"
-                )) { if (tryPkg(pkg)) { ok = true; break } }
-                if (!ok) {
-                    try {
-                        context.startActivity(
-                            android.content.Intent(
-                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                android.net.Uri.parse("package:${context.packageName}")
-                            )
+                try {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            android.net.Uri.parse("package:${context.packageName}")
                         )
-                    } catch (_: Exception) { }
-                }
-            }) { Text("一键开启") }
+                    )
+                } catch (_: Exception) { }
+            }) { Text("去开启") }
         }
-
-        Spacer(Modifier.height(20.dp))
-
-        // ℹ️ 关于
-        // 读取真实安装版本号，保持与 App 实际版本一致
-        val appVersion = remember {
-            try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName
-            } catch (e: Exception) { "0.0.0" }
-        }
-        Text("ℹ️ 关于", style = MaterialTheme.typography.titleMedium)
-        Card(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Column(Modifier.padding(12.dp)) {
-                Text("Study Assistant", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(6.dp))
-                Text("版本 $appVersion", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "作者：zsz\n" +
-                        "本应用由 DeepSeek-V4 辅助编写，用于拍照搜题、AI 解答与错题整理。",
-                    style = MaterialTheme.typography.bodySmall
-                )
+    }
+    Text(
+        "提示：国产手机（荣耀/华为等）还需在「手机管家 → 应用 → 自启动/后台运行」中允许本应用，才能在关闭后仍收到提醒、后台生成不中断。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("自启动/后台运行权限", style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = {
+            fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
+            var ok = false
+            for (pkg in listOf(
+                "com.huawei.systemmanager/.startupmgr.ui.StartupNormalAppListActivity",
+                "com.honor.appmarket/.hms.startupmgr.ui.StartupNormalAppListActivity",
+                "com.coloros.safecenter/.startupapp.StartupAppListActivity",
+                "com.miui.securitycenter/.ui.AutoStartManagementActivity",
+                "com.vivo.permissionmanager/.activity.BgStartUpManagerActivity",
+                "com.oplus.battery/.ui.StartupAppListActivity"
+            )) { if (tryPkg(pkg)) { ok = true; break } }
+            if (!ok) {
+                try {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                } catch (_: Exception) { }
             }
+        }) { Text("一键开启") }
+    }
+}
+
+/** ℹ️ 关于 */
+@Composable
+private fun AboutSettings() {
+    val context = LocalContext.current
+    val appVersion = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        } catch (e: Exception) { "0.0.0" }
+    }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text("Study Assistant", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(6.dp))
+            Text("版本 $appVersion", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "作者：zsz\n" +
+                    "本应用由 DeepSeek-V4 辅助编写，用于拍照搜题、AI 解答与错题整理。",
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
