@@ -41,6 +41,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -83,6 +84,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     var filterCategoryId by remember { mutableStateOf<Long?>(null) } // null = 全部
     var showUncategorized by remember { mutableStateOf(false) }
     var filterTagIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var query by remember { mutableStateOf("") }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showBatchCategory by remember { mutableStateOf(false) }
@@ -95,7 +97,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val tagById = remember(tags) { tags.associateBy { it.id } }
 
     // 筛选结果缓存，避免每次重组都重新过滤
-    val filtered = remember(questions, showUncategorized, filterCategoryId, filterTagIds, qTagIds) {
+    val filtered = remember(questions, showUncategorized, filterCategoryId, filterTagIds, qTagIds, query) {
         when {
             showUncategorized -> questions.filter { it.categoryId == null }
             filterCategoryId != null -> questions.filter { it.categoryId == filterCategoryId }
@@ -103,6 +105,10 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
         }.filter { q ->
             // 按选中的 tag 多选（命中任一即显示）
             filterTagIds.isEmpty() || (qTagIds[q.id] ?: emptyList()).any { it in filterTagIds }
+        }.filter { q ->
+            // 全文搜索：题干（AI 转译文本）+ 解答
+            val kw = query.trim()
+            kw.isEmpty() || q.text.contains(kw, ignoreCase = true) || q.answer.contains(kw, ignoreCase = true)
         }
     }
 
@@ -131,6 +137,20 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (!selectionMode) {
+                // 全文搜索：题干（AI 转译文本）与解答
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    placeholder = { Text(s["notebook.search"], style = MaterialTheme.typography.bodySmall) },
+                    singleLine = true,
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            TextButton(onClick = { query = "" }) { Text("✕") }
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                )
                 // 分类筛选 chips（全部 / 未分类 / 各分类）
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),

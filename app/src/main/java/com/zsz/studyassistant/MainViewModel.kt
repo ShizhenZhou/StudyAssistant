@@ -255,6 +255,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 val reply = StudyAssistant.chatOnce(model, messages)
+                recordUsage(app)
                 onDone(reply)
             } catch (e: Exception) {
                 error = friendlyError(e, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
@@ -274,6 +275,104 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 网络断开后点击"继续生成"：用最后一次提问内容重新调用 */
     fun retry() {
         retryAction?.invoke()
+    }
+
+    // ---- API 用量统计（累计调用次数与 token）----
+    var usageCalls by mutableStateOf(0)
+        private set
+    var usagePromptTokens by mutableStateOf(0)
+        private set
+    var usageCompletionTokens by mutableStateOf(0)
+        private set
+
+    /** 每次接口调用后：写入统计并刷新界面状态 */
+    private fun recordUsage(app: Application) {
+        com.zsz.studyassistant.data.UsageStats.add(app, StudyAssistant.lastUsage)
+        refreshUsage()
+    }
+
+    fun refreshUsage() {
+        val s = com.zsz.studyassistant.data.UsageStats.load(getApplication())
+        usageCalls = s.calls
+        usagePromptTokens = s.promptTokens
+        usageCompletionTokens = s.completionTokens
+    }
+
+    fun resetUsage() {
+        com.zsz.studyassistant.data.UsageStats.reset(getApplication())
+        refreshUsage()
+    }
+
+    // ---- 数据管理：导出 / 导入 / 清空 ----
+    var dataBusy by mutableStateOf(false)
+        private set
+    var dataMessage by mutableStateOf<String?>(null)
+        private set
+
+    fun clearDataMessage() { dataMessage = null }
+
+    /** 生成备份 JSON（IO 在后台线程）；ok 回调在拿到结果后触发 */
+    fun exportBackup(onReady: (String) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            dataBusy = true
+            try {
+                val json = com.zsz.studyassistant.data.BackupManager.export(dao)
+                val n = dao.countQuestions()
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.exportDone", "n" to "$n")
+                onReady(json)
+            } catch (e: Exception) {
+                val m = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+                dataMessage = m
+                onError(m)
+            } finally {
+                dataBusy = false
+            }
+        }
+    }
+
+    fun importBackup(text: String) {
+        viewModelScope.launch {
+            dataBusy = true
+            try {
+                val r = com.zsz.studyassistant.data.BackupManager.import(dao, text)
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
+                    "data.importDone",
+                    "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}"
+                )
+            } catch (e: Exception) {
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+            } finally {
+                dataBusy = false
+            }
+        }
+    }
+
+    fun clearAllData() {
+        viewModelScope.launch {
+            dataBusy = true
+            try {
+                com.zsz.studyassistant.data.BackupManager.clearAll(dao)
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]
+            } catch (e: Exception) {
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+            } finally {
+                dataBusy = false
+            }
+        }
+    }
+
+    /** 用于「数据管理」页显示的规模：错题数 / 分类数 / 标签数 */
+    var dataSummary by mutableStateOf<Triple<Int, Int, Int>?>(null)
+        private set
+
+    fun refreshDataSummary() {
+        viewModelScope.launch {
+            dataSummary = Triple(
+                dao.countQuestions(),
+                dao.allCategoriesOnce().size,
+                dao.getAllTagsOnce().size
+            )
+        }
     }
 
     /** 拍照解答 */
@@ -558,6 +657,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var reviewQueue: List<Question> = emptyList()
     private var currentReviewQuestion: Question? = null
 
+    /** 本轮复习进度：第 reviewDone+1 / reviewTotal 题（进入复习时由列表确定总数） */
+    var reviewTotal by mutableStateOf(0)
+        private set
+    var reviewDone by mutableStateOf(0)
+        private set
+
+    /** 从复习列表进入时调用：记录本轮总数与起始位置，用于「第 i/n 题」显示 */
+    fun startReviewSession(total: Int, index: Int) {
+        reviewTotal = total
+        reviewDone = index.coerceIn(0, maxOf(0, total - 1))
+    }
+
     fun loadForReview(q: Question) {
         loadQuestion(q)
         reviewMode = true
@@ -577,14 +688,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val next = due.firstOrNull { it.categoryId == cat } ?: due.firstOrNull()
             if (next != null) {
                 reviewQueue = due
+                reviewDone += 1
                 loadForReview(next)
             } else {
+                reviewDone += 1
                 onNoMore()
             }
         }
     }
 
-    fun exitReviewMode() { reviewMode = false }
+    fun exitReviewMode() {
+        reviewMode = false
+        reviewTotal = 0
+        reviewDone = 0
+    }
+
+    // ---------------------------------------------------------------------
+    // 重做模式（接口预留，暂未接入界面）
+    //
+    // 目标闭环：复习时只给题目图 → 用拍照/相册提交自己重写的解答 →
+    // 复用 gradeWithImages() 批改 → 用批改结果自动更新掌握度（代替人工点熟悉/模糊）。
+    // 待办：
+    //   1) UI：复习页加「✏️ 重做」入口与答案提交（拍照/相册）
+    //   2) submitRedoAnswer() 内调用 StudyAssistant.gradeWithImages(imageBytes, answerBytes, aiLang)
+    //   3) 依批改结果（正确/错误）映射到 reviewQuestion(level) 的档位
+    // ---------------------------------------------------------------------
+
+    /** 是否处于重做模式 */
+    var redoMode by mutableStateOf(false)
+        private set
+
+    /** 进入重做模式（预留）。接入界面时由复习页调用。 */
+    fun startRedo() {
+        // TODO(重做模式)：初始化重做状态（清空已提交答案、记录当前题）
+        redoMode = true
+    }
+
+    /** 提交重做答案（预留）。answerBytes = 手写作答照片。 */
+    fun submitRedoAnswer(answerBytes: ByteArray) {
+        // TODO(重做模式)：批改 + 依结果更新复习档位
+    }
+
+    fun exitRedo() {
+        redoMode = false
+    }
 
     // ---- 练同类题 ----
     var similarQuestion by mutableStateOf<String?>(null)
@@ -605,6 +752,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 val r = StudyAssistant.generateSimilarQuestion(q, aiLang)
+                recordUsage(app)
                 similarQuestion = r.question
                 similarAnswer = r.answer
             } catch (e: Exception) {
@@ -632,6 +780,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 for (m in similarMessages) msgs.add(DeepSeekMessage(if (m.role == "assistant") "assistant" else "user", JsonPrimitive(m.content)))
                 msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
                 val reply = StudyAssistant.chatOnce(StudyAssistant.MODEL_TEXT, msgs)
+                recordUsage(app)
                 similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", reply)
             } catch (e: Exception) {
                 similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to (e.message ?: "")))
@@ -712,6 +861,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes, aiLang)
+                recordUsage(app)
             } catch (e: Exception) {
                 gradeResult = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.gradeFailed", "msg" to (e.message ?: ""))
             } finally {

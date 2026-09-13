@@ -89,6 +89,9 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
         m.map { it.key to it.value.toList() }
     }
 
+    // 扁平化顺序（跨分组），用于「第 i/n 题」进度：n = 本轮要复习的总数
+    val flat = remember(groups) { groups.flatMap { it.second } }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -128,6 +131,8 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                         }
                         items(g.second, key = { it.id }) { q ->
                             ReviewCard(q, onClick = {
+                                // 记录本轮复习进度（第 i/n 题，n = 今日/本周待复习总数）
+                                vm.startReviewSession(flat.size, flat.indexOf(q))
                                 vm.loadForReview(q)
                                 nav.navigate("solve")
                             })

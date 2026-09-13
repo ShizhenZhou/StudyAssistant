@@ -29,7 +29,7 @@ private val B0_ZH = mapOf(
     "home.key.later" to "稍后",
 
     "settings.title" to "设置",
-    "settings.api" to "🔑 DeepSeek API Key",
+    "settings.api" to "🔑 API 管理",
     "settings.lang" to "🌐 语言设置",
     "settings.theme" to "🎨 应用主题",
     "settings.notify" to "🔔 复习提醒",
@@ -61,7 +61,7 @@ private val B0_EN = mapOf(
     "home.key.later" to "Later",
 
     "settings.title" to "Settings",
-    "settings.api" to "🔑 DeepSeek API Key",
+    "settings.api" to "🔑 API",
     "settings.lang" to "🌐 Language",
     "settings.theme" to "🎨 Theme",
     "settings.notify" to "🔔 Review reminder",
@@ -93,7 +93,7 @@ private val B0_JA = mapOf(
     "home.key.later" to "後で",
 
     "settings.title" to "設定",
-    "settings.api" to "🔑 DeepSeek API Key",
+    "settings.api" to "🔑 API 管理",
     "settings.lang" to "🌐 言語設定",
     "settings.theme" to "🎨 テーマ",
     "settings.notify" to "🔔 復習リマインダー",
@@ -125,7 +125,7 @@ private val B0_KO = mapOf(
     "home.key.later" to "나중에",
 
     "settings.title" to "설정",
-    "settings.api" to "🔑 DeepSeek API Key",
+    "settings.api" to "🔑 API 관리",
     "settings.lang" to "🌐 언어 설정",
     "settings.theme" to "🎨 테마",
     "settings.notify" to "🔔 복습 알림",
@@ -821,9 +821,160 @@ private val B6_KO = mapOf(
 )
 
 // ===========================================================================
+// 批次 7：设置重构（API 管理 / 数据管理 / 关于） + 复习折叠 + 搜索 + 公式条
+// ===========================================================================
+private val B7_ZH = mapOf(
+    "settings.data" to "💾 数据管理",
+    "about.changelog" to "更新内容",
+    "about.info" to "应用信息",
+
+    "api.key.note" to "API Key 一律加密保存在本地",
+    "api.usage" to "用量统计",
+    "api.usage.calls" to "累计调用 {n} 次",
+    "api.usage.tokens" to "累计 tokens：输入 {i} / 输出 {o}",
+    "api.usage.empty" to "暂无调用记录",
+    "api.usage.reset" to "重置统计",
+    "api.usage.resetDone" to "已重置统计",
+
+    "data.summary" to "当前 {q} 道错题 · {c} 个分类 · {t} 个标签",
+    "data.export" to "导出备份",
+    "data.export.desc" to "导出为 JSON 文件（含题目图片），可保存到网盘或电脑",
+    "data.import" to "导入备份",
+    "data.import.desc" to "从 JSON 备份恢复：同名分类/标签会复用，题干相同的题目跳过",
+    "data.clear" to "清空所有数据",
+    "data.clear.desc" to "删除全部错题、分类、标签与复习进度（不可恢复）",
+    "data.clear.title" to "确认清空",
+    "data.clear.text" to "将删除全部 {n} 道错题及其分类/标签/复习进度，且无法恢复。建议先导出备份。",
+    "data.exporting" to "正在导出…",
+    "data.importing" to "正在导入…",
+    "data.exportDone" to "已导出 {n} 道错题",
+    "data.importDone" to "导入完成：新增 {q} 道错题、{c} 个分类、{t} 个标签，跳过重复 {s} 道",
+    "data.failed" to "操作失败：{msg}",
+    "data.clearDone" to "已清空所有数据",
+
+    "review.progress" to "第 {i}/{n} 题",
+    "review.showAnswer" to "👁 看解答",
+    "review.hideAnswer" to "🙈 收起解答",
+
+    "notebook.search" to "搜索题干或答案…",
+    "formula.title" to "公式"
+)
+
+private val B7_EN = mapOf(
+    "settings.data" to "💾 Data",
+    "about.changelog" to "What's new",
+    "about.info" to "App info",
+
+    "api.key.note" to "API Key is always stored encrypted on this device",
+    "api.usage" to "Usage",
+    "api.usage.calls" to "{n} calls in total",
+    "api.usage.tokens" to "Total tokens: {i} in / {o} out",
+    "api.usage.empty" to "No calls recorded yet",
+    "api.usage.reset" to "Reset stats",
+    "api.usage.resetDone" to "Stats reset",
+
+    "data.summary" to "{q} problems · {c} categories · {t} tags",
+    "data.export" to "Export backup",
+    "data.export.desc" to "Export as JSON (images included); save it to cloud storage or a computer",
+    "data.import" to "Import backup",
+    "data.import.desc" to "Restore from a JSON backup: same-name categories/tags are reused, identical questions are skipped",
+    "data.clear" to "Erase all data",
+    "data.clear.desc" to "Delete all problems, categories, tags and review progress (cannot be undone)",
+    "data.clear.title" to "Confirm erase",
+    "data.clear.text" to "This deletes all {n} problems with their categories, tags and review progress. It cannot be undone — export a backup first.",
+    "data.exporting" to "Exporting…",
+    "data.importing" to "Importing…",
+    "data.exportDone" to "Exported {n} problems",
+    "data.importDone" to "Import done: {q} problems, {c} categories, {t} tags added; {s} duplicates skipped",
+    "data.failed" to "Failed: {msg}",
+    "data.clearDone" to "All data erased",
+
+    "review.progress" to "{i} / {n}",
+    "review.showAnswer" to "👁 Show answer",
+    "review.hideAnswer" to "🙈 Hide answer",
+
+    "notebook.search" to "Search question or answer…",
+    "formula.title" to "Formula"
+)
+
+private val B7_JA = mapOf(
+    "settings.data" to "💾 データ管理",
+    "about.changelog" to "更新内容",
+    "about.info" to "アプリ情報",
+
+    "api.key.note" to "API Key は常に端末内に暗号化して保存されます",
+    "api.usage" to "利用状況",
+    "api.usage.calls" to "累計 {n} 回",
+    "api.usage.tokens" to "累計 tokens：入力 {i} / 出力 {o}",
+    "api.usage.empty" to "まだ記録がありません",
+    "api.usage.reset" to "統計をリセット",
+    "api.usage.resetDone" to "統計をリセットしました",
+
+    "data.summary" to "現在 {q} 問・分類 {c} 件・タグ {t} 件",
+    "data.export" to "バックアップを書き出す",
+    "data.export.desc" to "JSON（画像を含む）で書き出します。クラウドや PC に保存してください",
+    "data.import" to "バックアップを読み込む",
+    "data.import.desc" to "JSON から復元：同名の分類/タグは再利用し、同じ問題文はスキップします",
+    "data.clear" to "すべてのデータを削除",
+    "data.clear.desc" to "問題・分類・タグ・復習状況をすべて削除します（復元できません）",
+    "data.clear.title" to "削除の確認",
+    "data.clear.text" to "{n} 問すべてと分類・タグ・復習状況を削除します。復元できません。先にバックアップを書き出してください。",
+    "data.exporting" to "書き出し中…",
+    "data.importing" to "読み込み中…",
+    "data.exportDone" to "{n} 問を書き出しました",
+    "data.importDone" to "完了：問題 {q} 件・分類 {c} 件・タグ {t} 件を追加、重複 {s} 件をスキップ",
+    "data.failed" to "失敗しました：{msg}",
+    "data.clearDone" to "すべてのデータを削除しました",
+
+    "review.progress" to "{i} / {n} 問目",
+    "review.showAnswer" to "👁 解答を見る",
+    "review.hideAnswer" to "🙈 解答を隠す",
+
+    "notebook.search" to "問題文・解答を検索…",
+    "formula.title" to "数式"
+)
+
+private val B7_KO = mapOf(
+    "settings.data" to "💾 데이터 관리",
+    "about.changelog" to "업데이트 내역",
+    "about.info" to "앱 정보",
+
+    "api.key.note" to "API Key는 항상 기기 내에 암호화되어 저장됩니다",
+    "api.usage" to "사용량",
+    "api.usage.calls" to "누적 {n}회 호출",
+    "api.usage.tokens" to "누적 tokens: 입력 {i} / 출력 {o}",
+    "api.usage.empty" to "아직 기록이 없습니다",
+    "api.usage.reset" to "통계 초기화",
+    "api.usage.resetDone" to "통계를 초기화했습니다",
+
+    "data.summary" to "현재 오답 {q}개 · 분류 {c}개 · 태그 {t}개",
+    "data.export" to "백업 내보내기",
+    "data.export.desc" to "JSON(이미지 포함)으로 내보냅니다. 클라우드나 PC에 저장하세요",
+    "data.import" to "백업 가져오기",
+    "data.import.desc" to "JSON에서 복원: 같은 이름의 분류/태그는 재사용하고, 문제 문장이 같은 항목은 건너뜁니다",
+    "data.clear" to "모든 데이터 삭제",
+    "data.clear.desc" to "모든 오답, 분류, 태그, 복습 진행을 삭제합니다(복구 불가)",
+    "data.clear.title" to "삭제 확인",
+    "data.clear.text" to "오답 {n}개와 분류/태그/복습 진행을 모두 삭제합니다. 복구할 수 없습니다. 먼저 백업을 내보내세요.",
+    "data.exporting" to "내보내는 중…",
+    "data.importing" to "가져오는 중…",
+    "data.exportDone" to "오답 {n}개를 내보냈습니다",
+    "data.importDone" to "완료: 오답 {q}개, 분류 {c}개, 태그 {t}개 추가, 중복 {s}개 건너뜀",
+    "data.failed" to "실패: {msg}",
+    "data.clearDone" to "모든 데이터를 삭제했습니다",
+
+    "review.progress" to "{i} / {n}",
+    "review.showAnswer" to "👁 정답 보기",
+    "review.hideAnswer" to "🙈 정답 숨기기",
+
+    "notebook.search" to "문제나 정답 검색…",
+    "formula.title" to "수식"
+)
+
+// ===========================================================================
 // 合并（每批新增后在这里追加对应的 Bn_xx）
 // ===========================================================================
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO

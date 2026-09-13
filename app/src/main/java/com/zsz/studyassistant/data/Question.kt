@@ -150,6 +150,49 @@ interface QuestionDao {
 
     @Query("DELETE FROM questions")
     suspend fun clear()
+
+    // ---- 备份 / 恢复 / 数据管理 ----
+    @Query("SELECT * FROM questions ORDER BY id ASC")
+    suspend fun allQuestionsOnce(): List<Question>
+
+    @Query("SELECT * FROM categories ORDER BY id ASC")
+    suspend fun allCategoriesOnce(): List<Category>
+
+    @Query("SELECT * FROM question_tags")
+    suspend fun allQuestionTagsOnce(): List<QuestionTag>
+
+    @Query("SELECT * FROM review")
+    suspend fun allReviewsOnce(): List<Review>
+
+    @Query("SELECT COUNT(*) FROM questions WHERE deleted = 0")
+    suspend fun countQuestions(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertQuestions(list: List<Question>): List<Long>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategories(list: List<Category>): List<Long>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTags(list: List<Tag>): List<Long>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertQuestionTags(list: List<QuestionTag>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReviews(list: List<Review>)
+
+    @Query("DELETE FROM categories")
+    suspend fun clearCategories()
+
+    @Query("DELETE FROM tags")
+    suspend fun clearTags()
+
+    @Query("DELETE FROM question_tags")
+    suspend fun clearAllQuestionTags()
+
+    @Query("DELETE FROM review")
+    suspend fun clearReviews()
 }
 
 /** 数据库 1 -> 2：给 questions 表加 imageBytes 列，保留现有错题 */

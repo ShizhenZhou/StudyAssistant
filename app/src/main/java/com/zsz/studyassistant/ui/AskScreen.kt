@@ -105,7 +105,10 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            // 公式快捷输入（∫ ∑ √ 与 LaTeX 模板）
+            FormulaBar(onInsert = { text = text + it })
+            Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
                     if (text.isNotBlank() || images.isNotEmpty()) {

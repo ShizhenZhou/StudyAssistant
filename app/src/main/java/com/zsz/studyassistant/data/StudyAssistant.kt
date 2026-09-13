@@ -99,12 +99,18 @@ object StudyAssistant {
     fun languageSystemMessage(lang: AiLang): DeepSeekMessage =
         DeepSeekMessage("system", JsonPrimitive(languageInstruction(lang)))
 
+    /** 最近一次接口调用返回的 token 用量（调用方负责持久化统计） */
+    @Volatile
+    var lastUsage: DeepSeekUsage? = null
+        private set
+
     /** 通用调用：发送一组消息，返回助手回复文本 */
     suspend fun chatOnce(model: String, messages: List<DeepSeekMessage>): String {
         requireKey()
         val resp = ApiClient.deepSeek.chat(
             DeepSeekRequest(model = model, messages = messages, maxTokens = 4096)
         )
+        lastUsage = resp.usage
         return resp.choices.firstOrNull()?.message?.content?.asText()
             ?: throw IllegalStateException("DeepSeek 返回为空")
     }
@@ -142,6 +148,7 @@ object StudyAssistant {
         val resp = ApiClient.deepSeek.chat(
             DeepSeekRequest(model = MODEL_VISION, messages = listOf(DeepSeekMessage("user", parts)), maxTokens = 4096)
         )
+        lastUsage = resp.usage
         return resp.choices.firstOrNull()?.message?.content?.asText()
             ?: throw IllegalStateException("批改返回为空")
     }
@@ -185,6 +192,7 @@ object StudyAssistant {
         val resp = ApiClient.deepSeek.chat(
             DeepSeekRequest(model = MODEL_TEXT, messages = msgs, maxTokens = 4096)
         )
+        lastUsage = resp.usage
         val out = resp.choices.firstOrNull()?.message?.content?.asText()
             ?: throw IllegalStateException("出题返回为空")
         val q = Regex("题目[:：]\\s*(.+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out.take(120)

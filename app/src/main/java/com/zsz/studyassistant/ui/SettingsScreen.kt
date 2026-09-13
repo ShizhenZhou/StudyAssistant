@@ -17,15 +17,20 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,19 +54,27 @@ fun SettingsTab(vm: MainViewModel) {
     val s = LocalStrings.current
 
     when (page) {
-        "api" -> SettingsSubPage(s["settings.api"], { page = "main" }) { ApiSettings() }
+        "api" -> SettingsSubPage(s["settings.api"], { page = "main" }) { ApiSettings(vm) }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) }
         "notify" -> SettingsSubPage(s["settings.notify"], { page = "main" }) { NotifySettings() }
         "background" -> SettingsSubPage(s["settings.background"], { page = "main" }) { BackgroundSettings() }
-        "changelog" -> SettingsSubPage(s["settings.changelog"], { page = "main" }) { ChangelogSettings() }
+        "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataSettings(vm) }
+        "about" -> SettingsSubPage(s["settings.about"], { page = "main" }) { AboutPage() }
         else -> SettingsMain { page = it }
     }
 }
 
-/** 📝 更新内容：显示各版本更新记录（跟随界面语言） */
+/** ℹ️ 关于：上面应用信息，下面更新内容 */
 @Composable
-private fun ChangelogSettings() {
+private fun AboutPage() {
+    val s = LocalStrings.current
+    Text(s["about.info"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    AboutSettings()
+    Spacer(Modifier.height(20.dp))
+    Text(s["about.changelog"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
     Text(changelogText(LocalUiLang.current), style = MaterialTheme.typography.bodySmall)
 }
 
@@ -92,14 +105,8 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         SettingEntry(s["settings.theme"]) { onOpen("theme") }
         SettingEntry(s["settings.notify"]) { onOpen("notify") }
         SettingEntry(s["settings.background"]) { onOpen("background") }
-        SettingEntry(s["settings.changelog"]) { onOpen("changelog") }
-
-        Spacer(Modifier.height(16.dp))
-
-        // ℹ️ 关于：直接显示在主页，不做二级菜单
-        Text(s["settings.about"], style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        AboutSettings()
+        SettingEntry(s["settings.data"]) { onOpen("data") }
+        SettingEntry(s["settings.about"]) { onOpen("about") }
     }
 }
 
@@ -117,9 +124,9 @@ private fun SettingEntry(title: String, onClick: () -> Unit) {
     }
 }
 
-/** 🔑 API Key 设置 */
+/** 🔑 API 管理：上面是 Key 设置，下面是累计用量统计 */
 @Composable
-private fun ApiSettings() {
+private fun ApiSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
     var input by remember { mutableStateOf("") }
@@ -145,6 +152,8 @@ private fun ApiSettings() {
         visualTransformation = PasswordVisualTransformation(),
         singleLine = true
     )
+    Spacer(Modifier.height(6.dp))
+    Text(s["api.key.note"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(8.dp))
     TextButton(
         onClick = {
@@ -157,6 +166,136 @@ private fun ApiSettings() {
     ) { Text(s["common.save"]) }
     if (saved) {
         Text(s["settings.api.saved"], color = MaterialTheme.colorScheme.primary)
+    }
+
+    Spacer(Modifier.height(24.dp))
+    LaunchedEffect(Unit) { vm.refreshUsage() }
+    Text(s["api.usage"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    if (vm.usageCalls == 0) {
+        Text(s["api.usage.empty"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    } else {
+        Text(s.format("api.usage.calls", "n" to "${vm.usageCalls}"), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            s.format("api.usage.tokens", "i" to "${vm.usagePromptTokens}", "o" to "${vm.usageCompletionTokens}"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = { vm.resetUsage() }) { Text(s["api.usage.reset"]) }
+    }
+}
+
+/** 💾 数据管理：导出 / 导入 / 清空 */
+@Composable
+private fun DataSettings(vm: MainViewModel) {
+    val context = LocalContext.current
+    val s = LocalStrings.current
+    var showClearConfirm by remember { mutableStateOf(false) }
+    var showImportConfirm by remember { mutableStateOf(false) }
+    var pendingImport by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) { vm.refreshDataSummary() }
+
+    val summary = vm.dataSummary
+    Text(
+        if (summary == null) s["data.summary"].replace("{q}", "…").replace("{c}", "…").replace("{t}", "…")
+        else s.format("data.summary", "q" to "${summary.first}", "c" to "${summary.second}", "t" to "${summary.third}"),
+        style = MaterialTheme.typography.bodyMedium
+    )
+    Spacer(Modifier.height(16.dp))
+
+    // 导出
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            vm.exportBackup(onReady = { json ->
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(context, e.message ?: "export failed", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }, onError = { })
+        }
+    }
+    Button(onClick = { exportLauncher.launch("study-assistant-backup.json") }, modifier = Modifier.fillMaxWidth()) {
+        Text(s["data.export"])
+    }
+    Spacer(Modifier.height(4.dp))
+    Text(s["data.export.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    Spacer(Modifier.height(16.dp))
+
+    // 导入
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val text = try {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+            } catch (e: Exception) { null }
+            if (text != null) { pendingImport = text; showImportConfirm = true }
+        }
+    }
+    OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+        Text(s["data.import"])
+    }
+    Spacer(Modifier.height(4.dp))
+    Text(s["data.import.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    Spacer(Modifier.height(16.dp))
+
+    // 清空
+    OutlinedButton(
+        onClick = { showClearConfirm = true },
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+    ) { Text(s["data.clear"]) }
+    Spacer(Modifier.height(4.dp))
+    Text(s["data.clear.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    if (vm.dataBusy) {
+        Spacer(Modifier.height(12.dp))
+        Text(s["data.exporting"], style = MaterialTheme.typography.bodySmall)
+    }
+    vm.dataMessage?.let { msg ->
+        Spacer(Modifier.height(12.dp))
+        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    }
+
+    if (showImportConfirm) {
+        AlertDialog(
+            onDismissRequest = { showImportConfirm = false; pendingImport = null },
+            title = { Text(s["data.import"]) },
+            text = { Text(s["data.import.desc"]) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingImport?.let { vm.importBackup(it) }
+                    showImportConfirm = false; pendingImport = null
+                    vm.refreshDataSummary()
+                }) { Text(s["common.ok"]) }
+            },
+            dismissButton = { TextButton(onClick = { showImportConfirm = false; pendingImport = null }) { Text(s["common.cancel"]) } }
+        )
+    }
+
+    if (showClearConfirm) {
+        val n = summary?.first ?: 0
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text(s["data.clear.title"]) },
+            text = { Text(s.format("data.clear.text", "n" to "$n")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.clearAllData()
+                    showClearConfirm = false
+                    vm.refreshDataSummary()
+                }) { Text(s["common.ok"]) }
+            },
+            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text(s["common.cancel"]) } }
+        )
     }
 }
 

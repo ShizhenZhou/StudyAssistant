@@ -56,6 +56,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,6 +100,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var editMode by remember { mutableStateOf(false) }
     var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var showEditDelete by remember { mutableStateOf(false) }
+    // 复习模式：默认先只给题目，自己回忆后再展开解答
+    var answerRevealed by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.savedQuestionId) { answerRevealed = false }
 
     // 从相册选 1~3 张图，附到追问消息里
     val imagePicker = rememberLauncherForActivityResult(
@@ -128,8 +132,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
 
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
     // 拍照题：气泡只显示原图，不显示 AI 转译题干（题干照旧保存，供错题本/搜索/编辑用）
-    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto) {
-        vm.chatItems.map { c ->
+    // 复习模式且未展开解答时：只渲染题目气泡（先想再看）
+    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed) {
+        val items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
+        items.map { c ->
             val imgs = if (c.role == "question") {
                 // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
                 vm.questionImages.ifEmpty { c.images ?: emptyList() }
@@ -378,8 +384,22 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            // 复习模式：底部为 熟悉/模糊/忘记 三按钮；点后自动跳下一题（同科目优先），全部复习完才退出
+            // 复习模式：进度 + 折叠解答；底部为 熟悉/模糊/忘记 三按钮
             if (vm.reviewMode) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        s.format("review.progress", "i" to "${vm.reviewDone + 1}", "n" to "${vm.reviewTotal}"),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    TextButton(onClick = { answerRevealed = !answerRevealed }) {
+                        Text(if (answerRevealed) s["review.hideAnswer"] else s["review.showAnswer"])
+                    }
+                }
                 val onNoMore: () -> Unit = {
                     vm.exitReviewMode()
                     nav.popBackStack()
@@ -439,6 +459,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         }
                     }
                 }
+                // 公式快捷输入条（追问也常用 ∫ ∑ √）
+                FormulaBar(onInsert = { followUp = followUp + it })
                 Row(
                     Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically

@@ -5,6 +5,15 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.0
+· 设置重构：新增「💾 数据管理」；「关于」改为二级菜单（上面应用信息，下面更新内容）
+· 数据管理：**导出备份**（单个 JSON，含题目图片与完整会话）/ **导入备份**（同名分类标签复用、题干相同自动跳过，不会覆盖现有数据）/ **清空所有数据**（二次确认）
+· 「🔑 API 管理」：Key 设置 + **累计用量统计**（调用次数、输入/输出 tokens，可重置）；输入框下标注「API Key 一律加密保存在本地」
+· 复习默认**折叠解答**：先自己回忆，再点「看解答」展开；顶部显示「第 i/n 题」进度
+· 错题本新增**全文搜索**：按题干（AI 转译文本）与解答检索
+· 直接提问与追问新增**公式快捷输入条**：∫ ∑ √ π 等符号 + LaTeX 模板（分式/上下标/积分上下限等）
+· 重做模式已预留接口（复习时手写重做 → 复用批改 → 自动更新掌握度），后续版本接入
+
 v0.5.0_beta
 · 新增「应用语言」（界面语言）：设置 → 🌐 语言设置，可选 跟随系统 / 简体中文 / 繁體中文 / English / 日本語 / 한국어，切换立即生效、无需重启
 · 界面文案全面多语言：主页、拍题、直接提问、解题、批改、错题本、复习、设置、通知等
@@ -135,6 +144,15 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.0
+· Settings reorganized: new "💾 Data" page; "About" is now a subpage (app info on top, what's new below)
+· Data management: export a backup (single JSON with images and full conversations) / import a backup (same-name categories and tags are reused, identical questions are skipped — nothing is overwritten) / erase all data (with confirmation)
+· "🔑 API" now holds both the key settings and cumulative usage stats (call count, input/output tokens, resettable), with the note "API Key is always stored encrypted on this device"
+· Review now hides the answer by default: recall first, then tap "Show answer"; a "i / n" progress line is shown
+· Notebook gained full-text search over the transcribed question and the answer
+· Direct questions and follow-ups gained a formula bar: ∫ ∑ √ π symbols plus LaTeX templates (fractions, sub/superscripts, integral limits…)
+· Redo mode has a reserved interface (hand-write your solution → reuse grading → auto-update mastery); UI comes in a later version
+
 v0.5.0_beta
 · New "App language": Settings → 🌐 Language, choose Follow system / 简体中文 / 繁體中文 / English / 日本語 / 한국어 — applies instantly, no restart
 · The whole interface is now multilingual: home, camera, direct questions, solving, grading, notebook, review, settings, notifications
@@ -265,6 +283,15 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.0
+· 設定を再構成：「💾 データ管理」を追加。「このアプリについて」をサブページ化（上にアプリ情報、下に更新内容）
+· データ管理：バックアップ書き出し（画像と会話を含む 1 つの JSON）／読み込み（同名の分類・タグは再利用、同じ問題文はスキップ。既存データは上書きしません）／すべてのデータを削除（確認あり）
+· 「🔑 API 管理」：キー設定に加えて累計利用状況（呼び出し回数・入力/出力 tokens、リセット可）。入力欄の下に「API Key は常に端末内に暗号化して保存されます」と表示
+· 復習は既定で解答を隠す：まず自分で思い出し、「解答を見る」で展開。上部に「{i}/{n} 問目」の進捗を表示
+· 間違いノートに全文検索を追加（問題文と解答）
+· 直接質問と追加質問に数式入力バーを追加：∫ ∑ √ π などの記号＋LaTeX テンプレート（分数・上下付き・積分区間など）
+· やり直しモードのインターフェースを予約（手書きで解き直し → 添削を再利用 → 習熟度を自動更新）。UI は後続版で
+
 v0.5.0_beta
 · 「アプリの言語」を追加：設定 → 🌐 言語設定 で システムに従う / 简体中文 / 繁體中文 / English / 日本語 / 한국어 から選択。すぐに反映され、再起動は不要
 · 画面の文言を全面的に多言語化：ホーム、撮影、直接質問、解答、添削、間違いノート、復習、設定、通知など
@@ -395,6 +422,15 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.0
+· 설정 재구성: '💾 데이터 관리' 추가, '정보'를 하위 페이지로 변경(위는 앱 정보, 아래는 업데이트 내역)
+· 데이터 관리: 백업 내보내기(이미지와 대화를 포함한 단일 JSON) / 백업 가져오기(같은 이름의 분류·태그는 재사용, 문제 문장이 같으면 건너뜀 — 기존 데이터를 덮어쓰지 않음) / 모든 데이터 삭제(확인 절차)
+· '🔑 API 관리': 키 설정과 함께 누적 사용량(호출 횟수, 입력/출력 tokens, 초기화 가능)을 표시하고, 입력창 아래에 'API Key는 항상 기기 내에 암호화되어 저장됩니다'를 안내
+· 복습은 기본적으로 정답을 숨김: 먼저 스스로 떠올린 뒤 '정답 보기'로 펼침. 상단에 '{i}/{n}' 진행 표시
+· 오답 노트에 전체 검색 추가(문제 문장과 풀이)
+· 직접 질문과 추가 질문에 수식 입력 바 추가: ∫ ∑ √ π 기호와 LaTeX 템플릿(분수, 위/아래 첨자, 적분 구간 등)
+· 다시 풀기 모드의 인터페이스를 미리 마련해 둠(손으로 다시 풀기 → 채점 재사용 → 숙련도 자동 갱신). UI는 다음 버전에서
+
 v0.5.0_beta
 · '앱 언어' 추가: 설정 → 🌐 언어 설정에서 시스템 설정 따르기 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 선택. 즉시 적용되며 재시작이 필요 없습니다
 · 화면 문구를 전면 다국어화: 홈, 촬영, 직접 질문, 풀이, 채점, 오답 노트, 복습, 설정, 알림 등
