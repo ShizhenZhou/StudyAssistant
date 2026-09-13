@@ -68,6 +68,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun updateUiLang(lang: com.zsz.studyassistant.ui.UiLang) {
         uiLang = lang
         com.zsz.studyassistant.ui.UiLangStore.save(getApplication(), lang)
+        // 通知渠道名是用当前语言建的，切语言后立刻重建一次，免得要等下次启动才更新
+        com.zsz.studyassistant.data.ReminderScheduler.ensureChannel(getApplication())
     }
 
     /** 错题本数据流 */
