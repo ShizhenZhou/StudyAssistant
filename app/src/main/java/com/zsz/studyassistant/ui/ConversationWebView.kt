@@ -149,7 +149,8 @@ private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
+                        .padding(12.dp)
                         .graphicsLayer(
                             scaleX = scale,
                             scaleY = scale,
