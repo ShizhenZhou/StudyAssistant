@@ -69,7 +69,9 @@ function renderMessages(arr){
     if(m.images && m.images.length){
       for(var j=0;j<m.images.length;j++){ imgHtml+='<img class="msgimg" src="data:image/jpeg;base64,'+m.images[j]+'">'; }
     }
-    html+='<div class="bubble '+cls+'">'+renderMath(m.content||'')+imgHtml+'</div>';
+    // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
+    var body = (m.content && m.content.length) ? renderMath(m.content) : '';
+    html+='<div class="bubble '+cls+'">'+body+imgHtml+'</div>';
   }
   document.getElementById('out').innerHTML=html;
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);

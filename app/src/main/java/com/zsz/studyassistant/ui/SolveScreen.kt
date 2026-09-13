@@ -126,17 +126,20 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     }
 
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
-    val messages = remember(vm.chatItems, vm.questionImages) {
+    // 拍照题：气泡只显示原图，不显示 AI 转译题干（题干照旧保存，供错题本/搜索/编辑用）
+    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto) {
         vm.chatItems.map { c ->
+            val imgs = if (c.role == "question") {
+                // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
+                vm.questionImages.ifEmpty { c.images ?: emptyList() }
+            } else {
+                c.images ?: emptyList()
+            }
+            val hideAiText = c.role == "question" && vm.questionFromPhoto && imgs.isNotEmpty()
             ChatMsg(
                 role = if (c.role == "assistant") "assistant" else "user",
-                content = c.content,
-                // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
-                images = if (c.role == "question") {
-                    vm.questionImages.ifEmpty { c.images ?: emptyList() }
-                } else {
-                    c.images ?: emptyList()
-                }
+                content = if (hideAiText) "" else c.content,
+                images = imgs
             )
         }
     }

@@ -36,8 +36,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.MainViewModel
+import com.zsz.studyassistant.data.AiLang
 import com.zsz.studyassistant.data.ApiKeyStore
 import com.zsz.studyassistant.data.ReminderScheduler
+import com.zsz.studyassistant.data.displayName
 
 /** 设置：主页面为入口列表，点进去到二级页面进行具体设置 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +50,7 @@ fun SettingsTab(vm: MainViewModel) {
 
     when (page) {
         "api" -> SettingsSubPage("🔑 DeepSeek API Key", { page = "main" }) { ApiSettings() }
+        "lang" -> SettingsSubPage("🌐 语言设置", { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage("🎨 应用主题", { page = "main" }) { ThemeSettings(vm) }
         "notify" -> SettingsSubPage("🔔 复习提醒", { page = "main" }) { NotifySettings() }
         "background" -> SettingsSubPage("🔋 后台运行", { page = "main" }) { BackgroundSettings() }
@@ -84,6 +87,7 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         Text("设置", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
         SettingEntry("🔑 DeepSeek API Key") { onOpen("api") }
+        SettingEntry("🌐 语言设置") { onOpen("lang") }
         SettingEntry("🎨 应用主题") { onOpen("theme") }
         SettingEntry("🔔 复习提醒") { onOpen("notify") }
         SettingEntry("🔋 后台运行") { onOpen("background") }
@@ -151,6 +155,31 @@ private fun ApiSettings() {
     ) { Text("保存") }
     if (saved) {
         Text("✅ 已保存（加密存储，仅本机）", color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** 🌐 语言设置：当前只有「AI 生成语言」（应用界面语言在后续版本加） */
+@Composable
+private fun LanguageSettings(vm: MainViewModel) {
+    Text("AI 生成语言", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "决定 AI 用什么语言作答，影响拍题解答、直接提问、追问、批改、同类题；数学公式仍是 LaTeX。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Spacer(Modifier.height(8.dp))
+    AiLang.values().forEach { lang ->
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .selectable(selected = vm.aiLang == lang, onClick = { vm.updateAiLang(lang) })
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(selected = vm.aiLang == lang, onClick = { vm.updateAiLang(lang) })
+            Text(lang.displayName(), Modifier.padding(start = 8.dp))
+        }
     }
 }
 

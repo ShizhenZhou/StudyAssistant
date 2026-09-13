@@ -86,13 +86,18 @@ object StudyAssistant {
         return DeepSeekMessage("user", content)
     }
 
-    fun systemMessage(): DeepSeekMessage = DeepSeekMessage(
+    fun systemMessage(lang: AiLang = AiLang.DEFAULT): DeepSeekMessage = DeepSeekMessage(
         "system",
         JsonPrimitive(
             "你是一名理工科大学解题助手。请给出清晰、分步的解答过程，包含必要的公式推导，" +
-                "数学公式请用 LaTeX 书写（$...$ 或 $$...$$），最后明确给出结论。"
+                "数学公式请用 LaTeX 书写（$...$ 或 $$...$$），最后明确给出结论。" +
+                "\n" + languageInstruction(lang)
         )
     )
+
+    /** 只含「回答语言」的系统消息：拍题 / 直接提问 / 追问等主链路用（不加人设，尽量少改变原有回答风格） */
+    fun languageSystemMessage(lang: AiLang): DeepSeekMessage =
+        DeepSeekMessage("system", JsonPrimitive(languageInstruction(lang)))
 
     /** 通用调用：发送一组消息，返回助手回复文本 */
     suspend fun chatOnce(model: String, messages: List<DeepSeekMessage>): String {
@@ -105,7 +110,7 @@ object StudyAssistant {
     }
 
     /** 批改：单张(仅题目)或两张(题目+手写答案)，AI 判断正误、指出错误步骤、针对性讲解 */
-    suspend fun gradeWithImages(questionBytes: ByteArray, answerBytes: ByteArray?): String {
+    suspend fun gradeWithImages(questionBytes: ByteArray, answerBytes: ByteArray?, lang: AiLang = AiLang.DEFAULT): String {
         requireKey()
         val q = Base64.encodeToString(questionBytes, Base64.NO_WRAP)
         val parts = buildJsonArray {
@@ -113,12 +118,13 @@ object StudyAssistant {
                 put("type", "text")
                 put(
                     "text",
-                    if (answerBytes != null)
+                    (if (answerBytes != null)
                         "你是一名批改老师。图片中是{题目}和{学生的手写作答}。" +
                             "请批改：①判断作答是否正确；②若不正确，指出错在哪一步、为什么错；" +
                             "③给出正确的解题过程，并针对错误点做针对性讲解。用 LaTeX 写公式，先输出「结论：」再输出「讲解：」。"
                     else
-                        "请识别图片中的题目，并给出完整、分步的解答过程，用 LaTeX 写公式。"
+                        "请识别图片中的题目，并给出完整、分步的解答过程，用 LaTeX 写公式。") +
+                        "\n" + languageInstruction(lang)
                 )
             }
             addJsonObject {
@@ -168,12 +174,12 @@ object StudyAssistant {
     data class SimilarResult(val question: String, val answer: String)
 
     /** 根据错题出一道同知识点、同类题型、难度相近的近似题，并自备完整解答（确保可解） */
-    suspend fun generateSimilarQuestion(question: Question): SimilarResult {
+    suspend fun generateSimilarQuestion(question: Question, lang: AiLang = AiLang.DEFAULT): SimilarResult {
         requireKey()
         val content = "请根据下面这道题，出一道同知识点、同类题型、难度相近的“近似题”，并自行给出完整、正确的解答（务必确保题目可解）。" +
             "原题：${question.text}\n\n请先输出一行“题目：<新题>”，再输出“解答：<完整步骤与结论>”。数学公式用 LaTeX。"
         val msgs = listOf(
-            systemMessage(),
+            systemMessage(lang),
             DeepSeekMessage("user", JsonPrimitive(content))
         )
         val resp = ApiClient.deepSeek.chat(

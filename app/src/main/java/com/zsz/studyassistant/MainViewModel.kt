@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.zsz.studyassistant.data.AiLang
+import com.zsz.studyassistant.data.AiLangStore
 import com.zsz.studyassistant.data.AppDatabase
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.DeepSeekMessage
@@ -50,6 +52,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         theme = t
         getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
             .edit().putString("theme", t).apply()
+    }
+
+    // ---- AI 生成语言（拍题/直接提问/追问/批改/同类题的回答语言，默认跟随系统）----
+    var aiLang by mutableStateOf(AiLangStore.load(app))
+        private set
+    fun updateAiLang(lang: AiLang) {
+        aiLang = lang
+        AiLangStore.save(getApplication(), lang)
     }
 
     /** 错题本数据流 */
@@ -106,6 +116,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var questionImages by mutableStateOf<List<String>>(emptyList())
         private set
 
+    /** 当前这道题是否"拍照题"：是则题目气泡只显示原图，不显示 AI 转译题干（题干仍保存，供错题本/搜索/编辑用） */
+    var questionFromPhoto by mutableStateOf(false)
+        private set
+
     /** AI 推测的科目（存题时作为默认分类建议，可改/可暂不分类） */
     var suggestedCategory by mutableStateOf<String?>(null)
         private set
@@ -147,11 +161,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         directImages = emptyList()
         multiImages = emptyList()
         questionImages = emptyList()
+        questionFromPhoto = false
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
     private fun buildMessages(): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
+        // 回答语言：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
+        msgs.add(StudyAssistant.languageSystemMessage(aiLang))
         if (multiImages.isNotEmpty()) {
             // 多张搜题：多图一起作为题目（同一套搜题指令）
             msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames.value, tagNames.value))
@@ -211,6 +228,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         directImages = emptyList()
         multiImages = emptyList()
         questionImages = emptyList()
+        questionFromPhoto = false
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
@@ -252,6 +270,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         imageBytes = bytes
         isPhoto = true
         isFromNotebook = false
+        questionFromPhoto = true
         questionImages = listOf(Base64.encodeToString(bytes, Base64.NO_WRAP))
         runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
@@ -269,6 +288,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isPhoto = true
         isFromNotebook = false
         multiImages = images
+        questionFromPhoto = true
         questionImages = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
@@ -285,6 +305,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         resetSession()
         isPhoto = false
         isFromNotebook = false
+        questionFromPhoto = false
         questionText = question
         suggestedCategory = null
         runCall(StudyAssistant.MODEL_TEXT, onDone = { reply ->
@@ -298,6 +319,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         resetSession()
         isPhoto = images.isNotEmpty()
         isFromNotebook = false
+        questionFromPhoto = false   // 直接提问显示用户自己写的文字，不是 AI 转译题干
         questionText = text
         directImages = images
         suggestedCategory = null
@@ -570,7 +592,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
-                val r = StudyAssistant.generateSimilarQuestion(q)
+                val r = StudyAssistant.generateSimilarQuestion(q, aiLang)
                 similarQuestion = r.question
                 similarAnswer = r.answer
             } catch (e: Exception) {
@@ -593,7 +615,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
                 val msgs = mutableListOf<DeepSeekMessage>()
-                msgs.add(StudyAssistant.systemMessage())
+                msgs.add(StudyAssistant.systemMessage(aiLang))
                 msgs.add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
                 for (m in similarMessages) msgs.add(DeepSeekMessage(if (m.role == "assistant") "assistant" else "user", JsonPrimitive(m.content)))
                 msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
@@ -677,7 +699,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {
-                gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes)
+                gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes, aiLang)
             } catch (e: Exception) {
                 gradeResult = "批改失败：${e.message}"
             } finally {
@@ -713,6 +735,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         // 原题图统一作为浅绿用户气泡显示（旧会话也适用：从 imageBytes 注入）
         questionImages = q.imageBytes?.let { listOf(Base64.encodeToString(it, Base64.NO_WRAP)) } ?: emptyList()
+        // 拍照题：气泡只显示原图，不再显示 AI 转译题干（旧会话同样按此处理）
+        questionFromPhoto = q.imageBytes != null
         // 异步加载该题的知识点标签
         viewModelScope.launch {
             currentQuestionTags = dao.tagIdsForQuestion(q.id)
