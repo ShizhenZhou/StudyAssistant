@@ -261,17 +261,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         directImages = images
         suggestedCategory = null
         suggestedTags = emptyList()
+        // 把"我的提问 + 附图"作为一条对话消息显示（与拍题后的问答一致）
+        val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
+        addItem("question", text, if (encoded.isEmpty()) null else encoded)
         val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             if (images.isNotEmpty()) {
                 val r = StudyAssistant.parseVisionOutput(reply)
-                questionText = r.question.ifBlank { text }
                 suggestedCategory = r.category
                 suggestedTags = r.tags
-                addItem("question", r.question)
                 addItem("assistant", r.withHint())
             } else {
-                addItem("question", text)
                 addItem("assistant", reply)
             }
         }, repeat = { solveDirect(text, images) })

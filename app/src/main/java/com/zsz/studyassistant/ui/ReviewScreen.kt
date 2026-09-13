@@ -136,7 +136,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ReviewCard(q: Question, onClick: () -> Unit) {
-    val bitmap = q.imageBytes?.let { try { BitmapFactory.decodeByteArray(it, 0, it.size) } catch (e: Exception) { null } }
+    val bitmap = remember(q.id, q.imageBytes) { q.imageBytes?.let { decodeSampledBitmap(it, 400) } }
     Card(
         modifier = Modifier
             .padding(horizontal = 4.dp)

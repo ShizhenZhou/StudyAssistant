@@ -11,7 +11,7 @@ plugins {
 }
 
 // 应用版本（供 versionName 与 APK 命名使用）
-val appVersionName = "0.4.6"
+val appVersionName = "0.4.7"
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -22,7 +22,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 18
+        versionCode = 19
         versionName = appVersionName
     }
 
@@ -61,7 +61,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
-    implementation(libs.compose.ui.tooling.preview)
+    // 预览工具仅在 debug 变体需要（代码中未使用 @Preview，正式包不打包）
+    debugImplementation(libs.compose.ui.tooling.preview)
 
     // 相机
     implementation(libs.camerax.core)

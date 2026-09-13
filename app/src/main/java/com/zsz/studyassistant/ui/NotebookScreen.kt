@@ -266,8 +266,9 @@ private fun NotebookItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val bitmap = q.imageBytes?.let {
-        try { BitmapFactory.decodeByteArray(it, 0, it.size) } catch (e: Exception) { null }
+    // 用 remember 缓存 + 降采样解码，避免每次重组都解码全尺寸大图
+    val bitmap = remember(q.id, q.imageBytes) {
+        q.imageBytes?.let { decodeSampledBitmap(it, 400) }
     }
     Card(
         modifier = Modifier
