@@ -82,6 +82,9 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
     var doubleMode by remember { mutableStateOf(false) }
     var questionBytes by remember { mutableStateOf<ByteArray?>(null) }
     var awaitingAnswer by remember { mutableStateOf(false) }
+    // 最近一次批改实际使用的题目/作答图（用于结果区展示，与批改请求保持一致）
+    var shownQuestion by remember { mutableStateOf<ByteArray?>(null) }
+    var shownAnswer by remember { mutableStateOf<ByteArray?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         val previewView = remember { PreviewView(context) }
@@ -130,8 +133,11 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                 questionBytes = bytes
                 awaitingAnswer = true
             } else {
+                val q = questionBytes ?: bytes
                 val ans = if (doubleMode) bytes else null
-                vm.grade(questionBytes ?: bytes, ans)
+                shownQuestion = q
+                shownAnswer = ans
+                vm.grade(q, ans)
                 awaitingAnswer = false
             }
         }
@@ -195,7 +201,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 单张/两张切换（右下，正常大小）
         Surface(
-            onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false },
+            onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false; vm.clearGradeResult(); shownQuestion = null; shownAnswer = null },
             enabled = !vm.gradeBusy,
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
@@ -216,8 +222,27 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                     if (vm.gradeBusy) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("批改中……") }
                     } else {
-                        ConversationWebView(listOf(ChatMsg("assistant", vm.gradeResult)), Modifier.weight(1f).fillMaxWidth())
-                        TextButton(onClick = { vm.clearGradeResult() }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("重拍") }
+                        // 我的题目/作答图（浅绿用户气泡）+ 批改结果，保持一致
+                        val msgs = buildList<ChatMsg> {
+                            shownQuestion?.let { b ->
+                                add(ChatMsg("user", "题目", listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
+                            }
+                            shownAnswer?.let { b ->
+                                add(ChatMsg("user", "我的作答", listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
+                            }
+                            add(ChatMsg("assistant", vm.gradeResult))
+                        }
+                        ConversationWebView(msgs, Modifier.weight(1f).fillMaxWidth())
+                        TextButton(
+                            onClick = {
+                                vm.clearGradeResult()
+                                questionBytes = null
+                                shownQuestion = null
+                                shownAnswer = null
+                                awaitingAnswer = false
+                            },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) { Text("重拍") }
                     }
                 }
             }

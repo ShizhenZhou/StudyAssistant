@@ -125,18 +125,20 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         onDispose { vm.saveSessionOnExit() }
     }
 
-    // 对话消息：照片模式排除文字题目(用上方原图显示)；文字模式题目作为 user 气泡
-    // 用 remember 缓存，避免每次重组都重建整个消息列表
-    val messages = remember(vm.chatItems, vm.imageBytes) {
-        vm.chatItems
-            .filter { it.role != "question" || vm.imageBytes == null }
-            .map { c ->
-                ChatMsg(
-                    role = if (c.role == "assistant") "assistant" else "user",
-                    content = c.content,
-                    images = c.images ?: emptyList()
-                )
-            }
+    // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
+    val messages = remember(vm.chatItems, vm.questionImages) {
+        vm.chatItems.map { c ->
+            ChatMsg(
+                role = if (c.role == "assistant") "assistant" else "user",
+                content = c.content,
+                // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
+                images = if (c.role == "question") {
+                    vm.questionImages.ifEmpty { c.images ?: emptyList() }
+                } else {
+                    c.images ?: emptyList()
+                }
+            )
+        }
     }
 
     Scaffold(
@@ -327,10 +329,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            // 题目（照片模式：折叠原图）
-            if (vm.imageBytes != null) {
-                CollapsibleQuestionImage(vm.imageBytes)
-            }
+            // 题目不再单独折叠显示：原题/我的提问已作为浅绿用户气泡显示在对话里
 
             // 编辑模式：Compose 列表（可勾选删除），否则单 WebView 稳定滚动
             if (editMode) {
@@ -472,34 +471,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                     ) { Text("发送", fontSize = 14.sp) }
                 }
-            }
-        }
-    }
-}
-
-/** 折叠的原题图片：默认一小条，点击展开当初框选的图 */
-@Composable
-private fun CollapsibleQuestionImage(imageBytes: ByteArray?) {
-    if (imageBytes == null) return
-    var expanded by remember { mutableStateOf(false) }
-    val bitmap = remember(imageBytes) {
-        try { BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) } catch (e: Exception) { null }
-    }
-    Card(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-        Column(Modifier.padding(8.dp)) {
-            TextButton(
-                onClick = { expanded = !expanded },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (expanded) "▴ 收起原题图片" else "▾ 点击查看原题图片")
-            }
-            if (expanded && bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "原题图片",
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp),
-                    contentScale = ContentScale.Fit
-                )
             }
         }
     }

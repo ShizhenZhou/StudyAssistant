@@ -111,7 +111,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             } else {
                 LazyVerticalStaggeredGrid(
-                    columns = StaggeredGridCells.Fixed(2),
+                    columns = StaggeredGridCells.Fixed(1),   // 单列：整行宽度，图更大
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(12.dp),
                     verticalItemSpacing = 8.dp
@@ -142,7 +142,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ReviewCard(q: Question, onClick: () -> Unit) {
-    val bitmap = remember(q.id, q.imageBytes) { q.imageBytes?.let { decodeSampledBitmap(it, 400) } }
+    val bitmap = remember(q.id, q.imageBytes) { q.imageBytes?.let { decodeSampledBitmap(it, 900) } }
     Card(
         modifier = Modifier
             .padding(horizontal = 4.dp)

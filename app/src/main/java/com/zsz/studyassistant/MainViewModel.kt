@@ -101,6 +101,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 拍照搜题（多张）携带的图，作为题目一起识别 */
     private var multiImages: List<ByteArray> = emptyList()
 
+    /** 供界面显示的"题目图"（base64）：原题/我的提问附图，统一作为浅绿用户气泡显示。
+     *  只用于显示，不写入会话 JSON（避免数据库膨胀），旧题由 loadQuestion 从 imageBytes 注入。 */
+    var questionImages by mutableStateOf<List<String>>(emptyList())
+        private set
+
     /** AI 推测的科目（存题时作为默认分类建议，可改/可暂不分类） */
     var suggestedCategory by mutableStateOf<String?>(null)
         private set
@@ -141,6 +146,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         reviewMode = false
         directImages = emptyList()
         multiImages = emptyList()
+        questionImages = emptyList()
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
@@ -204,6 +210,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         reviewMode = false
         directImages = emptyList()
         multiImages = emptyList()
+        questionImages = emptyList()
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
@@ -245,6 +252,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         imageBytes = bytes
         isPhoto = true
         isFromNotebook = false
+        questionImages = listOf(Base64.encodeToString(bytes, Base64.NO_WRAP))
         runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
@@ -261,6 +269,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isPhoto = true
         isFromNotebook = false
         multiImages = images
+        questionImages = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
@@ -294,7 +303,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         suggestedCategory = null
         suggestedTags = emptyList()
         // 把"我的提问 + 附图"作为一条对话消息显示（与拍题后的问答一致）
+        // 附图同时存进该条消息，重开会话（如从错题本进入）仍能看到原图
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
+        questionImages = encoded
         addItem("question", text, if (encoded.isEmpty()) null else encoded)
         val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
@@ -700,6 +711,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         suggestedCategory = null
         currentQuestionTags = emptyList()
         error = null
+        // 原题图统一作为浅绿用户气泡显示（旧会话也适用：从 imageBytes 注入）
+        questionImages = q.imageBytes?.let { listOf(Base64.encodeToString(it, Base64.NO_WRAP)) } ?: emptyList()
         // 异步加载该题的知识点标签
         viewModelScope.launch {
             currentQuestionTags = dao.tagIdsForQuestion(q.id)
