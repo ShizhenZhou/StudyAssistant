@@ -54,13 +54,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** 复用同一个格式化器，避免列表每项每次重组都新建 SimpleDateFormat */
+private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+
 /** 复习：今天 / 本周（截止周日）两个选项卡，按 科目→知识点 分组，两列瀑布流 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     var tab by remember { mutableIntStateOf(0) } // 0=今天 1=本周
-    val dueToday by vm.dueQuestionsToday().collectAsState(emptyList())
-    val dueWeek by vm.dueQuestionsWeek().collectAsState(emptyList())
+    // 固定 Flow 实例，避免每次重组都重新订阅/查询数据库
+    val todayFlow = remember { vm.dueQuestionsToday() }
+    val weekFlow = remember { vm.dueQuestionsWeek() }
+    val dueToday by todayFlow.collectAsState(emptyList())
+    val dueWeek by weekFlow.collectAsState(emptyList())
     val questions = if (tab == 0) dueToday else dueWeek
 
     val categories by vm.categories.collectAsState()
@@ -161,7 +167,7 @@ private fun ReviewCard(q: Question, onClick: () -> Unit) {
                 )
             }
             Text(
-                SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(q.createdAt)),
+                TIME_FMT.format(Date(q.createdAt)),
                 modifier = Modifier.padding(top = 6.dp),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline

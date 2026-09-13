@@ -126,15 +126,18 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     }
 
     // 对话消息：照片模式排除文字题目(用上方原图显示)；文字模式题目作为 user 气泡
-    val messages = vm.chatItems
-        .filter { it.role != "question" || vm.imageBytes == null }
-        .map { c ->
-            ChatMsg(
-                role = if (c.role == "assistant") "assistant" else "user",
-                content = c.content,
-                images = c.images ?: emptyList()
-            )
-        }
+    // 用 remember 缓存，避免每次重组都重建整个消息列表
+    val messages = remember(vm.chatItems, vm.imageBytes) {
+        vm.chatItems
+            .filter { it.role != "question" || vm.imageBytes == null }
+            .map { c ->
+                ChatMsg(
+                    role = if (c.role == "assistant") "assistant" else "user",
+                    content = c.content,
+                    images = c.images ?: emptyList()
+                )
+            }
+    }
 
     Scaffold(
         topBar = {

@@ -26,6 +26,7 @@ data class ChatMsg(val role: String, val content: String, val images: List<Strin
 fun ConversationWebView(messages: List<ChatMsg>, modifier: Modifier = Modifier) {
     val currentMessages by rememberUpdatedState(messages)
     var loaded by remember { mutableStateOf(false) }
+    var lastJson by remember { mutableStateOf<String?>(null) }
 
     AndroidView(
         factory = { ctx ->
@@ -50,26 +51,33 @@ fun ConversationWebView(messages: List<ChatMsg>, modifier: Modifier = Modifier) 
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         loaded = true
-                        view?.let { renderMessages(it, currentMessages) }
+                        val json = buildMessagesJson(currentMessages)
+                        lastJson = json
+                        view?.evaluateJavascript("renderMessages($json);", null)
                     }
                 }
                 loadUrl("file:///android_asset/conversation_render.html")
             }
         },
-        update = { v -> if (loaded) renderMessages(v, currentMessages) },
+        update = { v ->
+            // 内容未变化时跳过重渲染，减少 WebView 开销
+            if (loaded) {
+                val json = buildMessagesJson(currentMessages)
+                if (json != lastJson) {
+                    lastJson = json
+                    v.evaluateJavascript("renderMessages($json);", null)
+                }
+            }
+        },
         modifier = modifier
     )
 }
 
-private fun renderMessages(v: WebView, messages: List<ChatMsg>) {
-    val json = messages.joinToString(",", "[", "]") { m ->
+private fun buildMessagesJson(messages: List<ChatMsg>): String =
+    messages.joinToString(",", "[", "]") { m ->
         val c = m.content
             .replace("\\", "\\\\").replace("\"", "\\\"")
             .replace("\n", "\\n").replace("\r", "\\r")
-        val imgs = m.images.joinToString(",", "[", "]") { b ->
-            "\"$b\""
-        }
+        val imgs = m.images.joinToString(",", "[", "]") { b -> "\"$b\"" }
         "{\"role\":\"${m.role}\",\"content\":\"$c\",\"images\":$imgs}"
     }
-    v.evaluateJavascript("renderMessages($json);", null)
-}

@@ -69,6 +69,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** 复用同一个格式化器，避免列表每项每次重组都新建 SimpleDateFormat */
+private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
@@ -90,13 +93,16 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val qTagIds = remember(questionTags) { questionTags.groupBy { it.questionId }.mapValues { e -> e.value.map { it.tagId } } }
     val tagById = remember(tags) { tags.associateBy { it.id } }
 
-    val filtered = when {
-        showUncategorized -> questions.filter { it.categoryId == null }
-        filterCategoryId != null -> questions.filter { it.categoryId == filterCategoryId }
-        else -> questions
-    }.filter { q ->
-        // 按选中的 tag 多选（命中任一即显示）
-        filterTagIds.isEmpty() || (qTagIds[q.id] ?: emptyList()).any { it in filterTagIds }
+    // 筛选结果缓存，避免每次重组都重新过滤
+    val filtered = remember(questions, showUncategorized, filterCategoryId, filterTagIds, qTagIds) {
+        when {
+            showUncategorized -> questions.filter { it.categoryId == null }
+            filterCategoryId != null -> questions.filter { it.categoryId == filterCategoryId }
+            else -> questions
+        }.filter { q ->
+            // 按选中的 tag 多选（命中任一即显示）
+            filterTagIds.isEmpty() || (qTagIds[q.id] ?: emptyList()).any { it in filterTagIds }
+        }
     }
 
     Scaffold(
@@ -298,7 +304,7 @@ private fun NotebookItem(
                     )
                 }
                 Text(
-                    SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(q.createdAt)),
+                    TIME_FMT.format(Date(q.createdAt)),
                     modifier = Modifier.padding(top = 6.dp),
                     style = MaterialTheme.typography.labelSmall
                 )

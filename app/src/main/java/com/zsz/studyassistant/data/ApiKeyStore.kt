@@ -45,6 +45,8 @@ object ApiKeyStore {
         System.arraycopy(ct, 0, combined, iv.size, ct.size)
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putString(PREFS_KEY, Base64.encodeToString(combined, Base64.NO_WRAP)).apply()
+        // 同步更新内存缓存，避免下次请求再解密
+        KeyManager.setCachedKey(apiKey)
     }
 
     fun getKey(context: Context): String? {
@@ -71,10 +73,21 @@ object ApiKeyStore {
  */
 object KeyManager {
     @Volatile private var appContext: Context? = null
+    @Volatile private var cached: String? = null
 
     fun init(context: Context) {
         appContext = context.applicationContext
     }
 
-    fun getApiKey(): String = appContext?.let { ApiKeyStore.getKey(it).orEmpty() } ?: ""
+    /** 带内存缓存：只在首次（或保存后）解密一次 Keystore，避免每次请求都解密 */
+    fun getApiKey(): String {
+        cached?.let { return it }
+        val k = appContext?.let { ApiKeyStore.getKey(it).orEmpty() } ?: ""
+        cached = k
+        return k
+    }
+
+    fun setCachedKey(k: String) {
+        cached = k
+    }
 }

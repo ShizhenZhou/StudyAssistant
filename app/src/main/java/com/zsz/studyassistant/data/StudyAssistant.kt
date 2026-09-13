@@ -31,25 +31,27 @@ object StudyAssistant {
 
     data class SolveResult(val question: String, val answer: String, val category: String? = null, val tags: List<String> = emptyList())
 
+    /** 搜题指令（单图 / 多图共用） */
+    private fun solvePrompt(categories: List<String>, tags: List<String>): String {
+        val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
+        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
+        return "请识别图片中的理工科题目并给出详细分步解答。" +
+            "先输出一行“题目：<识别到的题目>”，再输出“解答：<详细步骤与结论>”。" +
+            "解答最后另起一行输出“分类：<所属科目>”。" +
+            "已知分类：$catHint。若题目属于其中某一个，请直接用该分类名作为“分类”，不要新造；" +
+            "若都不符合，才给出一个新的简短科目名。" +
+            "再在“分类”之后另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。" +
+            "已知知识点标签：$tagHint。若题目涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签。" +
+            "数学公式请用 LaTeX 书写。"
+    }
+
     /** 视觉模型首条用户消息（文字 + 图片）；带已有分类名，让模型优先归入已有分类 */
     fun visionUserMessage(imageBytes: ByteArray, categories: List<String> = emptyList(), tags: List<String> = emptyList()): DeepSeekMessage {
         val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
-        val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
-        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
         val content = buildJsonArray {
             addJsonObject {
                 put("type", "text")
-                put(
-                    "text",
-                    "请识别图片中的理工科题目并给出详细分步解答。" +
-                        "先输出一行“题目：<识别到的题目>”，再输出“解答：<详细步骤与结论>”。" +
-                        "解答最后另起一行输出“分类：<所属科目>”。" +
-                        "已知分类：$catHint。若题目属于其中某一个，请直接用该分类名作为“分类”，不要新造；" +
-                        "若都不符合，才给出一个新的简短科目名。" +
-                        "再在“分类”之后另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。" +
-                        "已知知识点标签：$tagHint。若题目涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签。" +
-                        "数学公式请用 LaTeX 书写。"
-                )
+                put("text", solvePrompt(categories, tags))
             }
             addJsonObject {
                 put("type", "image_url")
@@ -58,6 +60,10 @@ object StudyAssistant {
         }
         return DeepSeekMessage("user", content)
     }
+
+    /** 搜题（多张图一起作为题目） */
+    fun visionUserMessageMulti(images: List<ByteArray>, categories: List<String> = emptyList(), tags: List<String> = emptyList()): DeepSeekMessage =
+        userMessageWithImages(solvePrompt(categories, tags), images)
 
     fun textUserMessage(text: String): DeepSeekMessage =
         DeepSeekMessage("user", JsonPrimitive(text))

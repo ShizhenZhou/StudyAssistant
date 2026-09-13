@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -112,6 +113,29 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         var focusPoint by remember { mutableStateOf<Offset?>(null) }
         var focusDone by remember { mutableStateOf(false) }
 
+        // 单张 / 两张拍摄模式（两张：拍两张作为同一道题一起解答）
+        var doubleMode by remember { mutableStateOf(false) }
+        var firstBytes by remember { mutableStateOf<ByteArray?>(null) }
+        var awaitingSecond by remember { mutableStateOf(false) }
+
+        fun processImageFile(file: File) {
+            if (!doubleMode) {
+                // 单张：进入框选页挑选题目区域
+                vm.updatePendingImagePath(file.absolutePath)
+                nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
+            } else {
+                val bytes = StudyAssistant.compressImage(file)
+                val first = firstBytes
+                if (first == null) {
+                    firstBytes = bytes
+                    awaitingSecond = true
+                } else {
+                    vm.solveWithImages(listOf(first, bytes))
+                    nav.navigate("solve") { popUpTo("camera") { inclusive = true } }
+                }
+            }
+        }
+
         AndroidView(
             { previewView },
             modifier = Modifier
@@ -151,8 +175,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     context.contentResolver.openInputStream(uri)?.use { input ->
                         file.outputStream().use { output -> input.copyTo(output) }
                     }
-                    vm.updatePendingImagePath(file.absolutePath)
-                    nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
+                    processImageFile(file)
                 } catch (e: Exception) {
                     vm.showError("读取图片失败：${e.message}")
                 }
@@ -190,9 +213,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                            // 先进入框选页挑选题目区域
-                            vm.updatePendingImagePath(file.absolutePath)
-                            nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
+                            processImageFile(file)
                         }
 
                         override fun onError(e: ImageCaptureException) {
@@ -213,6 +234,36 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 ShutterIcon(size = 40.dp, color = Color.White)
             }
+        }
+
+        // 右下角：单张/两张 切换（与图库、快门在同一水平线）
+        Surface(
+            onClick = { doubleMode = !doubleMode; firstBytes = null; awaitingSecond = false },
+            enabled = !vm.busy,
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = 36.dp)
+                .height(44.dp)
+        ) {
+            Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+                Text(if (doubleMode) "两张" else "单张", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+
+        // 两张模式提示
+        if (doubleMode) {
+            Text(
+                if (awaitingSecond) "两张模式：请拍第二张" else "两张模式：先拍第一张",
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 14.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
+            )
         }
 
         TextButton(

@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -67,6 +68,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val questionTags: StateFlow<List<QuestionTag>> =
         dao.allQuestionTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 分类名 / 标签名（派生流，供 buildMessages 直接取值，避免每次请求都 map） */
+    private val categoryNames: StateFlow<List<String>> =
+        categories.map { list -> list.map { it.name } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val tagNames: StateFlow<List<String>> =
+        tags.map { list -> list.map { it.name } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // ---- 对话流状态 ----
     var imageBytes by mutableStateOf<ByteArray?>(null)
     var chatItems by mutableStateOf<List<ChatItem>>(emptyList())
@@ -89,6 +98,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var questionText = ""
     /** 直接提问携带的附图（文字 + 多图） */
     private var directImages: List<ByteArray> = emptyList()
+    /** 拍照搜题（多张）携带的图，作为题目一起识别 */
+    private var multiImages: List<ByteArray> = emptyList()
 
     /** AI 推测的科目（存题时作为默认分类建议，可改/可暂不分类） */
     var suggestedCategory by mutableStateOf<String?>(null)
@@ -129,16 +140,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionTags = emptyList()
         reviewMode = false
         directImages = emptyList()
+        multiImages = emptyList()
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
     private fun buildMessages(): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
-        if (directImages.isNotEmpty()) {
+        if (multiImages.isNotEmpty()) {
+            // 多张搜题：多图一起作为题目（同一套搜题指令）
+            msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames.value, tagNames.value))
+        } else if (directImages.isNotEmpty()) {
             // 直接提问：文字 + 多图一起作为问题
             msgs.add(StudyAssistant.userMessageWithImages(questionText, directImages))
         } else if (isPhoto && imageBytes != null) {
-            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categories.value.map { it.name }, tags.value.map { it.name }))
+            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categoryNames.value, tagNames.value))
         } else if (questionText.isNotBlank()) {
             msgs.add(StudyAssistant.textUserMessage(questionText))
         }
@@ -188,6 +203,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionTags = emptyList()
         reviewMode = false
         directImages = emptyList()
+        multiImages = emptyList()
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
@@ -237,6 +253,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             addItem("question", r.question)
             addItem("assistant", r.withHint())
         }, repeat = { solveWithImage(bytes) })
+    }
+
+    /** 拍照解答（多张）：两张图作为同一道题目一起识别解答 */
+    fun solveWithImages(images: List<ByteArray>) {
+        resetSession()
+        isPhoto = true
+        isFromNotebook = false
+        multiImages = images
+        runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
+            val r = StudyAssistant.parseVisionOutput(output)
+            questionText = r.question
+            suggestedCategory = r.category
+            suggestedTags = r.tags
+            addItem("question", r.question)
+            addItem("assistant", r.withHint())
+        }, repeat = { solveWithImages(images) })
     }
 
     /** 文字解答 */
