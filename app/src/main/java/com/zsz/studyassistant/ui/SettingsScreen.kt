@@ -39,7 +39,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AiLang
@@ -76,7 +81,26 @@ private fun AboutPage() {
     Spacer(Modifier.height(20.dp))
     Text(s["about.changelog"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
-    Text(changelogText(LocalUiLang.current), style = MaterialTheme.typography.bodySmall)
+    Text(changelogAnnotated(changelogText(LocalUiLang.current)), style = MaterialTheme.typography.bodySmall)
+}
+
+/**
+ * 更新内容里的 `**加粗**` 标记 → 真正的粗体。
+ * 这一页是纯 Text 渲染（不像答案走 WebView 的 Markdown），不处理就会把星号直接显示出来。
+ */
+private fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedString {
+    var i = 0
+    while (i < text.length) {
+        val start = text.indexOf("**", i)
+        if (start < 0) { append(text.substring(i)); return@buildAnnotatedString }
+        val end = text.indexOf("**", start + 2)
+        if (end < 0) { append(text.substring(i)); return@buildAnnotatedString }
+        append(text.substring(i, start))
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+            append(text.substring(start + 2, end))
+        }
+        i = end + 2
+    }
 }
 
 /** 二级页面容器：返回键 + 标题 + 可滚动内容 */
