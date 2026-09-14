@@ -7,6 +7,7 @@ package com.zsz.studyassistant.ui
 internal val CHANGELOG_ZH: String = """
 v0.5.2
 · **公式键盘改为窄条**：默认只显示一行小字「公式键盘」，点一下才展开符号行与 LaTeX 模板行，再点收起——不再占用输入区空间
+· 界面**锁定竖屏**：转动手机不再跟着旋转（此前未锁定，横屏下部分页面排版会乱；大屏设备上系统可能仍会忽略该锁定）
 
 v0.5.1
 · 错题本：搜索框不再常驻，改为标题栏 **🔍 按钮**唤出；点其他位置（或返回键）自动关闭
@@ -155,6 +156,7 @@ v0.1（项目建立）
 internal val CHANGELOG_EN: String = """
 v0.5.2
 · The **formula keyboard is now a slim strip**: by default it shows a single small "Formula keyboard" line; tap it to expand the symbol and LaTeX template rows, tap again to collapse — it no longer takes up input space
+· The UI is now **locked to portrait**: rotating the phone no longer rotates the app (it was unlocked before, and some pages looked broken in landscape; large-screen devices may still ignore this lock)
 
 v0.5.1
 · Notebook: the search box no longer takes up space — open it with the **🔍 button** in the title bar; tap anywhere else (or press Back) to close it
@@ -303,6 +305,7 @@ v0.1 (project start)
 internal val CHANGELOG_JA: String = """
 v0.5.2
 · **数式キーボードを細い帯に変更**：既定では小さく「数式キーボード」と表示するだけ。タップで記号行と LaTeX テンプレート行を展開し、もう一度タップで折りたたみ——入力欄の場所を取りません
+· UI を**縦向きに固定**：端末を回しても画面が回転しなくなりました（従来は未固定で、横向きでは一部ページのレイアウトが崩れていました。大画面端末ではシステムがこの固定を無視する場合があります）
 
 v0.5.1
 · 間違いノート：検索欄が常時表示されなくなり、タイトルバーの **🔍 ボタン**で開く方式に（他の場所をタップ、または戻るで閉じる）
@@ -451,6 +454,7 @@ v0.1（プロジェクト開始）
 internal val CHANGELOG_KO: String = """
 v0.5.2
 · **수식 키보드를 얇은 띠로 변경**: 기본적으로 작게 '수식 키보드'만 표시하고, 탭하면 기호 줄과 LaTeX 템플릿 줄이 펼쳐지며 다시 탭하면 접힙니다 — 입력 영역을 차지하지 않습니다
+· UI를 **세로 방향으로 고정**: 기기를 돌려도 화면이 회전하지 않습니다(이전에는 고정되지 않아 가로 방향에서 일부 페이지 배치가 깨졌습니다. 대형 화면 기기에서는 시스템이 이 고정을 무시할 수 있습니다)
 
 v0.5.1
 · 오답 노트: 검색창이 항상 자리를 차지하지 않고, 제목 표시줄의 **🔍 버튼**으로 엽니다(다른 곳을 탭하거나 뒤로 가면 닫힘)

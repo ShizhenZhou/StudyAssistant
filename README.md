@@ -26,6 +26,7 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 
 ### v0.5.2（当前）
 - 🧮 **公式键盘改为窄条**：默认只显示一行小字「公式键盘」（22dp 高），点一下才展开符号行 + LaTeX 模板行，再点收起——不再常驻占用输入区空间
+- 📱 **锁定竖屏**：`MainActivity` 加 `android:screenOrientation="portrait"`，转动手机不再跟随旋转（此前未锁定，横屏下部分页面排版会乱；大屏设备上系统可能仍忽略该锁定）
 
 ### v0.5.1
 - 🔍 **错题本搜索改为按钮唤出**：标题栏右侧 🔍 按钮打开搜索框，点其他位置或返回键自动关闭（不再常驻占位）
