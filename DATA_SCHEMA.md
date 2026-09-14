@@ -126,7 +126,7 @@ data class ChatItem(
 
 ## 4. 本机凭据文件 `LOCAL_SECRETS.txt`（仓库外，用户自管）
 
-- 位置：工作区根 `E:\UserData\shizhen\文档\DeepSeekWorkSpace\LOCAL_SECRETS.txt`。
+- 位置：**工作区根目录**（与 `StudyAssistant/` 同级，即本 Git 仓库之外）的 `LOCAL_SECRETS.txt`。
 - **在 Git 仓库之外，绝不上传**；项目 `.gitignore` 也忽略了 `local_secrets*`/`LOCAL_SECRETS.txt`/`*.key`/`*.pem` 等。
 
 ```ini
