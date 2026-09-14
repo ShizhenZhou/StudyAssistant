@@ -847,6 +847,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { dao.delete(q) }
     }
 
+    // ---- 科目（分类）管理：重命名 / 批量删除 ----
+    fun renameCategory(id: Long, newName: String) {
+        val n = newName.trim()
+        if (n.isEmpty()) return
+        viewModelScope.launch { dao.renameCategory(id, n) }
+    }
+
+    /**
+     * 批量删除科目。
+     * deleteQuestions = true：连科目下的错题一起删（同时清掉标签关联与复习记录）
+     * deleteQuestions = false：题目保留，改为「未分类」
+     */
+    fun deleteCategories(ids: List<Long>, deleteQuestions: Boolean) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            if (deleteQuestions) {
+                val qids = dao.questionIdsInCategories(ids)
+                if (qids.isNotEmpty()) {
+                    dao.deleteQuestionTagsForQuestions(qids)
+                    dao.deleteReviewsForQuestions(qids)
+                }
+                dao.deleteQuestionsInCategories(ids)
+            } else {
+                dao.clearCategoryForCategories(ids)
+            }
+            dao.deleteCategories(ids)
+        }
+    }
+
     /** 批改题目：单张(题目)或两张(题目+手写答案) */
     var gradeResult by mutableStateOf("")
         private set

@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.1
+· 错题本：搜索框不再常驻，改为标题栏 **🔍 按钮**唤出；点其他位置（或返回键）自动关闭
+· 错题本新增 **「管理」**：科目（分类）纵向列表，可 **✏️ 重命名**、可 **勾选批量删除**；删除前二次确认，并可选择**是否连同科目中的错题一起删除**（不勾选则题目改为「未分类」）
+· 「关于」页作者信息改为「由 **DeepSeek-V4/V4.1** 辅助编写」
+
 v0.5.0
 · 设置重构：新增「💾 数据管理」；「关于」改为二级菜单（上面应用信息，下面更新内容）
 · 数据管理：**导出备份**（单个 JSON，含题目图片与完整会话）/ **导入备份**（同名分类标签复用、题干相同自动跳过，不会覆盖现有数据）/ **清空所有数据**（二次确认）
@@ -146,6 +151,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.1
+· Notebook: the search box no longer takes up space — open it with the **🔍 button** in the title bar; tap anywhere else (or press Back) to close it
+· Notebook gained a **"Manage"** entry: a vertical list of categories with **✏️ rename** and **multi-select delete**; deleting asks for confirmation and lets you choose **whether to delete the problems in those categories too** (otherwise they become "Uncategorized")
+· The About card now says the app was built with the help of **DeepSeek-V4/V4.1**
+
 v0.5.0
 · Settings reorganized: new "💾 Data" page; "About" is now a subpage (app info on top, what's new below)
 · Data management: export a backup (single JSON with images and full conversations) / import a backup (same-name categories and tags are reused, identical questions are skipped — nothing is overwritten) / erase all data (with confirmation)
@@ -287,6 +297,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.1
+· 間違いノート：検索欄が常時表示されなくなり、タイトルバーの **🔍 ボタン**で開く方式に（他の場所をタップ、または戻るで閉じる）
+· 間違いノートに **「管理」** を追加：分類の縦リストで **✏️ 名前変更** と **複数選択して削除** が可能。削除前に確認し、**その分類の問題も一緒に削除するか**を選べます（チェックしない場合は「未分類」になります）
+· 「このアプリについて」の作者欄を **DeepSeek-V4/V4.1** に変更
+
 v0.5.0
 · 設定を再構成：「💾 データ管理」を追加。「このアプリについて」をサブページ化（上にアプリ情報、下に更新内容）
 · データ管理：バックアップ書き出し（画像と会話を含む 1 つの JSON）／読み込み（同名の分類・タグは再利用、同じ問題文はスキップ。既存データは上書きしません）／すべてのデータを削除（確認あり）
@@ -428,6 +443,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.1
+· 오답 노트: 검색창이 항상 자리를 차지하지 않고, 제목 표시줄의 **🔍 버튼**으로 엽니다(다른 곳을 탭하거나 뒤로 가면 닫힘)
+· 오답 노트에 **'관리'** 추가: 분류 세로 목록에서 **✏️ 이름 변경**과 **다중 선택 삭제**가 가능합니다. 삭제 전 확인하며, **해당 분류의 문제도 함께 삭제할지** 선택할 수 있습니다(선택하지 않으면 '미분류'로 바뀝니다)
+· '정보'의 만든이 문구를 **DeepSeek-V4/V4.1**로 변경
+
 v0.5.0
 · 설정 재구성: '💾 데이터 관리' 추가, '정보'를 하위 페이지로 변경(위는 앱 정보, 아래는 업데이트 내역)
 · 데이터 관리: 백업 내보내기(이미지와 대화를 포함한 단일 JSON) / 백업 가져오기(같은 이름의 분류·태그는 재사용, 문제 문장이 같으면 건너뜀 — 기존 데이터를 덮어쓰지 않음) / 모든 데이터 삭제(확인 절차)

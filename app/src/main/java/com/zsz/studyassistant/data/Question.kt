@@ -193,6 +193,30 @@ interface QuestionDao {
 
     @Query("DELETE FROM review")
     suspend fun clearReviews()
+
+    // ---- 科目（分类）管理 ----
+    @Query("UPDATE categories SET name = :name WHERE id = :id")
+    suspend fun renameCategory(id: Long, name: String)
+
+    /** 不删题：把该科目下的错题改为「未分类」 */
+    @Query("UPDATE questions SET categoryId = NULL WHERE categoryId IN (:ids)")
+    suspend fun clearCategoryForCategories(ids: List<Long>)
+
+    @Query("SELECT id FROM questions WHERE categoryId IN (:ids)")
+    suspend fun questionIdsInCategories(ids: List<Long>): List<Long>
+
+    /** 删题：连同这些科目的错题一起删（调用方需先清关联与复习记录） */
+    @Query("DELETE FROM questions WHERE categoryId IN (:ids)")
+    suspend fun deleteQuestionsInCategories(ids: List<Long>)
+
+    @Query("DELETE FROM question_tags WHERE questionId IN (:qids)")
+    suspend fun deleteQuestionTagsForQuestions(qids: List<Long>)
+
+    @Query("DELETE FROM review WHERE questionId IN (:qids)")
+    suspend fun deleteReviewsForQuestions(qids: List<Long>)
+
+    @Query("DELETE FROM categories WHERE id IN (:ids)")
+    suspend fun deleteCategories(ids: List<Long>)
 }
 
 /** 数据库 1 -> 2：给 questions 表加 imageBytes 列，保留现有错题 */

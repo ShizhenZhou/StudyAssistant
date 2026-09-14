@@ -1,12 +1,14 @@
 package com.zsz.studyassistant.ui
 
 import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,9 +16,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,7 +37,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,9 +61,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,10 +96,24 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     var showUncategorized by remember { mutableStateOf(false) }
     var filterTagIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var query by remember { mutableStateOf("") }
+    var searchOpen by remember { mutableStateOf(false) }
+    var page by remember { mutableStateOf("list") }   // list / manage（科目管理）
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showBatchCategory by remember { mutableStateOf(false) }
     var showBatchDelete by remember { mutableStateOf(false) }
+    val searchFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    fun closeSearch() {
+        searchOpen = false
+        keyboard?.hide()
+    }
+
+    // 返回键：科目管理 → 回列表；搜索打开 → 先关搜索
+    BackHandler(enabled = page != "list" || searchOpen) {
+        if (page != "list") { page = "list"; searchOpen = false } else closeSearch()
+    }
 
     fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
 
@@ -115,42 +140,87 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (selectionMode) s.format("notebook.selectedCount", "n" to "${selectedIds.size}") else s.format("notebook.title", "n" to "${questions.size}")) },
+                title = {
+                    Text(
+                        when {
+                            page == "manage" -> s["catManage.title"]
+                            selectionMode -> s.format("notebook.selectedCount", "n" to "${selectedIds.size}")
+                            else -> s.format("notebook.title", "n" to "${questions.size}")
+                        }
+                    )
+                },
                 navigationIcon = {
-                    if (selectionMode) {
-                        IconButton(onClick = { exitSelection() }) { Text("✕", fontSize = 18.sp) }
-                    } else {
-                        IconButton(onClick = { nav.popBackStack() }) {
+                    when {
+                        selectionMode -> IconButton(onClick = { exitSelection() }) { Text("✕", fontSize = 18.sp) }
+                        page == "manage" -> IconButton(onClick = { page = "list"; searchOpen = false }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
+                        }
+                        else -> IconButton(onClick = { nav.popBackStack() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
                         }
                     }
                 },
                 actions = {
-                    if (selectionMode) {
-                        TextButton(onClick = { showBatchCategory = true }) { Text(s["notebook.category"]) }
-                        TextButton(onClick = { showBatchDelete = true }) { Text(s["solve.delete"]) }
-                        TextButton(onClick = { exitSelection() }) { Text(s["solve.done"]) }
+                    when {
+                        page == "manage" -> { /* 管理页无额外操作 */ }
+                        selectionMode -> {
+                            TextButton(onClick = { showBatchCategory = true }) { Text(s["notebook.category"]) }
+                            TextButton(onClick = { showBatchDelete = true }) { Text(s["solve.delete"]) }
+                            TextButton(onClick = { exitSelection() }) { Text(s["solve.done"]) }
+                        }
+                        else -> {
+                            // 🔍 搜索：点开才出现搜索框，再点别处关闭
+                            IconButton(onClick = {
+                                if (searchOpen) closeSearch() else searchOpen = true
+                            }) { Text("🔍", fontSize = 18.sp) }
+                            // 管理：科目（分类）管理
+                            TextButton(onClick = { page = "manage"; searchOpen = false }) { Text(s["notebook.manage"]) }
+                        }
                     }
                 }
             )
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            if (!selectionMode) {
-                // 全文搜索：题干（AI 转译文本）与解答
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                    placeholder = { Text(s["notebook.search"], style = MaterialTheme.typography.bodySmall) },
-                    singleLine = true,
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            TextButton(onClick = { query = "" }) { Text("✕") }
+        if (page == "manage") {
+            CategoryManagePage(
+                vm = vm,
+                categories = categories,
+                modifier = Modifier.fillMaxSize().padding(padding)
+            )
+            return@Scaffold
+        }
+        // 点空白处关闭搜索框（卡片/按钮自己处理点击，不受影响）
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .pointerInput(searchOpen) {
+                    if (searchOpen) {
+                        detectTapGestures {
+                            searchOpen = false
+                            keyboard?.hide()
                         }
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    }
+                }
+        ) {
+            if (!selectionMode) {
+                // 搜索框：点标题栏 🔍 才出现
+                if (searchOpen) {
+                    LaunchedEffect(Unit) { searchFocus.requestFocus() }
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).focusRequester(searchFocus),
+                        placeholder = { Text(s["notebook.search"], style = MaterialTheme.typography.bodySmall) },
+                        singleLine = true,
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                TextButton(onClick = { query = "" }) { Text("✕") }
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
                 // 分类筛选 chips（全部 / 未分类 / 各分类）
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -366,5 +436,139 @@ private fun NotebookItem(
                 }
             }
         }
+    }
+}
+
+/**
+ * 科目管理：纵向列表，每行可勾选、可 ✏️ 重命名；底部批量删除。
+ * 删除前二次确认，并询问是否连同科目下的错题一起删（不勾选则题目改为「未分类」）。
+ */
+@Composable
+private fun CategoryManagePage(
+    vm: MainViewModel,
+    categories: List<Category>,
+    modifier: Modifier = Modifier
+) {
+    val s = LocalStrings.current
+    var selected by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var renaming by remember { mutableStateOf<Category?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var showDelete by remember { mutableStateOf(false) }
+    var deleteQuestions by remember { mutableStateOf(false) }
+
+    Column(modifier.padding(12.dp)) {
+        Text(
+            s["catManage.hint"],
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Spacer(Modifier.height(8.dp))
+
+        if (categories.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s["catManage.empty"], color = MaterialTheme.colorScheme.outline)
+            }
+        } else {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+                items(categories, key = { it.id }) { c ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selected = if (selected.contains(c.id)) selected - c.id else selected + c.id
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = selected.contains(c.id),
+                            onCheckedChange = {
+                                selected = if (selected.contains(c.id)) selected - c.id else selected + c.id
+                            }
+                        )
+                        Text(c.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        TextButton(onClick = { renaming = c; renameText = c.name }) { Text("✏️") }
+                    }
+                    Spacer(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = { showDelete = true },
+                enabled = selected.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text(s.format("catManage.delete", "n" to "${selected.size}"))
+            }
+        }
+    }
+
+    // 重命名
+    renaming?.let { c ->
+        AlertDialog(
+            onDismissRequest = { renaming = null },
+            title = { Text(s["catManage.renameTitle"]) },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text(s["catManage.renameHint"]) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.renameCategory(c.id, renameText)
+                    renaming = null
+                }) { Text(s["common.save"]) }
+            },
+            dismissButton = { TextButton(onClick = { renaming = null }) { Text(s["common.cancel"]) } }
+        )
+    }
+
+    // 删除二次确认 + 是否连题一起删
+    if (showDelete) {
+        AlertDialog(
+            onDismissRequest = { showDelete = false },
+            title = { Text(s["catManage.deleteTitle"]) },
+            text = {
+                Column {
+                    Text(s.format("catManage.deleteText", "n" to "${selected.size}"))
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        Modifier.fillMaxWidth().clickable { deleteQuestions = !deleteQuestions },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = deleteQuestions, onCheckedChange = { deleteQuestions = it })
+                        Text(
+                            s["catManage.deleteQuestions"],
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.deleteCategories(selected.toList(), deleteQuestions)
+                        selected = emptySet()
+                        deleteQuestions = false
+                        showDelete = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(s["common.ok"]) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDelete = false; deleteQuestions = false }) { Text(s["common.cancel"]) }
+            }
+        )
     }
 }

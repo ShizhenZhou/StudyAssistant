@@ -657,7 +657,7 @@ private val B5_ZH = mapOf(
 
     "about.version" to "版本 {v}",
     "about.author" to "作者：zsz",
-    "about.desc" to "本应用由 DeepSeek-V4 辅助编写，用于拍照搜题、AI 解答与错题整理。",
+    "about.desc" to "本应用由 DeepSeek-V4/V4.1 辅助编写，用于拍照搜题、AI 解答与错题整理。",
 
     "timePicker.title" to "设置提醒时间"
 )
@@ -686,7 +686,7 @@ private val B5_EN = mapOf(
 
     "about.version" to "Version {v}",
     "about.author" to "Author: zsz",
-    "about.desc" to "Built with the help of DeepSeek-V4, for photo problem search, AI solutions and mistake notes.",
+    "about.desc" to "Built with the help of DeepSeek-V4/V4.1, for photo problem search, AI solutions and mistake notes.",
 
     "timePicker.title" to "Reminder time"
 )
@@ -715,7 +715,7 @@ private val B5_JA = mapOf(
 
     "about.version" to "バージョン {v}",
     "about.author" to "作者：zsz",
-    "about.desc" to "本アプリは DeepSeek-V4 の支援で作成しました。撮影検索・AI 解答・間違い整理に使えます。",
+    "about.desc" to "本アプリは DeepSeek-V4/V4.1 の支援で作成しました。撮影検索・AI 解答・間違い整理に使えます。",
 
     "timePicker.title" to "リマインダー時刻"
 )
@@ -744,7 +744,7 @@ private val B5_KO = mapOf(
 
     "about.version" to "버전 {v}",
     "about.author" to "만든이: zsz",
-    "about.desc" to "DeepSeek-V4의 도움으로 제작한 앱입니다. 사진 검색, AI 풀이, 오답 정리에 사용합니다.",
+    "about.desc" to "DeepSeek-V4/V4.1의 도움으로 제작한 앱입니다. 사진 검색, AI 풀이, 오답 정리에 사용합니다.",
 
     "timePicker.title" to "알림 시간"
 )
@@ -980,9 +980,76 @@ private val B7_KO = mapOf(
 )
 
 // ===========================================================================
+// 批次 8：错题本（搜索改为按钮唤出 + 科目管理）
+// ===========================================================================
+private val B8_ZH = mapOf(
+    "notebook.manage" to "管理",
+    "notebook.searchToggle" to "搜索",
+
+    "catManage.title" to "科目管理",
+    "catManage.hint" to "点 ✏️ 重命名；勾选后可批量删除",
+    "catManage.empty" to "还没有任何科目",
+    "catManage.renameTitle" to "重命名科目",
+    "catManage.renameHint" to "新名称",
+    "catManage.delete" to "删除选中（{n}）",
+    "catManage.deleteTitle" to "确认删除科目",
+    "catManage.deleteText" to "将删除 {n} 个科目，此操作不可恢复。",
+    "catManage.deleteQuestions" to "同时删除这些科目中的错题（不勾选则题目改为「未分类」）",
+    "catManage.deleted" to "已删除 {n} 个科目"
+)
+
+private val B8_EN = mapOf(
+    "notebook.manage" to "Manage",
+    "notebook.searchToggle" to "Search",
+
+    "catManage.title" to "Manage categories",
+    "catManage.hint" to "Tap ✏️ to rename; select several to delete",
+    "catManage.empty" to "No categories yet",
+    "catManage.renameTitle" to "Rename category",
+    "catManage.renameHint" to "New name",
+    "catManage.delete" to "Delete selected ({n})",
+    "catManage.deleteTitle" to "Delete categories",
+    "catManage.deleteText" to "This will delete {n} categories and cannot be undone.",
+    "catManage.deleteQuestions" to "Also delete the problems in these categories (otherwise they become Uncategorized)",
+    "catManage.deleted" to "Deleted {n} categories"
+)
+
+private val B8_JA = mapOf(
+    "notebook.manage" to "管理",
+    "notebook.searchToggle" to "検索",
+
+    "catManage.title" to "分類の管理",
+    "catManage.hint" to "✏️ で名前を変更、選択してまとめて削除",
+    "catManage.empty" to "分類がまだありません",
+    "catManage.renameTitle" to "分類名を変更",
+    "catManage.renameHint" to "新しい名前",
+    "catManage.delete" to "選択を削除（{n}）",
+    "catManage.deleteTitle" to "分類の削除",
+    "catManage.deleteText" to "{n} 件の分類を削除します。元に戻せません。",
+    "catManage.deleteQuestions" to "この分類の問題も一緒に削除する（チェックしない場合は「未分類」になります）",
+    "catManage.deleted" to "{n} 件の分類を削除しました"
+)
+
+private val B8_KO = mapOf(
+    "notebook.manage" to "관리",
+    "notebook.searchToggle" to "검색",
+
+    "catManage.title" to "분류 관리",
+    "catManage.hint" to "✏️를 눌러 이름 변경, 선택 후 일괄 삭제",
+    "catManage.empty" to "분류가 아직 없습니다",
+    "catManage.renameTitle" to "분류 이름 변경",
+    "catManage.renameHint" to "새 이름",
+    "catManage.delete" to "선택 삭제 ({n})",
+    "catManage.deleteTitle" to "분류 삭제",
+    "catManage.deleteText" to "분류 {n}개를 삭제합니다. 되돌릴 수 없습니다.",
+    "catManage.deleteQuestions" to "이 분류의 문제도 함께 삭제 (선택하지 않으면 '미분류'로 바뀝니다)",
+    "catManage.deleted" to "분류 {n}개를 삭제했습니다"
+)
+
+// ===========================================================================
 // 合并（每批新增后在这里追加对应的 Bn_xx）
 // ===========================================================================
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO
