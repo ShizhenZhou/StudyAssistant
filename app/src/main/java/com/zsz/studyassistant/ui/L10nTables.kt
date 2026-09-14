@@ -859,7 +859,7 @@ private val B7_ZH = mapOf(
     "review.hideAnswer" to "🙈 收起解答",
 
     "notebook.search" to "搜索题干或答案…",
-    "formula.title" to "公式"
+    "formula.title" to "公式键盘"
 )
 
 private val B7_EN = mapOf(
@@ -898,7 +898,7 @@ private val B7_EN = mapOf(
     "review.hideAnswer" to "🙈 Hide answer",
 
     "notebook.search" to "Search question or answer…",
-    "formula.title" to "Formula"
+    "formula.title" to "Formula keyboard"
 )
 
 private val B7_JA = mapOf(
@@ -937,7 +937,7 @@ private val B7_JA = mapOf(
     "review.hideAnswer" to "🙈 解答を隠す",
 
     "notebook.search" to "問題文・解答を検索…",
-    "formula.title" to "数式"
+    "formula.title" to "数式キーボード"
 )
 
 private val B7_KO = mapOf(
@@ -976,7 +976,7 @@ private val B7_KO = mapOf(
     "review.hideAnswer" to "🙈 정답 숨기기",
 
     "notebook.search" to "문제나 정답 검색…",
-    "formula.title" to "수식"
+    "formula.title" to "수식 키보드"
 )
 
 // ===========================================================================

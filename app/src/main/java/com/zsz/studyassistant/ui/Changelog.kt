@@ -5,6 +5,9 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.2
+· **公式键盘改为窄条**：默认只显示一行小字「公式键盘」，点一下才展开符号行与 LaTeX 模板行，再点收起——不再占用输入区空间
+
 v0.5.1
 · 错题本：搜索框不再常驻，改为标题栏 **🔍 按钮**唤出；点其他位置（或返回键）自动关闭
 · 错题本新增 **「管理」**：科目（分类）纵向列表，可 **✏️ 重命名**、可 **勾选批量删除**；删除前二次确认，并可选择**是否连同科目中的错题一起删除**（不勾选则题目改为「未分类」）
@@ -150,6 +153,9 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.2
+· The **formula keyboard is now a slim strip**: by default it shows a single small "Formula keyboard" line; tap it to expand the symbol and LaTeX template rows, tap again to collapse — it no longer takes up input space
+
 v0.5.1
 · Notebook: the search box no longer takes up space — open it with the **🔍 button** in the title bar; tap anywhere else (or press Back) to close it
 · Notebook gained a **"Manage"** entry: a vertical list of categories with **✏️ rename** and **multi-select delete**; deleting asks for confirmation and lets you choose **whether to delete the problems in those categories too** (otherwise they become "Uncategorized")
@@ -295,6 +301,9 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.2
+· **数式キーボードを細い帯に変更**：既定では小さく「数式キーボード」と表示するだけ。タップで記号行と LaTeX テンプレート行を展開し、もう一度タップで折りたたみ——入力欄の場所を取りません
+
 v0.5.1
 · 間違いノート：検索欄が常時表示されなくなり、タイトルバーの **🔍 ボタン**で開く方式に（他の場所をタップ、または戻るで閉じる）
 · 間違いノートに **「管理」** を追加：分類の縦リストで **✏️ 名前変更** と **複数選択して削除** が可能。削除前に確認し、**その分類の問題も一緒に削除するか**を選べます（チェックしない場合は「未分類」になります）
@@ -440,6 +449,9 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.2
+· **수식 키보드를 얇은 띠로 변경**: 기본적으로 작게 '수식 키보드'만 표시하고, 탭하면 기호 줄과 LaTeX 템플릿 줄이 펼쳐지며 다시 탭하면 접힙니다 — 입력 영역을 차지하지 않습니다
+
 v0.5.1
 · 오답 노트: 검색창이 항상 자리를 차지하지 않고, 제목 표시줄의 **🔍 버튼**으로 엽니다(다른 곳을 탭하거나 뒤로 가면 닫힘)
 · 오답 노트에 **'관리'** 추가: 분류 세로 목록에서 **✏️ 이름 변경**과 **다중 선택 삭제**가 가능합니다. 삭제 전 확인하며, **해당 분류의 문제도 함께 삭제할지** 선택할 수 있습니다(선택하지 않으면 '미분류'로 바뀝니다)
