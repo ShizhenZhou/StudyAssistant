@@ -5,6 +5,7 @@ import android.graphics.ImageDecoder
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
@@ -113,6 +114,55 @@ object StudyAssistant {
         lastUsage = resp.usage
         return resp.choices.firstOrNull()?.message?.content?.asText()
             ?: throw IllegalStateException("DeepSeek 返回为空")
+    }
+
+    private val streamJson = Json { ignoreUnknownKeys = true }
+
+    /**
+     * 流式调用：逐块回调增量文本，返回拼接后的完整文本（供落库/展示）。
+     *
+     * 实现要点：
+     * - 走 [ApiClient.deepSeekStream]（无整体 callTimeout），手写 SSE 逐行解析，**不引新依赖**；
+     * - 只认 `data:` 行，`[DONE]` 结束；解析失败的分片直接跳过（服务端偶发心跳/空行不应中断整段）；
+     * - 最后一片带 `usage` 时写入 [lastUsage]，保证「API 管理」用量统计不断档。
+     *
+     * @param onDelta 每收到一段增量调用一次（调用方负责节流，避免频繁重渲染）
+     */
+    suspend fun chatStream(
+        model: String,
+        messages: List<DeepSeekMessage>,
+        onDelta: suspend (String) -> Unit
+    ): String {
+        requireKey()
+        val body = ApiClient.deepSeekStream.chatStream(
+            DeepSeekRequest(
+                model = model,
+                messages = messages,
+                maxTokens = 4096,
+                stream = true,
+                streamOptions = StreamOptions(includeUsage = true)
+            )
+        )
+        val sb = StringBuilder()
+        var usage: DeepSeekUsage? = null
+        body.use { b ->
+            val src = b.source()
+            while (true) {
+                val line = src.readUtf8Line() ?: break
+                if (line.isEmpty() || !line.startsWith("data:")) continue
+                val payload = line.substring(5).trim()
+                if (payload == "[DONE]") break
+                val chunk = runCatching { streamJson.decodeFromString<StreamChunk>(payload) }.getOrNull() ?: continue
+                chunk.usage?.let { usage = it }
+                val delta = chunk.choices.firstOrNull()?.delta?.content
+                if (!delta.isNullOrEmpty()) {
+                    sb.append(delta)
+                    onDelta(delta)
+                }
+            }
+        }
+        lastUsage = usage
+        return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }
     }
 
     /** 批改：单张(仅题目)或两张(题目+手写答案)，AI 判断正误、指出错误步骤、针对性讲解 */

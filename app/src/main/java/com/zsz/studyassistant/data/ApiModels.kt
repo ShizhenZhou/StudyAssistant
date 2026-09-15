@@ -12,8 +12,15 @@ data class DeepSeekRequest(
     val model: String,
     val messages: List<DeepSeekMessage>,
     @SerialName("max_tokens") val maxTokens: Int = 4096,
-    val temperature: Double = 0.3
+    val temperature: Double = 0.3,
+    /** true = 流式（SSE，逐块返回）；仅解题/追问链路使用 */
+    val stream: Boolean = false,
+    /** 流式时让服务端在最后一片里带上 token 用量，保证「API 管理」的统计不断档 */
+    @SerialName("stream_options") val streamOptions: StreamOptions? = null
 )
+
+@Serializable
+data class StreamOptions(@SerialName("include_usage") val includeUsage: Boolean = true)
 
 @Serializable
 data class DeepSeekChoice(val message: DeepSeekMessage)
@@ -28,3 +35,20 @@ data class DeepSeekUsage(
 
 @Serializable
 data class DeepSeekResponse(val choices: List<DeepSeekChoice>, val usage: DeepSeekUsage? = null)
+
+// ---- 流式（SSE）分片 ----
+// 每个 "data: {...}" 形如：{"choices":[{"delta":{"content":"增"},"finish_reason":null}],"usage":null}
+// 最后一片（include_usage 生效时）choices 为空、usage 有值。纯解析用，字段全部可选。
+
+@Serializable
+data class StreamChunk(
+    val choices: List<StreamChoice> = emptyList(),
+    val usage: DeepSeekUsage? = null
+)
+
+@Serializable
+data class StreamChoice(val delta: StreamDelta? = null)
+
+@Serializable
+data class StreamDelta(val content: String? = null)
+

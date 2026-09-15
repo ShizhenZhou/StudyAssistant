@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.3_beta（测试分支 streaming_output_test）
+· **解题与追问支持流式输出**：答案边生成边显示（末尾有 ▍ 光标），长推导不用再整段白等；生成过程中可继续滚动阅读
+· 网络中断时**保留已生成的内容**，可点「继续生成」重试，不白等一场
+· 说明：本版为**测试版**（仅 `streaming_output_test` 分支构建）；批改 / 同类题暂未启用流式
+
 v0.5.2
 · **公式键盘改为窄条**：默认只显示一行小字「公式键盘」，点一下才展开符号行与 LaTeX 模板行，再点收起——不再占用输入区空间
 · 界面**锁定竖屏**：转动手机不再跟着旋转（此前未锁定，横屏下部分页面排版会乱；大屏设备上系统可能仍会忽略该锁定）
@@ -154,6 +159,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.3_beta (test branch streaming_output_test)
+· **Streaming answers for solve and follow-up**: the answer appears while it is generated (with a trailing ▍ cursor), so long derivations no longer make you wait for the whole block
+· If the network drops, **the text already generated is kept** and a "continue generating" retry is offered
+· Note: this is a **test build** from the `streaming_output_test` branch; grading and similar-problem flows are not streamed yet
+
 v0.5.2
 · The **formula keyboard is now a slim strip**: by default it shows a single small "Formula keyboard" line; tap it to expand the symbol and LaTeX template rows, tap again to collapse — it no longer takes up input space
 · The UI is now **locked to portrait**: rotating the phone no longer rotates the app (it was unlocked before, and some pages looked broken in landscape; large-screen devices may still ignore this lock)
@@ -303,6 +313,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.3_beta（テストブランチ streaming_output_test）
+· **解答と追加質問でストリーミング出力に対応**：生成しながら表示（末尾に ▍ カーソル）。長い導出でも一括待ちが不要になりました
+· 通信が切れた場合は**生成済みの内容を保持**し、「生成を続ける」で再試行できます
+· 注：本版は `streaming_output_test` ブランチの**テストビルド**です（添削・類似問題は未対応）
+
 v0.5.2
 · **数式キーボードを細い帯に変更**：既定では小さく「数式キーボード」と表示するだけ。タップで記号行と LaTeX テンプレート行を展開し、もう一度タップで折りたたみ——入力欄の場所を取りません
 · UI を**縦向きに固定**：端末を回しても画面が回転しなくなりました（従来は未固定で、横向きでは一部ページのレイアウトが崩れていました。大画面端末ではシステムがこの固定を無視する場合があります）
@@ -452,6 +467,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.3_beta(테스트 브랜치 streaming_output_test)
+· **풀이와 추가 질문에 스트리밍 출력 지원**: 생성되는 대로 표시(끝에 ▍ 커서). 긴 유도 과정도 통째로 기다릴 필요가 없습니다
+· 네트워크가 끊기면 **이미 생성된 내용을 유지**하고 "생성 계속"으로 재시도할 수 있습니다
+· 참고: 이 버전은 `streaming_output_test` 브랜치의 **테스트 빌드**입니다(첨삭·유사 문제는 미적용)
+
 v0.5.2
 · **수식 키보드를 얇은 띠로 변경**: 기본적으로 작게 '수식 키보드'만 표시하고, 탭하면 기호 줄과 LaTeX 템플릿 줄이 펼쳐지며 다시 탭하면 접힙니다 — 입력 영역을 차지하지 않습니다
 · UI를 **세로 방향으로 고정**: 기기를 돌려도 화면이 회전하지 않습니다(이전에는 고정되지 않아 가로 방향에서 일부 페이지 배치가 깨졌습니다. 대형 화면 기기에서는 시스템이 이 고정을 무시할 수 있습니다)

@@ -24,7 +24,12 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 
 ## 版本记录
 
-### v0.5.2（当前）
+### v0.5.3_beta（测试分支 streaming_output_test，当前）
+- 🌊 **解题 / 追问流式输出**：答案边生成边显示（末尾 ▍ 光标），长推导不再整段白等；生成中可继续滚动阅读
+- 🛟 **中断保留**：网络断开时保留已生成内容，并可点「继续生成」重试
+- ⚠️ 本版是**测试版本**，只在分支 `streaming_output_test` 上构建；批改 / 同类题暂未启用流式；未发布 Release
+
+### v0.5.2
 - 🧮 **公式键盘改为窄条**：默认只显示一行小字「公式键盘」（22dp 高），点一下才展开符号行 + LaTeX 模板行，再点收起——不再常驻占用输入区空间
 - 📱 **锁定竖屏**：`MainActivity` 加 `android:screenOrientation="portrait"`，转动手机不再跟随旋转（此前未锁定，横屏下部分页面排版会乱；大屏设备上系统可能仍忽略该锁定）
 

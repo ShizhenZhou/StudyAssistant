@@ -19,6 +19,7 @@ import com.zsz.studyassistant.data.Review
 import com.zsz.studyassistant.data.StudyAssistant
 import com.zsz.studyassistant.data.Tag
 import java.util.Calendar
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -243,6 +245,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         questionFromPhoto = false
     }
 
+    /**
+     * 流式生成的中间文本：非 null 时界面把它当作「正在生成」的助手气泡实时渲染。
+     * null = 当前没有流式（常规整段等待，或已结束）。
+     */
+    var streamingText by mutableStateOf<String?>(null)
+        private set
+
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
         val messages = buildMessages().toList()
         viewModelScope.launch {
@@ -253,20 +262,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // 前台服务：切后台也不被冻结，保证请求跑完
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
+            val sb = StringBuilder()
+            var lastEmit = 0L
+            var keepPartial = false
+            streamingText = ""
             try {
-                val reply = StudyAssistant.chatOnce(model, messages)
+                val reply = withContext(Dispatchers.IO) {
+                    StudyAssistant.chatStream(model, messages) { delta ->
+                        sb.append(delta)
+                        // 节流：最多 ~180ms 刷一次界面，避免 WebView 被逐字重渲染拖垮
+                        val now = System.currentTimeMillis()
+                        if (now - lastEmit >= 180) {
+                            lastEmit = now
+                            val snapshot = sb.toString()
+                            withContext(Dispatchers.Main) { streamingText = snapshot }
+                        }
+                    }
+                }
                 recordUsage(app)
                 onDone(reply)
+                // 放在 onDone 之后：万一 onDone 内部抛异常，已生成的内容仍留在界面上（catch 会保留）
+                streamingText = null
             } catch (e: Exception) {
+                // 已经收到一部分就保留在界面上（不让用户白等一场），并给出「继续生成」入口
+                keepPartial = sb.isNotBlank()
+                if (!keepPartial) streamingText = null
                 error = friendlyError(e, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
                 val msg = e.message.orEmpty().lowercase()
                 if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
-                    msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")) {
+                    msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")
+                ) {
                     networkError = true
                     retryAction = repeat
                 }
             } finally {
                 busy = false
+                if (!keepPartial) streamingText = null
                 com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
             }
         }

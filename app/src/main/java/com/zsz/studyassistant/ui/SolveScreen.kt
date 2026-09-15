@@ -133,9 +133,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
     // 拍照题：气泡只显示原图，不显示 AI 转译题干（题干照旧保存，供错题本/搜索/编辑用）
     // 复习模式且未展开解答时：只渲染题目气泡（先想再看）
-    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed) {
+    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed, vm.streamingText) {
         val items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
-        items.map { c ->
+        val mapped = items.map { c ->
             val imgs = if (c.role == "question") {
                 // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
                 vm.questionImages.ifEmpty { c.images ?: emptyList() }
@@ -148,6 +148,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 content = if (hideAiText) "" else c.content,
                 images = imgs
             )
+        }
+        // 流式：把已生成的部分作为一条「正在生成」的助手气泡实时渲染（末尾光标提示未完成）
+        val live = vm.streamingText
+        when {
+            live == null -> mapped
+            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = "▍", images = emptyList())
+            else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList())
         }
     }
 

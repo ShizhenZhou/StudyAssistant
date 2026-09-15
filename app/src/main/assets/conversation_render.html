@@ -67,6 +67,31 @@ function openImg(el){
     if(b && window.Android && Android.openImage){ Android.openImage(b); }
   }catch(e){}
 }
+// ── 流式跟随：匀速平滑滚动（每帧固定像素前进，而不是每次渲染就跳到底部，避免卡顿感） ──
+// following：用户上滑看前文时暂停，回到底部自动恢复
+// touching ：用触摸事件判断「是用户在滚」，避免把程序滚动误判成用户滚动而暂停跟随
+var following = true;
+var touching = false;
+var FOLLOW_PX_PER_FRAME = 3;          // 固定速率 ≈ 180px/s（60fps 下）
+var lastCount = 0;
+
+function bottomY(){ return Math.max(0, document.body.scrollHeight - window.innerHeight); }
+function followTick(){
+  if(following && !touching){
+    var max = bottomY(), cur = window.scrollY;
+    if(max - cur > 1){ window.scrollTo(0, Math.min(max, cur + FOLLOW_PX_PER_FRAME)); }
+  }
+  requestAnimationFrame(followTick);
+}
+requestAnimationFrame(followTick);
+document.addEventListener('touchstart', function(){ touching = true; }, {passive:true});
+document.addEventListener('touchend', function(){
+  setTimeout(function(){
+    touching = false;
+    following = (window.scrollY + window.innerHeight) >= (document.body.scrollHeight - 48);
+  }, 250);
+}, {passive:true});
+
 function renderMessages(arr){
   var html='';
   for(var i=0;i<arr.length;i++){
@@ -84,6 +109,12 @@ function renderMessages(arr){
     html+='<div class="bubble '+cls+'">'+body+imgHtml+'</div>';
   }
   document.getElementById('out').innerHTML=html;
+  // 新的一轮提问（末尾不是助手消息）→ 直接贴到底部并恢复跟随，保证新答案从底部开始长出来
+  if(arr.length > lastCount && arr.length && arr[arr.length-1].role !== 'assistant'){
+    following = true;
+    setTimeout(function(){ try{ window.scrollTo(0, bottomY()); }catch(e){} }, 30);
+  }
+  lastCount = arr.length;
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
 }
 </script>
