@@ -406,11 +406,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
-                        // 长按气泡 → 进入多选界面并选中该条（复习模式/生成中不可用）
+                        // 长按气泡 → 进入多选并选中该条；已在多选态则等同点按（切换），不清空其他已选
                         onLongPressMessage = { idx ->
-                            if (!vm.reviewMode && !vm.busy) {
-                                editMode = true
-                                selectedIndices = if (idx in vm.chatItems.indices) setOf(idx) else emptySet()
+                            if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
+                                if (editMode) {
+                                    selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
+                                } else {
+                                    editMode = true
+                                    selectedIndices = setOf(idx)
+                                }
                             }
                         },
                         // 多选态：气泡右上角圆圈 + 选中红框；点气泡切换选中

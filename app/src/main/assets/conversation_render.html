@@ -24,6 +24,11 @@
   .bubble.selmode .pick{display:block;}
   .bubble.selected .pick{background:#F44336;border-color:#F44336;}
   .bubble.selected{box-shadow:inset 0 0 0 2px #F44336;}
+  /* 多选态下禁止 WebView 自带的长按选文字（蓝色高亮 + 复制菜单），避免与选择圈抢事件 */
+  body.selmode, body.selmode *{
+    -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+  }
 </style>
 </head>
 <body><div id="out"></div>
@@ -141,6 +146,7 @@ document.addEventListener('touchstart', function(e){
   if(lpTimer) clearTimeout(lpTimer);
   lpTimer = setTimeout(function(){
     if(!lpMoved && !isNaN(lpIdx)){
+      setSelModeClass(true);   // 立刻关闭长按选文字，避免闪出选择手柄/复制菜单
       try{ if(window.Android && Android.longPressMessage){ Android.longPressMessage(lpIdx); } }catch(err){}
     }
   }, 450);
@@ -221,10 +227,18 @@ function bubbleHtml(m, idx){
 // ── 多选状态与交互（长按进入；点气泡切换；圆圈在右上角，选中显示红框） ──
 var selectionMode = false;
 var selectedSet = {};
+/** 开/关「多选态」样式（顺带禁用长按选文字） */
+function setSelModeClass(on){
+  try{
+    if(on){ document.body.classList.add('selmode'); }
+    else { document.body.classList.remove('selmode'); }
+  }catch(e){}
+}
 function selInit(sel){
   selectionMode = !!(sel && sel.on);
   selectedSet = {};
   if(sel && sel.selected){ for(var i=0;i<sel.selected.length;i++){ selectedSet[sel.selected[i]] = 1; } }
+  setSelModeClass(selectionMode);
 }
 function bubbleTap(idx){
   if(!selectionMode) return;
