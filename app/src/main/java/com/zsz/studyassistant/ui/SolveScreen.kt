@@ -137,7 +137,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
     // 拍照题：气泡只显示原图，不显示 AI 转译题干（题干照旧保存，供错题本/搜索/编辑用）
     // 复习模式且未展开解答时：只渲染题目气泡（先想再看）
-    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed, vm.streamingText) {
+    // 注意：streamInterrupted 也必须作为 key——中止时 streamingText 可能没变（节流窗口内），
+    // 少了这个 key 这段就不会重算，末尾的蓝色「继续生成」永远不出现（曾踩过）。
+    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed, vm.streamingText, vm.streamInterrupted) {
         val items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         val mapped = items.map { c ->
             val imgs = if (c.role == "question") {

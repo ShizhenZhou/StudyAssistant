@@ -352,6 +352,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     contMessages = continuationMessages(messages, partial)
                     contPrefix = partial
                     contOnDone = onDone
+                    // 用完整累积文本刷新一次界面（节流窗口内最后 <180ms 的增量也要显示出来）
+                    streamingText = partial
                 }
                 if (aborted) {
                     error = null
@@ -572,9 +574,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp(images) })
     }
 
-    /** 重新生成 */
+    /** 重新生成：**保留提问气泡**，只重做回答 */
     fun regenerate() {
-        chatItems = emptyList()
+        // 旧实现这里是 chatItems = emptyList()：一旦本次生成失败/被中止，onDone 不会执行，
+        // 提问气泡就再也回不来了（用户反馈的「提问数据丢失」）。现在只清掉助手回答。
+        val keptQuestions = chatItems.filter { it.role == "question" }
+        chatItems = if (keptQuestions.isNotEmpty() || questionText.isBlank()) {
+            keptQuestions
+        } else {
+            // 极端情况：调用方没先插入 question（如 solveText 路径）→ 用 questionText 补一条
+            listOf(ChatItem(0L, "question", questionText))
+        }
         val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         if (isPhoto) {
             runCall(model, onDone = { output ->
@@ -582,12 +592,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 questionText = r.question
                 suggestedCategory = r.category
                 suggestedTags = r.tags
-                addItem("question", r.question)
+                // 提问气泡已在上面保留，这里只追加回答，避免重复
                 addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
             }, repeat = { regenerate() })
         } else {
             runCall(model, onDone = { reply ->
-                addItem("question", questionText)
                 addItem("assistant", reply)
             }, repeat = { regenerate() })
         }
