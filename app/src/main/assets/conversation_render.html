@@ -15,6 +15,15 @@
   .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:6px 0;}
   /* 生成中断后的蓝色「继续生成」一行 */
   .continue{color:#2196F3;font-weight:600;padding:8px 2px 2px 2px;cursor:pointer;}
+  /* ── 多选：气泡右上角选择圆圈 + 选中红框（用 inset 阴影避免边框改变布局） ── */
+  .bubble{position:relative;}
+  .bubble.selmode{padding-right:36px;}
+  .pick{display:none;position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;
+        box-sizing:border-box;border:2px solid #9E9E9E;color:#fff;font-size:13px;line-height:18px;
+        text-align:center;background:transparent;}
+  .bubble.selmode .pick{display:block;}
+  .bubble.selected .pick{background:#F44336;border-color:#F44336;}
+  .bubble.selected{box-shadow:inset 0 0 0 2px #F44336;}
 </style>
 </head>
 <body><div id="out"></div>
@@ -72,7 +81,7 @@ function openImg(el){
 // ── 流式跟随：滚动速度自适应「答案生成速度」（前馈 + 比例追齐），避免固定速率跟不上或抢跑 ──
 // following：用户上滑看前文时暂停，回到底部自动恢复
 // touching ：用触摸事件判断「是用户在滚」，避免把程序滚动误判成用户滚动
-var following = true;
+var following = false;   // 打开会话时**默认停在顶部**、不自动跟随；提问后才开始跟随
 var touching = false;
 var lastMax = 0, lastTs = 0, growthV = 0;   // growthV：内容增长速度（px/s，EMA 平滑）
 
@@ -95,6 +104,33 @@ window.dshScrollToTop = function(){
   }
   scrollTopAnim = requestAnimationFrame(step);
 };
+/** 供原生「↓ 到底部」按钮调用：快速向下滚动（同样的缓出节奏） */
+window.dshScrollToBottom = function(){
+  following = true;
+  var max = bottomY(), startY = window.scrollY || 0;
+  if(max - startY <= 1) return;
+  if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
+  var t0 = performance.now();
+  var dur = Math.min(600, Math.max(240, (max - startY) * 0.22));
+  function step(now){
+    var p = Math.min(1, (now - t0) / dur);
+    var eased = 1 - Math.pow(1 - p, 3);
+    window.scrollTo(0, Math.round(startY + (max - startY) * eased));
+    if(p < 1){ scrollTopAnim = requestAnimationFrame(step); }
+    else { scrollTopAnim = null; window.scrollTo(0, max); }
+  }
+  scrollTopAnim = requestAnimationFrame(step);
+};
+// 把「是否已在顶部」上报给原生，用于把 ↑ 按钮切换成 ↓（只在状态翻转时上报，避免频繁跨线程调用）
+var lastAtTop = null;
+function reportPos(){
+  var scrollable = (document.body.scrollHeight - window.innerHeight) > 40;
+  var atTop = scrollable && (window.scrollY <= 2);
+  if(atTop !== lastAtTop){
+    lastAtTop = atTop;
+    try{ if(window.Android && Android.onAtTop){ Android.onAtTop(atTop); } }catch(e){}
+  }
+}
 // 长按消息气泡 → 进入原生多选（编辑）界面
 var lpTimer = null, lpMoved = false, lpIdx = -1;
 document.addEventListener('touchstart', function(e){
@@ -134,6 +170,7 @@ function followTick(ts){
       window.scrollTo(0, Math.min(max, cur + step));
     }
   }
+  reportPos();
   requestAnimationFrame(followTick);
 }
 requestAnimationFrame(followTick);
@@ -148,6 +185,7 @@ document.addEventListener('touchend', function(){
 // ── 增量渲染：只重建「发生变化的那条消息」，历史消息的 DOM 与 KaTeX 结果原样保留 ──
 // （此前每次刷新都 innerHTML 重置整段对话 → 所有公式重新 KaTeX 渲染，长答案会明显卡顿）
 var renderedKeys = [];
+var renderedSelKey = '';
 function msgKey(m){
   var imgs = (m.images && m.images.length) ? m.images.length : 0;
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
@@ -155,12 +193,13 @@ function msgKey(m){
 }
 function bubbleHtml(m, idx){
   var cls = (m.role==='assistant') ? 'assistant' : 'user';
+  var isSel = !!selectedSet[idx];
   var imgHtml = '';
   if(m.images && m.images.length){
     for(var j=0;j<m.images.length;j++){
       var b64=m.images[j];
-      // data-b64 供点击放大时回传给原生；onclick 调 Kotlin 打开全屏查看
-      imgHtml+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="openImg(this)">';
+      // data-b64 供点击放大时回传给原生；多选态下点图 = 切换选中，否则打开全屏查看
+      imgHtml+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="imgTap(event,this,'+idx+')">';
     }
   }
   // 末尾的「继续生成」标记：[[CONTINUE|文案]] → 蓝色可点一行（生成中断时由原生追加）
@@ -174,15 +213,37 @@ function bubbleHtml(m, idx){
   // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
   var body = (text && text.length) ? renderMath(text) : '';
   if(contLabel !== null){
-    body += '<div class="continue" onclick="continueGen()">'+esc(contLabel)+'</div>';
+    body += '<div class="continue" onclick="event.stopPropagation();continueGen()">'+esc(contLabel)+'</div>';
   }
-  return '<div class="bubble '+cls+'" data-idx="'+idx+'">'+body+imgHtml+'</div>';
+  return '<div class="bubble '+cls+(selectionMode?' selmode':'')+(isSel?' selected':'')+'" data-idx="'+idx+'"'
+       + ' onclick="bubbleTap('+idx+')">' + body + imgHtml + '<div class="pick">'+(isSel?'✓':'')+'</div></div>';
+}
+// ── 多选状态与交互（长按进入；点气泡切换；圆圈在右上角，选中显示红框） ──
+var selectionMode = false;
+var selectedSet = {};
+function selInit(sel){
+  selectionMode = !!(sel && sel.on);
+  selectedSet = {};
+  if(sel && sel.selected){ for(var i=0;i<sel.selected.length;i++){ selectedSet[sel.selected[i]] = 1; } }
+}
+function bubbleTap(idx){
+  if(!selectionMode) return;
+  try{ if(window.Android && Android.toggleMessage){ Android.toggleMessage(idx); } }catch(e){}
+}
+function imgTap(e, el, idx){
+  if(e && e.stopPropagation){ e.stopPropagation(); }
+  if(selectionMode){ bubbleTap(idx); return; }
+  openImg(el);
 }
 function continueGen(){
   try{ if(window.Android && Android.continueGeneration){ Android.continueGeneration(); } }catch(e){}
 }
-function renderMessages(arr){
+function renderMessages(arr, sel){
+  selInit(sel);
   var out = document.getElementById('out');
+  // 选择态变化时必须全量重建（否则已渲染的气泡不会更新圆圈/红框）
+  var selKey = (selectionMode ? '1' : '0') + ':' + Object.keys(selectedSet).sort().join(',');
+  if(selKey !== renderedSelKey){ renderedKeys = []; renderedSelKey = selKey; }
   // 找出与上次渲染相同的前缀长度 k：前 k 条完全不动
   var k = 0;
   var keys = [];
@@ -193,11 +254,9 @@ function renderMessages(arr){
   // 只重建从 k 开始的部分（流式时通常只有最后一条）
   for(var i=k;i<arr.length;i++){ out.insertAdjacentHTML('beforeend', bubbleHtml(arr[i], i)); }
   renderedKeys = keys;
-  // 新的一轮提问（末尾不是助手消息）→ 直接贴到底部并恢复跟随，保证新答案从底部开始长出来
-  if(arr.length && arr[arr.length-1].role !== 'assistant' && following === false){
+  // 新的一轮提问（末尾不是助手消息）→ 贴到底部并恢复跟随；**首次渲染不跳**（打开旧会话要停在顶部）
+  if(lastCount > 0 && arr.length > lastCount && arr.length && arr[arr.length-1].role !== 'assistant'){
     following = true;
-  }
-  if(arr.length && arr[arr.length-1].role !== 'assistant'){
     setTimeout(function(){ try{ window.scrollTo(0, bottomY()); }catch(e){} }, 30);
   }
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);

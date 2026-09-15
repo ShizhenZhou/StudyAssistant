@@ -57,10 +57,20 @@ fun ConversationWebView(
     modifier: Modifier = Modifier,
     /** 每次自增 = 请求「回到顶部」（由界面上的 ↑ 按钮触发；WebView 自己管滚动，只能走 JS） */
     scrollTopSignal: Int = 0,
+    /** 每次自增 = 请求「滚动到底部」（在顶部时按钮变为 ↓） */
+    scrollBottomSignal: Int = 0,
+    /** 会话是否已在顶部（用于把按钮在 ↑ / ↓ 之间切换） */
+    onAtTopChange: (Boolean) -> Unit = {},
     /** 点击气泡末尾蓝色「继续生成」时回调 */
     onContinue: () -> Unit = {},
     /** 长按某条消息气泡时回调（参数为界面消息下标）→ 用于进入多选界面 */
-    onLongPressMessage: (Int) -> Unit = {}
+    onLongPressMessage: (Int) -> Unit = {},
+    /** 是否处于多选态：气泡右上角显示选择圆圈，选中的显示红框 */
+    selectionMode: Boolean = false,
+    /** 多选态下已选中的消息下标 */
+    selectedIndices: Set<Int> = emptySet(),
+    /** 多选态下点击某条气泡 → 切换选中 */
+    onToggleSelect: (Int) -> Unit = {}
 ) {
     val currentMessages by rememberUpdatedState(messages)
     var loaded by remember { mutableStateOf(false) }
@@ -68,10 +78,22 @@ fun ConversationWebView(
     var zoomImage by remember { mutableStateOf<String?>(null) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
 
+    /** 多选状态 → JS 载荷（选择变化也要触发重渲染，故与消息一起进入去重 key） */
+    fun selectionJson(): String =
+        if (selectionMode) "{\"on\":true,\"selected\":[" + selectedIndices.sorted().joinToString(",") + "]}"
+        else "{\"on\":false,\"selected\":[]}"
+
     // 回到顶部：同时暂停流式跟随，避免又被自动拉回底部
     LaunchedEffect(scrollTopSignal) {
         if (scrollTopSignal > 0) {
             webRef?.evaluateJavascript("window.dshScrollToTop && window.dshScrollToTop();", null)
+        }
+    }
+
+    // 滚到底部（在顶部时按钮显示为 ↓）
+    LaunchedEffect(scrollBottomSignal) {
+        if (scrollBottomSignal > 0) {
+            webRef?.evaluateJavascript("window.dshScrollToBottom && window.dshScrollToBottom();", null)
         }
     }
 
@@ -116,6 +138,18 @@ fun ConversationWebView(
                             Handler(Looper.getMainLooper()).post { onLongPressMessage(idx) }
                         }
 
+                        /** 多选态下点击气泡 → 切换选中 */
+                        @JavascriptInterface
+                        fun toggleMessage(idx: Int) {
+                            Handler(Looper.getMainLooper()).post { onToggleSelect(idx) }
+                        }
+
+                        /** 网页上报「是否已滚动到顶部」→ 按钮在 ↑ / ↓ 之间切换 */
+                        @JavascriptInterface
+                        fun onAtTop(atTop: Boolean) {
+                            Handler(Looper.getMainLooper()).post { onAtTopChange(atTop) }
+                        }
+
                         @JavascriptInterface
                         fun onHeightChange(h: Int) {
                             // 占位：网页会尝试回调高度，这里无需处理
@@ -125,20 +159,23 @@ fun ConversationWebView(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             loaded = true
                             val json = buildMessagesJson(currentMessages)
-                            lastJson = json
-                            view?.evaluateJavascript("renderMessages($json);", null)
+                            val sel = selectionJson()
+                            lastJson = json + "|" + sel
+                            view?.evaluateJavascript("renderMessages($json, $sel);", null)
                         }
                     }
                     loadUrl("file:///android_asset/conversation_render.html")
                 }
             },
             update = { v ->
-                // 内容未变化时跳过重渲染，减少 WebView 开销
+                // 内容未变化时跳过重渲染，减少 WebView 开销（多选状态也进 key：圆圈/红框要即时刷新）
                 if (loaded) {
                     val json = buildMessagesJson(currentMessages)
-                    if (json != lastJson) {
-                        lastJson = json
-                        v.evaluateJavascript("renderMessages($json);", null)
+                    val sel = selectionJson()
+                    val key = json + "|" + sel
+                    if (key != lastJson) {
+                        lastJson = key
+                        v.evaluateJavascript("renderMessages($json, $sel);", null)
                     }
                 }
             },

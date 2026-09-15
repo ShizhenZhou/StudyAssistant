@@ -131,8 +131,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         onDispose { vm.saveSessionOnExit() }
     }
 
-    // 一键回到顶部：每次自增向 WebView 发一次「回到顶部」信号
+    // 一键回到顶部 / 滚到底部：每次自增向 WebView 发一次信号
     var scrollTopTick by remember { mutableIntStateOf(0) }
+    var scrollBottomTick by remember { mutableIntStateOf(0) }
+    // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
+    var atTop by remember { mutableStateOf(true) }
 
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
     // 拍照题：气泡只显示原图，不显示 AI 转译题干（题干照旧保存，供错题本/搜索/编辑用）
@@ -174,13 +177,33 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        if (editMode) s.format("solve.selectedCount", "n" to "${selectedIndices.size}") else s["solve.title"],
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(min = 40.dp)
-                    )
+                    if (editMode) {
+                        // 多选态：左侧「全选 / 取消全选」+ 已选条数（删除/完成仍在右侧）
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val allSelected = vm.chatItems.isNotEmpty() && selectedIndices.size == vm.chatItems.size
+                            TextButton(
+                                onClick = {
+                                    selectedIndices = if (allSelected) emptySet() else vm.chatItems.indices.toSet()
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp)
+                            ) {
+                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = 13.sp)
+                            }
+                            Text(
+                                s.format("solve.selectedCount", "n" to "${selectedIndices.size}"),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    } else {
+                        Text(
+                            s["solve.title"],
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(min = 40.dp)
+                        )
+                    }
                 },
                 navigationIcon = {
                     if (editMode) {
@@ -368,24 +391,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
 
             // 题目不再单独折叠显示：原题/我的提问已作为浅绿用户气泡显示在对话里
 
-            // 编辑模式：Compose 列表（可勾选删除），否则单 WebView 稳定滚动
-            if (editMode) {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    itemsIndexed(vm.chatItems, key = { _, it -> it.id }) { idx, item ->
-                        EditMsgRow(
-                            item = item,
-                            selected = selectedIndices.contains(idx),
-                            onClick = {
-                                selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
-                            }
-                        )
-                    }
-                }
-            } else if (vm.chatItems.isEmpty()) {
+            // 多选不再切到缩略列表：仍在原消息界面上操作（气泡右上角圆圈 + 选中红框）
+            if (vm.chatItems.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
                         if (vm.busy) s["solve.generating"] else s["solve.waitingQuestion"],
@@ -406,14 +413,24 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 selectedIndices = if (idx in vm.chatItems.indices) setOf(idx) else emptySet()
                             }
                         },
+                        // 多选态：气泡右上角圆圈 + 选中红框；点气泡切换选中
+                        selectionMode = editMode,
+                        selectedIndices = selectedIndices,
+                        onToggleSelect = { idx ->
+                            if (idx in vm.chatItems.indices) {
+                                selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
+                            }
+                        },
+                        scrollBottomSignal = scrollBottomTick,
+                        onAtTopChange = { atTop = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 4.dp)
                     )
-                    // 一键回到顶部：右下角**圆形**按钮（固定正方形尺寸 + CircleShape，保证正圆）
-                    if (vm.chatItems.isNotEmpty()) {
+                    // 快速跳转按钮：在顶部时显示 ↓（一按滚到最底），否则显示 ↑（一按回到顶部），都是快速滚动动画
+                    if (!editMode) {
                         Surface(
-                            onClick = { scrollTopTick++ },
+                            onClick = { if (atTop) scrollBottomTick++ else scrollTopTick++ },
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
                             shadowElevation = 3.dp,
@@ -424,7 +441,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         ) {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    "↑",
+                                    if (atTop) "↓" else "↑",
                                     fontSize = 19.sp,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
