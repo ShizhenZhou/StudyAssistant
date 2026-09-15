@@ -204,6 +204,25 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 
 - **GitHub 端说明**：本仓库是**私有仓库**，GitHub 的 secret scanning / push protection 属于付费的 *GitHub Secret Protection*，免费版开不了（实测 REST API 返回 `422 Secret scanning is not available for this repository`），所以用上面的本地钩子兜底。
 
+### 一键提交并推送：`tools/git-sync.ps1`
+
+```powershell
+# 扫描密钥 → 提交 → 推送 → 核对（一步到位）
+.\tools\git-sync.ps1 -Message "feat(v0.5.3): 说明本次改动"
+
+.\tools\git-sync.ps1 -Message "docs: 只提交不推送" -NoPush
+.\tools\git-sync.ps1 -NoCommit                      # 工作区已提交，只推送
+```
+
+它解决的问题（在受限/无 `sh` 的环境里尤其有用）：
+
+1. **提交前先跑 `tools/check-secrets.ps1`** —— 于是沙箱等环境里 `sh` 型 git 钩子跑不起来也不影响安全兜底；
+2. **凭据走 `GIT_ASKPASS`**（原生 `.cmd`，不经 `sh`），token 只在环境变量中，**不进入命令行**（因此无需 `https://<token>@…` 那种写法，也不会写进 shell 历史）；
+3. **传输自动选路**：直连优先，失败自动切本地代理（`-ProxyPort`，默认 12450），并**记住上次成功的方式**（`.git/dsh-transport`），下次直接用它；
+4. 推送后自动同步 `refs/remotes/<remote>/<branch>`，并打印「本地 HEAD / 远端 HEAD / 是否一致」。
+
+退出码：`0` 成功；`1` 失败（扫描未过 / 提交失败 / 推送失败）。
+
 ## 构建
 
 ```bash
