@@ -59,6 +59,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -129,6 +130,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     DisposableEffect(Unit) {
         onDispose { vm.saveSessionOnExit() }
     }
+
+    // 一键回到顶部：每次自增向 WebView 发一次「回到顶部」信号
+    var scrollTopTick by remember { mutableIntStateOf(0) }
 
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
     // 拍照题：气泡只显示原图，不显示 AI 转译题干（题干照旧保存，供错题本/搜索/编辑用）
@@ -374,13 +378,33 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     )
                 }
             } else {
-                ConversationWebView(
-                    messages = messages,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                )
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    ConversationWebView(
+                        messages = messages,
+                        scrollTopSignal = scrollTopTick,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 4.dp)
+                    )
+                    // 一键回到顶部：浮在右下角（底部对话栏之上）
+                    if (vm.chatItems.isNotEmpty()) {
+                        Surface(
+                            onClick = { scrollTopTick++ },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 10.dp, bottom = 10.dp)
+                        ) {
+                            Text(
+                                "↑",
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
                 if (vm.busy) {
                     Text(
                         s["solve.generating"],

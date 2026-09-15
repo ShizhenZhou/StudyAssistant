@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,16 +52,30 @@ data class ChatMsg(val role: String, val content: String, val images: List<Strin
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun ConversationWebView(messages: List<ChatMsg>, modifier: Modifier = Modifier) {
+fun ConversationWebView(
+    messages: List<ChatMsg>,
+    modifier: Modifier = Modifier,
+    /** 每次自增 = 请求「回到顶部」（由界面上的 ↑ 按钮触发；WebView 自己管滚动，只能走 JS） */
+    scrollTopSignal: Int = 0
+) {
     val currentMessages by rememberUpdatedState(messages)
     var loaded by remember { mutableStateOf(false) }
     var lastJson by remember { mutableStateOf<String?>(null) }
     var zoomImage by remember { mutableStateOf<String?>(null) }
+    var webRef by remember { mutableStateOf<WebView?>(null) }
+
+    // 回到顶部：同时暂停流式跟随，避免又被自动拉回底部
+    LaunchedEffect(scrollTopSignal) {
+        if (scrollTopSignal > 0) {
+            webRef?.evaluateJavascript("window.dshScrollToTop && window.dshScrollToTop();", null)
+        }
+    }
 
     Box(modifier) {
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
+                    webRef = this
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.allowFileAccess = true

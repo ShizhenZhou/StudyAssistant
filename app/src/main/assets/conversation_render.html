@@ -67,19 +67,37 @@ function openImg(el){
     if(b && window.Android && Android.openImage){ Android.openImage(b); }
   }catch(e){}
 }
-// ── 流式跟随：匀速平滑滚动（每帧固定像素前进，而不是每次渲染就跳到底部，避免卡顿感） ──
+// ── 流式跟随：滚动速度自适应「答案生成速度」（前馈 + 比例追齐），避免固定速率跟不上或抢跑 ──
 // following：用户上滑看前文时暂停，回到底部自动恢复
-// touching ：用触摸事件判断「是用户在滚」，避免把程序滚动误判成用户滚动而暂停跟随
+// touching ：用触摸事件判断「是用户在滚」，避免把程序滚动误判成用户滚动
 var following = true;
 var touching = false;
-var FOLLOW_PX_PER_FRAME = 3;          // 固定速率 ≈ 180px/s（60fps 下）
-var lastCount = 0;
+var lastMax = 0, lastTs = 0, growthV = 0;   // growthV：内容增长速度（px/s，EMA 平滑）
 
 function bottomY(){ return Math.max(0, document.body.scrollHeight - window.innerHeight); }
-function followTick(){
+/** 供原生「↑ 回到顶部」按钮调用：回到顶部并暂停跟随（用户再滑到底部会自动恢复） */
+window.dshScrollToTop = function(){
+  following = false; touching = false;
+  try{ window.scrollTo(0, 0); }catch(e){}
+  try{ window.dispatchEvent(new Event('scroll')); }catch(e){}
+};
+function followTick(ts){
+  var max = bottomY();
+  var dtms = 16;   // 首帧兜底，避免 NaN
+  // 估算内容增长速度（指数平滑，抑制突发抖动）
+  if(lastTs){
+    dtms = Math.max(1, ts - lastTs);
+    var inst = (max - lastMax) / dtms * 1000;
+    growthV = growthV * 0.85 + Math.max(0, inst) * 0.15;
+  }
+  lastMax = max; lastTs = ts;
   if(following && !touching){
-    var max = bottomY(), cur = window.scrollY;
-    if(max - cur > 1){ window.scrollTo(0, Math.min(max, cur + FOLLOW_PX_PER_FRAME)); }
+    var cur = window.scrollY, gap = max - cur;
+    if(gap > 0.5){
+      var step = growthV * (dtms/1000) + gap * 0.08;   // 前馈跟上生成速度 + 比例项追平差距
+      step = Math.max(0.6, Math.min(step, 80));        // 限幅：慢时不低于 0.6px/帧，快时不猛跳
+      window.scrollTo(0, Math.min(max, cur + step));
+    }
   }
   requestAnimationFrame(followTick);
 }
@@ -92,29 +110,47 @@ document.addEventListener('touchend', function(){
   }, 250);
 }, {passive:true});
 
-function renderMessages(arr){
-  var html='';
-  for(var i=0;i<arr.length;i++){
-    var m=arr[i], cls=(m.role==='assistant')?'assistant':'user';
-    var imgHtml='';
-    if(m.images && m.images.length){
-      for(var j=0;j<m.images.length;j++){
-        var b64=m.images[j];
-        // data-b64 供点击放大时回传给原生；onclick 调 Kotlin 打开全屏查看
-        imgHtml+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="openImg(this)">';
-      }
+// ── 增量渲染：只重建「发生变化的那条消息」，历史消息的 DOM 与 KaTeX 结果原样保留 ──
+// （此前每次刷新都 innerHTML 重置整段对话 → 所有公式重新 KaTeX 渲染，长答案会明显卡顿）
+var renderedKeys = [];
+function msgKey(m){
+  var imgs = (m.images && m.images.length) ? m.images.length : 0;
+  var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
+  return m.role + '|' + (m.content||'') + '|' + imgs + '|' + firstLen;
+}
+function bubbleHtml(m){
+  var cls = (m.role==='assistant') ? 'assistant' : 'user';
+  var imgHtml = '';
+  if(m.images && m.images.length){
+    for(var j=0;j<m.images.length;j++){
+      var b64=m.images[j];
+      // data-b64 供点击放大时回传给原生；onclick 调 Kotlin 打开全屏查看
+      imgHtml+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="openImg(this)">';
     }
-    // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
-    var body = (m.content && m.content.length) ? renderMath(m.content) : '';
-    html+='<div class="bubble '+cls+'">'+body+imgHtml+'</div>';
   }
-  document.getElementById('out').innerHTML=html;
+  // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
+  var body = (m.content && m.content.length) ? renderMath(m.content) : '';
+  return '<div class="bubble '+cls+'">'+body+imgHtml+'</div>';
+}
+function renderMessages(arr){
+  var out = document.getElementById('out');
+  // 找出与上次渲染相同的前缀长度 k：前 k 条完全不动
+  var k = 0;
+  var keys = [];
+  for(var i=0;i<arr.length;i++){ keys.push(msgKey(arr[i])); }
+  while(k < renderedKeys.length && k < keys.length && renderedKeys[k] === keys[k]) k++;
+  // 丢弃第 k 条之后的旧节点
+  while(out.childNodes.length > k){ out.removeChild(out.lastChild); }
+  // 只重建从 k 开始的部分（流式时通常只有最后一条）
+  for(var i=k;i<arr.length;i++){ out.insertAdjacentHTML('beforeend', bubbleHtml(arr[i])); }
+  renderedKeys = keys;
   // 新的一轮提问（末尾不是助手消息）→ 直接贴到底部并恢复跟随，保证新答案从底部开始长出来
-  if(arr.length > lastCount && arr.length && arr[arr.length-1].role !== 'assistant'){
+  if(arr.length && arr[arr.length-1].role !== 'assistant' && following === false){
     following = true;
+  }
+  if(arr.length && arr[arr.length-1].role !== 'assistant'){
     setTimeout(function(){ try{ window.scrollTo(0, bottomY()); }catch(e){} }, 30);
   }
-  lastCount = arr.length;
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
 }
 </script>
