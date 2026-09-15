@@ -95,6 +95,27 @@ window.dshScrollToTop = function(){
   }
   scrollTopAnim = requestAnimationFrame(step);
 };
+// 长按消息气泡 → 进入原生多选（编辑）界面
+var lpTimer = null, lpMoved = false, lpIdx = -1;
+document.addEventListener('touchstart', function(e){
+  var el = e.target, bubble = (el && el.closest) ? el.closest('.bubble') : null;
+  if(!bubble) return;
+  lpIdx = parseInt(bubble.getAttribute('data-idx'));
+  lpMoved = false;
+  if(lpTimer) clearTimeout(lpTimer);
+  lpTimer = setTimeout(function(){
+    if(!lpMoved && !isNaN(lpIdx)){
+      try{ if(window.Android && Android.longPressMessage){ Android.longPressMessage(lpIdx); } }catch(err){}
+    }
+  }, 450);
+}, {passive:true});
+document.addEventListener('touchmove', function(){
+  lpMoved = true;
+  if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
+}, {passive:true});
+document.addEventListener('touchend', function(){
+  if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
+}, {passive:true});
 function followTick(ts){
   var max = bottomY();
   var dtms = 16;   // 首帧兜底，避免 NaN
@@ -132,7 +153,7 @@ function msgKey(m){
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
   return m.role + '|' + (m.content||'') + '|' + imgs + '|' + firstLen;
 }
-function bubbleHtml(m){
+function bubbleHtml(m, idx){
   var cls = (m.role==='assistant') ? 'assistant' : 'user';
   var imgHtml = '';
   if(m.images && m.images.length){
@@ -155,7 +176,7 @@ function bubbleHtml(m){
   if(contLabel !== null){
     body += '<div class="continue" onclick="continueGen()">'+esc(contLabel)+'</div>';
   }
-  return '<div class="bubble '+cls+'">'+body+imgHtml+'</div>';
+  return '<div class="bubble '+cls+'" data-idx="'+idx+'">'+body+imgHtml+'</div>';
 }
 function continueGen(){
   try{ if(window.Android && Android.continueGeneration){ Android.continueGeneration(); } }catch(e){}
@@ -170,7 +191,7 @@ function renderMessages(arr){
   // 丢弃第 k 条之后的旧节点
   while(out.childNodes.length > k){ out.removeChild(out.lastChild); }
   // 只重建从 k 开始的部分（流式时通常只有最后一条）
-  for(var i=k;i<arr.length;i++){ out.insertAdjacentHTML('beforeend', bubbleHtml(arr[i])); }
+  for(var i=k;i<arr.length;i++){ out.insertAdjacentHTML('beforeend', bubbleHtml(arr[i], i)); }
   renderedKeys = keys;
   // 新的一轮提问（末尾不是助手消息）→ 直接贴到底部并恢复跟随，保证新答案从底部开始长出来
   if(arr.length && arr[arr.length-1].role !== 'assistant' && following === false){

@@ -58,7 +58,9 @@ fun ConversationWebView(
     /** 每次自增 = 请求「回到顶部」（由界面上的 ↑ 按钮触发；WebView 自己管滚动，只能走 JS） */
     scrollTopSignal: Int = 0,
     /** 点击气泡末尾蓝色「继续生成」时回调 */
-    onContinue: () -> Unit = {}
+    onContinue: () -> Unit = {},
+    /** 长按某条消息气泡时回调（参数为界面消息下标）→ 用于进入多选界面 */
+    onLongPressMessage: (Int) -> Unit = {}
 ) {
     val currentMessages by rememberUpdatedState(messages)
     var loaded by remember { mutableStateOf(false) }
@@ -106,6 +108,12 @@ fun ConversationWebView(
                         @JavascriptInterface
                         fun continueGeneration() {
                             Handler(Looper.getMainLooper()).post { onContinue() }
+                        }
+
+                        /** 长按消息气泡 → 进入原生多选（编辑）界面，并选中被长按的那条 */
+                        @JavascriptInterface
+                        fun longPressMessage(idx: Int) {
+                            Handler(Looper.getMainLooper()).post { onLongPressMessage(idx) }
                         }
 
                         @JavascriptInterface

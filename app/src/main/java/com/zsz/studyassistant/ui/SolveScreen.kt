@@ -399,6 +399,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
+                        // 长按气泡 → 进入多选界面并选中该条（复习模式/生成中不可用）
+                        onLongPressMessage = { idx ->
+                            if (!vm.reviewMode && !vm.busy) {
+                                editMode = true
+                                selectedIndices = if (idx in vm.chatItems.indices) setOf(idx) else emptySet()
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 4.dp)
