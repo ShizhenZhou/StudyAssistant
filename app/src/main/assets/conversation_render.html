@@ -128,6 +128,13 @@ window.dshScrollToBottom = function(){
 };
 // 把「是否已在顶部」上报给原生，用于把 ↑ 按钮切换成 ↓（只在状态翻转时上报，避免频繁跨线程调用）
 var lastAtTop = null;
+/** 立刻回到顶部（换题/换会话时用，不做动画） */
+window.dshScrollReset = function(){
+  following = false; touching = false;
+  if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
+  try{ window.scrollTo(0, 0); }catch(e){}
+  lastAtTop = null;   // 下一帧重新上报，保证按钮状态正确
+};
 function reportPos(){
   var scrollable = (document.body.scrollHeight - window.innerHeight) > 40;
   var atTop = scrollable && (window.scrollY <= 2);

@@ -59,6 +59,8 @@ fun ConversationWebView(
     scrollTopSignal: Int = 0,
     /** 每次自增 = 请求「滚动到底部」（在顶部时按钮变为 ↓） */
     scrollBottomSignal: Int = 0,
+    /** 每次自增 = 立刻重置到顶部（换题/换会话时用，无动画） */
+    resetScrollSignal: Int = 0,
     /** 会话是否已在顶部（用于把按钮在 ↑ / ↓ 之间切换） */
     onAtTopChange: (Boolean) -> Unit = {},
     /** 点击气泡末尾蓝色「继续生成」时回调 */
@@ -94,6 +96,13 @@ fun ConversationWebView(
     LaunchedEffect(scrollBottomSignal) {
         if (scrollBottomSignal > 0) {
             webRef?.evaluateJavascript("window.dshScrollToBottom && window.dshScrollToBottom();", null)
+        }
+    }
+
+    // 换题/换会话：立刻回到顶部（无动画）
+    LaunchedEffect(resetScrollSignal) {
+        if (resetScrollSignal > 0) {
+            webRef?.evaluateJavascript("window.dshScrollReset && window.dshScrollReset();", null)
         }
     }
 

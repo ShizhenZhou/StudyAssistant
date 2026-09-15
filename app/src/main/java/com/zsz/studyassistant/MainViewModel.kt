@@ -855,12 +855,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var similarMessages by mutableStateOf<List<ChatItem>>(emptyList())
         private set
+    /** 同类题的答案是否已显示（原在页面上；挪到 VM 以便多选删除时统一处理） */
+    var similarRevealed by mutableStateOf(false)
+        private set
+
+    fun revealSimilarAnswer() { similarRevealed = true }
+
+    /**
+     * 删除同类题会话中的消息。索引按界面渲染顺序：
+     *   0            = AI 出的题目（删它 = 整段会话失去上下文 → 清空，等价于重新出题）
+     *   1..n         = 追问往返（对应 similarMessages[0..n-1]）
+     *   末位（答案已显示时）= 答案（删它 = 收起答案，可再点「查看答案」）
+     */
+    fun deleteSimilarItems(indices: List<Int>) {
+        if (indices.isEmpty()) return
+        val hasAnswer = similarRevealed && similarAnswer != null
+        val total = 1 + similarMessages.size + (if (hasAnswer) 1 else 0)
+        if (indices.contains(0)) {
+            similarQuestion = null
+            similarAnswer = null
+            similarMessages = emptyList()
+            similarRevealed = false
+            return
+        }
+        if (hasAnswer && indices.contains(total - 1)) similarRevealed = false
+        val kill = indices.filter { it in 1..similarMessages.size }.map { it - 1 }.toSet()
+        if (kill.isNotEmpty()) similarMessages = similarMessages.filterIndexed { i, _ -> i !in kill }
+    }
 
     fun startSimilar() {
         val q = currentReviewQuestion ?: return
         viewModelScope.launch {
             similarBusy = true
-            similarQuestion = null; similarAnswer = null; similarMessages = emptyList()
+            similarQuestion = null; similarAnswer = null; similarMessages = emptyList(); similarRevealed = false
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             try {

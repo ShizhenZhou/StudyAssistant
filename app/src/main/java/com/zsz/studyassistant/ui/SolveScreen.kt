@@ -136,6 +136,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var scrollBottomTick by remember { mutableIntStateOf(0) }
     // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
     var atTop by remember { mutableStateOf(true) }
+    // 换题（复习上一题→下一题、错题本切换）时立刻回到顶部
+    var resetScrollTick by remember { mutableIntStateOf(0) }
+
+    // 复习：题目切换（reviewDone 变化或换了题）→ 页面回到顶端
+    // 只在复习模式生效：否则「存错题本」等操作改了 savedQuestionId 也会误触发回顶
+    LaunchedEffect(vm.reviewMode, vm.reviewDone, vm.savedQuestionId) {
+        if (vm.reviewMode) resetScrollTick++
+    }
 
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
     // 拍照题：气泡只显示原图，不显示 AI 转译题干（题干照旧保存，供错题本/搜索/编辑用）
@@ -228,8 +236,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
                     } else {
-                        // 生成中禁止进入编辑态（避免与流式渲染/消息索引冲突）
-                        TextButton(onClick = { editMode = true }, enabled = !vm.busy, contentPadding = smallPad) { Text(s["solve.edit"], fontSize = 13.sp) }
+                        // 「编辑」按钮已移除：长按气泡即可进入多选（更直观，也少一个顶栏键）
                         if (vm.isFromNotebook) {
                             if (vm.isDeleted) {
                                 TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) { Text(s["solve.restore"], fontSize = 13.sp) }
@@ -426,6 +433,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         },
                         scrollBottomSignal = scrollBottomTick,
+                        resetScrollSignal = resetScrollTick,
                         onAtTopChange = { atTop = it },
                         modifier = Modifier
                             .fillMaxSize()
