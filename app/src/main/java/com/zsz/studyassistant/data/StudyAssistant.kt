@@ -5,6 +5,8 @@ import android.graphics.ImageDecoder
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -12,6 +14,7 @@ import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import okhttp3.ResponseBody
 
 /**
  * 核心业务逻辑：DeepSeek 视觉/文本模型 + 对话流 + 图片预处理
@@ -118,6 +121,16 @@ object StudyAssistant {
 
     private val streamJson = Json { ignoreUnknownKeys = true }
 
+    /** 正在进行的流式响应体（供「中止生成」立即中断阻塞读取用） */
+    @Volatile
+    private var activeStreamBody: ResponseBody? = null
+
+    /** 立即中止当前流式请求：关闭响应体 → 阻塞中的 readUtf8Line() 会立刻抛错返回 */
+    fun cancelActiveStream() {
+        runCatching { activeStreamBody?.close() }
+        activeStreamBody = null
+    }
+
     /**
      * 流式调用：逐块回调增量文本，返回拼接后的完整文本（供落库/展示）。
      *
@@ -145,21 +158,28 @@ object StudyAssistant {
         )
         val sb = StringBuilder()
         var usage: DeepSeekUsage? = null
-        body.use { b ->
-            val src = b.source()
-            while (true) {
-                val line = src.readUtf8Line() ?: break
-                if (line.isEmpty() || !line.startsWith("data:")) continue
-                val payload = line.substring(5).trim()
-                if (payload == "[DONE]") break
-                val chunk = runCatching { streamJson.decodeFromString<StreamChunk>(payload) }.getOrNull() ?: continue
-                chunk.usage?.let { usage = it }
-                val delta = chunk.choices.firstOrNull()?.delta?.content
-                if (!delta.isNullOrEmpty()) {
-                    sb.append(delta)
-                    onDelta(delta)
+        activeStreamBody = body
+        try {
+            body.use { b ->
+                val src = b.source()
+                while (true) {
+                    // 支持「中止生成」：协程被取消时在这里抛出，且关闭响应体后阻塞读也会立刻失败
+                    currentCoroutineContext().ensureActive()
+                    val line = src.readUtf8Line() ?: break
+                    if (line.isEmpty() || !line.startsWith("data:")) continue
+                    val payload = line.substring(5).trim()
+                    if (payload == "[DONE]") break
+                    val chunk = runCatching { streamJson.decodeFromString<StreamChunk>(payload) }.getOrNull() ?: continue
+                    chunk.usage?.let { usage = it }
+                    val delta = chunk.choices.firstOrNull()?.delta?.content
+                    if (!delta.isNullOrEmpty()) {
+                        sb.append(delta)
+                        onDelta(delta)
+                    }
                 }
             }
+        } finally {
+            activeStreamBody = null
         }
         lastUsage = usage
         return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }

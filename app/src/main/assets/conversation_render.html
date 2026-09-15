@@ -13,6 +13,8 @@
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid #ddd;}
   .katex{font-size:1.1em;}
   .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:6px 0;}
+  /* 生成中断后的蓝色「继续生成」一行 */
+  .continue{color:#2196F3;font-weight:600;padding:8px 2px 2px 2px;cursor:pointer;}
 </style>
 </head>
 <body><div id="out"></div>
@@ -128,9 +130,23 @@ function bubbleHtml(m){
       imgHtml+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="openImg(this)">';
     }
   }
+  // 末尾的「继续生成」标记：[[CONTINUE|文案]] → 蓝色可点一行（生成中断时由原生追加）
+  var text = m.content || '';
+  var contLabel = null;
+  var ci = text.indexOf('[[CONTINUE|');
+  if(ci >= 0){
+    var cj = text.indexOf(']]', ci);
+    if(cj > ci){ contLabel = text.substring(ci + 11, cj); text = text.substring(0, ci); }
+  }
   // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
-  var body = (m.content && m.content.length) ? renderMath(m.content) : '';
+  var body = (text && text.length) ? renderMath(text) : '';
+  if(contLabel !== null){
+    body += '<div class="continue" onclick="continueGen()">'+esc(contLabel)+'</div>';
+  }
   return '<div class="bubble '+cls+'">'+body+imgHtml+'</div>';
+}
+function continueGen(){
+  try{ if(window.Android && Android.continueGeneration){ Android.continueGeneration(); } }catch(e){}
 }
 function renderMessages(arr){
   var out = document.getElementById('out');

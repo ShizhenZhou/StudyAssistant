@@ -1047,9 +1047,32 @@ private val B8_KO = mapOf(
 )
 
 // ===========================================================================
+// 批次 9：流式生成（中止 / 继续）
+// ===========================================================================
+private val B9_ZH = mapOf(
+    "solve.abort" to "⏸ 中止生成",
+    "solve.continue" to "继续生成"
+)
+
+private val B9_EN = mapOf(
+    "solve.abort" to "⏸ Stop",
+    "solve.continue" to "Continue generating"
+)
+
+private val B9_JA = mapOf(
+    "solve.abort" to "⏸ 中止",
+    "solve.continue" to "生成を続ける"
+)
+
+private val B9_KO = mapOf(
+    "solve.abort" to "⏸ 중단",
+    "solve.continue" to "생성 계속"
+)
+
+// ===========================================================================
 // 合并（每批新增后在这里追加对应的 Bn_xx）
 // ===========================================================================
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO

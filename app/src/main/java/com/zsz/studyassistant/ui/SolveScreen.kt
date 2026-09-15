@@ -158,6 +158,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         when {
             live == null -> mapped
             live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = "▍", images = emptyList())
+            // 被中断（网络异常 / 用户中止）：在已生成内容末尾补一行可点的蓝色「继续生成」
+            vm.streamInterrupted -> mapped + ChatMsg(
+                role = "assistant",
+                content = live + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]",
+                images = emptyList()
+            )
             else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList())
         }
     }
@@ -197,7 +203,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
                     } else {
-                        TextButton(onClick = { editMode = true }, contentPadding = smallPad) { Text(s["solve.edit"], fontSize = 13.sp) }
+                        // 生成中禁止进入编辑态（避免与流式渲染/消息索引冲突）
+                        TextButton(onClick = { editMode = true }, enabled = !vm.busy, contentPadding = smallPad) { Text(s["solve.edit"], fontSize = 13.sp) }
                         if (vm.isFromNotebook) {
                             if (vm.isDeleted) {
                                 TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) { Text(s["solve.restore"], fontSize = 13.sp) }
@@ -220,8 +227,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
-                            TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty() && !vm.busy, contentPadding = smallPad) {
-                                Text(s["solve.regen"], fontSize = 13.sp)
+                            // 生成中：重新生成 → ⏸ 中止生成（按一下立刻停，按钮变回重新生成）
+                            if (vm.busy) {
+                                TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
+                                    Text(s["solve.abort"], fontSize = 13.sp)
+                                }
+                            } else {
+                                TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty(), contentPadding = smallPad) {
+                                    Text(s["solve.regen"], fontSize = 13.sp)
+                                }
                             }
                             TextButton(
                                 onClick = {
@@ -382,6 +396,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     ConversationWebView(
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
+                        onContinue = { vm.continueGeneration() },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 4.dp)

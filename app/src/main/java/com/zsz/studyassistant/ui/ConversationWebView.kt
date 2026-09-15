@@ -56,7 +56,9 @@ fun ConversationWebView(
     messages: List<ChatMsg>,
     modifier: Modifier = Modifier,
     /** 每次自增 = 请求「回到顶部」（由界面上的 ↑ 按钮触发；WebView 自己管滚动，只能走 JS） */
-    scrollTopSignal: Int = 0
+    scrollTopSignal: Int = 0,
+    /** 点击气泡末尾蓝色「继续生成」时回调 */
+    onContinue: () -> Unit = {}
 ) {
     val currentMessages by rememberUpdatedState(messages)
     var loaded by remember { mutableStateOf(false) }
@@ -98,6 +100,12 @@ fun ConversationWebView(
                         @JavascriptInterface
                         fun openImage(b64: String) {
                             Handler(Looper.getMainLooper()).post { zoomImage = b64 }
+                        }
+
+                        /** 气泡末尾的蓝色「继续生成」被点击 */
+                        @JavascriptInterface
+                        fun continueGeneration() {
+                            Handler(Looper.getMainLooper()).post { onContinue() }
                         }
 
                         @JavascriptInterface

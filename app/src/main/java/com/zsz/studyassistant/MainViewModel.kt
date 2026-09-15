@@ -19,13 +19,17 @@ import com.zsz.studyassistant.data.Review
 import com.zsz.studyassistant.data.StudyAssistant
 import com.zsz.studyassistant.data.Tag
 import java.util.Calendar
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -252,20 +256,69 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var streamingText by mutableStateOf<String?>(null)
         private set
 
+    /** 生成被中断（用户点「中止生成」或网络异常），已生成内容保留、可点「继续生成」 */
+    var streamInterrupted by mutableStateOf(false)
+        private set
+
+    private var callJob: Job? = null
+
+    // 「继续生成」所需的上文：原消息 + 已生成片段 + 完成回调
+    private var contMessages: List<DeepSeekMessage>? = null
+    private var contModel: String = ""
+    private var contPrefix: String = ""
+    private var contOnDone: ((String) -> Unit)? = null
+
+    /** 中止生成：立即关闭响应流（模型思考中也能立刻停）+ 取消协程；已生成内容保留 */
+    fun abortGeneration() {
+        StudyAssistant.cancelActiveStream()
+        callJob?.cancel()
+    }
+
+    /** 继续生成：把已生成部分作为 assistant 上文，要求模型接着往下写（不重复、不重开） */
+    fun continueGeneration() {
+        val msgs = contMessages ?: return
+        val onDone = contOnDone ?: return
+        streamCall(contModel, msgs, contPrefix, onDone, repeat = null)
+    }
+
+    private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> =
+        original +
+            DeepSeekMessage("assistant", JsonPrimitive(partial)) +
+            DeepSeekMessage(
+                "user",
+                JsonPrimitive("请接着上面未写完的内容继续输出，从中断处直接续写；不要重复已经写过的部分，也不要重新开始。")
+            )
+
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
         val messages = buildMessages().toList()
-        viewModelScope.launch {
+        streamCall(model, messages, prefix = "", onDone = onDone, repeat = repeat)
+    }
+
+    /**
+     * 流式调用主体。
+     * @param prefix 之前已生成的内容（「继续生成」时把上次的片段接回来，界面显示 prefix + 新增）
+     */
+    private fun streamCall(
+        model: String,
+        messages: List<DeepSeekMessage>,
+        prefix: String,
+        onDone: (String) -> Unit,
+        repeat: (() -> Unit)?
+    ) {
+        callJob?.cancel()
+        callJob = viewModelScope.launch {
             busy = true
             error = null
             networkError = false
             retryAction = null
+            streamInterrupted = false
             // 前台服务：切后台也不被冻结，保证请求跑完
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             val sb = StringBuilder()
             var lastEmit = 0L
             var keepPartial = false
-            streamingText = ""
+            streamingText = prefix
             try {
                 val reply = withContext(Dispatchers.IO) {
                     StudyAssistant.chatStream(model, messages) { delta ->
@@ -274,31 +327,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
                             lastEmit = now
-                            val snapshot = sb.toString()
+                            val snapshot = prefix + sb.toString()
                             withContext(Dispatchers.Main) { streamingText = snapshot }
                         }
                     }
                 }
                 recordUsage(app)
-                onDone(reply)
+                onDone(prefix + reply)
                 // 放在 onDone 之后：万一 onDone 内部抛异常，已生成的内容仍留在界面上（catch 会保留）
                 streamingText = null
+                contMessages = null
+                contOnDone = null
+                contPrefix = ""
             } catch (e: Exception) {
-                // 已经收到一部分就保留在界面上（不让用户白等一场），并给出「继续生成」入口
-                keepPartial = sb.isNotBlank()
+                // 用户中止时协程已被取消（关闭响应体导致的 IOException 也走这里）：
+                // 统一按「中断」处理——保留已生成内容、不报错，并提供「继续生成」
+                val aborted = e is CancellationException || !currentCoroutineContext().isActive
+                val partial = prefix + sb
+                keepPartial = partial.isNotBlank()
                 if (!keepPartial) streamingText = null
-                error = friendlyError(e, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
-                val msg = e.message.orEmpty().lowercase()
-                if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
-                    msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")
-                ) {
-                    networkError = true
-                    retryAction = repeat
+                if (keepPartial) {
+                    streamInterrupted = true
+                    contModel = model
+                    contMessages = continuationMessages(messages, partial)
+                    contPrefix = partial
+                    contOnDone = onDone
                 }
+                if (aborted) {
+                    error = null
+                    retryAction = null
+                } else {
+                    error = friendlyError(e, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
+                    val msg = e.message.orEmpty().lowercase()
+                    if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
+                        msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")
+                    ) {
+                        networkError = true
+                        retryAction = repeat
+                    }
+                }
+                if (e is CancellationException) throw e
             } finally {
                 busy = false
                 if (!keepPartial) streamingText = null
                 com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
+                callJob = null
             }
         }
     }
