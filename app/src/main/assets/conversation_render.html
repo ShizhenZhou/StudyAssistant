@@ -77,11 +77,23 @@ var touching = false;
 var lastMax = 0, lastTs = 0, growthV = 0;   // growthV：内容增长速度（px/s，EMA 平滑）
 
 function bottomY(){ return Math.max(0, document.body.scrollHeight - window.innerHeight); }
-/** 供原生「↑ 回到顶部」按钮调用：回到顶部并暂停跟随（用户再滑到底部会自动恢复） */
+var scrollTopAnim = null;
+/** 供原生「↑ 回到顶部」按钮调用：快速向上滚动（缓出动画，约 0.25~0.6s），并暂停跟随 */
 window.dshScrollToTop = function(){
   following = false; touching = false;
-  try{ window.scrollTo(0, 0); }catch(e){}
-  try{ window.dispatchEvent(new Event('scroll')); }catch(e){}
+  if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
+  var startY = window.scrollY || 0;
+  if(startY <= 0) return;
+  var t0 = performance.now();
+  var dur = Math.min(600, Math.max(240, startY * 0.22));   // 距离越远略久，但整体保持"迅速"
+  function step(now){
+    var p = Math.min(1, (now - t0) / dur);
+    var eased = 1 - Math.pow(1 - p, 3);                    // easeOutCubic：起步快、收尾稳
+    window.scrollTo(0, Math.round(startY * (1 - eased)));
+    if(p < 1){ scrollTopAnim = requestAnimationFrame(step); }
+    else { scrollTopAnim = null; window.scrollTo(0, 0); }
+  }
+  scrollTopAnim = requestAnimationFrame(step);
 };
 function followTick(ts){
   var max = bottomY();
