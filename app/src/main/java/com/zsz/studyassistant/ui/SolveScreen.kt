@@ -386,22 +386,25 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             .fillMaxSize()
                             .padding(horizontal = 4.dp)
                     )
-                    // 一键回到顶部：浮在右下角（底部对话栏之上）
+                    // 一键回到顶部：右下角**圆形**按钮（固定正方形尺寸 + CircleShape，保证正圆）
                     if (vm.chatItems.isNotEmpty()) {
                         Surface(
                             onClick = { scrollTopTick++ },
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
+                            shadowElevation = 3.dp,
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(end = 10.dp, bottom = 10.dp)
+                                .padding(end = 12.dp, bottom = 12.dp)
+                                .size(44.dp)
                         ) {
-                            Text(
-                                "↑",
-                                fontSize = 18.sp,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp)
-                            )
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    "↑",
+                                    fontSize = 19.sp,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
                         }
                     }
                 }
