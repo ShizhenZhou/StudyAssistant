@@ -25,6 +25,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.NavHost
@@ -44,6 +46,8 @@ import com.zsz.studyassistant.ui.SettingsTab
 import com.zsz.studyassistant.ui.SimilarScreen
 import com.zsz.studyassistant.ui.SolveScreen
 import com.zsz.studyassistant.ui.stringsFor
+
+private const val NAV_TOUCH_GUARD_MS = 250L   // 导航后吞掉内容区触摸的时长（防穿透）
 
 class MainActivity : ComponentActivity() {
 
@@ -89,9 +93,37 @@ class MainActivity : ComponentActivity() {
                     val current = backStack?.destination?.route
                     val showBottomBar = current == "home" || current == "settings"
 
+                    // 防触摸穿透的「导航后短时封锁」状态（见下方 NavHost 旁的说明）
+                    val navBlocking = remember { androidx.compose.runtime.mutableStateOf(false) }
+                    val navBlockUntil = remember { androidx.compose.runtime.mutableStateOf(0L) }
+                    androidx.compose.runtime.DisposableEffect(nav) {
+                        val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, _, _ ->
+                            navBlockUntil.value = android.os.SystemClock.uptimeMillis() + NAV_TOUCH_GUARD_MS
+                            navBlocking.value = true
+                        }
+                        nav.addOnDestinationChangedListener(listener)
+                        onDispose { nav.removeOnDestinationChangedListener(listener) }
+                    }
+                    androidx.compose.runtime.LaunchedEffect(navBlocking.value) {
+                        if (navBlocking.value) {
+                            val wait = navBlockUntil.value - android.os.SystemClock.uptimeMillis()
+                            if (wait > 0) kotlinx.coroutines.delay(wait)
+                            navBlocking.value = false
+                        }
+                    }
+
                     Column(Modifier.fillMaxSize()) {
                         Box(Modifier.weight(1f)) {
-                            NavHost(nav, startDestination = "home") {
+                            NavHost(
+                                nav,
+                                startDestination = "home",
+                                // 默认过渡是 fadeIn/fadeOut(tween(700))，对一个笔记类 App 偏慢；
+                                // 缩短到 200ms，更跟手，也让「旧页面仍可被命中」的窗口更小
+                                enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
+                                exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) },
+                                popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
+                                popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) }
+                            ) {
                                 composable("home") { HomeScreen(nav, viewModel) }
                                 composable("camera") { CameraScreen(nav, viewModel) }
                                 composable("ask") { AskScreen(nav, viewModel) }
@@ -103,6 +135,32 @@ class MainActivity : ComponentActivity() {
                                 composable("similar") { SimilarScreen(nav, viewModel) }
                                 composable("settings") { SettingsTab(viewModel) }
                             }
+
+                            // ★ 过渡期间吞掉内容区触摸（对所有页面切换都生效）：
+                            //   页面切换时「正在退出的页面」仍在组合中并参与命中测试，而新页面在很多位置
+                            //   没有可点击节点，触摸会穿透到下面那张旧页面 → 曾出现「点了设置又误触拍照搜题」。
+                            //   两道判据（取或）：① 当前目的地尚未 RESUMED（动画进行中）
+                            //                    ② 刚发生导航的 250ms 内（不依赖过渡实现细节的兜底）
+                            val currentEntry = backStack
+                            val notResumed = currentEntry?.lifecycle?.currentState
+                                ?.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) != true
+                            val withinNavGuard = navBlocking.value ||
+                                android.os.SystemClock.uptimeMillis() < navBlockUntil.value
+                            if (notResumed || withinNavGuard) {
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                    event.changes.forEach { it.consume() }
+                                                }
+                                            }
+                                        }
+                                )
+                            }
+
                             // 从通知点进来 → 直接打开复习页
                             androidx.compose.runtime.LaunchedEffect(openReview) {
                                 if (openReview) nav.navigate("review")
