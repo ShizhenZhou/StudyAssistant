@@ -58,10 +58,16 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     val question = vm.similarQuestion
     val answer = vm.similarAnswer
     val revealed = vm.similarRevealed
-    val messages = remember(vm.similarQuestion, vm.similarMessages, revealed) {
+    val messages = remember(vm.similarQuestion, vm.similarMessages, revealed, vm.similarStreamingText) {
         buildList {
-            if (vm.similarQuestion != null) add(ChatMsg("assistant", vm.similarQuestion!!))
+            // 出题中：流式文本就是题目本身（只含题目部分，答案不外显）；出题完成后用正式题目
+            val qText = vm.similarQuestion ?: vm.similarStreamingText
+            if (qText != null) add(ChatMsg("assistant", qText))
             for (m in vm.similarMessages) add(ChatMsg(if (m.role == "assistant") "assistant" else "user", m.content))
+            // 追问中：把流式回复作为最后一条实时气泡（带光标）
+            if (vm.similarQuestion != null && vm.similarStreamingText != null) {
+                add(ChatMsg("assistant", vm.similarStreamingText + "\n\n▍"))
+            }
             if (revealed && vm.similarAnswer != null) add(ChatMsg("assistant", s.format("similar.answerPrefix", "body" to vm.similarAnswer!!)))
         }
     }
@@ -103,8 +109,13 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { showDeleteConfirm = true }, enabled = selectedIndices.isNotEmpty()) { Text(s["solve.delete"], fontSize = 13.sp) }
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text(s["solve.done"], fontSize = 13.sp) }
                     } else {
-                        if (answer != null && !revealed) {
-                            TextButton(onClick = { vm.revealSimilarAnswer() }) { Text(s["similar.showAnswer"]) }
+                        // 「查看答案」：题目已出现就显示；**答案还没生成好时置灰不可用**
+                        val questionShown = vm.similarQuestion != null || vm.similarStreamingText != null
+                        if (questionShown && !revealed) {
+                            TextButton(
+                                onClick = { vm.revealSimilarAnswer() },
+                                enabled = answer != null
+                            ) { Text(s["similar.showAnswer"]) }
                         }
                     }
                 }
@@ -112,7 +123,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().imePadding().padding(padding)) {
-            if (vm.similarBusy && question == null) {
+            if (vm.similarBusy && question == null && vm.similarStreamingText == null) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     Text(s["similar.generating"], style = MaterialTheme.typography.bodyMedium)
                 }

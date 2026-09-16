@@ -5,10 +5,15 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
-v0.5.3_beta（测试分支 streaming_output_test）
-· **解题与追问支持流式输出**：答案边生成边显示（末尾有 ▍ 光标），长推导不用再整段白等；生成过程中可继续滚动阅读
-· 网络中断时**保留已生成的内容**，可点「继续生成」重试，不白等一场
-· 说明：本版为**测试版**（仅 `streaming_output_test` 分支构建）；批改 / 同类题暂未启用流式
+v0.5.3
+· **解题与追问流式输出**：答案边生成边显示（末尾有 ▍ 光标），长推导不用再整段白等；生成中可继续滚动阅读
+· 生成中可点 **⏸ 中止生成**（立即停止）；中断或中止后在内容末尾显示蓝色「**继续生成**」，点击**从中断处接着写**，不重复已写内容
+· **长按消息气泡进入多选**：气泡右上角选择圈、选中显示红框；顶栏左侧「全选 / 取消全选」、右侧「删除 / 完成」；多选态下不会触发系统长按选字
+· 打开会话**默认停在顶部**；右下角圆形按钮：在顶部显示 **↓**（快速滚到底），否则显示 **↑**（快速回顶），均为平滑滚动
+· **同类题页支持流式**：出题只外显题目（答案仍点「查看答案」才展开，未生成好时按钮置灰）；追问同样流式
+· 复习：详情页标题显示「**复习 x/xx**」；切下一题时**清屏提示 + 自动折叠答案 + 回到顶部**
+· 标题字号统一（解题 / 错题 / 错题本 / 复习均为大字号）；错题本多选改小字号并新增「全选」
+· 错题详情顶栏：删除按钮位于分类左侧；生成答案时出现「⏸ 中止生成」且**删除按钮置灰**
 
 v0.5.2
 · **公式键盘改为窄条**：默认只显示一行小字「公式键盘」，点一下才展开符号行与 LaTeX 模板行，再点收起——不再占用输入区空间
@@ -159,10 +164,15 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
-v0.5.3_beta (test branch streaming_output_test)
+v0.5.3
 · **Streaming answers for solve and follow-up**: the answer appears while it is generated (with a trailing ▍ cursor), so long derivations no longer make you wait for the whole block
-· If the network drops, **the text already generated is kept** and a "continue generating" retry is offered
-· Note: this is a **test build** from the `streaming_output_test` branch; grading and similar-problem flows are not streamed yet
+· **⏸ Stop** while generating; after a stop or a network drop the text already generated is kept and a blue "**Continue generating**" line appends at the end — tapping it **resumes from where it stopped** without repeating
+· **Long-press a message bubble to enter multi-select**: a pick circle at each bubble's top-right and a red border when selected; the bar has "Select all / Deselect all" on the left and "Delete / Done" on the right; system text-selection is suppressed in this mode
+· Conversations open **at the top**; the round button at the bottom-right shows **↓** when at the top (scroll to bottom) and **↑** otherwise (back to top), both animated
+· **Similar-problem page is streamed too**: the question streams while the answer stays hidden until "Show answer" (the button is disabled until the answer is ready); follow-ups stream as well
+· Review: the title shows "**Review x/xx**"; moving to the next question now **clears the screen briefly, collapses the answer and scrolls back to the top**
+· Page titles unified to the large size (Solve / Problem / Notebook / Review); the notebook's multi-select title is small and gained a "Select all" button
+· Problem detail bar: Delete sits left of the category button; while generating, "⏸ Stop" appears and **Delete is disabled**
 
 v0.5.2
 · The **formula keyboard is now a slim strip**: by default it shows a single small "Formula keyboard" line; tap it to expand the symbol and LaTeX template rows, tap again to collapse — it no longer takes up input space
@@ -313,10 +323,15 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
-v0.5.3_beta（テストブランチ streaming_output_test）
+v0.5.3
 · **解答と追加質問でストリーミング出力に対応**：生成しながら表示（末尾に ▍ カーソル）。長い導出でも一括待ちが不要になりました
-· 通信が切れた場合は**生成済みの内容を保持**し、「生成を続ける」で再試行できます
-· 注：本版は `streaming_output_test` ブランチの**テストビルド**です（添削・類似問題は未対応）
+· 生成中は **⏸ 中止**が可能。中止・通信断の後は末尾に青い「**生成を続ける**」が出て、タップすると**中断箇所から続きを生成**します（重複しません）
+· **メッセージを長押しで複数選択**：各吹き出し右上に選択サークル、選択中は赤枠。バー左に「すべて選択／選択解除」、右に「削除／完了」。この間は OS の長押し文字選択は無効
+· 会話を開くと**先頭に表示**。右下の丸ボタンは先頭で **↓**（最下部へ）、それ以外で **↑**（先頭へ）— どちらもスムーズスクロール
+· **類似問題ページもストリーミング**：出題は問題文のみ表示（解答は「解答を見る」まで非表示、準備できるまでボタンは無効）。追加質問も同様
+· 復習：タイトルが「**復習 x/xx**」に。次の問題へ移ると**画面を一度クリアし、解答を畳んで先頭に戻ります**
+· ページタイトルの文字サイズを統一（解答／誤答／間違いノート／復習）。間違いノートの複数選択時は小さめ＋「すべて選択」を追加
+· 誤答詳細のバー：削除は分類の左隣。生成中は「⏸ 中止」が出て**削除は無効**になります
 
 v0.5.2
 · **数式キーボードを細い帯に変更**：既定では小さく「数式キーボード」と表示するだけ。タップで記号行と LaTeX テンプレート行を展開し、もう一度タップで折りたたみ——入力欄の場所を取りません
@@ -467,10 +482,15 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
-v0.5.3_beta(테스트 브랜치 streaming_output_test)
+v0.5.3
 · **풀이와 추가 질문에 스트리밍 출력 지원**: 생성되는 대로 표시(끝에 ▍ 커서). 긴 유도 과정도 통째로 기다릴 필요가 없습니다
-· 네트워크가 끊기면 **이미 생성된 내용을 유지**하고 "생성 계속"으로 재시도할 수 있습니다
-· 참고: 이 버전은 `streaming_output_test` 브랜치의 **테스트 빌드**입니다(첨삭·유사 문제는 미적용)
+· 생성 중 **⏸ 중단** 가능. 중단·네트워크 끊김 후에는 끝에 파란 "**생성 계속**"이 생기고, 누르면 **중단 지점부터 이어서** 생성합니다(중복 없음)
+· **메시지를 길게 눌러 다중 선택**: 말풍선 오른쪽 위에 선택 원, 선택 시 빨간 테두리. 상단 왼쪽 "전체 선택/선택 해제", 오른쪽 "삭제/완료". 이 모드에서는 OS 길게 누르기 문자 선택이 비활성화됩니다
+· 대화를 열면 **맨 위에서 시작**. 오른쪽 아래 원형 버튼은 맨 위에서 **↓**(맨 아래로), 그 외에는 **↑**(맨 위로) — 모두 부드러운 스크롤
+· **유사 문제 페이지도 스트리밍**: 문제만 표시되고 정답은 "정답 보기" 전까지 숨김(준비 전에는 버튼 비활성). 추가 질문도 스트리밍
+· 복습: 제목이 "**복습 x/xx**"로 표시. 다음 문제로 넘어가면 **화면을 잠시 비우고 정답을 접은 뒤 맨 위로** 돌아갑니다
+· 페이지 제목 글자 크기 통일(풀이/오답/오답 노트/복습). 오답 노트 다중 선택 시에는 작은 글자 + "전체 선택" 추가
+· 오답 상세 바: 삭제는 분류 왼쪽. 생성 중에는 "⏸ 중단"이 나타나고 **삭제는 비활성**됩니다
 
 v0.5.2
 · **수식 키보드를 얇은 띠로 변경**: 기본적으로 작게 '수식 키보드'만 표시하고, 탭하면 기호 줄과 LaTeX 템플릿 줄이 펼쳐지며 다시 탭하면 접힙니다 — 입력 영역을 차지하지 않습니다

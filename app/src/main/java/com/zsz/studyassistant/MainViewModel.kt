@@ -861,6 +861,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun revealSimilarAnswer() { similarRevealed = true }
 
+    /** 同类题流式中的文本：出题时 = 只含题目部分（答案不外显）；追问时 = 助手回复 */
+    var similarStreamingText by mutableStateOf<String?>(null)
+        private set
+
     /**
      * 删除同类题会话中的消息。索引按界面渲染顺序：
      *   0            = AI 出的题目（删它 = 整段会话失去上下文 → 清空，等价于重新出题）
@@ -888,16 +892,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             similarBusy = true
             similarQuestion = null; similarAnswer = null; similarMessages = emptyList(); similarRevealed = false
+            similarStreamingText = null
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
+            val sb = StringBuilder()
+            var lastEmit = 0L
             try {
-                val r = StudyAssistant.generateSimilarQuestion(q, aiLang)
+                // 流式出题：界面只显示「题目」部分，答案随流到达但不外显（点「查看答案」才展开）
+                val r = withContext(Dispatchers.IO) {
+                    StudyAssistant.generateSimilarQuestionStream(q, aiLang) { delta ->
+                        sb.append(delta)
+                        val now = System.currentTimeMillis()
+                        if (now - lastEmit >= 180) {
+                            lastEmit = now
+                            val acc = sb.toString()
+                            val shown = StudyAssistant.similarQuestionPortion(acc)
+                            // 一旦出现「解答：」→ 题目已成型：立即提交为正式题目，
+                            // 此后界面进入「等答案」状态（「查看答案」按钮可见但不可用）
+                            val answerStarted = acc.contains("解答：") || acc.contains("解答:")
+                            withContext(Dispatchers.Main) {
+                                if (answerStarted) {
+                                    if (shown.isNotBlank()) similarQuestion = shown
+                                    similarStreamingText = null
+                                } else {
+                                    similarStreamingText = shown
+                                }
+                            }
+                        }
+                    }
+                }
                 recordUsage(app)
                 similarQuestion = r.question
                 similarAnswer = r.answer
+                similarStreamingText = null
             } catch (e: Exception) {
-                similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to (e.message ?: ""))
+                val partial = StudyAssistant.similarQuestionPortion(sb.toString())
+                if (partial.isNotBlank()) {
+                    similarQuestion = partial          // 中断也保留已生成的题目
+                } else {
+                    similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to (e.message ?: ""))
+                }
                 similarAnswer = null
+                similarStreamingText = null
             }
             similarBusy = false
             com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
@@ -910,20 +946,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (txt.isEmpty()) return
         similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "user", txt)
         similarBusy = true
+        similarStreamingText = ""
+        val baseCount = similarMessages.size
         viewModelScope.launch {
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
+            val sb = StringBuilder()
+            var lastEmit = 0L
             try {
                 val msgs = mutableListOf<DeepSeekMessage>()
                 msgs.add(StudyAssistant.systemMessage(aiLang))
                 msgs.add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
                 for (m in similarMessages) msgs.add(DeepSeekMessage(if (m.role == "assistant") "assistant" else "user", JsonPrimitive(m.content)))
                 msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
-                val reply = StudyAssistant.chatOnce(StudyAssistant.MODEL_TEXT, msgs)
+                val reply = withContext(Dispatchers.IO) {
+                    StudyAssistant.chatStream(StudyAssistant.MODEL_TEXT, msgs) { delta ->
+                        sb.append(delta)
+                        val now = System.currentTimeMillis()
+                        if (now - lastEmit >= 180) {
+                            lastEmit = now
+                            val snapshot = sb.toString()
+                            withContext(Dispatchers.Main) { similarStreamingText = snapshot }
+                        }
+                    }
+                }
                 recordUsage(app)
-                similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", reply)
+                similarStreamingText = null
+                similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
             } catch (e: Exception) {
-                similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to (e.message ?: "")))
+                val partial = sb.toString()
+                similarStreamingText = null
+                similarMessages = similarMessages + ChatItem(
+                    baseCount.toLong(),
+                    "assistant",
+                    if (partial.isNotBlank()) partial
+                    else com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to (e.message ?: ""))
+                )
             }
             similarBusy = false
             com.zsz.studyassistant.data.AnswerForegroundService.stop(app)

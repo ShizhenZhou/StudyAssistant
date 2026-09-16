@@ -250,14 +250,35 @@ object StudyAssistant {
     /** 同类题结果：AI 出的题目 + 完整解答 */
     data class SimilarResult(val question: String, val answer: String)
 
+    /** 出题提示词（流式/非流式共用） */
+    private fun similarPrompt(question: Question): String =
+        "请根据下面这道题，出一道同知识点、同类题型、难度相近的“近似题”，并自行给出完整、正确的解答（务必确保题目可解）。" +
+            "原题：${question.text}\n\n请先输出一行“题目：<新题>”，再输出“解答：<完整步骤与结论>”。数学公式用 LaTeX。"
+
+    /** 解析出题结果（流式/非流式共用） */
+    private fun parseSimilar(out: String): SimilarResult {
+        val q = Regex("题目[:：]\\s*(.+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out.take(120)
+        val a = Regex("解答[:：]([\\s\\S]+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out
+        return SimilarResult(q, a)
+    }
+
+    /**
+     * 只取「题目：」之后、「解答：」之前的正文。
+     * 流式出题时用它决定界面显示什么——**答案部分绝不显示**（仍由页面点「查看答案」再展开）。
+     */
+    fun similarQuestionPortion(acc: String): String {
+        val i = listOf(acc.indexOf("解答："), acc.indexOf("解答:")).filter { it >= 0 }.minOrNull() ?: acc.length
+        val head = acc.substring(0, i)
+        val qi = listOf(head.indexOf("题目："), head.indexOf("题目:")).filter { it >= 0 }.minOrNull()
+        return (if (qi != null) head.substring(qi + 3) else head).trim()
+    }
+
     /** 根据错题出一道同知识点、同类题型、难度相近的近似题，并自备完整解答（确保可解） */
     suspend fun generateSimilarQuestion(question: Question, lang: AiLang = AiLang.DEFAULT): SimilarResult {
         requireKey()
-        val content = "请根据下面这道题，出一道同知识点、同类题型、难度相近的“近似题”，并自行给出完整、正确的解答（务必确保题目可解）。" +
-            "原题：${question.text}\n\n请先输出一行“题目：<新题>”，再输出“解答：<完整步骤与结论>”。数学公式用 LaTeX。"
         val msgs = listOf(
             systemMessage(lang),
-            DeepSeekMessage("user", JsonPrimitive(content))
+            DeepSeekMessage("user", JsonPrimitive(similarPrompt(question)))
         )
         val resp = ApiClient.deepSeek.chat(
             DeepSeekRequest(model = MODEL_TEXT, messages = msgs, maxTokens = 4096)
@@ -265,10 +286,26 @@ object StudyAssistant {
         lastUsage = resp.usage
         val out = resp.choices.firstOrNull()?.message?.content?.asText()
             ?: throw IllegalStateException("出题返回为空")
-        val q = Regex("题目[:：]\\s*(.+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out.take(120)
-        val a = Regex("解答[:：]([\\s\\S]+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out
-        return SimilarResult(q, a)
+        return parseSimilar(out)
     }
+
+    /**
+     * 流式出题：整体文本边生成边回调（调用方用 [similarQuestionPortion] 只显示题目部分，答案不外显）。
+     */
+    suspend fun generateSimilarQuestionStream(
+        question: Question,
+        lang: AiLang = AiLang.DEFAULT,
+        onDelta: suspend (String) -> Unit
+    ): SimilarResult {
+        requireKey()
+        val msgs = listOf(
+            systemMessage(lang),
+            DeepSeekMessage("user", JsonPrimitive(similarPrompt(question)))
+        )
+        val out = chatStream(MODEL_TEXT, msgs, onDelta)
+        return parseSimilar(out)
+    }
+
 
     /** 图片压缩为 JPEG 字节（发送前处理，最大边长 maxDim，质量 quality） */
     fun compressImage(file: File, maxDim: Int = 1280, quality: Int = 80): ByteArray {
