@@ -5,10 +5,15 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
-v0.5.4_beta（测试分支 streaming_output_test）
-· **批改页重做**：拍完题目（或题目+作答）直接进入**全屏批改页**（复用解题界面，标题「批改」）
-· 批改结果与后续问答**全部流式输出**；批改页可**带图追问**，并支持「重新批改」「存错题本」
-· **多选保护**：解题/批改/同类题等界面进入多选后，**题干**与 **AI 第一条回复**（答案 / 批改结果，批改含自己的作答）**不可选中、不可删除**
+v0.5.4
+· ✏️ **批改页重做**：拍完题目（或题目+作答）直接进入**全屏批改页**（复用解题界面，标题「批改」）；批改结果与后续问答**全部流式**，可**带图追问**；生成中「⏸ 中止批改」、追问中「⏸ 中止生成」、空闲「🔄 重新批改」
+· 🧩 **练同类题页对齐解题页**：🔄 重新生成（清空重出）、📚 存错题本、⏸ 中止生成；底部同一套输入栏（公式键盘 / 图库 / 附图 / 发送）；「查看答案」为**左下角椭圆按钮**，答案未生成好时置灰
+· 🖼 **图库改用系统原生「有序选择」**：勾选时显示 **1/2/3 序号**并按勾选顺序返回；**不再需要相册权限**；两张模式可**一次选两张**（第 1 张=题目，第 2 张=作答）
+· 🛡 **多选保护**：**题干**与 **AI 第一条回复**（答案 / 批改结果）**不可选中、不可删除**（灰色虚线圈）；多选态内**禁用长按**，只允许点选
+· 💭 **无内容也显示气泡**：流式首字未到时显示「**思考中…**」；中止后**保留气泡**并给蓝色「**继续生成**」
+· 📊 **复习页底部改为进度条**；「看解答」时画面保持不动，「收起解答」时回到顶部
+· 🔁 拍照搜题页与批改页**各自记住「单张 / 两张」**；↑/↓ 仅在**内容超过一屏**时出现
+· 🔤 页面标题统一大字号；修复批改页偶发出现「删除 / 暂不分类」按钮组
 
 v0.5.3
 · **解题与追问流式输出**：答案边生成边显示（末尾有 ▍ 光标），长推导不用再整段白等；生成中可继续滚动阅读
@@ -169,10 +174,15 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
-v0.5.4_beta (test branch streaming_output_test)
-· **Grading page rebuilt**: after shooting the question (or question + your answer) you go straight to a **full-screen grading page** reusing the solve UI, titled "Grading"
-· Grading results and follow-up Q&A are now **fully streamed**; you can **ask with images** and use "Re-grade" / "Save to notebook"
-· **Protected messages**: in multi-select on solve / grading / similar pages, the **question** and the **first AI reply** (answer or grading result — including your own answer image when grading) **cannot be selected or deleted**
+v0.5.4
+· ✏️ **Grading page rebuilt**: shooting the question (or question + your answer) now goes straight to a **full-screen grading page** reusing the solve UI, titled "Grading"; results and follow-ups are **fully streamed** and you can **ask with images** — "⏸ Stop grading" while grading, "⏸ Stop" while asking, "🔄 Re-grade" when idle
+· 🧩 **Similar-problem page matches the solve page**: "🔄 Regenerate" (clears and re-generates), "📚 Save to notebook", "⏸ Stop"; the same bottom input bar (formula keys / gallery / images / send); "Show answer" is a **pill button at the bottom-left**, greyed out until the answer is ready
+· 🖼 **Gallery now uses the system's ordered selection**: picks are numbered **1/2/3** and returned in tap order; **no photo permission needed**; two-shot mode can pick both at once (1 = question, 2 = your answer)
+· 🛡 **Protected messages**: the **question** and the **first AI reply** (answer / grading result) **cannot be selected or deleted** (grey dashed circle); long-press is **disabled inside multi-select**
+· 💭 **A bubble even with no content**: "**Thinking…**" until the first token arrives; after a stop the bubble is kept with a blue "**Continue generating**" line
+· 📊 **Review bottom row is now a progress bar**; "Show answer" keeps the view still, "Hide answer" scrolls back to the top
+· 🔁 Solve and grading pages **each remember single/two-shot mode**; the ↑/↓ button appears **only when the content exceeds one screen**
+· 🔤 Page titles unified; fixed a stray "Delete / Uncategorized" button group on the grading page
 
 v0.5.3
 · **Streaming answers for solve and follow-up**: the answer appears while it is generated (with a trailing ▍ cursor), so long derivations no longer make you wait for the whole block
@@ -333,10 +343,15 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
-v0.5.4_beta（テストブランチ streaming_output_test）
-· **添削ページを刷新**：撮影後すぐに**全画面の添削ページ**（解答 UI を再利用、タイトル「添削」）へ
-· 添削結果と以降のやり取りは**すべてストリーミング**。**画像付きの追加質問**が可能で、「再添削」「間違いノートに保存」も使えます
-· **保護されたメッセージ**：解答／添削／類似問題の複数選択で、**問題文**と **AI の最初の返信**（解答・添削結果。添削では自分の答案画像も含む）は**選択・削除できません**
+v0.5.4
+· ✏️ **添削ページを刷新**：撮影後すぐに**全画面の添削ページ**（解答 UI を再利用、タイトル「添削」）へ。結果と以降のやり取りは**すべてストリーミング**、**画像付きの追加質問**も可能。添削中は「⏸ 添削を中止」、質問中は「⏸ 中止」、待機中は「🔄 再添削」
+· 🧩 **類似問題ページを解答ページに合わせて刷新**：「🔄 再生成」「📚 ノートに保存」「⏸ 中止」、下部は同じ入力バー（数式キー／ギャラリー／画像／送信）。「解答を見る」は**左下の楕円ボタン**（準備できるまで無効）
+· 🖼 **ギャラリーはシステムの「順序付き選択」**：選択に **1/2/3 の番号**が付き、選んだ順で返ります。**写真の権限は不要**。2 枚モードは一度に 2 枚選択可（1=問題、2=答案）
+· 🛡 **保護されたメッセージ**：**問題文**と **AI の最初の返信**は**選択・削除できません**（灰色の破線円）。複数選択中は長押し無効
+· 💭 **内容が無くても吹き出し**：最初の文字まで「**考え中…**」、中止後は吹き出しを保持し青い「**生成を続ける**」
+· 📊 **復習ページ下部は進捗バー**に。「解答を見る」では画面を動かさず、「解答を隠す」で先頭へ
+· 🔁 撮影／添削ページはそれぞれ**「1 枚／2 枚」を記憶**。↑/↓ は**内容が 1 画面を超えるときだけ**表示
+· 🔤 ページタイトルを統一。添削ページのボタン崩れを修正
 
 v0.5.3
 · **解答と追加質問でストリーミング出力に対応**：生成しながら表示（末尾に ▍ カーソル）。長い導出でも一括待ちが不要になりました
@@ -497,10 +512,15 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
-v0.5.4_beta(테스트 브랜치 streaming_output_test)
-· **첨삭 페이지 개편**: 촬영 후 바로 **전체 화면 첨삭 페이지**(풀이 UI 재사용, 제목 "첨삭")로 이동
-· 첨삭 결과와 이후 대화는 **모두 스트리밍**입니다. **이미지가 있는 추가 질문**이 가능하고 "다시 첨삭"/"오답 노트에 저장"도 사용할 수 있습니다
-· **보호된 메시지**: 풀이/첨삭/유사 문제의 다중 선택에서 **문제 본문**과 **AI의 첫 응답**(정답·첨삭 결과, 첨삭 시 내 답안 이미지 포함)은 **선택·삭제할 수 없습니다**
+v0.5.4
+· ✏️ **첨삭 페이지 개편**: 촬영 후 바로 **전체 화면 첨삭 페이지**(풀이 UI 재사용, 제목 "첨삭")로 이동. 결과와 이후 대화는 **모두 스트리밍**, **이미지가 있는 추가 질문** 가능. 첨삭 중 "⏸ 첨삭 중단", 질문 중 "⏸ 중단", 대기 중 "🔄 다시 첨삭"
+· 🧩 **유사 문제 페이지를 풀이 페이지에 맞춰 개편**: "🔄 다시 생성", "📚 오답 노트에 저장", "⏸ 중단", 하단은 동일한 입력 바(수식 키/갤러리/이미지/전송). "정답 보기"는 **왼쪽 아래 타원 버튼**(준비 전에는 비활성)
+· 🖼 **갤러리는 시스템 "순서 선택"**: 선택 시 **1/2/3 번호**가 표시되고 고른 순서대로 반환됩니다. **사진 권한 불필요**. 2장 모드는 한 번에 2장 선택(1=문제, 2=답안)
+· 🛡 **보호된 메시지**: **문제 본문**과 **AI의 첫 응답**은 **선택·삭제할 수 없습니다**(회색 점선 원). 다중 선택 중에는 길게 누르기가 비활성
+· 💭 **내용이 없어도 말풍선**: 첫 글자까지 "**생각 중…**", 중단 후에는 말풍선을 유지하고 파란 "**생성 계속**"
+· 📊 **복습 페이지 하단은 진행 바**로. "정답 보기"는 화면을 움직이지 않고, "정답 숨기기"는 맨 위로
+· 🔁 촬영/첨삭 페이지는 각각 **"1장/2장"을 기억**. ↑/↓는 **내용이 한 화면을 넘을 때만** 표시
+· 🔤 페이지 제목 통일. 첨삭 페이지 버튼 깨짐 수정
 
 v0.5.3
 · **풀이와 추가 질문에 스트리밍 출력 지원**: 생성되는 대로 표시(끝에 ▍ 커서). 긴 유도 과정도 통째로 기다릴 필요가 없습니다
