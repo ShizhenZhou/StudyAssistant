@@ -69,6 +69,10 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
     var scrollTopTick by remember { mutableIntStateOf(0) }
+    // 「收起答案」时立刻回顶
+    var resetScrollTick by remember { mutableIntStateOf(0) }
+    // 「查看答案」时只关闭跟随、不动画面；「收起答案」时回顶
+    var noFollowTick by remember { mutableIntStateOf(0) }
     var scrollBottomTick by remember { mutableIntStateOf(0) }
     var atTop by remember { mutableStateOf(true) }
     // 会话内容是否超过一屏：没超过就不显示 ↑/↓ 按钮
@@ -76,13 +80,28 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     val question = vm.similarQuestion
     val answer = vm.similarAnswer
     val revealed = vm.similarRevealed
-    val messages = remember(vm.similarQuestion, vm.similarMessages, revealed, vm.similarStreamingText) {
+    // ⚠️ remember 的键必须包含「出题被中止」与「忙碌」状态，否则中止后不会重算 → 蓝色「继续生成」永远不出现
+    val messages = remember(
+        vm.similarQuestion,
+        vm.similarMessages,
+        revealed,
+        vm.similarStreamingText,
+        vm.similarBusy,
+        vm.similarInterrupted
+    ) {
         buildList {
-            // 出题中：流式文本就是题目本身（只含题目部分，答案不外显）；出题完成后用正式题目
+            // 出题中/被中止：流式文本就是题目本身（只含题目部分，答案不外显）；出题完成后用正式题目
             val qText = vm.similarQuestion ?: vm.similarStreamingText
-            if (qText != null) add(ChatMsg("assistant", qText))
-            // 出题首字未到（思考中）：也要有一条**气泡**，而不是空白页
-            if (qText == null && vm.similarBusy) add(ChatMsg("assistant", s["solve.thinking"]))
+            val qBase = qText ?: if (vm.similarBusy || vm.similarInterrupted) s["solve.thinking"] else null
+            if (qBase != null) {
+                // 出题被中止：气泡末尾补蓝色「继续生成」（点它 = 重新出题），否则用户无从继续
+                val content = if (vm.similarInterrupted) {
+                    qBase + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]"
+                } else {
+                    qBase
+                }
+                add(ChatMsg("assistant", content))
+            }
             for (m in vm.similarMessages) add(ChatMsg(if (m.role == "assistant") "assistant" else "user", m.content))
             // 追问中：把流式回复作为最后一条实时气泡；首字未到时显示「思考中…」
             if (vm.similarQuestion != null && vm.similarStreamingText != null) {
@@ -146,7 +165,8 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             TextButton(onClick = { vm.abortSimilar() }, contentPadding = smallPad) {
                                 Text(s["solve.abort"], fontSize = 13.sp, maxLines = 1, softWrap = false)
                             }
-                        } else if (questionShown) {
+                        } else if (questionShown || vm.similarInterrupted) {
+                            // 出题完成、或被中止 → 都可「重新生成」（清空会话重出一题）
                             TextButton(onClick = { vm.startSimilar() }, contentPadding = smallPad) {
                                 Text(s["solve.regen"], fontSize = 13.sp, maxLines = 1, softWrap = false)
                             }
@@ -181,8 +201,12 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         scrollBottomSignal = scrollBottomTick,
+                        resetScrollSignal = resetScrollTick,
+                        noFollowSignal = noFollowTick,
                         onAtTopChange = { atTop = it },
                         onScrollableChange = { scrollable = it },
+                        // 气泡里的蓝色「继续生成」（出题被中止时）→ 重新出题
+                        onContinue = { vm.continueSimilar() },
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择）
                         onLongPressMessage = { idx ->
                             if (!editMode && !vm.similarBusy && idx in messages.indices) {
@@ -210,7 +234,17 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     // 左下角椭圆按钮：查看答案 / 收起答案（答案未生成好时置灰）
                     if (!editMode && (question != null || vm.similarStreamingText != null || revealed)) {
                         Surface(
-                            onClick = { if (revealed) vm.hideSimilarAnswer() else vm.revealSimilarAnswer() },
+                            onClick = {
+                                if (revealed) {
+                                    // 收起解答：回到顶部
+                                    resetScrollTick++
+                                    vm.hideSimilarAnswer()
+                                } else {
+                                    // 查看答案：画面保持不动（只关闭自动跟随）
+                                    noFollowTick++
+                                    vm.revealSimilarAnswer()
+                                }
+                            },
                             enabled = revealed || answer != null,
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.95f),

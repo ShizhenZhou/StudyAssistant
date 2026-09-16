@@ -126,6 +126,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var scrollBottomTick by remember { mutableIntStateOf(0) }
     // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
     var atTop by remember { mutableStateOf(true) }
+    // 「看解答」不动画面、「收起解答」回顶
+    var noFollowTick by remember { mutableIntStateOf(0) }
     // 会话内容是否超过一屏：没超过就不显示 ↑/↓ 按钮
     var scrollable by remember { mutableStateOf(false) }
     // 换题（复习上一题→下一题、错题本切换）时立刻回到顶部
@@ -510,6 +512,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         },
                         scrollBottomSignal = scrollBottomTick,
                         resetScrollSignal = resetScrollTick,
+                        noFollowSignal = noFollowTick,
                         onAtTopChange = { atTop = it },
                         onScrollableChange = { scrollable = it },
                         modifier = Modifier
@@ -560,7 +563,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
-                    TextButton(onClick = { answerRevealed = !answerRevealed }) {
+                    TextButton(onClick = {
+                        if (answerRevealed) {
+                            resetScrollTick++          // 收起解答 → 回到顶部
+                            answerRevealed = false
+                        } else {
+                            noFollowTick++             // 看解答 → 画面保持不动
+                            answerRevealed = true
+                        }
+                    }) {
                         Text(if (answerRevealed) s["review.hideAnswer"] else s["review.showAnswer"])
                     }
                 }

@@ -883,6 +883,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var similarStreamingText by mutableStateOf<String?>(null)
         private set
 
+    /** 同类题出题被中止（还没出题成功）→ 界面显示蓝色「继续生成」 */
+    var similarInterrupted by mutableStateOf(false)
+        private set
+
     /** 同类题的出题/追问任务（用于「⏸ 中止生成」） */
     private var similarJob: Job? = null
     private var similarSeq = 0L
@@ -917,6 +921,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             similarBusy = true
             similarQuestion = null; similarAnswer = null; similarMessages = emptyList(); similarRevealed = false
             similarStreamingText = null
+            similarInterrupted = false
             similarSavedQuestionId = null
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
@@ -975,12 +980,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 中止同类题的出题 / 追问（与解题页的 ⏸ 中止生成 对齐） */
     fun abortSimilar() {
+        val hadQuestion = similarQuestion != null
+        val partial = similarStreamingText
         similarSeq++
         StudyAssistant.cancelActiveStream()
         similarJob?.cancel()
         similarJob = null
         similarBusy = false
-        similarStreamingText = null
+        if (!hadQuestion) {
+            // 出题阶段被中止（可能一个字都没出）：保留气泡 + 给蓝色「继续生成」（= 重新出题）
+            similarInterrupted = true
+            similarStreamingText = partial?.takeIf { it.isNotBlank() }
+        } else {
+            // 追问阶段被中止：把已生成片段保留成正式消息，避免白等
+            if (!partial.isNullOrBlank()) {
+                similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", partial)
+            }
+            similarStreamingText = null
+        }
+    }
+
+    /** 同类题出题被中止后的「继续生成」：重新出题 */
+    fun continueSimilar() {
+        similarInterrupted = false
+        startSimilar()
     }
 
     fun sendSimilar(text: String, images: List<ByteArray> = emptyList()) {

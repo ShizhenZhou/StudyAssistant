@@ -61,6 +61,8 @@ fun ConversationWebView(
     scrollBottomSignal: Int = 0,
     /** 每次自增 = 立刻重置到顶部（换题/换会话时用，无动画） */
     resetScrollSignal: Int = 0,
+    /** 每次自增 = 只关闭「自动跟随」，**不改变滚动位置**（展开答案时保持画面不动） */
+    noFollowSignal: Int = 0,
     /** 会话是否已在顶部（用于把按钮在 ↑ / ↓ 之间切换） */
     onAtTopChange: (Boolean) -> Unit = {},
     /** 会话内容是否超过一屏（false → 界面隐藏 ↑/↓ 按钮） */
@@ -120,6 +122,13 @@ fun ConversationWebView(
     LaunchedEffect(resetScrollSignal) {
         if (resetScrollSignal > 0) {
             webRef?.evaluateJavascript("window.dshScrollReset && window.dshScrollReset();", null)
+        }
+    }
+
+    // 展开答案等场景：只关闭「自动跟随」，滚动位置保持不动
+    LaunchedEffect(noFollowSignal) {
+        if (noFollowSignal > 0) {
+            webRef?.evaluateJavascript("window.dshNoFollow && window.dshNoFollow();", null)
         }
     }
 

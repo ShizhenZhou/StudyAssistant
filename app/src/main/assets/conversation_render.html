@@ -140,6 +140,11 @@ window.dshScrollReset = function(){
   lastAtTop = null;   // 下一帧重新上报，保证按钮状态正确
   lastScrollable = null;
 };
+/** 只关闭「自动跟随」，不改变滚动位置（例如展开答案时希望画面保持不动） */
+window.dshNoFollow = function(){
+  following = false; touching = false;
+  if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
+};
 function reportPos(){
   var scrollable = (document.body.scrollHeight - window.innerHeight) > 40;
   var atTop = scrollable && (window.scrollY <= 2);
