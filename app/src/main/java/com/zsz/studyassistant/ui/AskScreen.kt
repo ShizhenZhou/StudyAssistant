@@ -72,7 +72,7 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(s["ask.title"], fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(s["ask.title"], maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
                 actions = {
                     TextButton(onClick = { picker.launch(imagePickRequest(maxItems = 3)) }) { Text(s["ask.addImage"]) }

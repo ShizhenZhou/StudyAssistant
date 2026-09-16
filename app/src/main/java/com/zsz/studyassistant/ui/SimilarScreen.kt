@@ -103,7 +103,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             )
                         }
                     } else {
-                        Text(s["similar.title"], fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(s["similar.title"], maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
                 navigationIcon = {
