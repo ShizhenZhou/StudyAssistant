@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,20 +59,11 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
     var text by remember { mutableStateOf("") }
     var images by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
 
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(3)
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            val newOnes = uris.mapNotNull { uri ->
-                try {
-                    val f = File.createTempFile("ask", ".jpg", context.cacheDir)
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        f.outputStream().use { output -> input.copyTo(output) }
-                    }
-                    StudyAssistant.compressImage(f)
-                } catch (e: Exception) { null }
-            }
-            images = (images + newOnes).take(3)
+    // 自建相册选择器（带勾选序号）：追加到已有图片，最多 3 张（顺序即勾选顺序）
+    LaunchedEffect(vm.pickerTick) {
+        if (vm.pickerTick > 0) {
+            val newOnes = vm.pickerUris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
+            if (newOnes.isNotEmpty()) images = (images + newOnes).take(3)
         }
     }
 
@@ -81,7 +73,7 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
                 title = { Text(s["ask.title"], fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
                 actions = {
-                    TextButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(s["ask.addImage"]) }
+                    TextButton(onClick = { vm.startPick(3); nav.navigate("gallery") }) { Text(s["ask.addImage"]) }
                 }
             )
         }

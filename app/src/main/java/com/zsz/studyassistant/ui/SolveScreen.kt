@@ -106,24 +106,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var answerRevealed by remember { mutableStateOf(false) }
     LaunchedEffect(vm.savedQuestionId) { answerRevealed = false }
 
-    // 从相册选 1~3 张图，附到追问消息里
-    val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(3)
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            val newOnes = uris.mapNotNull { uri ->
-                try {
-                    val file = File.createTempFile("fup", ".jpg", context.cacheDir)
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        file.outputStream().use { output -> input.copyTo(output) }
-                    }
-                    StudyAssistant.compressImage(file)
-                } catch (e: Exception) {
-                    null
-                }
-            }
-            // 最多保留 3 张
-            selectedImages = (selectedImages + newOnes).take(3)
+    // 自建相册选择器（带勾选序号）：选 1~3 张附到追问消息里，最多保留 3 张（顺序即勾选顺序）
+    LaunchedEffect(vm.pickerTick) {
+        if (vm.pickerTick > 0) {
+            val newOnes = vm.pickerUris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
+            if (newOnes.isNotEmpty()) selectedImages = (selectedImages + newOnes).take(3)
         }
     }
 
@@ -183,13 +170,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         val live = vm.streamingText
         when {
             live == null -> mapped
-            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = s["solve.thinking"], images = emptyList())
             // 被中断（网络异常 / 用户中止）：在已生成内容末尾补一行可点的蓝色「继续生成」
+            // 注意要排在「空内容」之前：思考期就被中止时，一个字都没有 → 显示「思考中…」+ 继续生成，气泡不消失
             vm.streamInterrupted -> mapped + ChatMsg(
                 role = "assistant",
-                content = live + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]",
+                content = (if (live.isEmpty()) s["solve.thinking"] else live) + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]",
                 images = emptyList()
             )
+            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = s["solve.thinking"], images = emptyList())
             else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList())
         }
     }
@@ -637,7 +625,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 ) {
                     // 图库选图按钮（选 1~3 张附在追问里）
                     Surface(
-                        onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onClick = { vm.startPick(3); nav.navigate("gallery") },
                         enabled = !vm.busy,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.secondaryContainer,

@@ -282,13 +282,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         streamCall(contModel, msgs, contPrefix, onDone, repeat = null)
     }
 
-    private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> =
-        original +
+    private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
+        // 一个字都没生成（还在「思考中…」就被中止）：直接重发原请求，不附加空的 assistant 消息
+        if (partial.isBlank()) return original
+        return original +
             DeepSeekMessage("assistant", JsonPrimitive(partial)) +
             DeepSeekMessage(
                 "user",
                 JsonPrimitive("请接着上面未写完的内容继续输出，从中断处直接续写；不要重复已经写过的部分，也不要重新开始。")
             )
+    }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
         // 非批改的流式请求（解题/追问/重新生成/继续）：按钮显示「⏸ 中止生成」
@@ -309,6 +312,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repeat: (() -> Unit)?
     ) {
         callJob?.cancel()
+        val mySeq = ++callSeq
         callJob = viewModelScope.launch {
             busy = true
             error = null
@@ -344,39 +348,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 contPrefix = ""
             } catch (e: Exception) {
                 // 用户中止时协程已被取消（关闭响应体导致的 IOException 也走这里）：
-                // 统一按「中断」处理——保留已生成内容、不报错，并提供「继续生成」
+                // 统一按「中断」处理——**甚至一个字都没生成时也保留气泡**（界面显示「思考中…」+ 蓝色「继续生成」）
                 val aborted = e is CancellationException || !currentCoroutineContext().isActive
                 val partial = prefix + sb
-                keepPartial = partial.isNotBlank()
-                if (!keepPartial) streamingText = null
-                if (keepPartial) {
-                    streamInterrupted = true
-                    contModel = model
-                    contMessages = continuationMessages(messages, partial)
-                    contPrefix = partial
-                    contOnDone = onDone
-                    // 用完整累积文本刷新一次界面（节流窗口内最后 <180ms 的增量也要显示出来）
-                    streamingText = partial
-                }
-                if (aborted) {
-                    error = null
-                    retryAction = null
-                } else {
-                    error = friendlyError(e, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
-                    val msg = e.message.orEmpty().lowercase()
-                    if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
-                        msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")
-                    ) {
-                        networkError = true
-                        retryAction = repeat
+                // 有内容 → 保留；零输出但属于「用户主动中止」→ 也保留（气泡不消失）；零输出且是失败 → 走错误分支
+                keepPartial = partial.isNotBlank() || aborted
+                // 已被新请求取代的旧请求：不改界面状态（否则会把新请求的「思考中…」/内容冲掉）
+                if (mySeq == callSeq) {
+                    if (keepPartial) {
+                        streamInterrupted = true
+                        contModel = model
+                        contMessages = continuationMessages(messages, partial)
+                        contPrefix = partial
+                        contOnDone = onDone
+                        // 用完整累积文本刷新一次界面（可能是空串 → 界面显示「思考中…」+ 蓝色「继续生成」）
+                        streamingText = partial
+                    } else {
+                        streamingText = null
+                    }
+                    if (aborted) {
+                        error = null
+                        retryAction = null
+                    } else {
+                        error = friendlyError(e, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
+                        val msg = e.message.orEmpty().lowercase()
+                        if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
+                            msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")
+                        ) {
+                            networkError = true
+                            retryAction = repeat
+                        }
                     }
                 }
                 if (e is CancellationException) throw e
             } finally {
-                busy = false
-                if (!keepPartial) streamingText = null
+                // 已被新请求取代的旧请求：不要动界面状态（避免把新请求的气泡/忙碌态清掉）
+                if (mySeq == callSeq) {
+                    busy = false
+                    if (!keepPartial) streamingText = null
+                    callJob = null
+                }
                 com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
-                callJob = null
             }
         }
     }
@@ -1135,6 +1147,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 当前这次流式请求是否为「批改」（决定按钮显示「⏸ 中止批改」还是「⏸ 中止生成」） */
     var busyIsGrade by mutableStateOf(false)
         private set
+
+    /** 流式请求序号：用于识别"已被新请求取代的旧请求"，避免旧请求收尾时覆盖新请求的界面状态 */
+    private var callSeq = 0L
+
+    // ---- 自建相册选择器（带勾选序号）的请求/结果通道 ----
+    /** 本次最多可选几张（1=单选，2=两张模式，3=追问附图） */
+    var pickerMax by mutableStateOf(1)
+        private set
+    /** 每次选完 +1，作为结果信号；调用页用 LaunchedEffect(pickerTick) 取结果 */
+    var pickerTick by mutableStateOf(0)
+        private set
+    /** 选好的图片 URI（**按勾选顺序**） */
+    var pickerUris by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    fun startPick(max: Int) { pickerMax = if (max < 1) 1 else max }
+
+    fun setPickResult(uris: List<String>) {
+        pickerUris = uris
+        pickerTick += 1
+    }
 
     /** 批改请求（流式）；repeat 用于网络失败重试 */
     private fun gradeCall() {
