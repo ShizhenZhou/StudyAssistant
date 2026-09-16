@@ -183,7 +183,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         val live = vm.streamingText
         when {
             live == null -> mapped
-            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = "▍", images = emptyList())
+            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = s["solve.thinking"], images = emptyList())
             // 被中断（网络异常 / 用户中止）：在已生成内容末尾补一行可点的蓝色「继续生成」
             vm.streamInterrupted -> mapped + ChatMsg(
                 role = "assistant",
@@ -474,7 +474,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             if (vm.chatItems.isEmpty() || switching) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (switching) s["review.nextQuestion"] else if (vm.busy) s["solve.generating"] else s["solve.waitingQuestion"],
+                        if (switching) s["review.nextQuestion"] else if (vm.busy) s["solve.thinking"] else s["solve.waitingQuestion"],
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (switching) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface

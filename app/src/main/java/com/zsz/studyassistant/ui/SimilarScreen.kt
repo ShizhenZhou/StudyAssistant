@@ -64,9 +64,10 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
             val qText = vm.similarQuestion ?: vm.similarStreamingText
             if (qText != null) add(ChatMsg("assistant", qText))
             for (m in vm.similarMessages) add(ChatMsg(if (m.role == "assistant") "assistant" else "user", m.content))
-            // 追问中：把流式回复作为最后一条实时气泡（带光标）
+            // 追问中：把流式回复作为最后一条实时气泡；首字未到时显示「思考中…」
             if (vm.similarQuestion != null && vm.similarStreamingText != null) {
-                add(ChatMsg("assistant", vm.similarStreamingText + "\n\n▍"))
+                val live = vm.similarStreamingText!!
+                add(ChatMsg("assistant", if (live.isEmpty()) s["solve.thinking"] else live + "\n\n▍"))
             }
             if (revealed && vm.similarAnswer != null) add(ChatMsg("assistant", s.format("similar.answerPrefix", "body" to vm.similarAnswer!!)))
         }
@@ -133,7 +134,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         Column(Modifier.fillMaxSize().imePadding().padding(padding)) {
             if (vm.similarBusy && question == null && vm.similarStreamingText == null) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text(s["similar.generating"], style = MaterialTheme.typography.bodyMedium)
+                    Text(s["solve.thinking"], style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 Box(Modifier.weight(1f).fillMaxWidth()) {

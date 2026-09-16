@@ -1057,6 +1057,7 @@ private val B9_ZH = mapOf(
     "solve.mistakeTitle" to "错题",
     "solve.gradeTitle" to "批改",
     "solve.regrade" to "重新批改",
+    "solve.thinking" to "思考中…",
     "review.titleProgress" to "复习 {i}/{n}",
     "review.nextQuestion" to "下一题"
 )
@@ -1069,6 +1070,7 @@ private val B9_EN = mapOf(
     "solve.mistakeTitle" to "Problem",
     "solve.gradeTitle" to "Grading",
     "solve.regrade" to "Re-grade",
+    "solve.thinking" to "Thinking…",
     "review.titleProgress" to "Review {i}/{n}",
     "review.nextQuestion" to "Next"
 )
@@ -1081,6 +1083,7 @@ private val B9_JA = mapOf(
     "solve.mistakeTitle" to "誤答",
     "solve.gradeTitle" to "添削",
     "solve.regrade" to "再添削",
+    "solve.thinking" to "考え中…",
     "review.titleProgress" to "復習 {i}/{n}",
     "review.nextQuestion" to "次の問題"
 )
@@ -1093,6 +1096,7 @@ private val B9_KO = mapOf(
     "solve.mistakeTitle" to "오답",
     "solve.gradeTitle" to "첨삭",
     "solve.regrade" to "다시 첨삭",
+    "solve.thinking" to "생각 중…",
     "review.titleProgress" to "복습 {i}/{n}",
     "review.nextQuestion" to "다음 문제"
 )
