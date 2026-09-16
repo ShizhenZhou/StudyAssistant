@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.delay
 import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
@@ -138,6 +139,18 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var atTop by remember { mutableStateOf(true) }
     // 换题（复习上一题→下一题、错题本切换）时立刻回到顶部
     var resetScrollTick by remember { mutableIntStateOf(0) }
+
+    // 复习切题：先做一次「清屏」（人眼可见地提示换了题），同时折叠答案、回到顶部
+    var switching by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.reviewMode, vm.reviewDone) {
+        if (vm.reviewMode) {
+            answerRevealed = false      // 切换题目时自动把答案折叠回去
+            resetScrollTick++           // 新题从顶部开始
+            switching = true
+            delay(320)                  // 约 0.3s 的空白，明确让人看到“换题了”
+            switching = false
+        }
+    }
 
     // 复习：题目切换（reviewDone 变化或换了题）→ 页面回到顶端
     // 只在复习模式生效：否则「存错题本」等操作改了 savedQuestionId 也会误触发回顶
@@ -205,6 +218,17 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 softWrap = false
                             )
                         }
+                    } else if (vm.reviewMode) {
+                        // 复习：标题显示「复习 当前/总数」（总数 = 打开复习时今日剩余的错题数）
+                        Text(
+                            s.format(
+                                "review.titleProgress",
+                                "i" to "${vm.reviewDone + 1}",
+                                "n" to "${vm.reviewTotal}"
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     } else if (vm.isFromNotebook) {
                         // 错题页标题：与「解题」「错题本」统一用大字号（TopAppBar 默认）
                         Text(
@@ -421,12 +445,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             // 题目不再单独折叠显示：原题/我的提问已作为浅绿用户气泡显示在对话里
 
             // 多选不再切到缩略列表：仍在原消息界面上操作（气泡右上角圆圈 + 选中红框）
-            if (vm.chatItems.isEmpty()) {
+            if (vm.chatItems.isEmpty() || switching) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (vm.busy) s["solve.generating"] else s["solve.waitingQuestion"],
+                        if (switching) s["review.nextQuestion"] else if (vm.busy) s["solve.generating"] else s["solve.waitingQuestion"],
                         textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (switching) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
                     )
                 }
             } else {

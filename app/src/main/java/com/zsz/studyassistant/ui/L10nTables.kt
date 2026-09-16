@@ -1054,7 +1054,9 @@ private val B9_ZH = mapOf(
     "solve.continue" to "继续生成",
     "solve.selectAll" to "全选",
     "solve.deselectAll" to "取消全选",
-    "solve.mistakeTitle" to "错题"
+    "solve.mistakeTitle" to "错题",
+    "review.titleProgress" to "复习 {i}/{n}",
+    "review.nextQuestion" to "下一题"
 )
 
 private val B9_EN = mapOf(
@@ -1062,7 +1064,9 @@ private val B9_EN = mapOf(
     "solve.continue" to "Continue generating",
     "solve.selectAll" to "Select all",
     "solve.deselectAll" to "Deselect all",
-    "solve.mistakeTitle" to "Problem"
+    "solve.mistakeTitle" to "Problem",
+    "review.titleProgress" to "Review {i}/{n}",
+    "review.nextQuestion" to "Next"
 )
 
 private val B9_JA = mapOf(
@@ -1070,7 +1074,9 @@ private val B9_JA = mapOf(
     "solve.continue" to "生成を続ける",
     "solve.selectAll" to "すべて選択",
     "solve.deselectAll" to "選択解除",
-    "solve.mistakeTitle" to "誤答"
+    "solve.mistakeTitle" to "誤答",
+    "review.titleProgress" to "復習 {i}/{n}",
+    "review.nextQuestion" to "次の問題"
 )
 
 private val B9_KO = mapOf(
@@ -1078,7 +1084,9 @@ private val B9_KO = mapOf(
     "solve.continue" to "생성 계속",
     "solve.selectAll" to "전체 선택",
     "solve.deselectAll" to "선택 해제",
-    "solve.mistakeTitle" to "오답"
+    "solve.mistakeTitle" to "오답",
+    "review.titleProgress" to "복습 {i}/{n}",
+    "review.nextQuestion" to "다음 문제"
 )
 
 // ===========================================================================
