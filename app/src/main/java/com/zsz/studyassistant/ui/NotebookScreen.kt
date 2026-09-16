@@ -143,18 +143,26 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                 title = {
                     if (selectionMode) {
                         // 多选：小字号（与解题页会话多选一致）——左侧「全选/取消全选」+ 已选条数
+                        // 全部不换行，避免被右侧按钮挤成两行
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val allSelected = filtered.isNotEmpty() && selectedIds.size == filtered.size
                             TextButton(
                                 onClick = { selectedIds = if (allSelected) emptySet() else filtered.map { it.id }.toSet() },
-                                contentPadding = PaddingValues(horizontal = 6.dp)
+                                contentPadding = PaddingValues(horizontal = 4.dp)
                             ) {
-                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = 13.sp)
+                                Text(
+                                    if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"],
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
                             }
                             Text(
                                 s.format("notebook.selectedCount", "n" to "${selectedIds.size}"),
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline
+                                color = MaterialTheme.colorScheme.outline,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     } else {
@@ -168,7 +176,11 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 navigationIcon = {
                     when {
-                        selectionMode -> IconButton(onClick = { exitSelection() }) { Text("✕", fontSize = 18.sp) }
+                        // 多选：✕ 用紧凑 TextButton（IconButton 固定 48dp，会挤占标题空间）
+                        selectionMode -> TextButton(
+                            onClick = { exitSelection() },
+                            contentPadding = PaddingValues(horizontal = 6.dp)
+                        ) { Text("✕", fontSize = 18.sp) }
                         page == "manage" -> IconButton(onClick = { page = "list"; searchOpen = false }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
                         }
@@ -181,9 +193,11 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                     when {
                         page == "manage" -> { /* 管理页无额外操作 */ }
                         selectionMode -> {
-                            TextButton(onClick = { showBatchCategory = true }) { Text(s["notebook.category"]) }
-                            TextButton(onClick = { showBatchDelete = true }) { Text(s["solve.delete"]) }
-                            TextButton(onClick = { exitSelection() }) { Text(s["solve.done"]) }
+                            // 三个按钮紧凑摆放（缩小左右内边距），给标题让出空间
+                            val compact = PaddingValues(horizontal = 4.dp)
+                            TextButton(onClick = { showBatchCategory = true }, contentPadding = compact) { Text(s["notebook.category"], maxLines = 1, softWrap = false) }
+                            TextButton(onClick = { showBatchDelete = true }, contentPadding = compact) { Text(s["solve.delete"], maxLines = 1, softWrap = false) }
+                            TextButton(onClick = { exitSelection() }, contentPadding = compact) { Text(s["solve.done"], maxLines = 1, softWrap = false) }
                         }
                         else -> {
                             // 🔍 搜索：点开才出现搜索框，再点别处关闭

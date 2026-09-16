@@ -82,7 +82,9 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             Text(
                                 s.format("solve.selectedCount", "n" to "${selectedIndices.size}"),
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline
+                                color = MaterialTheme.colorScheme.outline,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     } else {
