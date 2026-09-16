@@ -204,43 +204,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             )
                         }
                     } else if (vm.isFromNotebook) {
-                        // 错题页：标题为「错题」，右侧紧跟「删除」（右侧位置留给生成中的「中止生成」）
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                s["solve.mistakeTitle"],
-                                fontSize = 16.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (vm.isDeleted) {
-                                TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                                    Text(s["solve.restore"], fontSize = 13.sp)
-                                }
-                            } else {
-                                TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                                    Text(s["solve.delete"], fontSize = 13.sp)
-                                }
-                            }
-                            // 分类：也收在标题行，避免占用右侧（右侧只留给「中止生成」）
-                            val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
-                            TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                                val catName = curCat?.name ?: s["solve.noCategory"]
-                                Text(
-                                    if (curCat != null) s.format("solve.category", "name" to catName) else s["solve.category.none"],
-                                    fontSize = when {
-                                        catName.length <= 3 -> 12.sp
-                                        catName.length <= 5 -> 11.sp
-                                        else -> 10.sp
-                                    },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
+                        // 错题页标题：与「解题」「错题本」统一用大字号（TopAppBar 默认）
+                        Text(
+                            s["solve.mistakeTitle"],
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     } else {
                         Text(
                             s["solve.title"],
-                            fontSize = 16.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(min = 40.dp)
@@ -271,11 +243,39 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
                     } else {
                         if (vm.isFromNotebook) {
-                            // 错题页：删除/分类已移到标题行 → 此处原删除位置只用于「生成中」的中止按钮
+                            // 顺序（左→右）：[⏸ 中止生成(仅生成中)] [🗑 删除(生成中禁用)] [📁 分类(最右)]
                             if (vm.busy) {
                                 TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
                                     Text(s["solve.abort"], fontSize = 13.sp)
                                 }
+                            }
+                            if (vm.isDeleted) {
+                                TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
+                                    Text(s["solve.restore"], fontSize = 13.sp)
+                                }
+                            } else {
+                                TextButton(
+                                    onClick = { showDeleteConfirm = true },
+                                    enabled = !vm.busy,   // 生成答案时不可用
+                                    contentPadding = smallPad
+                                ) {
+                                    Text(s["solve.delete"], fontSize = 13.sp)
+                                }
+                            }
+                            // 分类：最右侧，与删除紧挨
+                            val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
+                            TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
+                                val catName = curCat?.name ?: s["solve.noCategory"]
+                                Text(
+                                    if (curCat != null) s.format("solve.category", "name" to catName) else s["solve.category.none"],
+                                    fontSize = when {
+                                        catName.length <= 3 -> 12.sp
+                                        catName.length <= 5 -> 11.sp
+                                        else -> 10.sp
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy

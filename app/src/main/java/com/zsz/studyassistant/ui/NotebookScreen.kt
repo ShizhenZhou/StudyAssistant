@@ -141,13 +141,30 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        when {
-                            page == "manage" -> s["catManage.title"]
-                            selectionMode -> s.format("notebook.selectedCount", "n" to "${selectedIds.size}")
-                            else -> s.format("notebook.title", "n" to "${questions.size}")
+                    if (selectionMode) {
+                        // 多选：小字号（与解题页会话多选一致）——左侧「全选/取消全选」+ 已选条数
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val allSelected = filtered.isNotEmpty() && selectedIds.size == filtered.size
+                            TextButton(
+                                onClick = { selectedIds = if (allSelected) emptySet() else filtered.map { it.id }.toSet() },
+                                contentPadding = PaddingValues(horizontal = 6.dp)
+                            ) {
+                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = 13.sp)
+                            }
+                            Text(
+                                s.format("notebook.selectedCount", "n" to "${selectedIds.size}"),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
                         }
-                    )
+                    } else {
+                        // 页标题：与「解题」「错题」统一用大字号（TopAppBar 默认）
+                        Text(
+                            if (page == "manage") s["catManage.title"] else s.format("notebook.title", "n" to "${questions.size}"),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 },
                 navigationIcon = {
                     when {

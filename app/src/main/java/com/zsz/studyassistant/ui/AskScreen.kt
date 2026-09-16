@@ -38,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -76,7 +78,7 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(s["ask.title"]) },
+                title = { Text(s["ask.title"], fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
                 actions = {
                     TextButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(s["ask.addImage"]) }

@@ -95,7 +95,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(s["review.title"]) },
+                title = { Text(s["review.title"], fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
