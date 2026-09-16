@@ -1053,28 +1053,32 @@ private val B9_ZH = mapOf(
     "solve.abort" to "⏸ 中止生成",
     "solve.continue" to "继续生成",
     "solve.selectAll" to "全选",
-    "solve.deselectAll" to "取消全选"
+    "solve.deselectAll" to "取消全选",
+    "solve.mistakeTitle" to "错题"
 )
 
 private val B9_EN = mapOf(
     "solve.abort" to "⏸ Stop",
     "solve.continue" to "Continue generating",
     "solve.selectAll" to "Select all",
-    "solve.deselectAll" to "Deselect all"
+    "solve.deselectAll" to "Deselect all",
+    "solve.mistakeTitle" to "Problem"
 )
 
 private val B9_JA = mapOf(
     "solve.abort" to "⏸ 中止",
     "solve.continue" to "生成を続ける",
     "solve.selectAll" to "すべて選択",
-    "solve.deselectAll" to "選択解除"
+    "solve.deselectAll" to "選択解除",
+    "solve.mistakeTitle" to "誤答"
 )
 
 private val B9_KO = mapOf(
     "solve.abort" to "⏸ 중단",
     "solve.continue" to "생성 계속",
     "solve.selectAll" to "전체 선택",
-    "solve.deselectAll" to "선택 해제"
+    "solve.deselectAll" to "선택 해제",
+    "solve.mistakeTitle" to "오답"
 )
 
 // ===========================================================================
