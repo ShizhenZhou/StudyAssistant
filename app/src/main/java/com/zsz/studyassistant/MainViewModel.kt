@@ -1151,24 +1151,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 流式请求序号：用于识别"已被新请求取代的旧请求"，避免旧请求收尾时覆盖新请求的界面状态 */
     private var callSeq = 0L
 
-    // ---- 自建相册选择器（带勾选序号）的请求/结果通道 ----
-    /** 本次最多可选几张（1=单选，2=两张模式，3=追问附图） */
-    var pickerMax by mutableStateOf(1)
-        private set
-    /** 每次选完 +1，作为结果信号；调用页用 LaunchedEffect(pickerTick) 取结果 */
-    var pickerTick by mutableStateOf(0)
-        private set
-    /** 选好的图片 URI（**按勾选顺序**） */
-    var pickerUris by mutableStateOf<List<String>>(emptyList())
-        private set
-
-    fun startPick(max: Int) { pickerMax = if (max < 1) 1 else max }
-
-    fun setPickResult(uris: List<String>) {
-        pickerUris = uris
-        pickerTick += 1
-    }
-
     /** 批改请求（流式）；repeat 用于网络失败重试 */
     private fun gradeCall() {
         val imgs = directImages

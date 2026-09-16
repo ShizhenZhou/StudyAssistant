@@ -1059,12 +1059,6 @@ private val B9_ZH = mapOf(
     "solve.regrade" to "🔄 重新批改",
     "solve.abortGrade" to "⏸ 中止批改",
     "solve.thinking" to "思考中…",
-    "picker.title" to "选择图片",
-    "picker.maxHint" to "最多 {n} 张 · 右上角数字=勾选顺序",
-    "picker.done" to "完成（{n}）",
-    "picker.needPerm" to "需要「照片和视频」权限才能读取相册",
-    "picker.grant" to "授予权限",
-    "picker.empty" to "相册里没有找到图片",
     "review.titleProgress" to "复习 {i}/{n}",
     "review.nextQuestion" to "下一题"
 )
@@ -1079,12 +1073,6 @@ private val B9_EN = mapOf(
     "solve.regrade" to "🔄 Re-grade",
     "solve.abortGrade" to "⏸ Stop grading",
     "solve.thinking" to "Thinking…",
-    "picker.title" to "Choose images",
-    "picker.maxHint" to "Up to {n} · number = tap order",
-    "picker.done" to "Done ({n})",
-    "picker.needPerm" to "Photo access is required to show your gallery",
-    "picker.grant" to "Grant access",
-    "picker.empty" to "No images found",
     "review.titleProgress" to "Review {i}/{n}",
     "review.nextQuestion" to "Next"
 )
@@ -1099,12 +1087,6 @@ private val B9_JA = mapOf(
     "solve.regrade" to "🔄 再添削",
     "solve.abortGrade" to "⏸ 添削を中止",
     "solve.thinking" to "考え中…",
-    "picker.title" to "画像を選択",
-    "picker.maxHint" to "最大 {n} 枚 · 数字＝選択順",
-    "picker.done" to "完了（{n}）",
-    "picker.needPerm" to "写真へのアクセス権限が必要です",
-    "picker.grant" to "許可する",
-    "picker.empty" to "画像が見つかりません",
     "review.titleProgress" to "復習 {i}/{n}",
     "review.nextQuestion" to "次の問題"
 )
@@ -1119,12 +1101,6 @@ private val B9_KO = mapOf(
     "solve.regrade" to "🔄 다시 첨삭",
     "solve.abortGrade" to "⏸ 첨삭 중단",
     "solve.thinking" to "생각 중…",
-    "picker.title" to "이미지 선택",
-    "picker.maxHint" to "최대 {n}장 · 숫자=선택 순서",
-    "picker.done" to "완료 ({n})",
-    "picker.needPerm" to "사진 접근 권한이 필요합니다",
-    "picker.grant" to "권한 허용",
-    "picker.empty" to "이미지가 없습니다",
     "review.titleProgress" to "복습 {i}/{n}",
     "review.nextQuestion" to "다음 문제"
 )

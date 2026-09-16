@@ -34,7 +34,6 @@ import androidx.navigation.compose.rememberNavController
 import com.zsz.studyassistant.ui.CameraScreen
 import com.zsz.studyassistant.ui.CropScreen
 import com.zsz.studyassistant.ui.AskScreen
-import com.zsz.studyassistant.ui.GalleryPickerScreen
 import com.zsz.studyassistant.ui.GradeScreen
 import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.LocalStrings
@@ -98,7 +97,6 @@ class MainActivity : ComponentActivity() {
                                 composable("ask") { AskScreen(nav, viewModel) }
                                 composable("crop") { CropScreen(nav, viewModel) }
                                 composable("grade") { GradeScreen(nav, viewModel) }
-            composable("gallery") { GalleryPickerScreen(nav, viewModel) }
                                 composable("solve") { SolveScreen(nav, viewModel) }
                                 composable("notebook") { NotebookScreen(nav, viewModel) }
                                 composable("review") { ReviewScreen(nav, viewModel) }

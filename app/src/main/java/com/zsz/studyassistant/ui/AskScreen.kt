@@ -59,11 +59,13 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
     var text by remember { mutableStateOf("") }
     var images by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
 
-    // 自建相册选择器（带勾选序号）：追加到已有图片，最多 3 张（顺序即勾选顺序）
-    LaunchedEffect(vm.pickerTick) {
-        if (vm.pickerTick > 0) {
-            val newOnes = vm.pickerUris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
-            if (newOnes.isNotEmpty()) images = (images + newOnes).take(3)
+    // 系统相册（开启**有序选择**）：追加到已有图片，最多 3 张（返回顺序 = 勾选顺序）
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(3)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val newOnes = uris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
+            images = (images + newOnes).take(3)
         }
     }
 
@@ -73,7 +75,7 @@ fun AskScreen(nav: NavHostController, vm: MainViewModel) {
                 title = { Text(s["ask.title"], fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { TextButton(onClick = { nav.popBackStack() }) { Text("←") } },
                 actions = {
-                    TextButton(onClick = { vm.startPick(3); nav.navigate("gallery") }) { Text(s["ask.addImage"]) }
+                    TextButton(onClick = { picker.launch(imagePickRequest(maxItems = 3)) }) { Text(s["ask.addImage"]) }
                 }
             )
         }

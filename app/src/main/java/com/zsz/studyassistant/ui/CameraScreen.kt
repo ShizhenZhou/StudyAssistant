@@ -166,25 +166,27 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             FocusRing(center = fp, focused = focusDone)
         }
 
-        // 自建相册选择器（带勾选序号）：选好后回到本页处理，**顺序即勾选顺序**
-        LaunchedEffect(vm.pickerTick) {
-            if (vm.pickerTick > 0) {
-                val files = vm.pickerUris.take(vm.pickerMax).mapNotNull { uriToTempFile(context, it) }
-                if (files.isNotEmpty()) {
-                    if (!doubleMode) {
-                        processImageFile(files[0])                 // 单张：进入框选页
-                    } else {
-                        files.take(2).forEach { processImageFile(it) }  // 两张：第一张=题目，第二张=作答
-                    }
-                }
+        // 系统相册（开启**有序选择**）：单张 → 进框选页；两张模式 → 第 1 张=题目、第 2 张=作答
+        val gallerySingle = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                uriToTempFile(context, uri, "gallery")?.let { processImageFile(it) }
+                    ?: vm.showError(s["camera.errRead"])
             }
+        }
+        val galleryMulti = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickMultipleVisualMedia(2)
+        ) { uris ->
+            val files = uris.take(2).mapNotNull { uriToTempFile(context, it, "gallery") }
+            files.take(2).forEach { processImageFile(it) }   // 依次处理：第 1 张先存为题目，第 2 张触发解答
         }
 
         // 从图库选图（左下角，圆角正方形 + 花瓣图标）
         Surface(
             onClick = {
-                vm.startPick(if (doubleMode) 2 else 1)
-                nav.navigate("gallery")
+                if (doubleMode) galleryMulti.launch(imagePickRequest(maxItems = 2))
+                else gallerySingle.launch(imagePickRequest())
             },
             enabled = !vm.busy,
             shape = RoundedCornerShape(16.dp),

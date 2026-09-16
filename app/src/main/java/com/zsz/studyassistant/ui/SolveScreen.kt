@@ -106,11 +106,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var answerRevealed by remember { mutableStateOf(false) }
     LaunchedEffect(vm.savedQuestionId) { answerRevealed = false }
 
-    // 自建相册选择器（带勾选序号）：选 1~3 张附到追问消息里，最多保留 3 张（顺序即勾选顺序）
-    LaunchedEffect(vm.pickerTick) {
-        if (vm.pickerTick > 0) {
-            val newOnes = vm.pickerUris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
-            if (newOnes.isNotEmpty()) selectedImages = (selectedImages + newOnes).take(3)
+    // 系统相册（开启**有序选择**）：选 1~3 张附到追问消息里，最多保留 3 张（返回顺序 = 勾选顺序）
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(3)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val newOnes = uris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
+            selectedImages = (selectedImages + newOnes).take(3)
         }
     }
 
@@ -625,7 +627,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 ) {
                     // 图库选图按钮（选 1~3 张附在追问里）
                     Surface(
-                        onClick = { vm.startPick(3); nav.navigate("gallery") },
+                        onClick = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
                         enabled = !vm.busy,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.secondaryContainer,

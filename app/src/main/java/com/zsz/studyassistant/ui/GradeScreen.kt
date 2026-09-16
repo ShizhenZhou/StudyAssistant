@@ -143,21 +143,24 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
 
-        // 自建相册选择器（带勾选序号）：选好后回到本页，**按勾选顺序**处理
-        //  - 两张模式一次选两张：第 1 张=题目、第 2 张=作答 → 直接开始批改
-        //  - 只选一张：先当题目（等作答），可再点图库补选作答
-        LaunchedEffect(vm.pickerTick) {
-            if (vm.pickerTick > 0) {
-                val picked = vm.pickerUris.take(if (doubleMode) 2 else 1)
-                    .mapNotNull { uriToCompressedBytes(context, it) }
-                when {
-                    picked.size >= 2 -> {
-                        vm.startGrade(picked[0], picked[1])
-                        nav.navigate("solve") { popUpTo("home") }
-                        awaitingAnswer = false
-                    }
-                    picked.size == 1 -> processImage(picked[0])
+        // 系统相册（开启**有序选择**）：一次选两张 → 第 1 张=题目、第 2 张=我的作答 → 直接批改；
+        // 只选一张 → 先当题目（等作答），可再点图库补选作答
+        val gallerySingle = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) uriToCompressedBytes(context, uri)?.let { processImage(it) }
+        }
+        val galleryMulti = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickMultipleVisualMedia(2)
+        ) { uris ->
+            val picked = uris.take(2).mapNotNull { uriToCompressedBytes(context, it) }
+            when {
+                picked.size >= 2 -> {
+                    vm.startGrade(picked[0], picked[1])
+                    nav.navigate("solve") { popUpTo("home") }
+                    awaitingAnswer = false
                 }
+                picked.size == 1 -> processImage(picked[0])
             }
         }
 
@@ -170,9 +173,8 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         // 图库按钮（左下，与拍题模式一致）
         Surface(
             onClick = {
-                // 自建相册选择器：两张模式最多选 2 张（带勾选序号），单张模式选 1 张
-                vm.startPick(if (doubleMode) 2 else 1)
-                nav.navigate("gallery")
+                if (doubleMode) galleryMulti.launch(imagePickRequest(maxItems = 2))
+                else gallerySingle.launch(imagePickRequest())
             },
             enabled = !vm.gradeBusy,
             shape = RoundedCornerShape(16.dp),
