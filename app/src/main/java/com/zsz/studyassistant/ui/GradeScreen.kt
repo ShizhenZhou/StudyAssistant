@@ -129,6 +129,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         focusPoint?.let { fp -> FocusRing(center = fp, focused = focusDone) }
 
         // 统一处理一张图片：单张→直接批改；两张→先存题目，再拍/选答案后批改
+        // 拍完即进入**全屏批改页**（复用解题界面，流式输出批改结果，可继续带图追问）
         val processImage: (ByteArray) -> Unit = { bytes ->
             if (doubleMode && questionBytes == null) {
                 questionBytes = bytes
@@ -136,9 +137,8 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             } else {
                 val q = questionBytes ?: bytes
                 val ans = if (doubleMode) bytes else null
-                shownQuestion = q
-                shownAnswer = ans
-                vm.grade(q, ans)
+                vm.startGrade(q, ans)
+                nav.navigate("solve") { popUpTo("home") }
                 awaitingAnswer = false
             }
         }
@@ -202,8 +202,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 单张/两张切换（右下，正常大小）
         Surface(
-            onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false; vm.clearGradeResult(); shownQuestion = null; shownAnswer = null },
-            enabled = !vm.gradeBusy,
+            onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false },
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 36.dp).height(44.dp)
@@ -215,39 +214,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         }
 
         TextButton(onClick = { nav.popBackStack() }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) { Text(s["common.backArrow"]) }
-
-        // 批改结果
-        if (vm.gradeBusy || vm.gradeResult.isNotBlank()) {
-            Card(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp).fillMaxWidth().size(430.dp)) {
-                Column(Modifier.padding(12.dp).fillMaxSize()) {
-                    if (vm.gradeBusy) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(s["grade.busy"]) }
-                    } else {
-                        // 我的题目/作答图（浅绿用户气泡）+ 批改结果，保持一致
-                        val msgs = buildList<ChatMsg> {
-                            shownQuestion?.let { b ->
-                                add(ChatMsg("user", s["grade.label.question"], listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
-                            }
-                            shownAnswer?.let { b ->
-                                add(ChatMsg("user", s["grade.label.answer"], listOf(android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP))))
-                            }
-                            add(ChatMsg("assistant", vm.gradeResult))
-                        }
-                        ConversationWebView(msgs, Modifier.weight(1f).fillMaxWidth())
-                        TextButton(
-                            onClick = {
-                                vm.clearGradeResult()
-                                questionBytes = null
-                                shownQuestion = null
-                                shownAnswer = null
-                                awaitingAnswer = false
-                            },
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        ) { Text(s["grade.retake"]) }
-                    }
-                }
-            }
-        }
+        // 批改结果不再显示在相机页：拍完直接进入全屏批改页（复用解题界面，流式输出）
     }
 }
 

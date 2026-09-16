@@ -72,15 +72,23 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
 
+    // 多选时禁止删除：AI 出的题目（第一条 assistant 消息）
+    val lockedIndices = remember(messages) {
+        buildSet {
+            messages.indexOfFirst { it.role == "assistant" }.takeIf { it >= 0 }?.let { add(it) }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     if (editMode) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val allSelected = messages.isNotEmpty() && selectedIndices.size == messages.size
+                            val selectable = messages.indices.filter { it !in lockedIndices }
+                            val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
                             TextButton(
-                                onClick = { selectedIndices = if (allSelected) emptySet() else messages.indices.toSet() },
+                                onClick = { selectedIndices = if (allSelected) emptySet() else messages.indices.filter { it !in lockedIndices }.toSet() },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
                                 Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = 13.sp)
@@ -135,7 +143,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         scrollBottomSignal = scrollBottomTick,
                         onAtTopChange = { atTop = it },
                         onLongPressMessage = { idx ->
-                            if (!vm.similarBusy && idx in messages.indices) {
+                            if (!vm.similarBusy && idx in messages.indices && idx !in lockedIndices) {
                                 if (editMode) {
                                     selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                                 } else {
@@ -146,8 +154,9 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         },
                         selectionMode = editMode,
                         selectedIndices = selectedIndices,
+                        lockedIndices = lockedIndices,
                         onToggleSelect = { idx ->
-                            if (idx in messages.indices) {
+                            if (idx in messages.indices && idx !in lockedIndices) {
                                 selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                             }
                         },
@@ -202,7 +211,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                 text = { Text(s.format("solve.deleteMessages.text", "n" to "${selectedIndices.size}")) },
                 confirmButton = {
                     TextButton(onClick = {
-                        vm.deleteSimilarItems(selectedIndices.sorted())
+                        vm.deleteSimilarItems(selectedIndices.filter { it !in lockedIndices }.sorted())
                         showDeleteConfirm = false
                         editMode = false
                         selectedIndices = emptySet()

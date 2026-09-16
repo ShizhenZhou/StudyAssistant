@@ -206,7 +206,8 @@ function msgKey(m){
 }
 function bubbleHtml(m, idx){
   var cls = (m.role==='assistant') ? 'assistant' : 'user';
-  var isSel = !!selectedSet[idx];
+  var locked = !!lockedSet[idx];              // 题干 / AI 首条回复：多选时不可选、不可删
+  var isSel = !locked && !!selectedSet[idx];
   var imgHtml = '';
   if(m.images && m.images.length){
     for(var j=0;j<m.images.length;j++){
@@ -228,12 +229,14 @@ function bubbleHtml(m, idx){
   if(contLabel !== null){
     body += '<div class="continue" onclick="event.stopPropagation();continueGen()">'+esc(contLabel)+'</div>';
   }
-  return '<div class="bubble '+cls+(selectionMode?' selmode':'')+(isSel?' selected':'')+'" data-idx="'+idx+'"'
-       + ' onclick="bubbleTap('+idx+')">' + body + imgHtml + '<div class="pick">'+(isSel?'✓':'')+'</div></div>';
+  return '<div class="bubble '+cls+((selectionMode && !locked)?' selmode':'')+(isSel?' selected':'')+'" data-idx="'+idx+'"'
+       + ' onclick="bubbleTap('+idx+')">' + body + imgHtml
+       + (locked ? '' : '<div class="pick">'+(isSel?'✓':'')+'</div>') + '</div>';
 }
 // ── 多选状态与交互（长按进入；点气泡切换；圆圈在右上角，选中显示红框） ──
 var selectionMode = false;
 var selectedSet = {};
+var lockedSet = {};   // 受保护、不可选中的下标（题干 / AI 首条回复）
 /** 开/关「多选态」样式（顺带禁用长按选文字） */
 function setSelModeClass(on){
   try{
@@ -245,10 +248,13 @@ function selInit(sel){
   selectionMode = !!(sel && sel.on);
   selectedSet = {};
   if(sel && sel.selected){ for(var i=0;i<sel.selected.length;i++){ selectedSet[sel.selected[i]] = 1; } }
+  lockedSet = {};
+  if(sel && sel.locked){ for(var i=0;i<sel.locked.length;i++){ lockedSet[sel.locked[i]] = 1; } }
   setSelModeClass(selectionMode);
 }
 function bubbleTap(idx){
   if(!selectionMode) return;
+  if(lockedSet[idx]) return;                  // 受保护的消息不参与多选
   try{ if(window.Android && Android.toggleMessage){ Android.toggleMessage(idx); } }catch(e){}
 }
 function imgTap(e, el, idx){
@@ -263,7 +269,8 @@ function renderMessages(arr, sel){
   selInit(sel);
   var out = document.getElementById('out');
   // 选择态变化时必须全量重建（否则已渲染的气泡不会更新圆圈/红框）
-  var selKey = (selectionMode ? '1' : '0') + ':' + Object.keys(selectedSet).sort().join(',');
+  var selKey = (selectionMode ? '1' : '0') + ':' + Object.keys(selectedSet).sort().join(',')
+             + '|' + Object.keys(lockedSet).sort().join(',');
   if(selKey !== renderedSelKey){ renderedKeys = []; renderedSelKey = selKey; }
   // 找出与上次渲染相同的前缀长度 k：前 k 条完全不动
   var k = 0;

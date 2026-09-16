@@ -243,6 +243,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
         reviewMode = false
+        gradeMode = false
         directImages = emptyList()
         multiImages = emptyList()
         questionImages = emptyList()
@@ -564,7 +565,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (text.isBlank()) return
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         addItem("user", text, encoded)
-        val model = if (isPhoto || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp(encoded) })
     }
 
@@ -1099,6 +1100,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearGradeResult() { gradeResult = "" }
+
+    /** 批改模式：复用解题页界面（标题显示「批改」），会话 = 题目/作答图 + 批改结果 + 后续问答 */
+    var gradeMode by mutableStateOf(false)
+        private set
+
+    /**
+     * 开始批改（流式、全屏复用解题页）：把「题目图 [+ 我的作答图]」作为一条提问，
+     * 批改结果流式追加；之后可继续带图追问。
+     */
+    fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?) {
+        resetSession()
+        gradeMode = true
+        val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
+        val imgs = buildList {
+            add(questionBytes)
+            answerBytes?.let { add(it) }
+        }
+        directImages = imgs
+        questionFromPhoto = false
+        questionText = if (answerBytes != null) {
+            str["grade.label.question"] + " + " + str["grade.label.answer"]
+        } else {
+            str["grade.label.question"]
+        }
+        val encoded = imgs.map { Base64.encodeToString(it, Base64.NO_WRAP) }
+        questionImages = encoded
+        addItem("question", questionText, encoded)
+        gradeCall()
+    }
+
+    /** 批改请求（流式）；repeat 用于网络失败重试 */
+    private fun gradeCall() {
+        val imgs = directImages
+        if (imgs.isEmpty()) return
+        val msgs = listOf(
+            StudyAssistant.languageSystemMessage(aiLang),
+            StudyAssistant.gradeUserMessage(imgs[0], imgs.getOrNull(1), aiLang)
+        )
+        streamCall(StudyAssistant.MODEL_VISION, msgs, prefix = "", onDone = { addItem("assistant", it) }, repeat = { gradeCall() })
+    }
+
+    /** 重新批改（用当前会话的题目/作答图再跑一次） */
+    fun regrade() { gradeCall() }
 
 
     /** 加载某条错题的完整对话会话（用于续答） */

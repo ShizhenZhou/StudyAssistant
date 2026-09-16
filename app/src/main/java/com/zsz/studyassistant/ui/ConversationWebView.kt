@@ -71,6 +71,8 @@ fun ConversationWebView(
     selectionMode: Boolean = false,
     /** 多选态下已选中的消息下标 */
     selectedIndices: Set<Int> = emptySet(),
+    /** 多选时**不可选中/不可删除**的下标（题干与 AI 首条回复：答案 / 批改结果） */
+    lockedIndices: Set<Int> = emptySet(),
     /** 多选态下点击某条气泡 → 切换选中 */
     onToggleSelect: (Int) -> Unit = {}
 ) {
@@ -80,10 +82,14 @@ fun ConversationWebView(
     var zoomImage by remember { mutableStateOf<String?>(null) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
 
-    /** 多选状态 → JS 载荷（选择变化也要触发重渲染，故与消息一起进入去重 key） */
+    /** 多选状态 → JS 载荷（选择/锁定变化也要触发重渲染，故与消息一起进入去重 key） */
     fun selectionJson(): String =
-        if (selectionMode) "{\"on\":true,\"selected\":[" + selectedIndices.sorted().joinToString(",") + "]}"
-        else "{\"on\":false,\"selected\":[]}"
+        if (selectionMode) {
+            "{\"on\":true,\"selected\":[" + selectedIndices.sorted().joinToString(",") +
+                "],\"locked\":[" + lockedIndices.sorted().joinToString(",") + "]}"
+        } else {
+            "{\"on\":false,\"selected\":[],\"locked\":[]}"
+        }
 
     // 回到顶部：同时暂停流式跟随，避免又被自动拉回底部
     LaunchedEffect(scrollTopSignal) {

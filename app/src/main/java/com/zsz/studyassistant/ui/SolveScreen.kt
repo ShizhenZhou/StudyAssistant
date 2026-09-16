@@ -194,6 +194,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
 
+    // 多选时禁止删除：题干（第一条 question）与 AI 的第一条回复（答案 / 批改结果）
+    // 批改模式下「我的手写作答」也在第一条 question 气泡里，因此一并受保护
+    val lockedIndices = remember(vm.chatItems) {
+        buildSet {
+            vm.chatItems.indexOfFirst { it.role == "question" }.takeIf { it >= 0 }?.let { add(it) }
+            vm.chatItems.indexOfFirst { it.role == "assistant" }.takeIf { it >= 0 }?.let { add(it) }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -201,10 +210,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     if (editMode) {
                         // 多选态：左侧「全选 / 取消全选」+ 已选条数（删除/完成仍在右侧）
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val allSelected = vm.chatItems.isNotEmpty() && selectedIndices.size == vm.chatItems.size
+                            val selectable = vm.chatItems.indices.filter { it !in lockedIndices }
+                            val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
                             TextButton(
                                 onClick = {
-                                    selectedIndices = if (allSelected) emptySet() else vm.chatItems.indices.toSet()
+                                    selectedIndices = if (allSelected) emptySet() else vm.chatItems.indices.filter { it !in lockedIndices }.toSet()
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
@@ -218,6 +228,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 softWrap = false
                             )
                         }
+                    } else if (vm.gradeMode) {
+                        // 批改模式：全屏复用解题界面，标题「批改」
+                        Text(
+                            s["solve.gradeTitle"],
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     } else if (vm.reviewMode) {
                         // 复习：标题显示「复习 当前/总数」（总数 = 打开复习时今日剩余的错题数）
                         Text(
@@ -250,7 +267,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
                     } else {
                         TextButton(onClick = {
-                            if (vm.isFromNotebook) {
+                            if (vm.isFromNotebook || vm.gradeMode) {
+                                // 错题本 / 批改：返回上一页
                                 nav.popBackStack()
                             } else {
                                 // 拍题流程：返回直接回拍题界面
@@ -305,10 +323,18 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
-                            // 生成中：重新生成 → ⏸ 中止生成（按一下立刻停，按钮变回重新生成）
+                            // 生成中：⏸ 中止生成；否则按模式显示「重新批改」（批改）/「重新生成」（解题）
                             if (vm.busy) {
                                 TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
                                     Text(s["solve.abort"], fontSize = 13.sp)
+                                }
+                            } else if (vm.gradeMode) {
+                                TextButton(
+                                    onClick = { vm.regrade() },
+                                    enabled = vm.chatItems.isNotEmpty(),
+                                    contentPadding = smallPad
+                                ) {
+                                    Text(s["solve.regrade"], fontSize = 13.sp)
                                 }
                             } else {
                                 TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty(), contentPadding = smallPad) {
@@ -360,7 +386,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 text = { Text(s.format("solve.deleteMessages.text", "n" to "${selectedIndices.size}")) },
                 confirmButton = {
                     TextButton(onClick = {
-                        vm.deleteMessages(selectedIndices.toList())
+                        vm.deleteMessages(selectedIndices.filter { it !in lockedIndices })
                         showEditDelete = false
                         editMode = false
                         selectedIndices = emptySet()
@@ -462,7 +488,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         onContinue = { vm.continueGeneration() },
                         // 长按气泡 → 进入多选并选中该条；已在多选态则等同点按（切换），不清空其他已选
                         onLongPressMessage = { idx ->
-                            if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
+                            if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices && idx !in lockedIndices) {
                                 if (editMode) {
                                     selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                                 } else {
@@ -474,8 +500,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         // 多选态：气泡右上角圆圈 + 选中红框；点气泡切换选中
                         selectionMode = editMode,
                         selectedIndices = selectedIndices,
+                        lockedIndices = lockedIndices,
                         onToggleSelect = { idx ->
-                            if (idx in vm.chatItems.indices) {
+                            if (idx in vm.chatItems.indices && idx !in lockedIndices) {
                                 selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                             }
                         },

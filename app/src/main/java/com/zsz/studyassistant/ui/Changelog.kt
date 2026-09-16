@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.4_beta（测试分支 streaming_output_test）
+· **批改页重做**：拍完题目（或题目+作答）直接进入**全屏批改页**（复用解题界面，标题「批改」）
+· 批改结果与后续问答**全部流式输出**；批改页可**带图追问**，并支持「重新批改」「存错题本」
+· **多选保护**：解题/批改/同类题等界面进入多选后，**题干**与 **AI 第一条回复**（答案 / 批改结果，批改含自己的作答）**不可选中、不可删除**
+
 v0.5.3
 · **解题与追问流式输出**：答案边生成边显示（末尾有 ▍ 光标），长推导不用再整段白等；生成中可继续滚动阅读
 · 生成中可点 **⏸ 中止生成**（立即停止）；中断或中止后在内容末尾显示蓝色「**继续生成**」，点击**从中断处接着写**，不重复已写内容
@@ -164,6 +169,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.4_beta (test branch streaming_output_test)
+· **Grading page rebuilt**: after shooting the question (or question + your answer) you go straight to a **full-screen grading page** reusing the solve UI, titled "Grading"
+· Grading results and follow-up Q&A are now **fully streamed**; you can **ask with images** and use "Re-grade" / "Save to notebook"
+· **Protected messages**: in multi-select on solve / grading / similar pages, the **question** and the **first AI reply** (answer or grading result — including your own answer image when grading) **cannot be selected or deleted**
+
 v0.5.3
 · **Streaming answers for solve and follow-up**: the answer appears while it is generated (with a trailing ▍ cursor), so long derivations no longer make you wait for the whole block
 · **⏸ Stop** while generating; after a stop or a network drop the text already generated is kept and a blue "**Continue generating**" line appends at the end — tapping it **resumes from where it stopped** without repeating
@@ -323,6 +333,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.4_beta（テストブランチ streaming_output_test）
+· **添削ページを刷新**：撮影後すぐに**全画面の添削ページ**（解答 UI を再利用、タイトル「添削」）へ
+· 添削結果と以降のやり取りは**すべてストリーミング**。**画像付きの追加質問**が可能で、「再添削」「間違いノートに保存」も使えます
+· **保護されたメッセージ**：解答／添削／類似問題の複数選択で、**問題文**と **AI の最初の返信**（解答・添削結果。添削では自分の答案画像も含む）は**選択・削除できません**
+
 v0.5.3
 · **解答と追加質問でストリーミング出力に対応**：生成しながら表示（末尾に ▍ カーソル）。長い導出でも一括待ちが不要になりました
 · 生成中は **⏸ 中止**が可能。中止・通信断の後は末尾に青い「**生成を続ける**」が出て、タップすると**中断箇所から続きを生成**します（重複しません）
@@ -482,6 +497,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.4_beta(테스트 브랜치 streaming_output_test)
+· **첨삭 페이지 개편**: 촬영 후 바로 **전체 화면 첨삭 페이지**(풀이 UI 재사용, 제목 "첨삭")로 이동
+· 첨삭 결과와 이후 대화는 **모두 스트리밍**입니다. **이미지가 있는 추가 질문**이 가능하고 "다시 첨삭"/"오답 노트에 저장"도 사용할 수 있습니다
+· **보호된 메시지**: 풀이/첨삭/유사 문제의 다중 선택에서 **문제 본문**과 **AI의 첫 응답**(정답·첨삭 결과, 첨삭 시 내 답안 이미지 포함)은 **선택·삭제할 수 없습니다**
+
 v0.5.3
 · **풀이와 추가 질문에 스트리밍 출력 지원**: 생성되는 대로 표시(끝에 ▍ 커서). 긴 유도 과정도 통째로 기다릴 필요가 없습니다
 · 생성 중 **⏸ 중단** 가능. 중단·네트워크 끊김 후에는 끝에 파란 "**생성 계속**"이 생기고, 누르면 **중단 지점부터 이어서** 생성합니다(중복 없음)
