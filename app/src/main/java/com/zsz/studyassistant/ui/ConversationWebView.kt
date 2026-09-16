@@ -77,6 +77,14 @@ fun ConversationWebView(
     onToggleSelect: (Int) -> Unit = {}
 ) {
     val currentMessages by rememberUpdatedState(messages)
+    // ⚠️ JS 桥接对象只在 AndroidView 的 factory 里创建一次，会永久捕获当时的 lambda。
+    // 若直接调用 onXxx()，用的就是**首次组合**时的那份闭包（其中的 selectedIndices/lockedIndices 等值永远是旧的），
+    // 曾导致「受保护消息（题干/AI 首条）长按仍被算作可选中 → 已选 1 条」。
+    // 因此所有回调都必须通过 rememberUpdatedState 取最新值。
+    val currentOnContinue by rememberUpdatedState(onContinue)
+    val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
+    val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
+    val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
     var loaded by remember { mutableStateOf(false) }
     var lastJson by remember { mutableStateOf<String?>(null) }
     var zoomImage by remember { mutableStateOf<String?>(null) }
@@ -144,25 +152,25 @@ fun ConversationWebView(
                         /** 气泡末尾的蓝色「继续生成」被点击 */
                         @JavascriptInterface
                         fun continueGeneration() {
-                            Handler(Looper.getMainLooper()).post { onContinue() }
+                            Handler(Looper.getMainLooper()).post { currentOnContinue() }
                         }
 
                         /** 长按消息气泡 → 进入原生多选（编辑）界面，并选中被长按的那条 */
                         @JavascriptInterface
                         fun longPressMessage(idx: Int) {
-                            Handler(Looper.getMainLooper()).post { onLongPressMessage(idx) }
+                            Handler(Looper.getMainLooper()).post { currentOnLongPress(idx) }
                         }
 
                         /** 多选态下点击气泡 → 切换选中 */
                         @JavascriptInterface
                         fun toggleMessage(idx: Int) {
-                            Handler(Looper.getMainLooper()).post { onToggleSelect(idx) }
+                            Handler(Looper.getMainLooper()).post { currentOnToggleSelect(idx) }
                         }
 
                         /** 网页上报「是否已滚动到顶部」→ 按钮在 ↑ / ↓ 之间切换 */
                         @JavascriptInterface
                         fun onAtTop(atTop: Boolean) {
-                            Handler(Looper.getMainLooper()).post { onAtTopChange(atTop) }
+                            Handler(Looper.getMainLooper()).post { currentOnAtTopChange(atTop) }
                         }
 
                         @JavascriptInterface

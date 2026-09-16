@@ -490,12 +490,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
                         // 长按气泡 → 进入多选并选中该条
-                        // 受保护的消息（题干 / AI 首条回复）：同样进入多选，但**清空选择**（显示灰色虚线圆圈，不可选）
+                        // 受保护的消息（题干 / AI 首条回复）：可从普通态长按进入多选（不选中它，显示灰色虚线圈）；
+                        // 已在多选中则保持现有选择不变（不要清空）
                         onLongPressMessage = { idx ->
                             if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
                                 if (idx in lockedIndices) {
-                                    editMode = true
-                                    selectedIndices = emptySet()
+                                    if (!editMode) {
+                                        editMode = true
+                                        selectedIndices = emptySet()
+                                    }
                                 } else if (editMode) {
                                     selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                                 } else {
