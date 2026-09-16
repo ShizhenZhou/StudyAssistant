@@ -489,11 +489,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
-                        // 长按气泡 → 进入多选并选中该条
-                        // 受保护的消息（题干 / AI 首条回复）：可从普通态长按进入多选（不选中它，显示灰色虚线圈）；
-                        // 已在多选中则保持现有选择不变（不要清空）
+                        // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择，JS 侧已拦截，这里再兜一层）
+                        // 受保护的消息（题干 / AI 首条回复）：从普通态长按进入多选时**不选中它**（显示灰色虚线圈）
                         onLongPressMessage = { idx ->
-                            if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
+                            if (!editMode && !vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
                                 if (idx in lockedIndices) {
                                     if (!editMode) {
                                         editMode = true

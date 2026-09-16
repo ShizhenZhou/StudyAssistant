@@ -143,9 +143,9 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         scrollTopSignal = scrollTopTick,
                         scrollBottomSignal = scrollBottomTick,
                         onAtTopChange = { atTop = it },
-                        // 长按气泡 → 进入多选并选中该条；受保护的消息（AI 出的题目）进入多选但清空选择
+                        // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择）
                         onLongPressMessage = { idx ->
-                            if (!vm.similarBusy && idx in messages.indices) {
+                            if (!editMode && !vm.similarBusy && idx in messages.indices) {
                                 if (idx in lockedIndices) {
                                     editMode = true
                                     selectedIndices = emptySet()

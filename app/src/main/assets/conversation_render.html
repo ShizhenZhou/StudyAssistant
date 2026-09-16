@@ -156,6 +156,8 @@ document.addEventListener('touchstart', function(e){
   if(lpTimer) clearTimeout(lpTimer);
   lpTimer = setTimeout(function(){
     if(!lpMoved && !isNaN(lpIdx)){
+      // 已在多选态：长按不再有任何作用（多选内只允许单次点击选择），避免歧义与误操作
+      if(selectionMode) return;
       setSelModeClass(true);   // 立刻关闭长按选文字，避免闪出选择手柄/复制菜单
       try{ if(window.Android && Android.longPressMessage){ Android.longPressMessage(lpIdx); } }catch(err){}
     }
