@@ -134,26 +134,21 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 },
                 actions = {
+                    // 紧凑右对齐：只放「重新生成 / 中止生成」+「存错题本」（查看答案已移到左下角椭圆按钮）
+                    val smallPad = PaddingValues(horizontal = 4.dp)
                     if (editMode) {
-                        TextButton(onClick = { showDeleteConfirm = true }, enabled = selectedIndices.isNotEmpty()) { Text(s["solve.delete"], fontSize = 13.sp) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text(s["solve.done"], fontSize = 13.sp) }
+                        TextButton(onClick = { showDeleteConfirm = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
                     } else {
-                        // 「查看答案」：题目已出现就显示；**答案还没生成好时置灰不可用**
-                        val questionShown = vm.similarQuestion != null || vm.similarStreamingText != null
-                        if (questionShown && !revealed) {
-                            TextButton(
-                                onClick = { vm.revealSimilarAnswer() },
-                                enabled = answer != null
-                            ) { Text(s["similar.showAnswer"]) }
-                        }
                         // 生成中：⏸ 中止生成；空闲：🔄 重新生成（清空会话并重出一道题）
+                        val questionShown = vm.similarQuestion != null || vm.similarStreamingText != null
                         if (vm.similarBusy) {
-                            TextButton(onClick = { vm.abortSimilar() }) {
-                                Text(s["solve.abort"], fontSize = 13.sp)
+                            TextButton(onClick = { vm.abortSimilar() }, contentPadding = smallPad) {
+                                Text(s["solve.abort"], fontSize = 13.sp, maxLines = 1, softWrap = false)
                             }
                         } else if (questionShown) {
-                            TextButton(onClick = { vm.startSimilar() }) {
-                                Text(s["solve.regen"], fontSize = 13.sp)
+                            TextButton(onClick = { vm.startSimilar() }, contentPadding = smallPad) {
+                                Text(s["solve.regen"], fontSize = 13.sp, maxLines = 1, softWrap = false)
                             }
                         }
                         // 存错题本（逻辑同解题页：选分类/标签后保存；已存再点 = 取消保存）
@@ -162,11 +157,12 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             onClick = {
                                 if (saved) vm.unsaveSimilarFromNotebook() else showSaveDialog = true
                             },
-                            enabled = questionShown
+                            enabled = questionShown,
+                            contentPadding = smallPad
                         ) {
                             val label = if (saved) s["solve.savedToNotebook"] else s["solve.saveToNotebook"]
-                            if (saved) Text(label, color = Color(0xFF4CAF50), fontSize = 13.sp)
-                            else Text(label, fontSize = 13.sp)
+                            if (saved) Text(label, color = Color(0xFF4CAF50), fontSize = 13.sp, maxLines = 1, softWrap = false)
+                            else Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -211,6 +207,28 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         },
                         modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)
                     )
+                    // 左下角椭圆按钮：查看答案 / 收起答案（答案未生成好时置灰）
+                    if (!editMode && (question != null || vm.similarStreamingText != null || revealed)) {
+                        Surface(
+                            onClick = { if (revealed) vm.hideSimilarAnswer() else vm.revealSimilarAnswer() },
+                            enabled = revealed || answer != null,
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.95f),
+                            shadowElevation = 3.dp,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(start = 12.dp, bottom = 12.dp)
+                        ) {
+                            Text(
+                                if (revealed) s["review.hideAnswer"] else s["similar.showAnswer"],
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+                            )
+                        }
+                    }
                     // 快速跳转：仅在**内容超过一屏**时出现；顶部时显示 ↓（滚到最底），否则 ↑（回到顶部）
                     if (!editMode && scrollable) {
                         Surface(

@@ -105,7 +105,7 @@ fun ConversationInputBar(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                placeholder = { Text(hint, fontSize = 14.sp) },
+                placeholder = { Text(hint, fontSize = 14.sp, maxLines = 1, softWrap = false) },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 maxLines = 3,
                 shape = RoundedCornerShape(22.dp)

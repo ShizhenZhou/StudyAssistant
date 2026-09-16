@@ -472,7 +472,7 @@ private val B3_ZH = mapOf(
     "similar.title" to "练同类题",
     "similar.showAnswer" to "👁 查看答案",
     "similar.generating" to "同类题生成中……",
-    "similar.hint" to "和 AI 互动，如：我不会这步…",
+    "similar.hint" to "继续追问…",
     "similar.answerPrefix" to "💡 答案\n\n{body}"
 )
 
@@ -489,7 +489,7 @@ private val B3_EN = mapOf(
     "similar.title" to "Similar problem",
     "similar.showAnswer" to "👁 Show answer",
     "similar.generating" to "Generating a similar problem…",
-    "similar.hint" to "Chat with the AI, e.g. \"I don't get this step…\"",
+    "similar.hint" to "Ask more…",
     "similar.answerPrefix" to "💡 Answer\n\n{body}"
 )
 
@@ -506,7 +506,7 @@ private val B3_JA = mapOf(
     "similar.title" to "類似問題",
     "similar.showAnswer" to "👁 解答を見る",
     "similar.generating" to "類似問題を生成中……",
-    "similar.hint" to "AI とやり取り（例：この変形がわかりません…）",
+    "similar.hint" to "追加で質問…",
     "similar.answerPrefix" to "💡 解答\n\n{body}"
 )
 
@@ -523,7 +523,7 @@ private val B3_KO = mapOf(
     "similar.title" to "유사 문제",
     "similar.showAnswer" to "👁 정답 보기",
     "similar.generating" to "유사 문제 생성 중……",
-    "similar.hint" to "AI와 대화하기 (예: 이 단계를 모르겠어요…)",
+    "similar.hint" to "추가 질문…",
     "similar.answerPrefix" to "💡 정답\n\n{body}"
 )
 

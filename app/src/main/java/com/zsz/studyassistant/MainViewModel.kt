@@ -876,6 +876,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun revealSimilarAnswer() { similarRevealed = true }
 
+    /** 收起同类题答案（左下角椭圆按钮切换） */
+    fun hideSimilarAnswer() { similarRevealed = false }
+
     /** 同类题流式中的文本：出题时 = 只含题目部分（答案不外显）；追问时 = 助手回复 */
     var similarStreamingText by mutableStateOf<String?>(null)
         private set
