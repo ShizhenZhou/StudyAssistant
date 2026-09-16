@@ -1056,7 +1056,8 @@ private val B9_ZH = mapOf(
     "solve.deselectAll" to "取消全选",
     "solve.mistakeTitle" to "错题",
     "solve.gradeTitle" to "批改",
-    "solve.regrade" to "重新批改",
+    "solve.regrade" to "🔁 重新批改",
+    "solve.abortGrade" to "⏸ 中止批改",
     "solve.thinking" to "思考中…",
     "review.titleProgress" to "复习 {i}/{n}",
     "review.nextQuestion" to "下一题"
@@ -1069,7 +1070,8 @@ private val B9_EN = mapOf(
     "solve.deselectAll" to "Deselect all",
     "solve.mistakeTitle" to "Problem",
     "solve.gradeTitle" to "Grading",
-    "solve.regrade" to "Re-grade",
+    "solve.regrade" to "🔁 Re-grade",
+    "solve.abortGrade" to "⏸ Stop grading",
     "solve.thinking" to "Thinking…",
     "review.titleProgress" to "Review {i}/{n}",
     "review.nextQuestion" to "Next"
@@ -1082,7 +1084,8 @@ private val B9_JA = mapOf(
     "solve.deselectAll" to "選択解除",
     "solve.mistakeTitle" to "誤答",
     "solve.gradeTitle" to "添削",
-    "solve.regrade" to "再添削",
+    "solve.regrade" to "🔁 再添削",
+    "solve.abortGrade" to "⏸ 添削を中止",
     "solve.thinking" to "考え中…",
     "review.titleProgress" to "復習 {i}/{n}",
     "review.nextQuestion" to "次の問題"
@@ -1095,7 +1098,8 @@ private val B9_KO = mapOf(
     "solve.deselectAll" to "선택 해제",
     "solve.mistakeTitle" to "오답",
     "solve.gradeTitle" to "첨삭",
-    "solve.regrade" to "다시 첨삭",
+    "solve.regrade" to "🔁 다시 첨삭",
+    "solve.abortGrade" to "⏸ 첨삭 중단",
     "solve.thinking" to "생각 중…",
     "review.titleProgress" to "복습 {i}/{n}",
     "review.nextQuestion" to "다음 문제"

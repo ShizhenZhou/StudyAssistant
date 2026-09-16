@@ -143,16 +143,17 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         scrollTopSignal = scrollTopTick,
                         scrollBottomSignal = scrollBottomTick,
                         onAtTopChange = { atTop = it },
-                        // 长按气泡 → 进入多选并选中该条；受保护的消息（AI 出的题目）也进多选，但不选中
+                        // 长按气泡 → 进入多选并选中该条；受保护的消息（AI 出的题目）进入多选但清空选择
                         onLongPressMessage = { idx ->
                             if (!vm.similarBusy && idx in messages.indices) {
-                                if (editMode) {
-                                    if (idx !in lockedIndices) {
-                                        selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
-                                    }
+                                if (idx in lockedIndices) {
+                                    editMode = true
+                                    selectedIndices = emptySet()
+                                } else if (editMode) {
+                                    selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                                 } else {
                                     editMode = true
-                                    selectedIndices = if (idx in lockedIndices) emptySet() else setOf(idx)
+                                    selectedIndices = setOf(idx)
                                 }
                             }
                         },

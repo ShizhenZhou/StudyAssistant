@@ -291,6 +291,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             )
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
+        // 非批改的流式请求（解题/追问/重新生成/继续）：按钮显示「⏸ 中止生成」
+        busyIsGrade = false
         val messages = buildMessages().toList()
         streamCall(model, messages, prefix = "", onDone = onDone, repeat = repeat)
     }
@@ -1130,6 +1132,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         gradeCall()
     }
 
+    /** 当前这次流式请求是否为「批改」（决定按钮显示「⏸ 中止批改」还是「⏸ 中止生成」） */
+    var busyIsGrade by mutableStateOf(false)
+        private set
+
     /** 批改请求（流式）；repeat 用于网络失败重试 */
     private fun gradeCall() {
         val imgs = directImages
@@ -1138,6 +1144,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             StudyAssistant.languageSystemMessage(aiLang),
             StudyAssistant.gradeUserMessage(imgs[0], imgs.getOrNull(1), aiLang)
         )
+        busyIsGrade = true
         streamCall(StudyAssistant.MODEL_VISION, msgs, prefix = "", onDone = { addItem("assistant", it) }, repeat = { gradeCall() })
     }
 

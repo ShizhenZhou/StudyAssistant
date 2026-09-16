@@ -323,10 +323,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         } else {
                             val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
-                            // 生成中：⏸ 中止生成；否则按模式显示「重新批改」（批改）/「重新生成」（解题）
+                            // 生成中：批改请求显示「⏸ 中止批改」，追问/其他显示「⏸ 中止生成」
                             if (vm.busy) {
                                 TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                    Text(s["solve.abort"], fontSize = 13.sp)
+                                    Text(
+                                        if (vm.gradeMode && vm.busyIsGrade) s["solve.abortGrade"] else s["solve.abort"],
+                                        fontSize = 13.sp
+                                    )
                                 }
                             } else if (vm.gradeMode) {
                                 TextButton(
@@ -486,16 +489,18 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
-                        // 长按气泡 → 进入多选并选中该条；受保护的消息（题干/AI 首条）也进多选，但不选中
+                        // 长按气泡 → 进入多选并选中该条
+                        // 受保护的消息（题干 / AI 首条回复）：同样进入多选，但**清空选择**（显示灰色虚线圆圈，不可选）
                         onLongPressMessage = { idx ->
                             if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
-                                if (editMode) {
-                                    if (idx !in lockedIndices) {
-                                        selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
-                                    }
+                                if (idx in lockedIndices) {
+                                    editMode = true
+                                    selectedIndices = emptySet()
+                                } else if (editMode) {
+                                    selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                                 } else {
                                     editMode = true
-                                    selectedIndices = if (idx in lockedIndices) emptySet() else setOf(idx)
+                                    selectedIndices = setOf(idx)
                                 }
                             }
                         },
