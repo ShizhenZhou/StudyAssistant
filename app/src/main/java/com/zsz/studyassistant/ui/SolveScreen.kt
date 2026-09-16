@@ -47,6 +47,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -558,11 +559,22 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    // 进度条（替代原来的「第 x/n 题」文字）：已完成比例 = 当前题号 / 总数
+                    val total = vm.reviewTotal.coerceAtLeast(1)
+                    val cur = (vm.reviewDone + 1).coerceIn(0, total)
+                    LinearProgressIndicator(
+                        progress = { cur.toFloat() / total.toFloat() },
+                        modifier = Modifier.weight(1f).height(8.dp),
+                        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(Modifier.width(10.dp))
                     Text(
-                        s.format("review.progress", "i" to "${vm.reviewDone + 1}", "n" to "${vm.reviewTotal}"),
+                        "$cur/$total",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
+                    Spacer(Modifier.width(6.dp))
                     TextButton(onClick = {
                         if (answerRevealed) {
                             resetScrollTick++          // 收起解答 → 回到顶部
