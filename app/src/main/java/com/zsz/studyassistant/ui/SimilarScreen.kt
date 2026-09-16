@@ -81,6 +81,8 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
             // 出题中：流式文本就是题目本身（只含题目部分，答案不外显）；出题完成后用正式题目
             val qText = vm.similarQuestion ?: vm.similarStreamingText
             if (qText != null) add(ChatMsg("assistant", qText))
+            // 出题首字未到（思考中）：也要有一条**气泡**，而不是空白页
+            if (qText == null && vm.similarBusy) add(ChatMsg("assistant", s["solve.thinking"]))
             for (m in vm.similarMessages) add(ChatMsg(if (m.role == "assistant") "assistant" else "user", m.content))
             // 追问中：把流式回复作为最后一条实时气泡；首字未到时显示「思考中…」
             if (vm.similarQuestion != null && vm.similarStreamingText != null) {
@@ -172,7 +174,8 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().imePadding().padding(padding)) {
-            if (vm.similarBusy && question == null && vm.similarStreamingText == null) {
+            // 出题/追问生成中也走 WebView：首字未到时由「思考中…」气泡占位（不再用居中文字）
+            if (messages.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     Text(s["solve.thinking"], style = MaterialTheme.typography.bodyMedium)
                 }

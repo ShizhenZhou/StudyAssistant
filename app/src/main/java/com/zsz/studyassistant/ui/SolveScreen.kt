@@ -466,10 +466,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             // 题目不再单独折叠显示：原题/我的提问已作为浅绿用户气泡显示在对话里
 
             // 多选不再切到缩略列表：仍在原消息界面上操作（气泡右上角圆圈 + 选中红框）
-            if (vm.chatItems.isEmpty() || switching) {
+            // 生成中即使一条消息都还没有，也走 WebView —— 由「流式气泡」显示「思考中…」（用户要求：无内容时要有气泡）
+            if (switching || (vm.chatItems.isEmpty() && !vm.busy)) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (switching) s["review.nextQuestion"] else if (vm.busy) s["solve.thinking"] else s["solve.waitingQuestion"],
+                        if (switching) s["review.nextQuestion"] else s["solve.waitingQuestion"],
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (switching) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
