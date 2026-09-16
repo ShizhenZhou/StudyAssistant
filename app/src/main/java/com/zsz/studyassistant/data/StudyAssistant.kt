@@ -109,15 +109,16 @@ object StudyAssistant {
         private set
 
     /** 通用调用：发送一组消息，返回助手回复文本 */
-    suspend fun chatOnce(model: String, messages: List<DeepSeekMessage>): String {
-        requireKey()
-        val resp = ApiClient.deepSeek.chat(
-            DeepSeekRequest(model = model, messages = messages, maxTokens = 4096)
-        )
-        lastUsage = resp.usage
-        return resp.choices.firstOrNull()?.message?.content?.asText()
-            ?: throw IllegalStateException("DeepSeek 返回为空")
-    }
+    // [已停用 2026-09-16] 非流式旧实现，保留备查（当前全部走流式 streamCall）
+//     suspend fun chatOnce(model: String, messages: List<DeepSeekMessage>): String {
+//         requireKey()
+//         val resp = ApiClient.deepSeek.chat(
+//             DeepSeekRequest(model = model, messages = messages, maxTokens = 4096)
+//         )
+//         lastUsage = resp.usage
+//         return resp.choices.firstOrNull()?.message?.content?.asText()
+//             ?: throw IllegalStateException("DeepSeek 返回为空")
+//     }
 
     private val streamJson = Json { ignoreUnknownKeys = true }
 
@@ -285,20 +286,21 @@ object StudyAssistant {
     }
 
     /** 根据错题出一道同知识点、同类题型、难度相近的近似题，并自备完整解答（确保可解） */
-    suspend fun generateSimilarQuestion(question: Question, lang: AiLang = AiLang.DEFAULT): SimilarResult {
-        requireKey()
-        val msgs = listOf(
-            systemMessage(lang),
-            DeepSeekMessage("user", JsonPrimitive(similarPrompt(question)))
-        )
-        val resp = ApiClient.deepSeek.chat(
-            DeepSeekRequest(model = MODEL_TEXT, messages = msgs, maxTokens = 4096)
-        )
-        lastUsage = resp.usage
-        val out = resp.choices.firstOrNull()?.message?.content?.asText()
-            ?: throw IllegalStateException("出题返回为空")
-        return parseSimilar(out)
-    }
+    // [已停用 2026-09-16] 非流式旧实现，保留备查（当前全部走流式 streamCall）
+//     suspend fun generateSimilarQuestion(question: Question, lang: AiLang = AiLang.DEFAULT): SimilarResult {
+//         requireKey()
+//         val msgs = listOf(
+//             systemMessage(lang),
+//             DeepSeekMessage("user", JsonPrimitive(similarPrompt(question)))
+//         )
+//         val resp = ApiClient.deepSeek.chat(
+//             DeepSeekRequest(model = MODEL_TEXT, messages = msgs, maxTokens = 4096)
+//         )
+//         lastUsage = resp.usage
+//         val out = resp.choices.firstOrNull()?.message?.content?.asText()
+//             ?: throw IllegalStateException("出题返回为空")
+//         return parseSimilar(out)
+//     }
 
     /**
      * 流式出题：整体文本边生成边回调（调用方用 [similarQuestionPortion] 只显示题目部分，答案不外显）。

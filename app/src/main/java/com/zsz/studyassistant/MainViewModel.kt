@@ -1095,23 +1095,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var gradeBusy by mutableStateOf(false)
         private set
 
-    fun grade(questionBytes: ByteArray, answerBytes: ByteArray?) {
-        viewModelScope.launch {
-            gradeBusy = true
-            gradeResult = ""
-            val app = getApplication<Application>()
-            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
-            try {
-                gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes, aiLang)
-                recordUsage(app)
-            } catch (e: Exception) {
-                gradeResult = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.gradeFailed", "msg" to (e.message ?: ""))
-            } finally {
-                gradeBusy = false
-                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
-            }
-        }
-    }
+    // [已停用 2026-09-16] 非流式旧实现，保留备查（当前全部走流式 streamCall）
+//     fun grade(questionBytes: ByteArray, answerBytes: ByteArray?) {
+//         viewModelScope.launch {
+//             gradeBusy = true
+//             gradeResult = ""
+//             val app = getApplication<Application>()
+//             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
+//             try {
+//                 gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes, aiLang)
+//                 recordUsage(app)
+//             } catch (e: Exception) {
+//                 gradeResult = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.gradeFailed", "msg" to (e.message ?: ""))
+//             } finally {
+//                 gradeBusy = false
+//                 com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
+//             }
+//         }
+//     }
 
     fun clearGradeResult() { gradeResult = "" }
 
