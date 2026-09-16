@@ -486,14 +486,16 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
-                        // 长按气泡 → 进入多选并选中该条；已在多选态则等同点按（切换），不清空其他已选
+                        // 长按气泡 → 进入多选并选中该条；受保护的消息（题干/AI 首条）也进多选，但不选中
                         onLongPressMessage = { idx ->
-                            if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices && idx !in lockedIndices) {
+                            if (!vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
                                 if (editMode) {
-                                    selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
+                                    if (idx !in lockedIndices) {
+                                        selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
+                                    }
                                 } else {
                                     editMode = true
-                                    selectedIndices = setOf(idx)
+                                    selectedIndices = if (idx in lockedIndices) emptySet() else setOf(idx)
                                 }
                             }
                         },

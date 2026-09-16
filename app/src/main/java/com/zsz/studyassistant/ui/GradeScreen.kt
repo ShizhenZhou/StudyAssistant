@@ -143,20 +143,39 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
 
-        // 从相册选图 → 转存临时文件 → 与拍照同流程
-        val galleryLauncher = rememberLauncherForActivityResult(
+        // 相册 URI → 压缩后的字节（与拍照同流程）
+        val readUri: (android.net.Uri) -> ByteArray? = { uri ->
+            try {
+                val file = File.createTempFile("gradeGallery", ".jpg", context.cacheDir)
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { output -> input.copyTo(output) }
+                }
+                StudyAssistant.compressImage(file)
+            } catch (e: Exception) {
+                vm.showError(s.format("camera.errRead", "msg" to (e.message ?: "")))
+                null
+            }
+        }
+
+        // 单张模式：相册单选
+        val gallerySingle = rememberLauncherForActivityResult(
             ActivityResultContracts.PickVisualMedia()
         ) { uri ->
-            if (uri != null) {
-                try {
-                    val file = File.createTempFile("gradeGallery", ".jpg", context.cacheDir)
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        file.outputStream().use { output -> input.copyTo(output) }
-                    }
-                    processImage(StudyAssistant.compressImage(file))
-                } catch (e: Exception) {
-                    vm.showError(s.format("camera.errRead", "msg" to (e.message ?: "")))
+            if (uri != null) readUri(uri)?.let { processImage(it) }
+        }
+
+        // 两张模式：相册可**一次选两张**（第一张=题目，第二张=作答）；只选一张则先当题目，之后可再点图库补选作答
+        val galleryMulti = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickMultipleVisualMedia(2)
+        ) { uris ->
+            val picked = uris.take(2).mapNotNull { readUri(it) }
+            when {
+                picked.size >= 2 -> {
+                    vm.startGrade(picked[0], picked[1])
+                    nav.navigate("solve") { popUpTo("home") }
+                    awaitingAnswer = false
                 }
+                picked.size == 1 -> processImage(picked[0])
             }
         }
 
@@ -169,7 +188,12 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         // 图库按钮（左下，与拍题模式一致）
         Surface(
             onClick = {
-                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                // 两张模式用多选（可一次选题目+作答）；单张模式仍单选
+                if (doubleMode) {
+                    galleryMulti.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                } else {
+                    gallerySingle.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }
             },
             enabled = !vm.gradeBusy,
             shape = RoundedCornerShape(16.dp),

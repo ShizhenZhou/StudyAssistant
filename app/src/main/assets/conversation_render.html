@@ -24,6 +24,9 @@
   .bubble.selmode .pick{display:block;}
   .bubble.selected .pick{background:#F44336;border-color:#F44336;}
   .bubble.selected{box-shadow:inset 0 0 0 2px #F44336;}
+  /* 受保护的消息（题干 / AI 首条回复）：圆圈灰掉、不可点 */
+  .bubble.selmode.locked .pick{border-color:#6E6E6E;opacity:.45;background:transparent;border-style:dashed;}
+  .bubble.selmode.locked{cursor:not-allowed;}
   /* 多选态下禁止 WebView 自带的长按选文字（蓝色高亮 + 复制菜单），避免与选择圈抢事件 */
   body.selmode, body.selmode *{
     -webkit-user-select:none; user-select:none;
@@ -229,9 +232,9 @@ function bubbleHtml(m, idx){
   if(contLabel !== null){
     body += '<div class="continue" onclick="event.stopPropagation();continueGen()">'+esc(contLabel)+'</div>';
   }
-  return '<div class="bubble '+cls+((selectionMode && !locked)?' selmode':'')+(isSel?' selected':'')+'" data-idx="'+idx+'"'
+  return '<div class="bubble '+cls+(selectionMode?' selmode':'')+(isSel?' selected':'')+(locked?' locked':'')+'" data-idx="'+idx+'"'
        + ' onclick="bubbleTap('+idx+')">' + body + imgHtml
-       + (locked ? '' : '<div class="pick">'+(isSel?'✓':'')+'</div>') + '</div>';
+       + (selectionMode ? '<div class="pick">'+(isSel?'✓':'')+'</div>' : '') + '</div>';
 }
 // ── 多选状态与交互（长按进入；点气泡切换；圆圈在右上角，选中显示红框） ──
 var selectionMode = false;
