@@ -1169,7 +1169,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
 
     /** 加载某条错题的完整对话会话（用于续答） */
-    fun loadQuestion(q: Question) {        chatItems = try {
+    fun loadQuestion(q: Question) {
+        // 打开错题本/复习里的题目：先作废并停掉可能还在跑的流式请求，并清掉**模式残留**
+        // （否则会带着上一轮的 gradeMode → 标题显示「批改」、按钮组走错分支）
+        callSeq++                       // 让旧请求收尾时不再覆盖界面状态
+        callJob?.cancel()
+        callJob = null
+        busy = false
+        streamingText = null
+        streamInterrupted = false
+        contMessages = null
+        contOnDone = null
+        contPrefix = ""
+        networkError = false
+        retryAction = null
+        gradeMode = false
+        reviewMode = false              // loadForReview() 会在其后置 true
+        directImages = emptyList()
+        chatItems = try {
             json.decodeFromString<List<ChatItem>>(q.conversationJson ?: "")
         } catch (e: Exception) {
             emptyList()

@@ -115,7 +115,8 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         var focusDone by remember { mutableStateOf(false) }
 
         // 单张 / 两张拍摄模式（两张：拍两张作为同一道题一起解答）
-        var doubleMode by remember { mutableStateOf(false) }
+        // 记住上次的选择：下次进本页直接沿用（存 settings SharedPreferences）
+        var doubleMode by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.solveDouble(context)) }
         var firstBytes by remember { mutableStateOf<ByteArray?>(null) }
         var awaitingSecond by remember { mutableStateOf(false) }
 
@@ -237,7 +238,11 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 右下角：单张/两张 切换（与图库、快门在同一水平线）
         Surface(
-            onClick = { doubleMode = !doubleMode; firstBytes = null; awaitingSecond = false },
+            onClick = {
+                doubleMode = !doubleMode
+                com.zsz.studyassistant.data.CapturePrefs.setSolveDouble(context, doubleMode)
+                firstBytes = null; awaitingSecond = false
+            },
             enabled = !vm.busy,
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),

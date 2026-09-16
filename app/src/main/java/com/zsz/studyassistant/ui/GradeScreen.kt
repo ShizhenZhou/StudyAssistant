@@ -80,7 +80,8 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         return
     }
 
-    var doubleMode by remember { mutableStateOf(false) }
+    // 单张/两张模式：记住上次的选择（下次进本页直接沿用）
+    var doubleMode by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.gradeDouble(context)) }
     var questionBytes by remember { mutableStateOf<ByteArray?>(null) }
     var awaitingAnswer by remember { mutableStateOf(false) }
     // 最近一次批改实际使用的题目/作答图（用于结果区展示，与批改请求保持一致）
@@ -207,7 +208,11 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 单张/两张切换（右下，正常大小）
         Surface(
-            onClick = { doubleMode = !doubleMode; questionBytes = null; awaitingAnswer = false },
+            onClick = {
+                doubleMode = !doubleMode
+                com.zsz.studyassistant.data.CapturePrefs.setGradeDouble(context, doubleMode)
+                questionBytes = null; awaitingAnswer = false
+            },
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 36.dp).height(44.dp)
