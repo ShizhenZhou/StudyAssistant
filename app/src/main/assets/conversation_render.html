@@ -131,16 +131,23 @@ window.dshScrollToBottom = function(){
 };
 // 把「是否已在顶部」上报给原生，用于把 ↑ 按钮切换成 ↓（只在状态翻转时上报，避免频繁跨线程调用）
 var lastAtTop = null;
+var lastScrollable = null;   // 是否可滚动（内容超过一屏）
 /** 立刻回到顶部（换题/换会话时用，不做动画） */
 window.dshScrollReset = function(){
   following = false; touching = false;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
   try{ window.scrollTo(0, 0); }catch(e){}
   lastAtTop = null;   // 下一帧重新上报，保证按钮状态正确
+  lastScrollable = null;
 };
 function reportPos(){
   var scrollable = (document.body.scrollHeight - window.innerHeight) > 40;
   var atTop = scrollable && (window.scrollY <= 2);
+  // 会话是否超过一屏也上报：原生据此在「内容未超屏」时隐藏 ↑/↓ 按钮
+  if(scrollable !== lastScrollable){
+    lastScrollable = scrollable;
+    try{ if(window.Android && Android.onScrollable){ Android.onScrollable(scrollable); } }catch(e){}
+  }
   if(atTop !== lastAtTop){
     lastAtTop = atTop;
     try{ if(window.Android && Android.onAtTop){ Android.onAtTop(atTop); } }catch(e){}

@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,15 +47,32 @@ import com.zsz.studyassistant.MainViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val s = LocalStrings.current
     var input by remember { mutableStateOf("") }
     // 多选（长按进入）：与原消息界面就地操作
     var editMode by remember { mutableStateOf(false) }
     var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showSaveDialog by remember { mutableStateOf(false) }
+    // 追问附图（与解题页一致，最多 3 张）
+    var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
+    val categories by vm.categories.collectAsState()
+    val tags by vm.tags.collectAsState()
+    // 系统相册（有序选择）→ 追加附图
+    val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(3)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val newOnes = uris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
+            selectedImages = (selectedImages + newOnes).take(3)
+        }
+    }
     var scrollTopTick by remember { mutableIntStateOf(0) }
     var scrollBottomTick by remember { mutableIntStateOf(0) }
     var atTop by remember { mutableStateOf(true) }
+    // 会话内容是否超过一屏：没超过就不显示 ↑/↓ 按钮
+    var scrollable by remember { mutableStateOf(false) }
     val question = vm.similarQuestion
     val answer = vm.similarAnswer
     val revealed = vm.similarRevealed
@@ -126,6 +144,28 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                                 enabled = answer != null
                             ) { Text(s["similar.showAnswer"]) }
                         }
+                        // 生成中：⏸ 中止生成；空闲：🔄 重新生成（清空会话并重出一道题）
+                        if (vm.similarBusy) {
+                            TextButton(onClick = { vm.abortSimilar() }) {
+                                Text(s["solve.abort"], fontSize = 13.sp)
+                            }
+                        } else if (questionShown) {
+                            TextButton(onClick = { vm.startSimilar() }) {
+                                Text(s["solve.regen"], fontSize = 13.sp)
+                            }
+                        }
+                        // 存错题本（逻辑同解题页：选分类/标签后保存；已存再点 = 取消保存）
+                        val saved = vm.similarSavedQuestionId != null
+                        TextButton(
+                            onClick = {
+                                if (saved) vm.unsaveSimilarFromNotebook() else showSaveDialog = true
+                            },
+                            enabled = questionShown
+                        ) {
+                            val label = if (saved) s["solve.savedToNotebook"] else s["solve.saveToNotebook"]
+                            if (saved) Text(label, color = Color(0xFF4CAF50), fontSize = 13.sp)
+                            else Text(label, fontSize = 13.sp)
+                        }
                     }
                 }
             )
@@ -143,6 +183,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         scrollTopSignal = scrollTopTick,
                         scrollBottomSignal = scrollBottomTick,
                         onAtTopChange = { atTop = it },
+                        onScrollableChange = { scrollable = it },
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择）
                         onLongPressMessage = { idx ->
                             if (!editMode && !vm.similarBusy && idx in messages.indices) {
@@ -167,8 +208,8 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         },
                         modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)
                     )
-                    // 快速跳转：顶部时显示 ↓（滚到最底），否则 ↑（回到顶部）
-                    if (!editMode) {
+                    // 快速跳转：仅在**内容超过一屏**时出现；顶部时显示 ↓（滚到最底），否则 ↑（回到顶部）
+                    if (!editMode && scrollable) {
                         Surface(
                             onClick = { if (atTop) scrollBottomTick++ else scrollTopTick++ },
                             shape = CircleShape,
@@ -186,28 +227,45 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 }
             }
-            // 底部：追问输入 + 发送
-            Row(
-                Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
+            // 底部：输入栏（与解题页同一组件：附图 + 公式键盘 + 图库 + 发送）
+            if (vm.similarQuestion != null || vm.similarStreamingText != null) {
+                ConversationInputBar(
                     value = input,
                     onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text(s["similar.hint"], fontSize = 14.sp) },
-                    maxLines = 3,
-                    shape = RoundedCornerShape(22.dp)
+                    images = selectedImages,
+                    onRemoveImage = { selectedImages = selectedImages - it },
+                    onPickImages = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
+                    onSend = {
+                        vm.sendSimilar(input, selectedImages)
+                        input = ""
+                        selectedImages = emptyList()
+                    },
+                    busy = vm.similarBusy,
+                    hint = s["similar.hint"],
+                    sendLabel = s["solve.send"],
+                    imageDesc = s["solve.imageDesc"],
+                    modifier = Modifier.navigationBarsPadding()
                 )
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = { vm.sendSimilar(input); input = "" },
-                    enabled = input.isNotBlank() && !vm.similarBusy,
-                    shape = RoundedCornerShape(22.dp)
-                ) { Text(s["solve.send"]) }
             }
         }
 
+        // 存错题本：选分类/标签（与解题页同一对话框，保存的是这道同类题）
+        if (showSaveDialog) {
+            SaveDialog(
+                title = s["solve.catPicker.select"],
+                categories = categories,
+                tags = tags,
+                initialSelectedId = null,
+                initialNewName = null,
+                initialSelectedTagIds = emptyList(),
+                suggestedTagNames = emptyList(),
+                onConfirm = { name, cid, tagNames, tagIds ->
+                    vm.saveSimilarToNotebook(name, cid, tagNames, tagIds)
+                    showSaveDialog = false
+                },
+                onDismiss = { showSaveDialog = false }
+            )
+        }
         // 删除确认（与解题页一致）
         if (showDeleteConfirm) {
             AlertDialog(

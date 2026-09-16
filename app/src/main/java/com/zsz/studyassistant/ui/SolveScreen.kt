@@ -126,6 +126,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var scrollBottomTick by remember { mutableIntStateOf(0) }
     // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
     var atTop by remember { mutableStateOf(true) }
+    // 会话内容是否超过一屏：没超过就不显示 ↑/↓ 按钮
+    var scrollable by remember { mutableStateOf(false) }
     // 换题（复习上一题→下一题、错题本切换）时立刻回到顶部
     var resetScrollTick by remember { mutableIntStateOf(0) }
 
@@ -508,12 +510,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         scrollBottomSignal = scrollBottomTick,
                         resetScrollSignal = resetScrollTick,
                         onAtTopChange = { atTop = it },
+                        onScrollableChange = { scrollable = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 4.dp)
                     )
-                    // 快速跳转按钮：在顶部时显示 ↓（一按滚到最底），否则显示 ↑（一按回到顶部），都是快速滚动动画
-                    if (!editMode) {
+                    // 快速跳转按钮：仅在**内容超过一屏**时出现；在顶部显示 ↓（一按滚到最底），否则 ↑（一按回到顶部）
+                    if (!editMode && scrollable) {
                         Surface(
                             onClick = { if (atTop) scrollBottomTick++ else scrollTopTick++ },
                             shape = CircleShape,
@@ -587,76 +590,23 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     ) { Text(s["solve.forgot"]) }
                 }
             } else if (vm.chatItems.isNotEmpty()) {
-                // 已选 1~3 张附图缩略图（可删除）
-                if (selectedImages.isNotEmpty()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        selectedImages.forEach { img ->
-                            val bmp = remember(img) {
-                                try { BitmapFactory.decodeByteArray(img, 0, img.size) } catch (e: Exception) { null }
-                            }
-                            if (bmp != null) {
-                                Box(Modifier.size(60.dp)) {
-                                    Image(
-                                        bitmap = bmp.asImageBitmap(),
-                                        contentDescription = s["solve.imageDesc"],
-                                        modifier = Modifier.size(60.dp),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    // 右上角删除
-                                    Box(
-                                        Modifier
-                                            .align(Alignment.TopEnd)
-                                            .size(22.dp)
-                                            .clickable { selectedImages = selectedImages - img }
-                                            .background(Color(0xCC000000), CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) { Text("✕", color = Color.White, fontSize = 12.sp) }
-                                }
-                            }
-                        }
-                    }
-                }
-                // 公式快捷输入条（追问也常用 ∫ ∑ √）
-                FormulaBar(onInsert = { followUp = followUp + it })
-                Row(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 图库选图按钮（选 1~3 张附在追问里）
-                    Surface(
-                        onClick = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
-                        enabled = !vm.busy,
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("🖼", fontSize = 18.sp) }
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    OutlinedTextField(
-                        value = followUp,
-                        onValueChange = { followUp = it },
-                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                        placeholder = { Text(s["solve.followUpHint"], fontSize = 14.sp) },
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                        maxLines = 3,
-                        shape = RoundedCornerShape(22.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            vm.sendFollowUp(followUp.trim(), selectedImages)
-                            followUp = ""
-                            selectedImages = emptyList()
-                        },
-                        enabled = followUp.isNotBlank() && !vm.busy,
-                        shape = RoundedCornerShape(22.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-                    ) { Text(s["solve.send"], fontSize = 14.sp) }
-                }
+                // 输入栏（与同类题页共用组件：附图 + 公式键盘 + 图库 + 发送）
+                ConversationInputBar(
+                    value = followUp,
+                    onValueChange = { followUp = it },
+                    images = selectedImages,
+                    onRemoveImage = { selectedImages = selectedImages - it },
+                    onPickImages = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
+                    onSend = {
+                        vm.sendFollowUp(followUp.trim(), selectedImages)
+                        followUp = ""
+                        selectedImages = emptyList()
+                    },
+                    busy = vm.busy,
+                    hint = s["solve.followUpHint"],
+                    sendLabel = s["solve.send"],
+                    imageDesc = s["solve.imageDesc"]
+                )
             }
         }
     }

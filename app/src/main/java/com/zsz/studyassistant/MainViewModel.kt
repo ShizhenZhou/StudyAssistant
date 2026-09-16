@@ -880,6 +880,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var similarStreamingText by mutableStateOf<String?>(null)
         private set
 
+    /** 同类题的出题/追问任务（用于「⏸ 中止生成」） */
+    private var similarJob: Job? = null
+    private var similarSeq = 0L
+
     /**
      * 删除同类题会话中的消息。索引按界面渲染顺序：
      *   0            = AI 出的题目（删它 = 整段会话失去上下文 → 清空，等价于重新出题）
@@ -904,10 +908,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startSimilar() {
         val q = currentReviewQuestion ?: return
-        viewModelScope.launch {
+        val mySeq = ++similarSeq
+        similarJob?.cancel()
+        similarJob = viewModelScope.launch {
             similarBusy = true
             similarQuestion = null; similarAnswer = null; similarMessages = emptyList(); similarRevealed = false
             similarStreamingText = null
+            similarSavedQuestionId = null
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             val sb = StringBuilder()
@@ -926,6 +933,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             // 此后界面进入「等答案」状态（「查看答案」按钮可见但不可用）
                             val answerStarted = acc.contains("解答：") || acc.contains("解答:")
                             withContext(Dispatchers.Main) {
+                                if (mySeq != similarSeq) return@withContext   // 已被中止/重开
                                 if (answerStarted) {
                                     if (shown.isNotBlank()) similarQuestion = shown
                                     similarStreamingText = null
@@ -936,34 +944,58 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     }
                 }
-                recordUsage(app)
-                similarQuestion = r.question
-                similarAnswer = r.answer
-                similarStreamingText = null
-            } catch (e: Exception) {
-                val partial = StudyAssistant.similarQuestionPortion(sb.toString())
-                if (partial.isNotBlank()) {
-                    similarQuestion = partial          // 中断也保留已生成的题目
-                } else {
-                    similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to (e.message ?: ""))
+                if (mySeq == similarSeq) {
+                    recordUsage(app)
+                    similarQuestion = r.question
+                    similarAnswer = r.answer
+                    similarStreamingText = null
                 }
-                similarAnswer = null
-                similarStreamingText = null
+            } catch (e: Exception) {
+                if (mySeq == similarSeq) {
+                    val partial = StudyAssistant.similarQuestionPortion(sb.toString())
+                    val aborted = e is CancellationException
+                    when {
+                        partial.isNotBlank() -> similarQuestion = partial          // 中断也保留已生成的题目
+                        aborted -> similarQuestion = null                           // 中止且零输出：回到「思考中…」
+                        else -> similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to (e.message ?: ""))
+                    }
+                    similarAnswer = null
+                    similarStreamingText = null
+                }
             }
-            similarBusy = false
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
+            if (mySeq == similarSeq) {
+                similarBusy = false
+                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
+            }
         }
     }
 
-    fun sendSimilar(text: String) {
+    /** 中止同类题的出题 / 追问（与解题页的 ⏸ 中止生成 对齐） */
+    fun abortSimilar() {
+        similarSeq++
+        StudyAssistant.cancelActiveStream()
+        similarJob?.cancel()
+        similarJob = null
+        similarBusy = false
+        similarStreamingText = null
+    }
+
+    fun sendSimilar(text: String, images: List<ByteArray> = emptyList()) {
         val qTitle = similarQuestion ?: return
         val txt = text.trim()
-        if (txt.isEmpty()) return
-        similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "user", txt)
+        if (txt.isEmpty() && images.isEmpty()) return
+        similarMessages = similarMessages + ChatItem(
+            similarMessages.size.toLong(),
+            "user",
+            txt.ifBlank { "[图片]" },
+            images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
+        )
+        val mySeq = ++similarSeq
+        similarJob?.cancel()
         similarBusy = true
         similarStreamingText = ""
         val baseCount = similarMessages.size
-        viewModelScope.launch {
+        similarJob = viewModelScope.launch {
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
             val sb = StringBuilder()
@@ -973,34 +1005,102 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 msgs.add(StudyAssistant.systemMessage(aiLang))
                 msgs.add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
                 for (m in similarMessages) msgs.add(DeepSeekMessage(if (m.role == "assistant") "assistant" else "user", JsonPrimitive(m.content)))
-                msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
+                if (images.isNotEmpty()) msgs.add(StudyAssistant.userMessageWithImages(txt, images))
+                else msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
+                val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
                 val reply = withContext(Dispatchers.IO) {
-                    StudyAssistant.chatStream(StudyAssistant.MODEL_TEXT, msgs) { delta ->
+                    StudyAssistant.chatStream(model, msgs) { delta ->
                         sb.append(delta)
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
                             lastEmit = now
                             val snapshot = sb.toString()
-                            withContext(Dispatchers.Main) { similarStreamingText = snapshot }
+                            withContext(Dispatchers.Main) {
+                                if (mySeq == similarSeq) similarStreamingText = snapshot
+                            }
                         }
                     }
                 }
-                recordUsage(app)
-                similarStreamingText = null
-                similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
+                if (mySeq == similarSeq) {
+                    recordUsage(app)
+                    similarStreamingText = null
+                    similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
+                }
             } catch (e: Exception) {
-                val partial = sb.toString()
-                similarStreamingText = null
-                similarMessages = similarMessages + ChatItem(
-                    baseCount.toLong(),
-                    "assistant",
-                    if (partial.isNotBlank()) partial
-                    else com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to (e.message ?: ""))
-                )
+                if (mySeq == similarSeq) {
+                    val partial = sb.toString()
+                    similarStreamingText = null
+                    val aborted = e is CancellationException
+                    if (partial.isNotBlank() || !aborted) {
+                        similarMessages = similarMessages + ChatItem(
+                            baseCount.toLong(),
+                            "assistant",
+                            if (partial.isNotBlank()) partial
+                            else com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to (e.message ?: ""))
+                        )
+                    }
+                }
             }
-            similarBusy = false
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
+            if (mySeq == similarSeq) {
+                similarBusy = false
+                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
+            }
         }
+    }
+
+    // ---- 同类题：存错题本（逻辑与解题页一致：分类 + 标签，可取消保存）----
+    var similarSavedQuestionId by mutableStateOf<Long?>(null)
+        private set
+
+    fun saveSimilarToNotebook(
+        name: String?,
+        categoryId: Long?,
+        tagNames: List<String> = emptyList(),
+        tagIds: List<Long> = emptyList()
+    ) {
+        val qTitle = similarQuestion ?: return
+        viewModelScope.launch {
+            var cid = categoryId
+            if (!name.isNullOrBlank()) cid = dao.insertCategory(Category(name = name.trim()))
+            // 答案 = 已生成的解答（若有）+ 之后的追问往返
+            val answerText = buildString {
+                similarAnswer?.let { append(it) }
+                for (m in similarMessages) {
+                    if (isNotEmpty()) append("\n\n")
+                    append(if (m.role == "assistant") "AI：" else "我：")
+                    append(m.content)
+                }
+            }
+            val now = System.currentTimeMillis()
+            val qid = dao.insert(
+                Question(
+                    text = qTitle,
+                    answer = answerText,
+                    imageBytes = null,
+                    conversationJson = null,
+                    categoryId = cid,
+                    createdAt = now
+                )
+            )
+            val finalIds = tagIds.toMutableList()
+            for (tn in tagNames.take(5)) {
+                val n2 = tn.trim()
+                if (n2.isBlank()) continue
+                val existing = dao.getAllTagsOnce().firstOrNull { it.name == n2 }
+                val tid = existing?.id ?: dao.insertTag(Tag(name = n2))
+                if (!finalIds.contains(tid)) finalIds += tid
+            }
+            for (tid in finalIds.take(5)) dao.insertQuestionTag(QuestionTag(qid, tid))
+            dao.insertReview(Review(questionId = qid, intervalStep = 0, nextReviewAt = now, reviewCount = 0))
+            similarSavedQuestionId = qid
+        }
+    }
+
+    /** 取消保存（把刚存的同类题从错题本删掉） */
+    fun unsaveSimilarFromNotebook() {
+        val id = similarSavedQuestionId ?: return
+        similarSavedQuestionId = null
+        viewModelScope.launch { dao.deleteById(id) }
     }
 
     private fun startOfToday(): Long {

@@ -63,6 +63,8 @@ fun ConversationWebView(
     resetScrollSignal: Int = 0,
     /** 会话是否已在顶部（用于把按钮在 ↑ / ↓ 之间切换） */
     onAtTopChange: (Boolean) -> Unit = {},
+    /** 会话内容是否超过一屏（false → 界面隐藏 ↑/↓ 按钮） */
+    onScrollableChange: (Boolean) -> Unit = {},
     /** 点击气泡末尾蓝色「继续生成」时回调 */
     onContinue: () -> Unit = {},
     /** 长按某条消息气泡时回调（参数为界面消息下标）→ 用于进入多选界面 */
@@ -85,6 +87,7 @@ fun ConversationWebView(
     val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
     val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
     val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
+    val currentOnScrollableChange by rememberUpdatedState(onScrollableChange)
     var loaded by remember { mutableStateOf(false) }
     var lastJson by remember { mutableStateOf<String?>(null) }
     var zoomImage by remember { mutableStateOf<String?>(null) }
@@ -171,6 +174,12 @@ fun ConversationWebView(
                         @JavascriptInterface
                         fun onAtTop(atTop: Boolean) {
                             Handler(Looper.getMainLooper()).post { currentOnAtTopChange(atTop) }
+                        }
+
+                        /** 网页上报「内容是否超过一屏」→ false 时界面隐藏 ↑/↓ 按钮 */
+                        @JavascriptInterface
+                        fun onScrollable(scrollable: Boolean) {
+                            Handler(Looper.getMainLooper()).post { currentOnScrollableChange(scrollable) }
                         }
 
                         @JavascriptInterface
