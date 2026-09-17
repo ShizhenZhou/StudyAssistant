@@ -149,6 +149,8 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 缩放 / 平移（双指捏合调整图片大小；1x~4x）
     var zoom by remember { mutableFloatStateOf(1f) }
     var panX by remember { mutableFloatStateOf(0f) }
+    // zoom=1 时的图片显示矩形（按钮里复位缩放用）
+    var dispBase by remember { mutableStateOf(Rect.Zero) }
     var panY by remember { mutableFloatStateOf(0f) }
 
     // ★ 用 Column 布局：图片显示区 = weight(1f)，下缘正好挨着按钮上缘（不会再被按钮盖住）
@@ -164,6 +166,15 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                 val dl = (bw - dw) / 2f + panX
                 val dt = (bh - dh) / 2f + panY
                 val disp = Rect(Offset(dl, dt), Offset(dl + dw, dt + dh))
+                LaunchedEffect(bw, bh, bitmap) {
+                    val bs = minOf(bw / bitmap.width, bh / bitmap.height)
+                    val bdw = bitmap.width * bs
+                    val bdh = bitmap.height * bs
+                    dispBase = Rect(
+                        Offset((bw - bdw) / 2f, (bh - bdh) / 2f),
+                        Offset((bw + bdw) / 2f, (bh + bdh) / 2f)
+                    )
+                }
 
                 // ★ 键必须同时包含 disp 与 path：首次组合时 path 可能还没就绪，
                 //   若只以 disp 为键，检测就永远不会触发（预框选静默失效）
@@ -473,12 +484,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                             zoom = 1f
                             panX = 0f
                             panY = 0f
-                            val bs0 = minOf(bw / bitmap.width, bh / bitmap.height)
-                            val dw0 = bitmap.width * bs0
-                            val dh0 = bitmap.height * bs0
-                            val dl0 = (bw - dw0) / 2f
-                            val dt0 = (bh - dh0) / 2f
-                            dispRect = Rect(Offset(dl0, dt0), Offset(dl0 + dw0, dt0 + dh0))
+                            if (dispBase.width > 1f) dispRect = dispBase
                             val fallbackDefault = {
                                 val w = dispRect.width * 0.7f
                                 val h = dispRect.height * 0.7f
