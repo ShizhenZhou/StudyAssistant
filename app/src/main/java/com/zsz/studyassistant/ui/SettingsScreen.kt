@@ -37,6 +37,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlin.math.pow
+import kotlin.math.ln
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -61,6 +67,7 @@ fun SettingsTab(vm: MainViewModel) {
 
     when (page) {
         "api" -> SettingsSubPage(s["settings.api"], { page = "main" }) { ApiSettings(vm) }
+        "aicrop" -> SettingsSubPage(s["settings.aiCrop"], { page = "main" }) { AiCropTimeoutSettings() }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) }
         "notify" -> SettingsSubPage(s["settings.notify"], { page = "main" }) { NotifySettings() }
@@ -124,14 +131,108 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
     ) {
         Text(s["settings.title"], style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+
+        // ── 通用 ──
+        SettingGroupTitle(s["settings.group.general"])
         SettingEntry(s["settings.api"]) { onOpen("api") }
-        SettingEntry(s["settings.lang"]) { onOpen("lang") }
+        SettingEntry(s["settings.aiCrop"]) { onOpen("aicrop") }
+
+        Spacer(Modifier.height(14.dp))
+        // ── 个性化 ──
+        SettingGroupTitle(s["settings.group.personalize"])
         SettingEntry(s["settings.theme"]) { onOpen("theme") }
+        SettingEntry(s["settings.lang"]) { onOpen("lang") }
+
+        Spacer(Modifier.height(14.dp))
+        // ── 通知与后台 ──
+        SettingGroupTitle(s["settings.group.notifyBackground"])
         SettingEntry(s["settings.notify"]) { onOpen("notify") }
         SettingEntry(s["settings.background"]) { onOpen("background") }
+
+        Spacer(Modifier.height(14.dp))
+        // ── 数据管理 / 关于（分立，不归入大类） ──
         SettingEntry(s["settings.data"]) { onOpen("data") }
         SettingEntry(s["settings.about"]) { onOpen("about") }
+    }
+}
+
+/** 分组标题（小号主色文字） */
+@Composable
+private fun SettingGroupTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
+    )
+}
+
+/**
+ * ✂️ AI 框选时限：100ms ~ 5s 的**对数**滑条，500ms / 1s / 3s 三个磁吸点。
+ * 含义：进框选页后等 AI 自动框选的上限；超时就用本地算法框选。
+ */
+@Composable
+private fun AiCropTimeoutSettings() {
+    val s = LocalStrings.current
+    val ctx = LocalContext.current
+    var ms by remember {
+        mutableFloatStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx).toFloat())
+    }
+
+    val minMs = 100f
+    val maxMs = 5000f
+    val ratio = maxMs / minMs
+    fun tToMs(t: Float): Float = minMs * ratio.pow(t)
+    fun msToT(m: Float): Float =
+        (ln((m / minMs).coerceAtLeast(1.0001f)) / ln(ratio)).coerceIn(0f, 1f)
+
+    fun fmt(v: Float): String =
+        if (v < 1000f) "${v.roundToInt()} ms" else String.format("%.2f s", v / 1000f)
+
+    val snapPoints = listOf(100f, 500f, 1000f, 3000f, 5000f)
+
+    Column(Modifier.fillMaxWidth()) {
+        Text(s["settings.aiCrop"], style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            s["settings.aiCrop.desc"],
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            fmt(ms),
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Slider(
+            value = msToT(ms),
+            onValueChange = { t ->
+                var m = tToMs(t)
+                // 磁吸：落在吸附点附近（相对 8% 内）就吸过去
+                snapPoints.forEach { sp -> if (abs(m - sp) / sp < 0.08f) m = sp }
+                ms = m
+            },
+            onValueChangeFinished = {
+                com.zsz.studyassistant.data.CapturePrefs.setAiCropTimeoutMs(ctx, ms.toLong())
+            }
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf("100 ms", "500 ms", "1 s", "3 s", "5 s").forEach {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            s["settings.aiCrop.snapHint"],
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
     }
 }
 

@@ -71,6 +71,9 @@ private val BORDER = Color(0xFFFF5252)
 @Composable
 fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // 「通用 → AI 框选时限」：AI 自动框选的等待上限
+    val aiCropMs = com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx)
     val path = vm.currentCropPath
     val bitmap = remember(path) {
         path?.let {
@@ -200,7 +203,8 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                         withContext(Dispatchers.IO) { java.io.File(p).readBytes() }
                     }.getOrNull()
                     val aiDeferred = if (bytes != null) {
-                        async { runCatching { StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = 500) }.getOrNull() }
+                        // 自动预框选：用设置里的「AI 框选时限」
+                        async { runCatching { StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs) }.getOrNull() }
                     } else null
                     // ① 本地投影法：毫秒级，先出结果
                     val local = runCatching {
@@ -473,7 +477,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                // AI 自动框选：点了之后 1 秒内等 AI；AI 不行就用本地算法；都不行恢复默认框
+                // AI 自动框选：等待「AI 框选时限 + 1s」；AI 不行就用本地算法；都不行恢复默认框
                 TextButton(
                     enabled = !aiBusy,
                     onClick = {
@@ -498,7 +502,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                 }.getOrNull()
                                 if (bytes != null) {
                                     val boxes = runCatching {
-                                        StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = 1000)
+                                        StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs + 1000L)   // 手动按钮：设置值 + 1s
                                     }.getOrNull()
                                     val best = boxes?.maxByOrNull { it.area }
                                     if (best != null) {

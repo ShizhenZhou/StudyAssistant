@@ -27,6 +27,15 @@ object CapturePrefs {
     fun setGradeToggle(c: Context, v: Boolean) =
         prefs(c).edit().putBoolean(KEY_GRADE_TOGGLE, v).apply()
 
+private const val KEY_AI_CROP_MS = "ai_crop_timeout_ms"   // AI 框选时限（毫秒）
+
+    /** 「通用 → AI 框选时限」：AI 自动框选的等待上限，默认 500ms，范围 100~5000ms */
+    fun aiCropTimeoutMs(c: Context): Long =
+        prefs(c).getLong(KEY_AI_CROP_MS, 500L).coerceIn(100L, 5000L)
+
+    fun setAiCropTimeoutMs(c: Context, v: Long) =
+        prefs(c).edit().putLong(KEY_AI_CROP_MS, v.coerceIn(100L, 5000L)).apply()
+
     /** 批改页：上次是否为「两张」模式 */
     fun gradeDouble(c: Context): Boolean = prefs(c).getBoolean(KEY_GRADE_DOUBLE, false)
 
