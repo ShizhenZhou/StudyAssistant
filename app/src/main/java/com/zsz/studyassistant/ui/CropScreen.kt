@@ -29,6 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.zsz.studyassistant.data.StudyAssistant
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -71,6 +79,27 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     var sel by remember { mutableStateOf<Rect?>(null) }
     var dispRect by remember { mutableStateOf(Rect.Zero) }
     var mode by remember { mutableStateOf("NONE") }
+    // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
+    var userTouched by remember { mutableStateOf(false) }
+    // 是否已跑过一次自动识别（每次换图重来）
+    var autoTried by remember(path) { mutableStateOf(false) }
+    // 命中自动框选时给用户的提示
+    var autoHint by remember { mutableStateOf(false) }
+    // 手动 AI 识别中
+    var aiBusy by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    /** 归一化矩形 → 屏幕显示坐标（相对当前显示的图片区域） */
+    fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
+        val l = d.left + n.x * d.width
+        val t = d.top + n.y * d.height
+        val r = l + n.w * d.width
+        val b = t + n.h * d.height
+        return Rect(
+            l.coerceIn(d.left, d.right - 8f), t.coerceIn(d.top, d.bottom - 8f),
+            r.coerceIn(d.left + 8f, d.right), b.coerceIn(d.top + 8f, d.bottom)
+        )
+    }
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().padding(bottom = 120.dp)) {
@@ -85,15 +114,54 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 val dt = (bh - dh) / 2f
                 val disp = Rect(Offset(dl, dt), Offset(dl + dw, dt + dh))
 
-                LaunchedEffect(disp) {
+                // ★ 键必须同时包含 disp 与 path：首次组合时 path 可能还没就绪，
+                //   若只以 disp 为键，检测就永远不会触发（预框选静默失效）
+                LaunchedEffect(disp, path) {
+                    if (disp == Rect.Zero) return@LaunchedEffect
                     dispRect = disp
                     if (sel == null) {
-                        // 初始：居中的 70% 子矩形（不占满屏，方便拖动）
+                        // 默认框：居中的 70% 子矩形（不占满屏，方便拖动）
+                        // ★ 预框选失败/超时/结果可疑时，就保持这个默认框
                         val w = disp.width * 0.7f
                         val h = disp.height * 0.7f
                         sel = Rect(disp.center.x - w / 2, disp.center.y - h / 2,
                             disp.center.x + w / 2, disp.center.y + h / 2)
                     }
+                    // ── 预框选（总预算 0.5 秒）：本地算法与 AI **并行**跑 ──
+                    //   · 本地结果（约 100ms）先应用，页面立刻有框
+                    //   · AI 若在 500ms 内返回且合法 → 覆盖本地结果
+                    //   · 两者都不可靠 → 保持默认框
+                    val p = path ?: return@LaunchedEffect
+                    if (autoTried) return@LaunchedEffect
+                    autoTried = true
+                    val bytes = runCatching {
+                        withContext(Dispatchers.IO) { java.io.File(p).readBytes() }
+                    }.getOrNull()
+                    val aiDeferred = if (bytes != null) {
+                        async { runCatching { StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = 500) }.getOrNull() }
+                    } else null
+                    // ① 本地投影法：毫秒级，先出结果
+                    val local = runCatching {
+                        withContext(Dispatchers.Default) {
+                            com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p)
+                        }
+                    }.getOrNull()
+                    val localOk = local?.takeIf { !it.looksUnreliable() }
+                    if (localOk != null && !userTouched) {
+                        sel = toDisp(localOk, disp)
+                        autoHint = true
+                    }
+                    // ② AI（≤500ms）：合法就覆盖
+                    val ai = aiDeferred?.await()?.maxByOrNull { it.area }?.takeIf { !it.looksUnreliable() }
+                    if (ai != null && !userTouched) {
+                        sel = toDisp(ai, disp)
+                        autoHint = true
+                    }
+                }
+
+                // 自动框选提示 3 秒后淡出
+                LaunchedEffect(autoHint) {
+                    if (autoHint) { delay(3000); autoHint = false }
                 }
 
                 Image(bitmap = bitmap.asImageBitmap(), contentDescription = null,
@@ -127,6 +195,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 Box(Modifier.fillMaxSize().pointerInput(dispRect) {
                     detectDragGestures(
                         onDragStart = { pos ->
+                            userTouched = true
                             val r = sel
                             mode = if (r == null) "NONE" else {
                                 val d2 = dispRect
@@ -150,6 +219,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         },
                         onDrag = { change, drag ->
+                            userTouched = true
                             val r = sel
                             val d2 = dispRect
                             if (r != null && d2 != Rect.Zero) {
@@ -186,6 +256,16 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 底部按钮
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp)) {
+            // 预框选命中提示（3 秒后自动消失）
+            if (autoHint) {
+                Text(
+                    s["crop.autoSelected"],
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
             Button(
                 onClick = {
                     val r = sel ?: dispRect
@@ -213,6 +293,28 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { sel = dispRect }) { Text(s["crop.reset"]) }
+                // 手动 AI 识别：本地框得不准时点它（这里不受 0.5s 限制，允许等 4 秒）
+                TextButton(
+                    enabled = !aiBusy && path != null,
+                    onClick = {
+                        val p = path ?: return@TextButton
+                        aiBusy = true
+                        scope.launch {
+                            val bytes = runCatching {
+                                withContext(Dispatchers.IO) { java.io.File(p).readBytes() }
+                            }.getOrNull()
+                            val boxes = if (bytes != null) runCatching {
+                                StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = 4000)
+                            }.getOrNull() else null
+                            val best = boxes?.maxByOrNull { it.area }
+                            if (best != null) {
+                                sel = toDisp(best, dispRect)
+                                autoHint = true
+                            }
+                            aiBusy = false
+                        }
+                    }
+                ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiDetect"]) }
                 Row {
                     TextButton(onClick = { nav.navigate("camera") }) { Text(s["crop.reshoot"]) }
                     TextButton(onClick = { nav.popBackStack() }) { Text(s["common.backArrow"]) }

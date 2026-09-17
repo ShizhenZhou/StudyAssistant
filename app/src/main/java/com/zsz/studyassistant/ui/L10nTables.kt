@@ -174,6 +174,9 @@ private val B1_ZH = mapOf(
     "ask.send" to "提问 AI",
 
     "crop.noImage" to "未找到图片，请重新拍照",
+    "crop.autoSelected" to "已自动框选题目范围，可拖动微调",
+    "crop.aiDetect" to "🤖 AI 识别",
+    "crop.aiBusy" to "识别中…",
     "crop.confirm" to "✅ 确认框选并解答",
     "crop.whole" to "整张图片（跳过框选）",
     "crop.reset" to "重置框选",
@@ -201,6 +204,9 @@ private val B1_EN = mapOf(
     "ask.send" to "Ask AI",
 
     "crop.noImage" to "Image not found, please take the photo again",
+    "crop.autoSelected" to "Question area auto-selected — drag to fine-tune",
+    "crop.aiDetect" to "🤖 AI detect",
+    "crop.aiBusy" to "Detecting…",
     "crop.confirm" to "✅ Confirm selection & solve",
     "crop.whole" to "Whole image (skip cropping)",
     "crop.reset" to "Reset selection",
@@ -228,6 +234,9 @@ private val B1_JA = mapOf(
     "ask.send" to "AI に質問",
 
     "crop.noImage" to "画像が見つかりません。撮り直してください",
+    "crop.autoSelected" to "問題範囲を自動選択しました（ドラッグで微調整）",
+    "crop.aiDetect" to "🤖 AI 認識",
+    "crop.aiBusy" to "認識中…",
     "crop.confirm" to "✅ 範囲を確定して解答",
     "crop.whole" to "画像全体（切り抜きなし）",
     "crop.reset" to "範囲をリセット",
@@ -255,6 +264,9 @@ private val B1_KO = mapOf(
     "ask.send" to "AI에게 질문",
 
     "crop.noImage" to "이미지를 찾을 수 없습니다. 다시 촬영하세요",
+    "crop.autoSelected" to "문제 영역을 자동 선택했습니다 (드래그로 미세 조정)",
+    "crop.aiDetect" to "🤖 AI 인식",
+    "crop.aiBusy" to "인식 중…",
     "crop.confirm" to "✅ 선택 확정 후 풀이",
     "crop.whole" to "전체 이미지 (자르기 생략)",
     "crop.reset" to "선택 초기화",

@@ -14,6 +14,10 @@ import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.ResponseBody
 
 /**
@@ -258,6 +262,65 @@ object StudyAssistant {
     }
 
     private fun JsonElement.asText(): String = (this as? JsonPrimitive)?.content ?: toString()
+
+    /**
+     * 让视觉模型标出**题目区域**（相对坐标 0~1）。
+     * 超时（默认 2.6s）、解析失败或坐标不合法都返回 null —— 调用方据此回退到本地检测结果 / 默认框。
+     */
+    suspend fun detectQuestionBoxesAi(
+        imageBytes: ByteArray,
+        timeoutMs: Long = 500
+    ): List<ImageAutoCrop.NormRect>? {
+        requireKey()
+        val b64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+        val prompt = "你是图像分析助手。找出图中**每一道题目**的正文区域（包含题干文字与题图、包含选项；" +
+            "不要包含页眉页脚、\"提交\"按钮、手写笔记或已作答内容）。" +
+            "只输出 JSON，不要任何解释：{\"boxes\":[{\"x\":0.05,\"y\":0.35,\"w\":0.9,\"h\":0.12}]}。" +
+            "坐标是相对整张图的 0~1 比例值：x/y 为左上角，w/h 为宽高。"
+        val parts = buildJsonArray {
+            addJsonObject {
+                put("type", "text")
+                put("text", prompt)
+            }
+            addJsonObject {
+                put("type", "image_url")
+                putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$b64") }
+            }
+        }
+        val resp = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+            ApiClient.deepSeek.chat(
+                DeepSeekRequest(
+                    model = MODEL_VISION,
+                    messages = listOf(DeepSeekMessage("user", parts)),
+                    maxTokens = 300,
+                    temperature = 0.0
+                )
+            )
+        } ?: return null
+        lastUsage = resp.usage
+        val txt = resp.choices.firstOrNull()?.message?.content?.asText() ?: return null
+        val s = txt.indexOf('{')
+        val e = txt.lastIndexOf('}')
+        if (s < 0 || e <= s) return null
+        return runCatching {
+            val root = Json.parseToJsonElement(txt.substring(s, e + 1)).jsonObject
+            val arr = root["boxes"]?.jsonArray ?: return null
+            arr.mapNotNull { el ->
+                val o = el.jsonObject
+                val x = o["x"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
+                val y = o["y"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
+                val w = o["w"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
+                val h = o["h"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
+                if (w <= 0.02f || h <= 0.02f) return@mapNotNull null
+                ImageAutoCrop.NormRect(
+                    x.coerceIn(0f, 0.99f),
+                    y.coerceIn(0f, 0.99f),
+                    w.coerceIn(0.03f, 1f),
+                    h.coerceIn(0.03f, 1f)
+                )
+            }
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
+    }
 
     /** 同类题结果：AI 出的题目 + 完整解答 */
     data class SimilarResult(val question: String, val answer: String)
