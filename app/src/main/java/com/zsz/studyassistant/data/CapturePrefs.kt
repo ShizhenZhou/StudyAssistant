@@ -19,6 +19,14 @@ object CapturePrefs {
     fun setSolveDouble(c: Context, v: Boolean) =
         prefs(c).edit().putBoolean(KEY_SOLVE_DOUBLE, v).apply()
 
+    private const val KEY_GRADE_TOGGLE = "camera_grade_toggle"   // 拍照页右上角「批改」开关
+
+    /** 拍照页右上角开关：true = 批改模式 */
+    fun gradeToggle(c: Context): Boolean = prefs(c).getBoolean(KEY_GRADE_TOGGLE, false)
+
+    fun setGradeToggle(c: Context, v: Boolean) =
+        prefs(c).edit().putBoolean(KEY_GRADE_TOGGLE, v).apply()
+
     /** 批改页：上次是否为「两张」模式 */
     fun gradeDouble(c: Context): Boolean = prefs(c).getBoolean(KEY_GRADE_DOUBLE, false)
 

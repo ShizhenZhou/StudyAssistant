@@ -62,13 +62,14 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 Text(s["home.camera"], fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
+            // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
             Button(
-                onClick = { nav.navigate("grade") },
+                onClick = { nav.navigate("ask") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                Text(s["home.grade"], fontSize = 20.sp)
+                Text(s["home.ask"], fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(

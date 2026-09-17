@@ -20,6 +20,8 @@ private val B0_ZH = mapOf(
 
     "home.subtitle" to "拍照搜题 · AI 解答 · 错题整理",
     "home.camera" to "📷  拍照搜题",
+    "home.ask" to "✏️  图文提问",
+    "camera.gradeToggle" to "批改",
     "home.grade" to "✏️  批改题目",
     "home.notebook" to "📚  错题本",
     "home.review" to "📖  复习",
@@ -52,6 +54,8 @@ private val B0_EN = mapOf(
 
     "home.subtitle" to "Photo search · AI solutions · Mistake notebook",
     "home.camera" to "📷  Solve by photo",
+    "home.ask" to "✏️  Ask with text/image",
+    "camera.gradeToggle" to "Grade",
     "home.grade" to "✏️  Grade my work",
     "home.notebook" to "📚  Notebook",
     "home.review" to "📖  Review",
@@ -84,6 +88,8 @@ private val B0_JA = mapOf(
 
     "home.subtitle" to "撮影で検索 · AI 解答 · 間違いノート",
     "home.camera" to "📷  撮影して質問",
+    "home.ask" to "✏️  文字/画像で質問",
+    "camera.gradeToggle" to "添削",
     "home.grade" to "✏️  添削",
     "home.notebook" to "📚  間違いノート",
     "home.review" to "📖  復習",
@@ -116,6 +122,8 @@ private val B0_KO = mapOf(
 
     "home.subtitle" to "사진 검색 · AI 풀이 · 오답 노트",
     "home.camera" to "📷  사진으로 질문",
+    "home.ask" to "✏️  글/이미지 질문",
+    "camera.gradeToggle" to "첨삭",
     "home.grade" to "✏️  채점",
     "home.notebook" to "📚  오답 노트",
     "home.review" to "📖  복습",

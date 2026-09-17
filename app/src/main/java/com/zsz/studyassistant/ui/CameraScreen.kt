@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -35,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +56,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
@@ -117,16 +121,32 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         // 单张 / 两张拍摄模式（两张：拍两张作为同一道题一起解答）
         // 记住上次的选择：下次进本页直接沿用（存 settings SharedPreferences）
         var doubleMode by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.solveDouble(context)) }
+        // 右上角开关：开 = 批改模式（拍题目 [+ 我的作答] → 批改结果），关 = 正常拍照搜题；状态同样记忆
+        var gradeMode by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.gradeToggle(context)) }
         var firstBytes by remember { mutableStateOf<ByteArray?>(null) }
         var awaitingSecond by remember { mutableStateOf(false) }
 
         fun processImageFile(file: File) {
+            val bytes = com.zsz.studyassistant.data.StudyAssistant.compressImage(file)
+            if (gradeMode) {
+                // 批改模式：单张=只拍题目；两张=第 1 张题目、第 2 张我的作答 → 进入全屏批改页
+                val first = firstBytes
+                if (doubleMode && first == null) {
+                    firstBytes = bytes
+                    awaitingSecond = true
+                } else {
+                    val q = if (doubleMode) first ?: bytes else bytes
+                    val ans = if (doubleMode) bytes else null
+                    vm.startGrade(q, ans)
+                    nav.navigate("solve") { popUpTo("camera") { inclusive = true } }
+                }
+                return
+            }
             if (!doubleMode) {
                 // 单张：进入框选页挑选题目区域
                 vm.updatePendingImagePath(file.absolutePath)
                 nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
             } else {
-                val bytes = StudyAssistant.compressImage(file)
                 val first = firstBytes
                 if (first == null) {
                     firstBytes = bytes
@@ -257,10 +277,14 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
 
-        // 两张模式提示
+        // 两张模式提示；批改模式下改用批改文案（第 1 张题目、第 2 张我的作答）
         if (doubleMode) {
             Text(
-                if (awaitingSecond) s["camera.hint.twoSecond"] else s["camera.hint.twoFirst"],
+                if (awaitingSecond) {
+                    if (gradeMode) s["grade.hint.answer"] else s["camera.hint.twoSecond"]
+                } else {
+                    if (gradeMode) s["grade.hint.twoFirst"] else s["camera.hint.twoFirst"]
+                },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -278,14 +302,30 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .padding(8.dp)
         ) { Text(s["common.backArrow"]) }
 
-        // 右上角：直接提问（文字/图文，不必拍照）
-        TextButton(
-            onClick = { nav.navigate("ask") },
+        // 右上角：批改开关（开 = 批改模式，关 = 正常拍照搜题）；状态记忆，下次进页面沿用
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(8.dp)
-        ) { Text(s["camera.askDirect"]) }
+        ) {
+            Text(
+                s["camera.gradeToggle"],
+                fontSize = 13.sp,
+                color = if (gradeMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(6.dp))
+            Switch(
+                checked = gradeMode,
+                onCheckedChange = {
+                    gradeMode = it
+                    com.zsz.studyassistant.data.CapturePrefs.setGradeToggle(context, it)
+                    firstBytes = null
+                    awaitingSecond = false
+                }
+            )
+        }
     }
 }
 

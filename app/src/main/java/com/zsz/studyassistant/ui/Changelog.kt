@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.5_beta（开发分支 new_menu）
+· **菜单调整**：「直接提问」从拍照搜题页搬到**主页**，位于「拍照搜题」与「批改题目」之间（文字/图文直接解答，不必拍照）
+· 说明：0.5.4 已发布；本分支用于**菜单重构**，后续统计页等新入口也在这一线开发
+
 v0.5.4
 · ✏️ **批改页重做**：拍完题目（或题目+作答）直接进入**全屏批改页**（复用解题界面，标题「批改」）；批改结果与后续问答**全部流式**，可**带图追问**；生成中「⏸ 中止批改」、追问中「⏸ 中止生成」、空闲「🔄 重新批改」
 · 🧩 **练同类题页对齐解题页**：🔄 重新生成（清空重出）、📚 存错题本、⏸ 中止生成；底部同一套输入栏（公式键盘 / 图库 / 附图 / 发送）；「查看答案」为**左下角椭圆按钮**，答案未生成好时置灰
@@ -174,6 +178,10 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.5_beta (branch new_menu)
+· **Menu change**: "Ask directly" moved from the photo page to the **home screen**, between "Solve by photo" and "Grade my work" (type or attach an image, no photo needed)
+· Note: 0.5.4 has been released; this branch is for the **menu refactor** and upcoming entries such as statistics
+
 v0.5.4
 · ✏️ **Grading page rebuilt**: shooting the question (or question + your answer) now goes straight to a **full-screen grading page** reusing the solve UI, titled "Grading"; results and follow-ups are **fully streamed** and you can **ask with images** — "⏸ Stop grading" while grading, "⏸ Stop" while asking, "🔄 Re-grade" when idle
 · 🧩 **Similar-problem page matches the solve page**: "🔄 Regenerate" (clears and re-generates), "📚 Save to notebook", "⏸ Stop"; the same bottom input bar (formula keys / gallery / images / send); "Show answer" is a **pill button at the bottom-left**, greyed out until the answer is ready
@@ -343,6 +351,10 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.5_beta（ブランチ new_menu）
+· **メニュー変更**：「直接質問」を撮影ページから**ホーム**へ移動（「撮影して質問」と「添削」の間）。文字・画像でそのまま質問できます
+· 0.5.4 はリリース済み。本ブランチは**メニュー再構成**用（統計ページなどもこの線で開発）
+
 v0.5.4
 · ✏️ **添削ページを刷新**：撮影後すぐに**全画面の添削ページ**（解答 UI を再利用、タイトル「添削」）へ。結果と以降のやり取りは**すべてストリーミング**、**画像付きの追加質問**も可能。添削中は「⏸ 添削を中止」、質問中は「⏸ 中止」、待機中は「🔄 再添削」
 · 🧩 **類似問題ページを解答ページに合わせて刷新**：「🔄 再生成」「📚 ノートに保存」「⏸ 中止」、下部は同じ入力バー（数式キー／ギャラリー／画像／送信）。「解答を見る」は**左下の楕円ボタン**（準備できるまで無効）
@@ -512,6 +524,10 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.5_beta(브랜치 new_menu)
+· **메뉴 변경**: "직접 질문"을 촬영 페이지에서 **홈**으로 이동("사진으로 질문"과 "첨삭" 사이). 글/이미지로 바로 질문할 수 있습니다
+· 0.5.4는 릴리스됨. 이 브랜치는 **메뉴 개편**용이며 통계 페이지 등도 이 라인에서 개발합니다
+
 v0.5.4
 · ✏️ **첨삭 페이지 개편**: 촬영 후 바로 **전체 화면 첨삭 페이지**(풀이 UI 재사용, 제목 "첨삭")로 이동. 결과와 이후 대화는 **모두 스트리밍**, **이미지가 있는 추가 질문** 가능. 첨삭 중 "⏸ 첨삭 중단", 질문 중 "⏸ 중단", 대기 중 "🔄 다시 첨삭"
 · 🧩 **유사 문제 페이지를 풀이 페이지에 맞춰 개편**: "🔄 다시 생성", "📚 오답 노트에 저장", "⏸ 중단", 하단은 동일한 입력 바(수식 키/갤러리/이미지/전송). "정답 보기"는 **왼쪽 아래 타원 버튼**(준비 전에는 비활성)
