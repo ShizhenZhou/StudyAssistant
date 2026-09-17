@@ -37,6 +37,17 @@ import kotlinx.coroutines.withContext
 import com.zsz.studyassistant.data.StudyAssistant
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -59,7 +70,7 @@ private val BORDER = Color(0xFFFF5252)
 @Composable
 fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
-    val path = vm.pendingImagePath
+    val path = vm.currentCropPath
     val bitmap = remember(path) {
         path?.let {
             try { ImageDecoder.decodeBitmap(ImageDecoder.createSource(java.io.File(it))) } catch (e: Exception) { null }
@@ -87,7 +98,25 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     var autoHint by remember { mutableStateOf(false) }
     // 手动 AI 识别中
     var aiBusy by remember { mutableStateOf(false) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    /** 返回 = 回到拍摄界面（放弃本次框选） */
+    fun backToCamera() {
+        vm.cancelCropFlow()
+        nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
+    }
+
+    /** 提交一张之后：还差一张 → 回拍摄界面继续拍/选；否则 → 进入解题 / 批改 */
+    fun afterSubmit() {
+        if (vm.cropNeedsMore) {
+            nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
+        } else {
+            nav.navigate("solve") { popUpTo("crop") { inclusive = true } }
+        }
+    }
+
+    // 系统返回键 / 返回手势 → 也回拍摄界面
+    androidx.activity.compose.BackHandler { backToCamera() }
 
     /** 归一化矩形 → 屏幕显示坐标（相对当前显示的图片区域） */
     fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
@@ -101,17 +130,23 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
         )
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().padding(bottom = 120.dp)) {
+    // 缩放 / 平移（双指捏合调整图片大小；1x~4x）
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var panX by remember { mutableFloatStateOf(0f) }
+    var panY by remember { mutableFloatStateOf(0f) }
+
+    // ★ 用 Column 布局：图片显示区 = weight(1f)，下缘正好挨着按钮上缘（不会再被按钮盖住）
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val dens = LocalDensity.current
                 val bw = with(dens) { maxWidth.toPx() }
                 val bh = with(dens) { maxHeight.toPx() }
-                val scale = minOf(bw / bitmap.width, bh / bitmap.height)
+                val scale = minOf(bw / bitmap.width, bh / bitmap.height) * zoom
                 val dw = bitmap.width * scale
                 val dh = bitmap.height * scale
-                val dl = (bw - dw) / 2f
-                val dt = (bh - dh) / 2f
+                val dl = (bw - dw) / 2f + panX
+                val dt = (bh - dh) / 2f + panY
                 val disp = Rect(Offset(dl, dt), Offset(dl + dw, dt + dh))
 
                 // ★ 键必须同时包含 disp 与 path：首次组合时 path 可能还没就绪，
@@ -164,8 +199,17 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     if (autoHint) { delay(3000); autoHint = false }
                 }
 
-                Image(bitmap = bitmap.asImageBitmap(), contentDescription = null,
-                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                // 按计算出的 disp 绘制图片（这样缩放/平移后选区仍与图片对齐）
+                Canvas(Modifier.fillMaxSize()) {
+                    val d2 = disp
+                    if (d2 != Rect.Zero) {
+                        drawImage(
+                            image = bitmap.asImageBitmap(),
+                            dstOffset = androidx.compose.ui.unit.IntOffset(d2.left.toInt(), d2.top.toInt()),
+                            dstSize = androidx.compose.ui.unit.IntSize(d2.width.toInt(), d2.height.toInt())
+                        )
+                    }
+                }
 
                 // 选区外遮罩 + 选框边框
                 Canvas(Modifier.fillMaxSize()) {
@@ -191,7 +235,41 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 }
 
-                // 手势
+                // 双指捏合/张开 → 图片缩放（仅当手势起点落在红框内）
+                Box(
+                    Modifier.fillMaxSize().pointerInput(Unit) {
+                        detectTransformGestures { centroid, pan, zoomChange, _ ->
+                            val r = sel
+                            if (r != null && r.contains(centroid)) {
+                                val oldDisp = dispRect
+                                val newZoom = (zoom * zoomChange).coerceIn(1f, 4f)
+                                zoom = newZoom
+                                // 限制平移，避免把图片拖出屏幕
+                                val overX = ((bitmap.width * minOf(bw / bitmap.width, bh / bitmap.height) * newZoom) - bw) / 2f
+                                val overY = ((bitmap.height * minOf(bw / bitmap.width, bh / bitmap.height) * newZoom) - bh) / 2f
+                                panX = (panX + pan.x).coerceIn(-overX.coerceAtLeast(0f), overX.coerceAtLeast(0f))
+                                panY = (panY + pan.y).coerceIn(-overY.coerceAtLeast(0f), overY.coerceAtLeast(0f))
+                                // 缩放后把选区按比例映射，保持它仍框住同一块图
+                                val nScale = minOf(bw / bitmap.width, bh / bitmap.height) * newZoom
+                                val nw = bitmap.width * nScale
+                                val nh = bitmap.height * nScale
+                                val nl = (bw - nw) / 2f + panX
+                                val nt = (bh - nh) / 2f + panY
+                                if (oldDisp.width > 0f && oldDisp.height > 0f) {
+                                    sel = Rect(
+                                        nl + (r.left - oldDisp.left) / oldDisp.width * nw,
+                                        nt + (r.top - oldDisp.top) / oldDisp.height * nh,
+                                        nl + (r.right - oldDisp.left) / oldDisp.width * nw,
+                                        nt + (r.bottom - oldDisp.top) / oldDisp.height * nh
+                                    )
+                                }
+                                userTouched = true
+                            }
+                        }
+                    }
+                )
+
+                // 手势（拖动/改框）
                 Box(Modifier.fillMaxSize().pointerInput(dispRect) {
                     detectDragGestures(
                         onDragStart = { pos ->
@@ -254,8 +332,18 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
 
-        // 底部按钮
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp)) {
+        // 底部按钮（在 Column 里自然位于图片区下方，不再遮挡图片）
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            // 多张时提示当前是第几张
+            if (vm.cropTotal > 1) {
+                Text(
+                    s.format("crop.multiPos", "i" to "${vm.cropPos}", "n" to "${vm.cropTotal}"),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
             // 预框选命中提示（3 秒后自动消失）
             if (autoHint) {
                 Text(
@@ -276,48 +364,34 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         val w = ((r.width / d2.width) * bitmap.width).toInt().coerceIn(1, bitmap.width - x)
                         val h = ((r.height / d2.height) * bitmap.height).toInt().coerceIn(1, bitmap.height - y)
                         val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
-                        vm.solveWithImage(compressBitmap(cropped))
-                        nav.navigate("solve") { popUpTo("crop") { inclusive = true } }
+                        vm.submitCropResult(compressBitmap(cropped))
+                        afterSubmit()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) { Text(s["crop.confirm"]) }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = {
-                    vm.solveWithImage(compressBitmap(bitmap))
-                    nav.navigate("solve") { popUpTo("crop") { inclusive = true } }
+            // 「整张图片」：**按住 2 秒填满 → 松开才跳过**（整张提交，剩下的都跳过）；没填满松手或填满后上滑 = 取消
+            HoldToSkipButton(
+                text = s["crop.whole"],
+                holdHint = s["crop.wholeHoldHint"],
+                onSkip = {
+                    vm.skipRemainingCrop { p ->
+                        runCatching {
+                            val b = android.graphics.BitmapFactory.decodeFile(p) ?: return@runCatching null
+                            compressBitmap(b)
+                        }.getOrNull()
+                    }
+                    afterSubmit()
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) { Text(s["crop.whole"]) }
+            )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { sel = dispRect }) { Text(s["crop.reset"]) }
-                // 手动 AI 识别：本地框得不准时点它（这里不受 0.5s 限制，允许等 4 秒）
-                TextButton(
-                    enabled = !aiBusy && path != null,
-                    onClick = {
-                        val p = path ?: return@TextButton
-                        aiBusy = true
-                        scope.launch {
-                            val bytes = runCatching {
-                                withContext(Dispatchers.IO) { java.io.File(p).readBytes() }
-                            }.getOrNull()
-                            val boxes = if (bytes != null) runCatching {
-                                StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = 4000)
-                            }.getOrNull() else null
-                            val best = boxes?.maxByOrNull { it.area }
-                            if (best != null) {
-                                sel = toDisp(best, dispRect)
-                                autoHint = true
-                            }
-                            aiBusy = false
-                        }
-                    }
-                ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiDetect"]) }
-                Row {
-                    TextButton(onClick = { nav.navigate("camera") }) { Text(s["crop.reshoot"]) }
-                    TextButton(onClick = { nav.popBackStack() }) { Text(s["common.backArrow"]) }
+                // 返回 = 回到拍摄界面（不换行）
+                TextButton(onClick = { backToCamera() }) {
+                    Text(s["crop.backToCamera"], maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -328,4 +402,87 @@ private fun compressBitmap(bmp: Bitmap, quality: Int = 85): ByteArray {
     val out = ByteArrayOutputStream()
     bmp.compress(Bitmap.CompressFormat.JPEG, quality, out)
     return out.toByteArray()
+}
+
+/**
+ * 「整张图片」按钮（跳过框选）：
+ *  · **按住 2 秒**：紫色进度从左往右填满 → **松开才执行跳过**
+ *  · 没填满就松手 → 取消（不跳过）
+ *  · 填满后**上滑** → 取消跳过
+ */
+@Composable
+private fun HoldToSkipButton(
+    text: String,
+    holdHint: String,
+    onSkip: () -> Unit,
+    modifier: Modifier = Modifier,
+    holdMs: Long = 2000L
+) {
+    var progress by remember { mutableFloatStateOf(0f) }
+    var armed by remember { mutableStateOf(false) }        // 是否已填满（等待松手）
+    var slideCancel by remember { mutableStateOf(false) }  // 已上滑到取消区（填充变浅红）
+    val scope = rememberCoroutineScope()
+    Box(
+        modifier
+            .clip(RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    armed = false
+                    val startY = down.position.y
+                    val slideUpPx = 36.dp.toPx()
+                    val job = scope.launch {
+                        val start = System.currentTimeMillis()
+                        while (true) {
+                            val p = ((System.currentTimeMillis() - start).toFloat() / holdMs).coerceIn(0f, 1f)
+                            progress = p
+                            if (p >= 1f) { armed = true; break }   // 填满后停住，等松手
+                            delay(16)
+                        }
+                    }
+                    var cancelled = false
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!ch.pressed) break                                  // 松手
+                        if (armed && (startY - ch.position.y) > slideUpPx) {     // 填满后上滑 → 取消
+                            cancelled = true
+                            ev.changes.forEach { it.consume() }
+                            break
+                        }
+                    }
+                    job.cancel()
+                    val doSkip = armed && !cancelled
+                    armed = false
+                    progress = 0f
+                    if (doSkip) onSkip()
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        // 紫色进度：从左往右填充
+        if (progress > 0f) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress)
+                    .background(
+                        if (slideCancel) Color(0xFFFFCDD2)   // 上滑到取消区：浅红
+                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
+                    )
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text, maxLines = 1, softWrap = false)
+            Text(
+                holdHint,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.outline,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
 }

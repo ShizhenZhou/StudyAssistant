@@ -151,10 +151,88 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var currentQuestionTags by mutableStateOf<List<Long>>(emptyList())
         private set
 
-    /** 框选用：暂存拍照生成的图片文件路径 */
+    /** 框选用：暂存拍照生成的图片文件路径（单张旧路径，保留兼容） */
     var pendingImagePath by mutableStateOf<String?>(null)
         private set
     fun updatePendingImagePath(path: String) { pendingImagePath = path }
+
+    // ---- 框选流程：一次 1~2 张（拍题 / 批改 的「两张」模式，两张都各自过框选）----
+    /** 待框选的图片路径（有序：单张 = 题目；两张 = 题目、我的作答） */
+    var cropPaths by mutableStateOf<List<String>>(emptyList())
+        private set
+    /** 当前正在框选第几张（0 基） */
+    var cropIndex by mutableStateOf(0)
+        private set
+    /** 本次流程是否属于批改（决定框选完成后走 startGrade 还是 solve） */
+    var cropGrade by mutableStateOf(false)
+        private set
+    /** 期望张数：两张模式 = 2；其余 = 实际选择张数 */
+    var cropExpect by mutableStateOf(1)
+        private set
+    /** 还差一张（两张模式只给了一张）→ 界面应回到拍摄界面继续拍/选 */
+    var cropNeedsMore by mutableStateOf(false)
+        private set
+    private val cropResults = mutableListOf<ByteArray>()
+
+    val currentCropPath: String? get() = cropPaths.getOrNull(cropIndex)
+    val cropTotal: Int get() = cropPaths.size
+    val cropPos: Int get() = cropIndex + 1
+
+    fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
+        cropPaths = paths
+        cropIndex = 0
+        cropGrade = grade
+        cropExpect = maxOf(expect, paths.size).coerceAtLeast(1)
+        cropNeedsMore = false
+        cropResults.clear()
+    }
+
+    /** 两张模式下又拍到 / 选到第 2 张 */
+    fun appendCropPath(path: String) {
+        if (cropPaths.size > cropIndex) return
+        cropPaths = cropPaths + path
+        cropNeedsMore = false
+    }
+
+    /** 提交当前这张的框选结果：还有下一张就前进；否则凑够张数就进入解题/批改，不够就回拍摄界面 */
+    fun submitCropResult(bytes: ByteArray) {
+        cropResults.add(bytes)
+        if (cropIndex + 1 < cropPaths.size) {
+            cropIndex += 1
+        } else if (cropResults.size < cropExpect) {
+            cropNeedsMore = true
+        } else {
+            finishCropFlow()
+        }
+    }
+
+    /** 长按「整张图片」：把剩下的（最多两张）全部按整图提交 */
+    fun skipRemainingCrop(decode: (String) -> ByteArray?) {
+        while (cropIndex < cropPaths.size) {
+            decode(cropPaths[cropIndex])?.let { cropResults.add(it) }
+            cropIndex += 1
+        }
+        if (cropResults.size < cropExpect) cropNeedsMore = true else finishCropFlow()
+    }
+
+    fun cancelCropFlow() {
+        cropPaths = emptyList()
+        cropIndex = 0
+        cropNeedsMore = false
+        cropResults.clear()
+    }
+
+    private fun finishCropFlow() {
+        val imgs = cropResults.toList()
+        val grade = cropGrade
+        cancelCropFlow()
+        if (imgs.isEmpty()) return
+        if (grade) {
+            if (imgs.size >= 2) startGrade(imgs[0], imgs[1]) else startGrade(imgs[0], null)
+        } else {
+            if (imgs.size >= 2) solveWithImages(imgs) else solveWithImage(imgs[0])
+        }
+    }
 
     fun clearError() { error = null }
     fun showError(msg: String) { error = msg }

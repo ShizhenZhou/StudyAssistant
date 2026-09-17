@@ -174,6 +174,9 @@ private val B1_ZH = mapOf(
     "ask.send" to "提问 AI",
 
     "crop.noImage" to "未找到图片，请重新拍照",
+    "crop.backToCamera" to "回到拍摄界面",
+    "crop.multiPos" to "第 {i}/{n} 张",
+    "crop.wholeHoldHint" to "按住 2 秒后松手跳过 · 上滑取消",
     "crop.autoSelected" to "已自动框选题目范围，可拖动微调",
     "crop.aiDetect" to "🤖 AI 识别",
     "crop.aiBusy" to "识别中…",
@@ -204,6 +207,9 @@ private val B1_EN = mapOf(
     "ask.send" to "Ask AI",
 
     "crop.noImage" to "Image not found, please take the photo again",
+    "crop.backToCamera" to "Back to camera",
+    "crop.multiPos" to "Image {i} of {n}",
+    "crop.wholeHoldHint" to "Hold 2s, release to skip · slide up to cancel",
     "crop.autoSelected" to "Question area auto-selected — drag to fine-tune",
     "crop.aiDetect" to "🤖 AI detect",
     "crop.aiBusy" to "Detecting…",
@@ -234,6 +240,9 @@ private val B1_JA = mapOf(
     "ask.send" to "AI に質問",
 
     "crop.noImage" to "画像が見つかりません。撮り直してください",
+    "crop.backToCamera" to "撮影画面へ戻る",
+    "crop.multiPos" to "{n} 枚中 {i} 枚目",
+    "crop.wholeHoldHint" to "2 秒長押し→離してスキップ・上スワイプで取消",
     "crop.autoSelected" to "問題範囲を自動選択しました（ドラッグで微調整）",
     "crop.aiDetect" to "🤖 AI 認識",
     "crop.aiBusy" to "認識中…",
@@ -264,6 +273,9 @@ private val B1_KO = mapOf(
     "ask.send" to "AI에게 질문",
 
     "crop.noImage" to "이미지를 찾을 수 없습니다. 다시 촬영하세요",
+    "crop.backToCamera" to "촬영 화면으로",
+    "crop.multiPos" to "{n}장 중 {i}장",
+    "crop.wholeHoldHint" to "2초 누른 뒤 떼면 건너뛰기 · 위로 밀면 취소",
     "crop.autoSelected" to "문제 영역을 자동 선택했습니다 (드래그로 미세 조정)",
     "crop.aiDetect" to "🤖 AI 인식",
     "crop.aiBusy" to "인식 중…",

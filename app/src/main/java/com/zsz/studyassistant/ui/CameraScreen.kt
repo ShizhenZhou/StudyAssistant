@@ -126,36 +126,23 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         var firstBytes by remember { mutableStateOf<ByteArray?>(null) }
         var awaitingSecond by remember { mutableStateOf(false) }
 
+        // 拍照 / 选图统一进**框选流程**：
+        //  · 单张模式 → 1 张进框选
+        //  · 两张模式 → 第 1 张进框选；框完回本页收第 2 张（同样进框选）
+        //  · 图库一次选两张 → 两张都进框选（见 galleryMulti）
         fun processImageFile(file: File) {
-            val bytes = com.zsz.studyassistant.data.StudyAssistant.compressImage(file)
-            if (gradeMode) {
-                // 批改模式：单张=只拍题目；两张=第 1 张题目、第 2 张我的作答 → 进入全屏批改页
-                val first = firstBytes
-                if (doubleMode && first == null) {
-                    firstBytes = bytes
-                    awaitingSecond = true
-                } else {
-                    val q = if (doubleMode) first ?: bytes else bytes
-                    val ans = if (doubleMode) bytes else null
-                    vm.startGrade(q, ans)
-                    nav.navigate("solve") { popUpTo("camera") { inclusive = true } }
-                }
+            val path = file.absolutePath
+            if (vm.cropNeedsMore) {
+                vm.appendCropPath(path)
+                nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
                 return
             }
-            if (!doubleMode) {
-                // 单张：进入框选页挑选题目区域
-                vm.updatePendingImagePath(file.absolutePath)
-                nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
-            } else {
-                val first = firstBytes
-                if (first == null) {
-                    firstBytes = bytes
-                    awaitingSecond = true
-                } else {
-                    vm.solveWithImages(listOf(first, bytes))
-                    nav.navigate("solve") { popUpTo("camera") { inclusive = true } }
-                }
-            }
+            vm.startCropFlow(
+                paths = listOf(path),
+                grade = gradeMode,
+                expect = if (doubleMode) 2 else 1
+            )
+            nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
         }
 
         AndroidView(
@@ -200,7 +187,15 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             ActivityResultContracts.PickMultipleVisualMedia(2)
         ) { uris ->
             val files = uris.take(2).mapNotNull { uriToTempFile(context, it, "gallery") }
-            files.take(2).forEach { processImageFile(it) }   // 依次处理：第 1 张先存为题目，第 2 张触发解答
+            if (files.isEmpty()) return@rememberLauncherForActivityResult
+            // 一次选两张 → 两张都进同一个框选队列（先框题目，再框作答）
+            // 只选一张 → 也进框选；若还差一张（两张模式）框完会回到拍摄界面继续选
+            vm.startCropFlow(
+                paths = files.map { it.absolutePath },
+                grade = gradeMode,
+                expect = if (doubleMode) 2 else files.size
+            )
+            nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
         }
 
         // 从图库选图（左下角，圆角正方形 + 花瓣图标）
@@ -280,7 +275,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         // 两张模式提示；批改模式下改用批改文案（第 1 张题目、第 2 张我的作答）
         if (doubleMode) {
             Text(
-                if (awaitingSecond) {
+                if (vm.cropNeedsMore || awaitingSecond) {
                     if (gradeMode) s["grade.hint.answer"] else s["camera.hint.twoSecond"]
                 } else {
                     if (gradeMode) s["grade.hint.twoFirst"] else s["camera.hint.twoFirst"]
