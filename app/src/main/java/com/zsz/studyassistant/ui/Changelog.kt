@@ -5,9 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
-v0.5.5_beta（开发分支 new_menu）
+v0.5.5
 · **菜单调整**：「直接提问」从拍照搜题页搬到**主页**，位于「拍照搜题」与「批改题目」之间（文字/图文直接解答，不必拍照）
-· 说明：0.5.4 已发布；本分支用于**菜单重构**，后续统计页等新入口也在这一线开发
+· **框选页支持预框选**：进页面即自动框出题目范围（本地算法与 AI 并行，AI 超时回落本地/默认框），可双指缩放图片、长按跳过框选
+· **两张模式全程可框选**：拍题 / 批改的「两张」模式，每张都各自框选；框完第二张可按返回回到第一张重框
+· **设置页归类**：新增「通用」（API 管理 + AI 框选时限滑条），「个性化」「通知与后台」重新归类
+· 回到主页会清空所有拍摄 / 框选缓存
 
 v0.5.4
 · ✏️ **批改页重做**：拍完题目（或题目+作答）直接进入**全屏批改页**（复用解题界面，标题「批改」）；批改结果与后续问答**全部流式**，可**带图追问**；生成中「⏸ 中止批改」、追问中「⏸ 中止生成」、空闲「🔄 重新批改」
@@ -178,9 +181,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
-v0.5.5_beta (branch new_menu)
+v0.5.5
 · **Menu change**: "Ask directly" moved from the photo page to the **home screen**, between "Solve by photo" and "Grade my work" (type or attach an image, no photo needed)
-· Note: 0.5.4 has been released; this branch is for the **menu refactor** and upcoming entries such as statistics
+· **Pre-selection in the crop screen**: the question area is framed automatically (local algorithm + AI in parallel, falling back to local/default on timeout); pinch to zoom, hold to skip
+· **Two-shot mode now crops every image**: each photo goes through cropping; press back on the 2nd to re-crop the 1st
+· **Settings reorganized**: new "General" (API, AI crop timeout slider), plus "Personalization" and "Notifications & background"
+· Returning to Home clears all capture/crop caches
 
 v0.5.4
 · ✏️ **Grading page rebuilt**: shooting the question (or question + your answer) now goes straight to a **full-screen grading page** reusing the solve UI, titled "Grading"; results and follow-ups are **fully streamed** and you can **ask with images** — "⏸ Stop grading" while grading, "⏸ Stop" while asking, "🔄 Re-grade" when idle
@@ -351,9 +357,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
-v0.5.5_beta（ブランチ new_menu）
+v0.5.5
 · **メニュー変更**：「直接質問」を撮影ページから**ホーム**へ移動（「撮影して質問」と「添削」の間）。文字・画像でそのまま質問できます
-· 0.5.4 はリリース済み。本ブランチは**メニュー再構成**用（統計ページなどもこの線で開発）
+· **切り抜き画面に自動プリセレクト**：開くと同時に問題範囲を自動で枠取り（ローカル算法と AI を並行、AI が時間内に返らなければローカル/既定枠にフォールバック）。ピンチで拡大縮小、長押しでスキップ
+· **2 枚モードは全枚を切り抜き**：2 枚モードでも 1 枚ずつ枠取り。2 枚目で戻ると 1 枚目を再枠取り
+· **設定の整理**：「一般」（API・AI 切り抜き制限時間スライダー）を追加、「パーソナライズ」「通知とバックグラウンド」に再分類
+· ホームに戻ると撮影・切り抜きのキャッシュを全消去
 
 v0.5.4
 · ✏️ **添削ページを刷新**：撮影後すぐに**全画面の添削ページ**（解答 UI を再利用、タイトル「添削」）へ。結果と以降のやり取りは**すべてストリーミング**、**画像付きの追加質問**も可能。添削中は「⏸ 添削を中止」、質問中は「⏸ 中止」、待機中は「🔄 再添削」
@@ -524,9 +533,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
-v0.5.5_beta(브랜치 new_menu)
+v0.5.5
 · **메뉴 변경**: "직접 질문"을 촬영 페이지에서 **홈**으로 이동("사진으로 질문"과 "첨삭" 사이). 글/이미지로 바로 질문할 수 있습니다
-· 0.5.4는 릴리스됨. 이 브랜치는 **메뉴 개편**용이며 통계 페이지 등도 이 라인에서 개발합니다
+· **자르기 화면 자동 사전 선택**: 화면을 열면 문제 영역을 자동으로 잡아 줍니다(로컬 알고리즘과 AI 병렬, AI가 시간 내 응답하지 않으면 로컬/기본 박스로 대체). 두 손가락 확대/축소, 길게 눌러 건너뛰기
+· **2장 모드도 모든 사진을 자르기**: 2장 모드에서도 한 장씩 잘라내며, 2번째에서 뒤로 가면 1번째를 다시 자릅니다
+· **설정 정리**: 「일반」(API, AI 자르기 제한 시간 슬라이더) 추가, 「개인 설정」「알림 및 백그라운드」로 재분류
+· 홈으로 돌아가면 촬영·자르기 캐시를 모두 비웁니다
 
 v0.5.4
 · ✏️ **첨삭 페이지 개편**: 촬영 후 바로 **전체 화면 첨삭 페이지**(풀이 UI 재사용, 제목 "첨삭")로 이동. 결과와 이후 대화는 **모두 스트리밍**, **이미지가 있는 추가 질문** 가능. 첨삭 중 "⏸ 첨삭 중단", 질문 중 "⏸ 중단", 대기 중 "🔄 다시 첨삭"

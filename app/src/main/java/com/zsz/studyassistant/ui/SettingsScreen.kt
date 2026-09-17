@@ -43,6 +43,15 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -202,24 +211,116 @@ private fun AiCropTimeoutSettings() {
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.primary
         )
-        Slider(
-            value = msToT(ms),
-            onValueChange = { t ->
-                var m = tToMs(t)
-                // 磁吸：落在吸附点附近（相对 8% 内）就吸过去
+        // 自绘滑条：轨道 / 滑块 / 刻度文字都在同一个 Canvas 坐标系里画，
+        // 这样刻度一定严格对准它代表的位置（不再受 Material Slider 内部内边距影响）
+        AiCropSlider(
+            ms = ms,
+            onMs = { v ->
+                var m = v
                 snapPoints.forEach { sp -> if (abs(m - sp) / sp < 0.08f) m = sp }
                 ms = m
             },
-            onValueChangeFinished = {
+            onCommit = {
                 com.zsz.studyassistant.data.CapturePrefs.setAiCropTimeoutMs(ctx, ms.toLong())
-            }
+            },
+            fmt = ::fmt,
+            msToT = ::msToT,
+            tToMs = ::tToMs
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("100 ms", "500 ms", "1 s", "3 s", "5 s").forEach {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+    }
+}
+
+/** 自绘的对数滑条（含刻度标注，严格对齐） */
+@Composable
+private fun AiCropSlider(
+    ms: Float,
+    onMs: (Float) -> Unit,
+    onCommit: () -> Unit,
+    fmt: (Float) -> String,
+    msToT: (Float) -> Float,
+    tToMs: (Float) -> Float
+) {
+    val tickVals = listOf(100f, 500f, 1000f, 3000f, 5000f)
+    // 刻度用紧凑写法：整秒不带小数（3.00 s → 3 s），否则末尾两个标签会挤在一起
+    fun fmtTick(v: Float): String =
+        if (v < 1000f) "${v.roundToInt()} ms"
+        else {
+            val sec = v / 1000f
+            if (sec % 1f == 0f) "${sec.roundToInt()} s" else String.format("%.1f s", sec)
+        }
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val labelColor = MaterialTheme.colorScheme.outline
+    val active = MaterialTheme.colorScheme.primary
+    val inactive = MaterialTheme.colorScheme.surfaceVariant
+    var widthPx by remember { mutableFloatStateOf(1f) }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = { onCommit() }
+                ) { change, _ ->
+                    val t = (change.position.x / widthPx).coerceIn(0f, 1f)
+                    onMs(tToMs(t))
+                    change.consume()
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures { pos ->
+                    val t = (pos.x / widthPx).coerceIn(0f, 1f)
+                    onMs(tToMs(t))
+                    onCommit()
+                }
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            widthPx = w
+            val trackY = 18.dp.toPx()
+            val trackH = 8.dp.toPx()
+            val radius = androidx.compose.ui.geometry.CornerRadius(trackH / 2f)
+            // 轨道
+            drawRoundRect(
+                color = inactive,
+                topLeft = Offset(0f, trackY - trackH / 2f),
+                size = Size(w, trackH),
+                cornerRadius = radius
+            )
+            val t = msToT(ms).coerceIn(0f, 1f)
+            // 已选部分
+            drawRoundRect(
+                color = active,
+                topLeft = Offset(0f, trackY - trackH / 2f),
+                size = Size((w * t).coerceAtLeast(trackH), trackH),
+                cornerRadius = radius
+            )
+            // 滑块（细竖条，中心正好在 w*t）
+            val thumbW = 4.dp.toPx()
+            val thumbH = 26.dp.toPx()
+            drawRoundRect(
+                color = active,
+                topLeft = Offset(w * t - thumbW / 2f, trackY - thumbH / 2f),
+                size = Size(thumbW, thumbH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(thumbW / 2f)
+            )
+            // 刻度文字：中心严格对齐各自的对数位置（两端做边缘夹紧）
+            tickVals.forEach { v ->
+                val layout = measurer.measure(
+                    text = androidx.compose.ui.text.AnnotatedString(fmtTick(v)),
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontSize = 11.sp,
+                        color = labelColor
+                    )
+                )
+                val cx = (w * msToT(v)).coerceIn(
+                    layout.size.width / 2f,
+                    (w - layout.size.width / 2f).coerceAtLeast(layout.size.width / 2f)
+                )
+                drawText(
+                    textLayoutResult = layout,
+                    topLeft = Offset(cx - layout.size.width / 2f, trackY + 16.dp.toPx())
                 )
             }
         }
