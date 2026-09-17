@@ -29,6 +29,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.launch
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -93,22 +94,26 @@ class MainActivity : ComponentActivity() {
                     val current = backStack?.destination?.route
                     val showBottomBar = current == "home" || current == "settings"
 
-                    // 防触摸穿透的「导航后短时封锁」状态（见下方 NavHost 旁的说明）
+                    // 防触摸穿透：每次页面切换后用**状态标志**封锁内容区触摸 NAV_TOUCH_GUARD_MS。
+                    // ⚠️ 这里必须由协程定时解锁，**不能**把 `SystemClock.uptimeMillis() < t` 之类的时间比较写进
+                    //    组合条件——那只是组合期快照，页面若不再重组就永远不会解除，会变成
+                    //    「界面正常显示但所有点击无反应」＝卡死（0.5.4 首版踩过这个坑）。
                     val navBlocking = remember { androidx.compose.runtime.mutableStateOf(false) }
-                    val navBlockUntil = remember { androidx.compose.runtime.mutableStateOf(0L) }
+                    val blockScope = androidx.compose.runtime.rememberCoroutineScope()
+                    val blockJob = remember { androidx.compose.runtime.mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     androidx.compose.runtime.DisposableEffect(nav) {
                         val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, _, _ ->
-                            navBlockUntil.value = android.os.SystemClock.uptimeMillis() + NAV_TOUCH_GUARD_MS
-                            navBlocking.value = true
+                            blockJob.value?.cancel()
+                            blockJob.value = blockScope.launch {
+                                navBlocking.value = true
+                                kotlinx.coroutines.delay(NAV_TOUCH_GUARD_MS)
+                                navBlocking.value = false
+                            }
                         }
                         nav.addOnDestinationChangedListener(listener)
-                        onDispose { nav.removeOnDestinationChangedListener(listener) }
-                    }
-                    androidx.compose.runtime.LaunchedEffect(navBlocking.value) {
-                        if (navBlocking.value) {
-                            val wait = navBlockUntil.value - android.os.SystemClock.uptimeMillis()
-                            if (wait > 0) kotlinx.coroutines.delay(wait)
-                            navBlocking.value = false
+                        onDispose {
+                            nav.removeOnDestinationChangedListener(listener)
+                            blockJob.value?.cancel()
                         }
                     }
 
@@ -136,17 +141,11 @@ class MainActivity : ComponentActivity() {
                                 composable("settings") { SettingsTab(viewModel) }
                             }
 
-                            // ★ 过渡期间吞掉内容区触摸（对所有页面切换都生效）：
-                            //   页面切换时「正在退出的页面」仍在组合中并参与命中测试，而新页面在很多位置
+                            // ★ 切换页面后短时吞掉内容区触摸（对所有目的地生效）：
+                            //   过渡动画期间「正在退出的页面」仍在组合中并参与命中测试，而新页面在很多位置
                             //   没有可点击节点，触摸会穿透到下面那张旧页面 → 曾出现「点了设置又误触拍照搜题」。
-                            //   两道判据（取或）：① 当前目的地尚未 RESUMED（动画进行中）
-                            //                    ② 刚发生导航的 250ms 内（不依赖过渡实现细节的兜底）
-                            val currentEntry = backStack
-                            val notResumed = currentEntry?.lifecycle?.currentState
-                                ?.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) != true
-                            val withinNavGuard = navBlocking.value ||
-                                android.os.SystemClock.uptimeMillis() < navBlockUntil.value
-                            if (notResumed || withinNavGuard) {
+                            //   用 navBlocking（状态 + 协程定时解锁）兜住这段窗口；底部导航栏在 NavHost 之外，不受影响。
+                            if (navBlocking.value) {
                                 Box(
                                     Modifier
                                         .fillMaxSize()
