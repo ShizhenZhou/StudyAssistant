@@ -285,7 +285,11 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                     val sameSide = if (r0 == null) true
                                     else (r0.contains(p0) && r0.contains(p1)) ||
                                         (!r0.contains(p0) && !r0.contains(p1))
-                                    if (sameSide && prevDist > 1f && dist > 1f) {
+                                    // ★ 两指中点必须落在图片内：落在图片外的黑色区域不响应缩放
+                                    val mid = Offset((p0.x + p1.x) / 2f, (p0.y + p1.y) / 2f)
+                                    val dNow = dispRect
+                                    val onImage = dNow.width <= 1f || dNow.contains(mid)
+                                    if (sameSide && onImage && prevDist > 1f && dist > 1f) {
                                         // 单次事件限幅 ±10%，避免异常比值把图瞬间放大/缩小
                                         val ratio = (dist / prevDist).coerceIn(0.9f, 1.1f)
                                         val newZoom = (zoom * ratio).coerceIn(1f, 4f)
@@ -465,6 +469,16 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                         aiBusy = true
                         scope.launch {
                             val p2 = vm.currentCropPath
+                            // ★ 先复位缩放/平移：把图片重新填回原位，自动框选的结果才可见可调
+                            zoom = 1f
+                            panX = 0f
+                            panY = 0f
+                            val bs0 = minOf(bw / bitmap.width, bh / bitmap.height)
+                            val dw0 = bitmap.width * bs0
+                            val dh0 = bitmap.height * bs0
+                            val dl0 = (bw - dw0) / 2f
+                            val dt0 = (bh - dh0) / 2f
+                            dispRect = Rect(Offset(dl0, dt0), Offset(dl0 + dw0, dt0 + dh0))
                             val fallbackDefault = {
                                 val w = dispRect.width * 0.7f
                                 val h = dispRect.height * 0.7f
@@ -601,13 +615,16 @@ private fun HoldToSkipButton(
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text, maxLines = 1, softWrap = false)
-            Text(
-                holdHint,
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.outline,
-                maxLines = 1,
-                softWrap = false
-            )
+            // 只有需要提示长按手势时才显示第二行（否则单行文字会偏离按钮中心、显得偏上）
+            if (holdHint.isNotEmpty()) {
+                Text(
+                    holdHint,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
         }
     }
 }
