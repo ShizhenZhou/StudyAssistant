@@ -275,15 +275,25 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                         val ratio = (dist / prevDist).coerceIn(0.9f, 1.1f)
                                         val newZoom = (zoom * ratio).coerceIn(1f, 4f)
                                         if (newZoom != zoom) {
+                                            // ★ 以两指中点为中心缩放：中点下方的图像内容保持不动
+                                            val oldDisp = dispRect
+                                            val k = newZoom / zoom          // 实际比例（含夹紧后的修正）
+                                            val cx = (p0.x + p1.x) / 2f
+                                            val cy = (p0.y + p1.y) / 2f
                                             zoom = newZoom
                                             val nScale = minOf(bw / bitmap.width, bh / bitmap.height) * newZoom
                                             val nw = bitmap.width * nScale
                                             val nh = bitmap.height * nScale
-                                            panX = panX.coerceIn(-((nw - bw) / 2f).coerceAtLeast(0f), ((nw - bw) / 2f).coerceAtLeast(0f))
-                                            panY = panY.coerceIn(-((nh - bh) / 2f).coerceAtLeast(0f), ((nh - bh) / 2f).coerceAtLeast(0f))
+                                            // newDl = c - k*(c - oldDl)  →  反解出 panX / panY
+                                            val wantDl = if (oldDisp.width > 0f) cx - k * (cx - oldDisp.left) else (bw - nw) / 2f
+                                            val wantDt = if (oldDisp.height > 0f) cy - k * (cy - oldDisp.top) else (bh - nh) / 2f
+                                            val overX = ((nw - bw) / 2f).coerceAtLeast(0f)
+                                            val overY = ((nh - bh) / 2f).coerceAtLeast(0f)
+                                            panX = (wantDl - (bw - nw) / 2f).coerceIn(-overX, overX)
+                                            panY = (wantDt - (bh - nh) / 2f).coerceIn(-overY, overY)
                                             val nl = (bw - nw) / 2f + panX
                                             val nt = (bh - nh) / 2f + panY
-                                            // ★ 红框保持"屏幕上原大小原位"不动（只缩图片，不动框）
+                                            // ★ 红框保持"屏幕上原大小原位"不动（只动图片）
                                             dispRect = Rect(Offset(nl, nt), Offset(nl + nw, nt + nh))
                                             zoomed = true
                                             userTouched = true
