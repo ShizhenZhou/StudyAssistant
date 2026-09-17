@@ -172,11 +172,19 @@ object ImageAutoCrop {
                 }
             }
         }
+        // ── 向四周略微外扩：视觉更舒适，也给识别留出上下文（题号、单位、边距） ──
+        // 外扩量按比例给：横向上限 2%、纵向上限 1.6%，且不低于块高的 12%（一行字的呼吸感）
+        val padX = 0.02f
+        val padY = maxOf(0.016f, (bottom - top) * 0.12f).coerceAtMost(0.05f)
+        val l2 = (left - padX).coerceAtLeast(0f)
+        val t2 = (top - padY).coerceAtLeast(0f)
+        val r2 = (right + padX).coerceAtMost(1f)
+        val b2 = (bottom + padY).coerceAtMost(1f)
         return NormRect(
-            left.coerceIn(0f, 0.99f),
-            top.coerceIn(0f, 0.99f),
-            (right - left).coerceIn(0.05f, 1f),
-            (bottom - top).coerceIn(0.03f, 1f)
+            l2,
+            t2,
+            (r2 - l2).coerceIn(0.05f, 1f),
+            (b2 - t2).coerceIn(0.03f, 1f)
         )
     }
 
