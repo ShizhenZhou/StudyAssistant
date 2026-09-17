@@ -249,6 +249,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                 // ★ 记录当前参与缩放的两根手指，换手指就重新起算（防止把单指拖动误判成缩放）
                                 var idA = -1L
                                 var idB = -1L
+                                var zoomed = false
                                 while (true) {
                                     val ev = awaitPointerEvent(PointerEventPass.Initial)
                                     val pressed = ev.changes.filter { it.pressed }
@@ -261,17 +262,16 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                         prevDist = (pressed[0].position - pressed[1].position).getDistance()
                                         continue
                                     }
-                                    val c = Offset(
-                                        pressed.map { it.position.x }.average().toFloat(),
-                                        pressed.map { it.position.y }.average().toFloat()
-                                    )
-                                    val dist = (pressed[0].position - pressed[1].position).getDistance()
-                                    val r = sel
-                                    if (r != null && r.contains(c) && prevDist > 1f && dist > 1f) {
-                                        // ★ 基准用 dispRect（状态）而不是组合期的 disp：
-                                        //   连续事件之间不会重组，用旧快照会把选区反复放大（红框飞出屏幕）
-                                        val oldDisp = dispRect
-                                        // ★ 单次事件限幅 ±10%，避免任何异常比值把图瞬间放大/缩小
+                                    val p0 = pressed[0].position
+                                    val p1 = pressed[1].position
+                                    val dist = (p0 - p1).getDistance()
+                                    // 允许在红框内捏合，也允许在红框外捏合；但两指必须在同一侧（不跨越框边）
+                                    val r0 = sel
+                                    val sameSide = if (r0 == null) true
+                                    else (r0.contains(p0) && r0.contains(p1)) ||
+                                        (!r0.contains(p0) && !r0.contains(p1))
+                                    if (sameSide && prevDist > 1f && dist > 1f) {
+                                        // 单次事件限幅 ±10%，避免异常比值把图瞬间放大/缩小
                                         val ratio = (dist / prevDist).coerceIn(0.9f, 1.1f)
                                         val newZoom = (zoom * ratio).coerceIn(1f, 4f)
                                         if (newZoom != zoom) {
@@ -283,25 +283,26 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                             panY = panY.coerceIn(-((nh - bh) / 2f).coerceAtLeast(0f), ((nh - bh) / 2f).coerceAtLeast(0f))
                                             val nl = (bw - nw) / 2f + panX
                                             val nt = (bh - nh) / 2f + panY
-                                            if (oldDisp.width > 0f && oldDisp.height > 0f) {
-                                                // 选区按比例跟随，并**夹在新图范围内**（绝不让它跑到图外）
-                                                val nl2 = (nl + (r.left - oldDisp.left) / oldDisp.width * nw)
-                                                    .coerceIn(nl, nl + nw)
-                                                val nt2 = (nt + (r.top - oldDisp.top) / oldDisp.height * nh)
-                                                    .coerceIn(nt, nt + nh)
-                                                val nr2 = (nl + (r.right - oldDisp.left) / oldDisp.width * nw)
-                                                    .coerceIn(nl, nl + nw)
-                                                val nb2 = (nt + (r.bottom - oldDisp.top) / oldDisp.height * nh)
-                                                    .coerceIn(nt, nt + nh)
-                                                sel = Rect(nl2, nt2, maxOf(nr2, nl2 + 20f), maxOf(nb2, nt2 + 20f))
-                                            }
-                                            // 立即更新基准，供下一次事件使用
+                                            // ★ 红框保持"屏幕上原大小原位"不动（只缩图片，不动框）
                                             dispRect = Rect(Offset(nl, nt), Offset(nl + nw, nt + nh))
+                                            zoomed = true
                                             userTouched = true
                                         }
                                     }
                                     prevDist = dist
                                     ev.changes.forEach { it.consume() }
+                                }
+                                // ★ 一次缩放结束后：把越界的红框边收回图片范围内
+                                if (zoomed) {
+                                    val d2 = dispRect
+                                    val c = sel
+                                    if (c != null && d2.width > 20f && d2.height > 20f) {
+                                        val l = c.left.coerceIn(d2.left, (d2.right - MIN_SIZE).coerceAtLeast(d2.left + 10f))
+                                        val t = c.top.coerceIn(d2.top, (d2.bottom - MIN_SIZE).coerceAtLeast(d2.top + 10f))
+                                        val rr = c.right.coerceIn((l + MIN_SIZE).coerceAtMost(d2.right), d2.right)
+                                        val bb = c.bottom.coerceIn((t + MIN_SIZE).coerceAtMost(d2.bottom), d2.bottom)
+                                        sel = Rect(l, t, rr, bb)
+                                    }
                                 }
                             }
                         }
