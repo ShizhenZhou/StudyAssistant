@@ -188,13 +188,18 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         ) { uris ->
             val files = uris.take(2).mapNotNull { uriToTempFile(context, it, "gallery") }
             if (files.isEmpty()) return@rememberLauncherForActivityResult
-            // 一次选两张 → 两张都进同一个框选队列（先框题目，再框作答）
-            // 只选一张 → 也进框选；若还差一张（两张模式）框完会回到拍摄界面继续选
-            vm.startCropFlow(
-                paths = files.map { it.absolutePath },
-                grade = gradeMode,
-                expect = if (doubleMode) 2 else files.size
-            )
+            // 已经在等第二张 → 只补一张（保留第一张的框选结果，别重置队列）
+            if (vm.cropNeedsMore) {
+                vm.appendCropPath(files.first().absolutePath)
+            } else {
+                // 一次选两张 → 两张都进同一个框选队列（先框题目，再框作答）
+                // 只选一张 → 也进框选；若还差一张（两张模式）框完会回到拍摄界面继续选
+                vm.startCropFlow(
+                    paths = files.map { it.absolutePath },
+                    grade = gradeMode,
+                    expect = if (doubleMode) 2 else files.size
+                )
+            }
             nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
         }
 
@@ -256,6 +261,8 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             onClick = {
                 doubleMode = !doubleMode
                 com.zsz.studyassistant.data.CapturePrefs.setSolveDouble(context, doubleMode)
+                // 切换模式时清掉未完成的框选队列，避免"模式与队列不一致"
+                vm.cancelCropFlow()
                 firstBytes = null; awaitingSecond = false
             },
             enabled = !vm.busy,

@@ -106,12 +106,12 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
         nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
     }
 
-    /** 提交一张之后：还差一张 → 回拍摄界面继续拍/选；否则 → 进入解题 / 批改 */
+    /** 提交一张之后：还差一张 → 回拍摄界面；队列还有下一张 → 留在本页继续框；都完成 → 进入解题/批改 */
     fun afterSubmit() {
-        if (vm.cropNeedsMore) {
-            nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
-        } else {
-            nav.navigate("solve") { popUpTo("crop") { inclusive = true } }
+        when {
+            vm.cropNeedsMore -> nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
+            vm.cropHasNext -> Unit   // ★ 留在框选页继续框下一张（界面会自动换图）
+            else -> nav.navigate("solve") { popUpTo("crop") { inclusive = true } }
         }
     }
 
@@ -235,41 +235,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                     }
                 }
 
-                // 双指捏合/张开 → 图片缩放（仅当手势起点落在红框内）
-                Box(
-                    Modifier.fillMaxSize().pointerInput(Unit) {
-                        detectTransformGestures { centroid, pan, zoomChange, _ ->
-                            val r = sel
-                            if (r != null && r.contains(centroid)) {
-                                val oldDisp = dispRect
-                                val newZoom = (zoom * zoomChange).coerceIn(1f, 4f)
-                                zoom = newZoom
-                                // 限制平移，避免把图片拖出屏幕
-                                val overX = ((bitmap.width * minOf(bw / bitmap.width, bh / bitmap.height) * newZoom) - bw) / 2f
-                                val overY = ((bitmap.height * minOf(bw / bitmap.width, bh / bitmap.height) * newZoom) - bh) / 2f
-                                panX = (panX + pan.x).coerceIn(-overX.coerceAtLeast(0f), overX.coerceAtLeast(0f))
-                                panY = (panY + pan.y).coerceIn(-overY.coerceAtLeast(0f), overY.coerceAtLeast(0f))
-                                // 缩放后把选区按比例映射，保持它仍框住同一块图
-                                val nScale = minOf(bw / bitmap.width, bh / bitmap.height) * newZoom
-                                val nw = bitmap.width * nScale
-                                val nh = bitmap.height * nScale
-                                val nl = (bw - nw) / 2f + panX
-                                val nt = (bh - nh) / 2f + panY
-                                if (oldDisp.width > 0f && oldDisp.height > 0f) {
-                                    sel = Rect(
-                                        nl + (r.left - oldDisp.left) / oldDisp.width * nw,
-                                        nt + (r.top - oldDisp.top) / oldDisp.height * nh,
-                                        nl + (r.right - oldDisp.left) / oldDisp.width * nw,
-                                        nt + (r.bottom - oldDisp.top) / oldDisp.height * nh
-                                    )
-                                }
-                                userTouched = true
-                            }
-                        }
-                    }
-                )
-
-                // 手势（拖动/改框）
+                // 手势（拖动/改框）——单指拖框（缩放层放在它上面，见下方）
                 Box(Modifier.fillMaxSize().pointerInput(dispRect) {
                     detectDragGestures(
                         onDragStart = { pos ->
@@ -329,6 +295,53 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                         }
                     )
                 })
+
+                // ★ 双指捏合缩放：**必须放在最上层**（否则事件先被下层拖拽吃掉，缩放就"没反应"）
+                //   两指中心落在红框内才生效；缩放后选区按比例跟随，仍框住同一块图
+                Box(
+                    Modifier.fillMaxSize().pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            var prevDist = 0f
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val pressed = ev.changes.filter { it.pressed }
+                                if (pressed.isEmpty()) break
+                                if (pressed.size < 2) { prevDist = 0f; continue }
+                                val c = Offset(
+                                    pressed.map { it.position.x }.average().toFloat(),
+                                    pressed.map { it.position.y }.average().toFloat()
+                                )
+                                val dist = (pressed[0].position - pressed[1].position).getDistance()
+                                val r = sel
+                                if (r != null && r.contains(c) && prevDist > 1f && dist > 1f) {
+                                    val oldDisp = disp
+                                    val newZoom = (zoom * (dist / prevDist)).coerceIn(1f, 4f)
+                                    zoom = newZoom
+                                    // 缩放后重算显示区域（与上方 disp 的算法保持一致）
+                                    val nScale = minOf(bw / bitmap.width, bh / bitmap.height) * newZoom
+                                    val nw = bitmap.width * nScale
+                                    val nh = bitmap.height * nScale
+                                    panX = panX.coerceIn(-((nw - bw) / 2f).coerceAtLeast(0f), ((nw - bw) / 2f).coerceAtLeast(0f))
+                                    panY = panY.coerceIn(-((nh - bh) / 2f).coerceAtLeast(0f), ((nh - bh) / 2f).coerceAtLeast(0f))
+                                    val nl = (bw - nw) / 2f + panX
+                                    val nt = (bh - nh) / 2f + panY
+                                    if (oldDisp.width > 0f && oldDisp.height > 0f) {
+                                        sel = Rect(
+                                            nl + (r.left - oldDisp.left) / oldDisp.width * nw,
+                                            nt + (r.top - oldDisp.top) / oldDisp.height * nh,
+                                            nl + (r.right - oldDisp.left) / oldDisp.width * nw,
+                                            nt + (r.bottom - oldDisp.top) / oldDisp.height * nh
+                                        )
+                                    }
+                                    userTouched = true
+                                }
+                                prevDist = dist
+                                ev.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                )
             }
         }
 
@@ -371,10 +384,15 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) { Text(s["crop.confirm"]) }
             Spacer(Modifier.height(8.dp))
-            // 「整张图片」：**按住 2 秒填满 → 松开才跳过**（整张提交，剩下的都跳过）；没填满松手或填满后上滑 = 取消
+            // 「整张图片」：单击 = 跳过这一张（多张时进入下一张）；**按住 2 秒填满 → 松开 = 剩下全部跳过**
+            // 没填满松手 = 取消；填满后上滑（填充变浅红）= 取消
             HoldToSkipButton(
                 text = s["crop.whole"],
                 holdHint = s["crop.wholeHoldHint"],
+                onTap = {
+                    vm.submitCropResult(compressBitmap(bitmap))
+                    afterSubmit()
+                },
                 onSkip = {
                     vm.skipRemainingCrop { p ->
                         runCatching {
@@ -414,6 +432,7 @@ private fun compressBitmap(bmp: Bitmap, quality: Int = 85): ByteArray {
 private fun HoldToSkipButton(
     text: String,
     holdHint: String,
+    onTap: () -> Unit,
     onSkip: () -> Unit,
     modifier: Modifier = Modifier,
     holdMs: Long = 2000L
@@ -446,17 +465,24 @@ private fun HoldToSkipButton(
                         val ev = awaitPointerEvent()
                         val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                         if (!ch.pressed) break                                  // 松手
-                        if (armed && (startY - ch.position.y) > slideUpPx) {     // 填满后上滑 → 取消
-                            cancelled = true
-                            ev.changes.forEach { it.consume() }
-                            break
+                        val upDist = startY - ch.position.y
+                        if (armed) {
+                            if (upDist > slideUpPx) {                            // 进入取消区 → 填充变浅红
+                                slideCancel = true
+                                ev.changes.forEach { it.consume() }
+                            } else if (upDist < slideUpPx * 0.6f) {               // 滑回来 → 恢复可跳过
+                                slideCancel = false
+                            }
                         }
                     }
                     job.cancel()
-                    val doSkip = armed && !cancelled
+                    val doSkip = armed && !slideCancel
+                    val doTap = !armed                        // 没填满就松手 = 单击 → 只跳过这一张
                     armed = false
+                    slideCancel = false
+                    cancelled = false
                     progress = 0f
-                    if (doSkip) onSkip()
+                    if (doSkip) onSkip() else if (doTap) onTap()
                 }
             },
         contentAlignment = Alignment.Center

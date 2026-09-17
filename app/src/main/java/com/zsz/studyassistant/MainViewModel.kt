@@ -175,6 +175,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val cropResults = mutableListOf<ByteArray>()
 
     val currentCropPath: String? get() = cropPaths.getOrNull(cropIndex)
+    /**
+     * 是否还有待框选的图。
+     * 注意：submitCropResult 里"前进"是立刻发生的，所以提交完第一张后
+     * currentCropPath 已经指向第二张 —— 这里就用它判断，不要再比较 index 与 size。
+     */
+    val cropHasNext: Boolean get() = currentCropPath != null
     val cropTotal: Int get() = cropPaths.size
     val cropPos: Int get() = cropIndex + 1
 
