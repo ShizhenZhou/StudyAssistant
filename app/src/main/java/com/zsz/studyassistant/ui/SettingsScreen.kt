@@ -43,6 +43,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -70,8 +71,7 @@ fun SettingsTab(vm: MainViewModel) {
         "aicrop" -> SettingsSubPage(s["settings.aiCrop"], { page = "main" }) { AiCropTimeoutSettings() }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) }
-        "notify" -> SettingsSubPage(s["settings.notify"], { page = "main" }) { NotifySettings() }
-        "background" -> SettingsSubPage(s["settings.background"], { page = "main" }) { BackgroundSettings() }
+        "notify" -> SettingsSubPage(s["settings.group.notifyBackground"], { page = "main" }) { NotifyBackgroundSettings() }
         "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataSettings(vm) }
         "about" -> SettingsSubPage(s["settings.about"], { page = "main" }) { AboutPage() }
         else -> SettingsMain { page = it }
@@ -137,6 +137,8 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         SettingGroupTitle(s["settings.group.general"])
         SettingEntry(s["settings.api"]) { onOpen("api") }
         SettingEntry(s["settings.aiCrop"]) { onOpen("aicrop") }
+        // 通知与后台：已合并为一个二级菜单，归入「通用」大类
+        SettingEntry(s["settings.group.notifyBackground"]) { onOpen("notify") }
 
         Spacer(Modifier.height(14.dp))
         // ── 个性化 ──
@@ -144,14 +146,8 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         SettingEntry(s["settings.theme"]) { onOpen("theme") }
         SettingEntry(s["settings.lang"]) { onOpen("lang") }
 
-        Spacer(Modifier.height(14.dp))
-        // ── 通知与后台 ──
-        SettingGroupTitle(s["settings.group.notifyBackground"])
-        SettingEntry(s["settings.notify"]) { onOpen("notify") }
-        SettingEntry(s["settings.background"]) { onOpen("background") }
-
-        Spacer(Modifier.height(14.dp))
-        // ── 数据管理 / 关于（分立，不归入大类） ──
+        Spacer(Modifier.height(26.dp))
+        // ── 数据管理 / 关于（分立，不归入大类；上方多留一行） ──
         SettingEntry(s["settings.data"]) { onOpen("data") }
         SettingEntry(s["settings.about"]) { onOpen("about") }
     }
@@ -227,12 +223,40 @@ private fun AiCropTimeoutSettings() {
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            s["settings.aiCrop.snapHint"],
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline
-        )
+    }
+}
+
+/**
+ * 刻度标注：按**对数位置**把文字严格居中摆到对应的滑条位置上
+ * （用 SpaceBetween 平均分布是不对的：对数刻度下 500ms/1s/3s 并不等距）
+ */
+@Composable
+private fun SliderTicks(fmt: (Float) -> String, msToT: (Float) -> Float, values: List<Float>) {
+    val insetPx = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
+    Layout(
+        content = {
+            values.forEach { v ->
+                Text(
+                    fmt(v),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+    ) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0)) }
+        val full = constraints.maxWidth
+        val usable = (full - insetPx * 2).coerceAtLeast(1f)
+        val h = placeables.maxOfOrNull { it.height } ?: 0
+        layout(full, h) {
+            placeables.forEachIndexed { i, p ->
+                val t = msToT(values[i]).coerceIn(0f, 1f)
+                val center = insetPx + usable * t
+                val x = (center - p.width / 2f).roundToInt()
+                    .coerceIn(0, (full - p.width).coerceAtLeast(0))
+                p.placeRelative(x, 0)
+            }
+        }
     }
 }
 
@@ -535,7 +559,7 @@ private fun ThemeSettings(vm: MainViewModel) {
 
 /** 🔔 复习提醒 */
 @Composable
-private fun NotifySettings() {
+private fun NotifyBackgroundSettings() {
     val context = LocalContext.current
     val s = LocalStrings.current
     val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
@@ -575,8 +599,58 @@ private fun NotifySettings() {
         )
     }
     Text(s["notify.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Spacer(Modifier.height(20.dp))
+    // ── 后台运行（与提醒强相关：后台权限不到位就收不到提醒） ──
+    val powerManager = context.getSystemService(android.os.PowerManager::class.java)
+    val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
+    if (ignoringBattery) {
+    Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    } else {
+    TextButton(onClick = {
+    try {
+    context.startActivity(
+    android.content.Intent(
+    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+    android.net.Uri.parse("package:${context.packageName}")
+    )
+    )
+    } catch (_: Exception) { }
+    }) { Text(s["background.goEnable"]) }
+    }
+    }
+    Text(
+    s["background.tip"],
+    style = MaterialTheme.typography.bodySmall,
+    color = MaterialTheme.colorScheme.outline
+    )
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Text(s["background.autostart"], style = MaterialTheme.typography.bodySmall)
+    TextButton(onClick = {
+    fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
+    var ok = false
+    for (pkg in listOf(
+    "com.huawei.systemmanager/.startupmgr.ui.StartupNormalAppListActivity",
+    "com.honor.appmarket/.hms.startupmgr.ui.StartupNormalAppListActivity",
+    "com.coloros.safecenter/.startupapp.StartupAppListActivity",
+    "com.miui.securitycenter/.ui.AutoStartManagementActivity",
+    "com.vivo.permissionmanager/.activity.BgStartUpManagerActivity",
+    "com.oplus.battery/.ui.StartupAppListActivity"
+    )) { if (tryPkg(pkg)) { ok = true; break } }
+    if (!ok) {
+    try {
+    context.startActivity(
+    android.content.Intent(
+    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+    android.net.Uri.parse("package:${context.packageName}")
+    )
+    )
+    } catch (_: Exception) { }
+    }
+    }) { Text(s["background.oneTap"]) }
+    }
 }
-
 /** 🔋 后台运行（保活引导） */
 @Composable
 private fun BackgroundSettings() {
