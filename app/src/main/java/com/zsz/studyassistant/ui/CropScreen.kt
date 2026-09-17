@@ -107,6 +107,21 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
         nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
     }
 
+    /**
+     * 返回键 / 返回手势：
+     *  · 正在框第 2 张 → 回到第 1 张重新框（autoTried 因 remember(path) 自动重置 → 本地+AI 重新跑一次）
+     *  · 正在框第 1 张 → 回拍摄界面
+     */
+    fun handleBack() {
+        if (vm.cropIndex > 0) {
+            vm.cropGoBackOne()
+            userTouched = false
+            autoHint = false
+        } else {
+            backToCamera()
+        }
+    }
+
     /** 提交一张之后：还差一张 → 回拍摄界面；队列还有下一张 → 留在本页继续框；都完成 → 进入解题/批改 */
     fun afterSubmit() {
         when {
@@ -117,7 +132,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
     }
 
     // 系统返回键 / 返回手势 → 也回拍摄界面
-    androidx.activity.compose.BackHandler { backToCamera() }
+    androidx.activity.compose.BackHandler { handleBack() }
 
     /** 归一化矩形 → 屏幕显示坐标（相对当前显示的图片区域） */
     fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
@@ -287,10 +302,12 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                             // newDl = c - k*(c - oldDl)  →  反解出 panX / panY
                                             val wantDl = if (oldDisp.width > 0f) cx - k * (cx - oldDisp.left) else (bw - nw) / 2f
                                             val wantDt = if (oldDisp.height > 0f) cy - k * (cy - oldDisp.top) else (bh - nh) / 2f
-                                            val overX = ((nw - bw) / 2f).coerceAtLeast(0f)
-                                            val overY = ((nh - bh) / 2f).coerceAtLeast(0f)
-                                            panX = (wantDl - (bw - nw) / 2f).coerceIn(-overX, overX)
-                                            panY = (wantDt - (bh - nh) / 2f).coerceIn(-overY, overY)
+                                            // ★ 允许边缘留黑边：不做"必须盖满可视区"的夹紧，
+                                            //   只保证至少 15% 的图像仍在视图内（避免整张图被推出屏幕）
+                                            val limX = (nw / 2f + bw / 2f - nw * 0.15f).coerceAtLeast(0f)
+                                            val limY = (nh / 2f + bh / 2f - nh * 0.15f).coerceAtLeast(0f)
+                                            panX = (wantDl - (bw - nw) / 2f).coerceIn(-limX, limX)
+                                            panY = (wantDt - (bh - nh) / 2f).coerceIn(-limY, limY)
                                             val nl = (bw - nw) / 2f + panX
                                             val nt = (bh - nh) / 2f + panY
                                             // ★ 红框保持"屏幕上原大小原位"不动（只动图片）
@@ -422,7 +439,8 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
             // 没填满松手 = 取消；填满后上滑（填充变浅红）= 取消
             HoldToSkipButton(
                 text = s["crop.whole"],
-                holdHint = s["crop.wholeHoldHint"],
+                holdHint = if (vm.cropExpect > 1) s["crop.wholeHoldHint"] else "",
+                holdEnabled = vm.cropExpect > 1,
                 onTap = {
                     vm.submitCropResult(compressBitmap(bitmap))
                     afterSubmit()
@@ -440,10 +458,53 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { sel = dispRect }) { Text(s["crop.reset"]) }
+                // AI 自动框选：点了之后 1 秒内等 AI；AI 不行就用本地算法；都不行恢复默认框
+                TextButton(
+                    enabled = !aiBusy,
+                    onClick = {
+                        aiBusy = true
+                        scope.launch {
+                            val p2 = vm.currentCropPath
+                            val fallbackDefault = {
+                                val w = dispRect.width * 0.7f
+                                val h = dispRect.height * 0.7f
+                                sel = Rect(dispRect.center.x - w / 2, dispRect.center.y - h / 2,
+                                    dispRect.center.x + w / 2, dispRect.center.y + h / 2)
+                            }
+                            var done = false
+                            if (p2 != null) {
+                                val bytes = runCatching {
+                                    withContext(Dispatchers.IO) { java.io.File(p2).readBytes() }
+                                }.getOrNull()
+                                if (bytes != null) {
+                                    val boxes = runCatching {
+                                        StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = 1000)
+                                    }.getOrNull()
+                                    val best = boxes?.maxByOrNull { it.area }
+                                    if (best != null) {
+                                        sel = toDisp(best, dispRect); autoHint = true; done = true
+                                    }
+                                }
+                                if (!done) {
+                                    val local = runCatching {
+                                        withContext(Dispatchers.Default) {
+                                            com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p2)
+                                        }
+                                    }.getOrNull()
+                                    if (local != null && !local.looksUnreliable()) {
+                                        sel = toDisp(local, dispRect); autoHint = true; done = true
+                                    }
+                                }
+                            }
+                            if (!done) fallbackDefault()
+                            userTouched = true
+                            aiBusy = false
+                        }
+                    }
+                ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"]) }
                 // 返回 = 回到拍摄界面（不换行）
-                TextButton(onClick = { backToCamera() }) {
-                    Text(s["crop.backToCamera"], maxLines = 1, softWrap = false)
+                TextButton(onClick = { handleBack() }) {
+                    Text(if (vm.cropIndex > 0) s["crop.prevImage"] else s["crop.backToCamera"], maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -468,6 +529,7 @@ private fun HoldToSkipButton(
     holdHint: String,
     onTap: () -> Unit,
     onSkip: () -> Unit,
+    holdEnabled: Boolean = true,
     modifier: Modifier = Modifier,
     holdMs: Long = 2000L
 ) {
@@ -485,7 +547,9 @@ private fun HoldToSkipButton(
                     armed = false
                     val startY = down.position.y
                     val slideUpPx = 36.dp.toPx()
+                    // 单张模式不需要长按：holdEnabled=false 时完全不填充，只保留单击
                     val job = scope.launch {
+                        if (!holdEnabled) return@launch
                         val start = System.currentTimeMillis()
                         while (true) {
                             val p = ((System.currentTimeMillis() - start).toFloat() / holdMs).coerceIn(0f, 1f)

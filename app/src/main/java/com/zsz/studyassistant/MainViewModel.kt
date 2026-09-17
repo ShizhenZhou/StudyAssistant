@@ -221,6 +221,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (cropResults.size < cropExpect) cropNeedsMore = true else finishCropFlow()
     }
 
+    /** 两张模式：从第 2 张返回第 1 张重新框（丢弃第 1 张已提交的结果，保持队列一致） */
+    fun cropGoBackOne() {
+        if (cropIndex <= 0) return
+        if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
+        cropIndex -= 1
+        cropNeedsMore = false
+    }
+
     fun cancelCropFlow() {
         cropPaths = emptyList()
         cropIndex = 0
