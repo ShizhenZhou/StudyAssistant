@@ -229,6 +229,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         cropNeedsMore = false
     }
 
+    /**
+     * 回到主页时调用：清空所有拍摄/框选缓存 ——
+     * 内存里的框选队列、已框结果、待框路径、追问附图，以及缓存目录里的临时图片文件。
+     * （用户要求：回主页不保留任何"已框或未框"的图）
+     */
+    fun clearCaptureCaches() {
+        cancelCropFlow()
+        pendingImagePath = null
+        directImages = emptyList()
+        runCatching {
+            getApplication<android.app.Application>().cacheDir.listFiles()?.forEach { f ->
+                val n = f.name
+                if (n.startsWith("capture") || n.startsWith("gallery") || n.startsWith("pick")) {
+                    runCatching { f.delete() }
+                }
+            }
+        }
+    }
+
     fun cancelCropFlow() {
         cropPaths = emptyList()
         cropIndex = 0
