@@ -296,7 +296,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         } else {
                             TextButton(
                                 onClick = { if (vm.gradeMode) vm.regrade() else vm.regenerate() },
-                                enabled = vm.chatItems.isNotEmpty(),
+                                // ★ 中止后 chatItems 可能还是空的（题干/答案要流式结束才进），
+                                //   但仍有流式气泡/已中断状态 → 「重新生成」必须可用
+                                enabled = vm.chatItems.isNotEmpty() ||
+                                    vm.streamInterrupted || vm.streamingText != null,
                                 contentPadding = smallPad
                             ) { Text(s["solve.regen"], fontSize = 13.sp) }
                         }
@@ -305,7 +308,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
                                 Text(s["solve.restore"], fontSize = 13.sp)
                             }
-                        } else if (vm.isFromNotebook || vm.savedToNotebook) {
+                        } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
                             // 已存入错题本 → 与错题本界面同一个「分类」按钮
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
                             TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
