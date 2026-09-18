@@ -164,6 +164,10 @@ interface QuestionDao {
     @Query("SELECT * FROM review")
     suspend fun allReviewsOnce(): List<Review>
 
+    /** 全部复习记录的实时流（学习统计页用） */
+    @Query("SELECT * FROM review")
+    fun allReviews(): Flow<List<Review>>
+
     @Query("SELECT COUNT(*) FROM questions WHERE deleted = 0")
     suspend fun countQuestions(): Int
 

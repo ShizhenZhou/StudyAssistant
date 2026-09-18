@@ -90,6 +90,73 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val tags: StateFlow<List<Tag>> =
         dao.tags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // ───────── 学习统计 ─────────
+    /** 统计快照（全部由现有表计算，不改数据库结构） */
+    data class StatsSnapshot(
+        val totalQuestions: Int = 0,
+        val todayReviewed: Int = 0,
+        val weekReviewed: Int = 0,
+        val streakDays: Int = 0,
+        val dueNow: Int = 0,
+        val mastery: List<Pair<String, Int>> = emptyList(),   // 未开始 / 复习中 / 已掌握
+        val subjects: List<Pair<String, Int>> = emptyList(),  // 科目（分类）→ 题数
+        val last7Days: List<Int> = emptyList()                // 近 7 天新增（最早 → 今天）
+    )
+
+    val stats: StateFlow<StatsSnapshot> =
+        kotlinx.coroutines.flow.combine(
+            dao.getAll(), dao.allReviews(), dao.categories()
+        ) { qs, rs, cats ->
+            val now = System.currentTimeMillis()
+            val dayMs = 24L * 60 * 60 * 1000
+            val todayStart = startOfToday()
+            val weekStart = todayStart - 6 * dayMs
+            val byId = rs.associateBy { it.questionId }
+
+            val todayReviewed = rs.count { it.lastReviewedAt >= todayStart }
+            val weekReviewed = rs.count { it.lastReviewedAt >= weekStart }
+            val dueNow = rs.count { it.nextReviewAt <= now }
+
+            // 连续复习天数：从今天（或昨天）往前数，哪天有复习记录就 +1
+            val daysWithReview = rs.filter { it.lastReviewedAt > 0 }
+                .map { ((it.lastReviewedAt - todayStart) / dayMs).toInt() }
+                .toSet()
+            var streak = 0
+            var probe = if (daysWithReview.contains(0)) 0 else -1
+            while (daysWithReview.contains(probe)) { streak++; probe-- }
+
+            // 掌握度：无记录 = 未开始；intervalStep <= 2 = 复习中；>= 3 = 已掌握
+            var notStarted = 0; var learning = 0; var mastered = 0
+            qs.forEach { q ->
+                val step = byId[q.id]?.intervalStep
+                when {
+                    step == null -> notStarted++
+                    step >= 3 -> mastered++
+                    else -> learning++
+                }
+            }
+
+            val nameOf = cats.associate { it.id to it.name }
+            val subjects = qs.groupingBy { q -> q.categoryId?.let { nameOf[it] } ?: "未分类" }
+                .eachCount().entries.sortedByDescending { it.value }
+                .map { it.key to it.value }
+
+            val last7 = (6 downTo 0).map { back ->
+                val from = todayStart - back * dayMs
+                qs.count { it.createdAt in from until (from + dayMs) }
+            }
+
+            StatsSnapshot(
+                totalQuestions = qs.size,
+                todayReviewed = todayReviewed,
+                weekReviewed = weekReviewed,
+                streakDays = streak,
+                dueNow = dueNow,
+                mastery = listOf("未开始" to notStarted, "复习中" to learning, "已掌握" to mastered),
+                subjects = subjects,
+                last7Days = last7
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsSnapshot())
     /** 错题↔标签 关联（用于按 tag 筛选） */
     val questionTags: StateFlow<List<QuestionTag>> =
         dao.allQuestionTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

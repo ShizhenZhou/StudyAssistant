@@ -46,6 +46,7 @@ import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
 import com.zsz.studyassistant.ui.SimilarScreen
 import com.zsz.studyassistant.ui.SolveScreen
+import com.zsz.studyassistant.ui.StatsScreen
 import com.zsz.studyassistant.ui.stringsFor
 
 private const val NAV_TOUCH_GUARD_MS = 250L   // 导航后吞掉内容区触摸的时长（防穿透）
@@ -92,7 +93,7 @@ class MainActivity : ComponentActivity() {
                     val nav = rememberNavController()
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
-                    val showBottomBar = current == "home" || current == "settings"
+                    val showBottomBar = current == "home" || current == "stats" || current == "settings"
 
                     // 防触摸穿透：每次页面切换后用**状态标志**封锁内容区触摸 NAV_TOUCH_GUARD_MS。
                     // ⚠️ 这里必须由协程定时解锁，**不能**把 `SystemClock.uptimeMillis() < t` 之类的时间比较写进
@@ -140,6 +141,7 @@ class MainActivity : ComponentActivity() {
                                 composable("notebook") { NotebookScreen(nav, viewModel) }
                                 composable("review") { ReviewScreen(nav, viewModel) }
                                 composable("similar") { SimilarScreen(nav, viewModel) }
+                                composable("stats") { StatsScreen(viewModel) }
                                 composable("settings") { SettingsTab(viewModel) }
                             }
 
@@ -177,8 +179,19 @@ class MainActivity : ComponentActivity() {
                                             launchSingleTop = true
                                         }
                                     },
-                                    icon = { Text("🏠") },
-                                    label = { Text(strings["nav.home"]) }
+                                    icon = { Text("📚") },
+                                    label = { Text(strings["nav.learn"]) }
+                                )
+                                NavigationBarItem(
+                                    selected = current == "stats",
+                                    onClick = {
+                                        nav.navigate("stats") {
+                                            popUpTo("home") { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    icon = { Text("📊") },
+                                    label = { Text(strings["nav.stats"]) }
                                 )
                                 NavigationBarItem(
                                     selected = current == "settings",

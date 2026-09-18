@@ -16,6 +16,19 @@ package com.zsz.studyassistant.ui
 // ===========================================================================
 private val B0_ZH = mapOf(
     "nav.home" to "主页",
+    "nav.learn" to "学习",
+    "nav.stats" to "统计",
+    "stats.title" to "📊 学习统计",
+    "stats.today" to "今日复习",
+    "stats.week" to "近 7 天",
+    "stats.streak" to "连续天数",
+    "stats.due" to "待复习",
+    "stats.mastery" to "掌握度分布",
+    "stats.last7" to "近 7 天新增错题",
+    "stats.subjects" to "科目分布",
+    "stats.total" to "共 {n} 题",
+    "stats.empty" to "还没有错题，去拍一道吧",
+    "stats.daysAgo7" to "6 天前",
     "nav.settings" to "设置",
 
     "home.subtitle" to "拍照搜题 · AI 解答 · 错题整理",
@@ -56,6 +69,19 @@ private val B0_ZH = mapOf(
 
 private val B0_EN = mapOf(
     "nav.home" to "Home",
+    "nav.learn" to "Learn",
+    "nav.stats" to "Stats",
+    "stats.title" to "📊 Learning stats",
+    "stats.today" to "Reviewed today",
+    "stats.week" to "Last 7 days",
+    "stats.streak" to "Day streak",
+    "stats.due" to "Due now",
+    "stats.mastery" to "Mastery",
+    "stats.last7" to "Added in last 7 days",
+    "stats.subjects" to "Subjects",
+    "stats.total" to "{n} total",
+    "stats.empty" to "No mistakes yet — take a photo!",
+    "stats.daysAgo7" to "6 days ago",
     "nav.settings" to "Settings",
 
     "home.subtitle" to "Photo search · AI solutions · Mistake notebook",
@@ -96,6 +122,19 @@ private val B0_EN = mapOf(
 
 private val B0_JA = mapOf(
     "nav.home" to "ホーム",
+    "nav.learn" to "学習",
+    "nav.stats" to "統計",
+    "stats.title" to "📊 学習統計",
+    "stats.today" to "今日の復習",
+    "stats.week" to "直近 7 日",
+    "stats.streak" to "連続日数",
+    "stats.due" to "復習待ち",
+    "stats.mastery" to "習得度",
+    "stats.last7" to "直近 7 日の追加",
+    "stats.subjects" to "科目別",
+    "stats.total" to "全 {n} 問",
+    "stats.empty" to "まだ間違いがありません。撮影してみましょう",
+    "stats.daysAgo7" to "6 日前",
     "nav.settings" to "設定",
 
     "home.subtitle" to "撮影で検索 · AI 解答 · 間違いノート",
@@ -136,6 +175,19 @@ private val B0_JA = mapOf(
 
 private val B0_KO = mapOf(
     "nav.home" to "홈",
+    "nav.learn" to "학습",
+    "nav.stats" to "통계",
+    "stats.title" to "📊 학습 통계",
+    "stats.today" to "오늘 복습",
+    "stats.week" to "최근 7일",
+    "stats.streak" to "연속 일수",
+    "stats.due" to "복습 대기",
+    "stats.mastery" to "숙달도",
+    "stats.last7" to "최근 7일 추가",
+    "stats.subjects" to "과목별",
+    "stats.total" to "총 {n}문제",
+    "stats.empty" to "아직 오답이 없습니다. 사진을 찍어 보세요",
+    "stats.daysAgo7" to "6일 전",
     "nav.settings" to "설정",
 
     "home.subtitle" to "사진 검색 · AI 풀이 · 오답 노트",
