@@ -55,11 +55,13 @@ private fun smoothRoundRectPath(w: Float, h: Float, rIn: Float, smoothing: Float
         p.addRect(androidx.compose.ui.geometry.Rect(0f, 0f, w, h))
         return p
     }
-    // 角的起点沿边从 r 外扩到 r*(1+e)，控制点距离角 = r*(1-e)*c
-    // e 越大 → 曲线越长、曲率过渡越缓（越"苹果"）
+    // 角的起点沿边外扩、控制点向角内收：e 越大越"方中带圆"（越苹果）。
+    // ★ 关键：半径先按 (1+e) 归一化，保证曲线占用长度恒等于 r；
+    //   否则胶囊形按钮（r = 短边一半）上下两角的曲线会互相穿插，交接处出现毛刺。
     val e = (smoothing.coerceIn(0f, 1f)) * 0.45f
-    val ext = r * (1f + e)           // 曲线沿直线段的起点偏移
-    val k = r * (1f - e) * 0.5523f   // 控制点相对角点的距离（0.5523 = 圆弧标准值）
+    val rEff = r / (1f + e)
+    val ext = rEff * (1f + e)        // == r，永不超出半径
+    val k = rEff * (1f - e) * 0.5523f // 0.5523 ≈ 圆弧标准控制点系数
 
     p.moveTo(ext, 0f)
     p.lineTo(w - ext, 0f)
