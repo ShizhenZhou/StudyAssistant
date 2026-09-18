@@ -286,27 +286,27 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
                     } else {
-                        if (vm.isFromNotebook) {
-                            // 顺序（左→右）：[⏸ 中止生成(仅生成中)] [🗑 删除(生成中禁用)] [📁 分类(最右)]
-                            if (vm.busy) {
-                                TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                    Text(s["solve.abort"], fontSize = 13.sp)
-                                }
+                        // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
+                        //   右侧 = [⏸ 中止 或 🔄 重新生成] 紧挨 [📚 存错题本 或 📁 分类]
+                        //   （不再区分「中止批改 / 重新批改」，也不再单独放删除按钮）
+                        if (vm.busy) {
+                            TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
+                                Text(s["solve.abort"], fontSize = 13.sp)
                             }
-                            if (vm.isDeleted) {
-                                TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
-                                    Text(s["solve.restore"], fontSize = 13.sp)
-                                }
-                            } else {
-                                TextButton(
-                                    onClick = { showDeleteConfirm = true },
-                                    enabled = !vm.busy,   // 生成答案时不可用
-                                    contentPadding = smallPad
-                                ) {
-                                    Text(s["solve.delete"], fontSize = 13.sp)
-                                }
+                        } else {
+                            TextButton(
+                                onClick = { if (vm.gradeMode) vm.regrade() else vm.regenerate() },
+                                enabled = vm.chatItems.isNotEmpty(),
+                                contentPadding = smallPad
+                            ) { Text(s["solve.regen"], fontSize = 13.sp) }
+                        }
+                        if (vm.isDeleted) {
+                            // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
+                            TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
+                                Text(s["solve.restore"], fontSize = 13.sp)
                             }
-                            // 分类：最右侧，与删除紧挨
+                        } else if (vm.isFromNotebook || vm.savedToNotebook) {
+                            // 已存入错题本 → 与错题本界面同一个「分类」按钮
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
                             TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
                                 val catName = curCat?.name ?: s["solve.noCategory"]
@@ -322,42 +322,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 )
                             }
                         } else {
-                            val saveEnabled = vm.chatItems.isNotEmpty() && !vm.busy
-                            // 生成中：批改请求显示「⏸ 中止批改」，追问/其他显示「⏸ 中止生成」
-                            if (vm.busy) {
-                                TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                    Text(
-                                        if (vm.gradeMode && vm.busyIsGrade) s["solve.abortGrade"] else s["solve.abort"],
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            } else if (vm.gradeMode) {
-                                TextButton(
-                                    onClick = { vm.regrade() },
-                                    enabled = vm.chatItems.isNotEmpty(),
-                                    contentPadding = smallPad
-                                ) {
-                                    Text(s["solve.regrade"], fontSize = 13.sp)
-                                }
-                            } else {
-                                TextButton(onClick = { vm.regenerate() }, enabled = vm.chatItems.isNotEmpty(), contentPadding = smallPad) {
-                                    Text(s["solve.regen"], fontSize = 13.sp)
-                                }
-                            }
                             TextButton(
-                                onClick = {
-                                    if (vm.savedToNotebook) {
-                                        vm.unsaveFromNotebook()
-                                    } else {
-                                        categoryDialogFor = "save"
-                                    }
-                                },
-                                enabled = saveEnabled,
+                                onClick = { categoryDialogFor = "save" },
+                                enabled = vm.chatItems.isNotEmpty() && !vm.busy,
                                 contentPadding = smallPad
-                            ) {
-                                val label = if (vm.savedToNotebook) s["solve.savedToNotebook"] else s["solve.saveToNotebook"]
-                                if (vm.savedToNotebook && saveEnabled) Text(label, color = Color(0xFF4CAF50), fontSize = 13.sp) else Text(label, fontSize = 13.sp)
-                            }
+                            ) { Text(s["solve.saveToNotebook"], fontSize = 13.sp) }
                         }
                     }
                 }
