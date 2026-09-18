@@ -101,6 +101,8 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     var autoTried by remember(path) { mutableStateOf(false) }
     // 命中自动框选时给用户的提示
     var autoHint by remember { mutableStateOf(false) }
+    // AI 预框选每次换图只请求一次
+    var aiLaunched by remember(path) { mutableStateOf(false) }
     // 手动 AI 识别中
     var aiBusy by remember { mutableStateOf(false) }
 val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -203,10 +205,22 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                     val bytes = runCatching {
                         withContext(Dispatchers.IO) { java.io.File(p).readBytes() }
                     }.getOrNull()
-                    val aiDeferred = if (bytes != null) {
-                        // 自动预框选：用设置里的「AI 框选时限」
-                        async { runCatching { StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs) }.getOrNull() }
-                    } else null
+                    // ★ AI 请求挂到 composable 作用域的 scope 上（**不在这里 await**）：
+                    //   本 effect 的键含 disp，而 disp 在页面布局稳定时会变 → effect 重启；
+                    //   若在 effect 内 await，请求会被取消，AI 预框选等于白等（曾长期拿不到结果）。
+                    if (bytes != null && !aiLaunched) {
+                        aiLaunched = true
+                        scope.launch {
+                            val ai = runCatching {
+                                StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs)
+                            }.getOrNull()?.maxByOrNull { it.area }?.takeIf { !it.looksUnreliable() }
+                            if (ai == null || userTouched) return@launch
+                            val d = dispRect
+                            if (d.width < 2f) return@launch
+                            sel = toDisp(ai, d)
+                            autoHint = true
+                        }
+                    }
                     // ① 本地投影法：毫秒级，先出结果
                     val local = runCatching {
                         withContext(Dispatchers.Default) {
@@ -216,12 +230,6 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                     val localOk = local?.takeIf { !it.looksUnreliable() }
                     if (localOk != null && !userTouched) {
                         sel = toDisp(localOk, disp)
-                        autoHint = true
-                    }
-                    // ② AI（≤500ms）：合法就覆盖
-                    val ai = aiDeferred?.await()?.maxByOrNull { it.area }?.takeIf { !it.looksUnreliable() }
-                    if (ai != null && !userTouched) {
-                        sel = toDisp(ai, disp)
                         autoHint = true
                     }
                 }
