@@ -43,8 +43,9 @@ object StudyAssistant {
     private fun solvePrompt(categories: List<String>, tags: List<String>): String {
         val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
         val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
-        return "请识别图片中的理工科题目并给出详细分步解答。" +
-            "先输出一行“题目：<识别到的题目>”，再输出“解答：<详细步骤与结论>”。" +
+        return "请识别图片中的理工科题目并给出详细分步解答。请**严格按固定格式**输出，每项单独一行：" +
+            "① 题目：<识别到的题目>；② 分类：<所属科目>；③ 知识点：<知识点1、知识点2、知识点3>；④ 解答：<详细步骤与结论>。" +
+            "（顺序固定：先写①②③三行，再写④的正文）" +
             "解答最后另起一行输出“分类：<所属科目>”。" +
             "已知分类：$catHint。若题目属于其中某一个，请直接用该分类名作为“分类”，不要新造；" +
             "若都不符合，才给出一个新的简短科目名。" +
@@ -83,7 +84,8 @@ object StudyAssistant {
         return DeepSeekMessage(
             "user",
             JsonPrimitive(
-                "请解答下面这道理工科题目并给出详细分步解答。\n题目：$text\n" +
+                "请解答下面这道理工科题目并给出详细分步解答。请**严格按固定格式**输出，每项单独一行：\n" +
+                    "① 题目：$text（照抄即可）；② 分类：<所属科目>；③ 知识点：<知识点1、知识点2、知识点3>；④ 解答：<详细步骤与结论>（顺序固定）\n" +
                     "先输出一行“解答：<详细步骤与结论>”，再另起一行输出“分类：<所属科目>”。" +
                     "已知分类：$catHint。若属于其中某一个，请直接用该分类名，不要新造；都不符合才给出新的简短科目名。" +
                     "再另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。已知知识点标签：$tagHint。" +
@@ -270,9 +272,10 @@ object StudyAssistant {
     /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
     fun parseVisionOutput(output: String): SolveResult {
         val question = Regex("题目[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
-        val category = Regex("分类[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
+        // 容错：模型可能写成"科目/类别/分类名/所属科目"等
+        val category = Regex("(?:分类|科目|类别|分类名|所属科目)[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
         // 知识点：按 、 / ， / 逗号 拆分，最多 5 个
-        val tags = Regex("知识点[:：]\\s*(.+)").find(output)?.groupValues?.get(1)
+        val tags = Regex("(?:知识点|考点|标签)[:：]\\s*(.+)").find(output)?.groupValues?.get(1)
             ?.split('、', '，', ',')
             ?.map { it.trim() }
             ?.filter { it.isNotBlank() }
@@ -280,7 +283,7 @@ object StudyAssistant {
             ?: emptyList()
         // 解答：取"解答："之后，去掉末尾的"分类：/知识点："整块
         var answer = Regex("解答[:：]([\\s\\S]+)").find(output)?.groupValues?.get(1)?.trim() ?: output
-        answer = answer.replace(Regex("\\n*\\s*(?:分类|知识点)[:：].*$", RegexOption.DOT_MATCHES_ALL), "").trim()
+        answer = answer.replace(Regex("\\n*\\s*(?:分类|科目|类别|分类名|所属科目|知识点|考点|标签)[:：].*$", RegexOption.DOT_MATCHES_ALL), "").trim()
         return SolveResult(
             question = question?.takeIf { it.isNotBlank() } ?: output.take(80),
             answer = answer,

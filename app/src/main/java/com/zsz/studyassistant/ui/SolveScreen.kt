@@ -382,7 +382,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     tags = tags,
                     initialSelectedId = initCatId,
                     initialNewName = if (initCatId == null) defaultCat else null,
-                    initialSelectedTagIds = emptyList(),
+                    // 默认勾选 AI 建议的知识点标签（与已有标签同名者）
+                    initialSelectedTagIds = tags.filter { tg ->
+                        vm.suggestedTags.any { it.trim() == tg.name.trim() }
+                    }.map { it.id },
                     suggestedTagNames = vm.suggestedTags,
                     onConfirm = { name, cid, tagNames, tagIds ->
                         vm.saveToNotebook(name, cid, tagNames, tagIds)
