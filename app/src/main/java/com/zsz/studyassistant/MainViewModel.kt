@@ -100,7 +100,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val dueNow: Int = 0,
         val mastery: List<Pair<String, Int>> = emptyList(),   // 未开始 / 复习中 / 已掌握
         val subjects: List<Pair<String, Int>> = emptyList(),  // 科目（分类）→ 题数
-        val last7Days: List<Int> = emptyList()                // 近 7 天新增（最早 → 今天）
+        val last7Days: List<Int> = emptyList(),               // 近 7 天新增（最早 → 今天）
+        val last30Days: List<Int> = emptyList()               // 近 30 天新增
     )
 
     val stats: StateFlow<StatsSnapshot> =
@@ -141,10 +142,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .eachCount().entries.sortedByDescending { it.value }
                 .map { it.key to it.value }
 
-            val last7 = (6 downTo 0).map { back ->
+            fun series(days: Int): List<Int> = ((days - 1) downTo 0).map { back ->
                 val from = todayStart - back * dayMs
                 qs.count { it.createdAt in from until (from + dayMs) }
             }
+            val last7 = series(7)
+            val last30 = series(30)
 
             StatsSnapshot(
                 totalQuestions = qs.size,
@@ -154,7 +157,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 dueNow = dueNow,
                 mastery = listOf("未开始" to notStarted, "复习中" to learning, "已掌握" to mastered),
                 subjects = subjects,
-                last7Days = last7
+                last7Days = last7,
+                last30Days = last30
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsSnapshot())
     /** 错题↔标签 关联（用于按 tag 筛选） */

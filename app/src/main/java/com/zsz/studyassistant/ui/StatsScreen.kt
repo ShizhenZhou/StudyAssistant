@@ -31,6 +31,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.Switch
+import androidx.compose.ui.draw.scale
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.MainViewModel
 
@@ -113,30 +120,88 @@ fun StatsScreen(vm: MainViewModel) {
         }
 
         Spacer(Modifier.height(18.dp))
-        // ── 近 7 天新增 ──
-        SectionTitle(s["stats.last7"])
+        // ── 近 7 天 / 近 1 个月新增（标题右侧可切换） ──
+        var monthMode by remember { mutableStateOf(false) }
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            SectionTitle(if (monthMode) s["stats.last30"] else s["stats.last7"])
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (monthMode) s["stats.month"] else s["stats.week"],
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(Modifier.size(6.dp))
+                Switch(
+                    checked = monthMode,
+                    onCheckedChange = { monthMode = it },
+                    modifier = Modifier.scale(0.8f)
+                )
+            }
+        }
         Card(Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Column(Modifier.padding(14.dp)) {
-                val maxV = (st.last7Days.maxOrNull() ?: 0).coerceAtLeast(1)
+                val series = if (monthMode) st.last30Days else st.last7Days
+                val maxV = (series.maxOrNull() ?: 0).coerceAtLeast(1)
                 val barColor = MaterialTheme.colorScheme.primary
-                Canvas(Modifier.fillMaxWidth().height(70.dp)) {
-                    val n = st.last7Days.size.coerceAtLeast(1)
-                    val gap = size.width * 0.04f
-                    val bw = (size.width - gap * (n - 1)) / n
-                    st.last7Days.forEachIndexed { i, v ->
+                val axisColor = MaterialTheme.colorScheme.outlineVariant
+                val labelColor = MaterialTheme.colorScheme.outline
+                val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+                Canvas(Modifier.fillMaxWidth().height(96.dp)) {
+                    val gutter = 30.dp.toPx()          // 左侧留给纵坐标刻度
+                    val plotW = (size.width - gutter).coerceAtLeast(1f)
+                    val n = series.size.coerceAtLeast(1)
+                    val gap = plotW * 0.04f / n
+                    val bw = (plotW - gap * (n - 1)) / n
+                    // 纵坐标：0 / 中值 / 最大值 三条刻度线 + 数字（便于读实际数量）
+                    val ticks = listOf(0, (maxV + 1) / 2, maxV).distinct()
+                    ticks.forEach { t ->
+                        val y = size.height - size.height * t / maxV
+                        drawLine(
+                            color = axisColor,
+                            start = Offset(gutter, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 1f
+                        )
+                        val layout = measurer.measure(
+                            text = androidx.compose.ui.text.AnnotatedString("$t"),
+                            style = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, color = labelColor)
+                        )
+                        drawText(
+                            textLayoutResult = layout,
+                            topLeft = Offset(
+                                (gutter - 6.dp.toPx() - layout.size.width).coerceAtLeast(0f),
+                                (y - layout.size.height / 2f).coerceIn(0f, size.height - layout.size.height)
+                            )
+                        )
+                    }
+                    // 柱子
+                    series.forEachIndexed { i, v ->
+                        if (v <= 0) return@forEachIndexed
                         val h = size.height * v / maxV
                         drawRoundRect(
                             color = barColor,
-                            topLeft = Offset(i * (bw + gap), size.height - h),
-                            size = Size(bw, h.coerceAtLeast(if (v > 0) 4f else 0f)),
-                            cornerRadius = CornerRadius(4f)
+                            topLeft = Offset(gutter + i * (bw + gap), size.height - h),
+                            size = Size(bw, h.coerceAtLeast(3f)),
+                            cornerRadius = CornerRadius(3f)
                         )
                     }
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(s["stats.daysAgo7"], style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-                    Text(s["stats.today"], style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        if (monthMode) s["stats.daysAgo30"] else s["stats.daysAgo7"],
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        s["stats.today"],
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
             }
         }

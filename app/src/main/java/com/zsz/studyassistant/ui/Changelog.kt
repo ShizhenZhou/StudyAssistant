@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.6
+· **📊 新增「学习统计」页**：底栏改为三个页签 —— 📚 学习（原「主页」）/ 📊 统计 / ⚙️ 设置
+· 统计内容：今日复习、近 7 天复习、连续天数、待复习；掌握度分布（未开始 / 复习中 / 已掌握）；近 7 天新增错题（可一键切换成**近 1 个月**，带纵坐标刻度）；科目分布
+· **Android 17 兼容性修复**：补上精确闹钟权限并在未授予时自动降级（复习提醒不再静默失效）；框选页底部按钮避开手势导航条
+
 v0.5.5
 · **菜单调整**：「直接提问」从拍照搜题页搬到**主页**，位于「拍照搜题」与「批改题目」之间（文字/图文直接解答，不必拍照）
 · **框选页支持预框选**：进页面即自动框出题目范围（本地算法与 AI 并行，AI 超时回落本地/默认框），可双指缩放图片、长按跳过框选
@@ -181,6 +186,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.6
+· **📊 New "Learning stats" page**: bottom bar now has three tabs — 📚 Learn (renamed from Home) / 📊 Stats / ⚙️ Settings
+· Stats: reviewed today, last 7 days, day streak, due now; mastery split (not started / learning / mastered); mistakes added in the last 7 days (toggle to **30 days**, with a Y axis); subject breakdown
+· **Android 17 compatibility fixes**: exact-alarm permission added with graceful fallback (reminders no longer silently stop); crop screen bottom buttons now avoid the gesture bar
+
 v0.5.5
 · **Menu change**: "Ask directly" moved from the photo page to the **home screen**, between "Solve by photo" and "Grade my work" (type or attach an image, no photo needed)
 · **Pre-selection in the crop screen**: the question area is framed automatically (local algorithm + AI in parallel, falling back to local/default on timeout); pinch to zoom, hold to skip
@@ -357,6 +367,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.6
+· **📊 「学習統計」ページを追加**：下部バーを 3 タブに —— 📚 学習（旧「ホーム」）/ 📊 統計 / ⚙️ 設定
+· 統計内容：今日の復習、直近 7 日、連続日数、復習待ち；習得度（未着手 / 学習中 / 習得済み）；直近 7 日の追加（**30 日**に切替可・縦軸付き）；科目別
+· **Android 17 互換性修正**：正確なアラーム権限を追加し未許可時は自動フォールバック（リマインダーが無効化されない）；切り抜き画面の下部ボタンがジェスチャーバーを避けるように
+
 v0.5.5
 · **メニュー変更**：「直接質問」を撮影ページから**ホーム**へ移動（「撮影して質問」と「添削」の間）。文字・画像でそのまま質問できます
 · **切り抜き画面に自動プリセレクト**：開くと同時に問題範囲を自動で枠取り（ローカル算法と AI を並行、AI が時間内に返らなければローカル/既定枠にフォールバック）。ピンチで拡大縮小、長押しでスキップ
@@ -533,6 +548,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.6
+· **📊 "학습 통계" 페이지 추가**: 하단 바가 3개 탭으로 —— 📚 학습(기존 홈) / 📊 통계 / ⚙️ 설정
+· 통계: 오늘 복습, 최근 7일, 연속 일수, 복습 대기; 숙달도(미시작/학습 중/숙달); 최근 7일 추가(**30일** 전환 가능, 세로축 포함); 과목별
+· **Android 17 호환성 수정**: 정확한 알람 권한 추가 및 미허용 시 자동 대체(알림이 조용히 멈추지 않음); 자르기 화면 하단 버튼이 제스처 바를 피하도록
+
 v0.5.5
 · **메뉴 변경**: "직접 질문"을 촬영 페이지에서 **홈**으로 이동("사진으로 질문"과 "첨삭" 사이). 글/이미지로 바로 질문할 수 있습니다
 · **자르기 화면 자동 사전 선택**: 화면을 열면 문제 영역을 자동으로 잡아 줍니다(로컬 알고리즘과 AI 병렬, AI가 시간 내 응답하지 않으면 로컬/기본 박스로 대체). 두 손가락 확대/축소, 길게 눌러 건너뛰기
