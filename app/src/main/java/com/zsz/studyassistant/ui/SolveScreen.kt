@@ -454,13 +454,63 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             //   否则会掉进"正在等待题目…"占位页，把「思考中… + 蓝色继续生成」的气泡弄丢（曾回归）
             val hasLiveBubble = vm.streamingText != null
             if (switching || (vm.chatItems.isEmpty() && !vm.busy && !hasLiveBubble)) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (switching) s["review.nextQuestion"] else s["solve.waitingQuestion"],
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (switching) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
-                    )
+                if (switching) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            s["review.nextQuestion"],
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                } else {
+                    // ★ 空会话：直接给大输入框（图文提问的入口）——
+                    //   省掉"先进入独立输入页再跳转"的一跳，三种模式从此共用同一页
+                    Column(Modifier.weight(1f).fillMaxWidth().padding(16.dp)) {
+                        Text(
+                            s["ask.title"],
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = followUp,
+                            onValueChange = { followUp = it },
+                            placeholder = { Text(s["ask.hint"]) },
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            maxLines = 12
+                        )
+                        if (selectedImages.isNotEmpty()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                s.format("solve.imagesCount", "n" to "${selectedImages.size}"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        FormulaBar(onInsert = { followUp = followUp + it })
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            TextButton(onClick = { imagePicker.launch(imagePickRequest(maxItems = 3)) }) {
+                                Text(s["ask.addImage"])
+                            }
+                            Button(
+                                onClick = {
+                                    vm.solveDirect(followUp.trim(), selectedImages)
+                                    followUp = ""
+                                    selectedImages = emptyList()
+                                },
+                                enabled = followUp.isNotBlank() || selectedImages.isNotEmpty(),
+                                modifier = Modifier.height(52.dp)
+                            ) { Text(s["solve.send"]) }
+                        }
+                    }
                 }
             } else {
                 Box(Modifier.weight(1f).fillMaxWidth()) {
