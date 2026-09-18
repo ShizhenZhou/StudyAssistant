@@ -41,7 +41,7 @@ object StudyAssistant {
     data class SolveResult(val question: String, val answer: String, val category: String? = null, val tags: List<String> = emptyList())
 
     /** 搜题指令（单图 / 多图共用） */
-    private fun solvePrompt(categories: List<String>, tags: List<String>): String {
+    fun solvePrompt(categories: List<String>, tags: List<String>): String {
         val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
         val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
         return "请识别图片中的理工科题目并给出详细分步解答。请**严格按固定格式**输出，每项单独一行：" +

@@ -408,7 +408,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames.value, tagNames.value))
         } else if (directImages.isNotEmpty()) {
             // 直接提问：文字 + 多图一起作为问题
-            msgs.add(StudyAssistant.userMessageWithImages(questionText, directImages))
+            // ★ 带图的「直接提问」原来用追问提示词（不问分类/知识点）→ 改用搜题指令，保证与拍题一致
+            msgs.add(
+                StudyAssistant.userMessageWithImages(
+                    StudyAssistant.solvePrompt(categoryNames.value, tagNames.value) +
+                        "\n【我的题目/问题】" + questionText,
+                    directImages
+                )
+            )
         } else if (isPhoto && imageBytes != null) {
             msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categoryNames.value, tagNames.value))
         } else if (questionText.isNotBlank()) {
@@ -1529,7 +1536,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             StudyAssistant.gradeUserMessage(imgs[0], imgs.getOrNull(1), aiLang)
         )
         busyIsGrade = true
-        streamCall(StudyAssistant.MODEL_VISION, msgs, prefix = "", onDone = { addItem("assistant", it) }, repeat = { gradeCall() })
+        streamCall(
+            StudyAssistant.MODEL_VISION, msgs, prefix = "",
+            onDone = { reply ->
+                // ★ 批改同样要解析分类/知识点（与拍题/直接提问一致），否则批改后存错题本无法预选
+                val r = StudyAssistant.parseVisionOutput(reply)
+                suggestedCategory = r.category
+                suggestedTags = r.tags
+                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+            },
+            repeat = { gradeCall() }
+        )
     }
 
     /** 重新批改（用当前会话的题目/作答图再跑一次） */
