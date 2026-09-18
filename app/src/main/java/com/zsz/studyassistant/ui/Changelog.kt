@@ -5,6 +5,9 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.7_beta
+· 修复 AI 预框选**经常拿不到结果**的问题：请求原先挂在会随布局变化重启的任务里，等待中被取消；现改为独立作用域运行（拍题 / 两张 / 批改都受益）
+
 v0.5.6
 · **📊 新增「学习统计」页**：底栏改为三个页签 —— 📚 学习（原「主页」）/ 📊 统计 / ⚙️ 设置
 · 统计内容：今日复习、近 7 天复习、连续天数、待复习；掌握度分布（未开始 / 复习中 / 已掌握）；近 7 天新增错题（可一键切换成**近 1 个月**，带纵坐标刻度）；科目分布
@@ -186,6 +189,9 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.7_beta
+· Fixed AI pre-selection often returning nothing: the request lived in a task that restarts on layout changes and was cancelled while waiting; it now runs in its own scope (helps photo / two-shot / grading).
+
 v0.5.6
 · **📊 New "Learning stats" page**: bottom bar now has three tabs — 📚 Learn (renamed from Home) / 📊 Stats / ⚙️ Settings
 · Stats: reviewed today, last 7 days, day streak, due now; mastery split (not started / learning / mastered); mistakes added in the last 7 days (toggle to **30 days**, with a Y axis); subject breakdown
@@ -367,6 +373,9 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.7_beta
+· AI の自動枠取りが結果を返さないことが多い問題を修正：レイアウト変化で再起動するタスク内で待機していたためキャンセルされていました。独立スコープで実行するよう変更（撮影・2枚・添削すべてに効果）
+
 v0.5.6
 · **📊 「学習統計」ページを追加**：下部バーを 3 タブに —— 📚 学習（旧「ホーム」）/ 📊 統計 / ⚙️ 設定
 · 統計内容：今日の復習、直近 7 日、連続日数、復習待ち；習得度（未着手 / 学習中 / 習得済み）；直近 7 日の追加（**30 日**に切替可・縦軸付き）；科目別
@@ -548,6 +557,9 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.7_beta
+· AI 자동 선택이 결과를 못 받는 문제 수정: 레이아웃 변경으로 재시작되는 작업 안에서 대기하다 취소되었습니다. 독립 스코프에서 실행하도록 변경(촬영·2장·첨삭 모두 개선)
+
 v0.5.6
 · **📊 "학습 통계" 페이지 추가**: 하단 바가 3개 탭으로 —— 📚 학습(기존 홈) / 📊 통계 / ⚙️ 설정
 · 통계: 오늘 복습, 최근 7일, 연속 일수, 복습 대기; 숙달도(미시작/학습 중/숙달); 최근 7일 추가(**30일** 전환 가능, 세로축 포함); 과목별
