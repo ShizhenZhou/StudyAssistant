@@ -344,9 +344,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 text = { Text(s["solve.deleteConfirm.text"]) },
                 confirmButton = {
                     TextButton(onClick = {
-                        vm.deleteSavedQuestion()
+                        // 从错题本移除（硬删除）：右上角按钮随即变回「📚 存错题本」，界面留在当前题目会话
+                        vm.unsaveFromNotebook()
                         showDeleteConfirm = false
-                    }) { Text(s["common.delete"]) }
+                    }) { Text(s["common.delete"], color = Color(0xFFE53935)) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text(s["common.cancel"]) }
@@ -404,7 +405,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         vm.setCurrentTags(tagIds, tagNames)
                         categoryDialogFor = null
                     },
-                    onDismiss = { categoryDialogFor = null }
+                    onDismiss = { categoryDialogFor = null },
+                    // 分类对话框左下角的红色删除 → 弹确认框
+                    onDelete = { categoryDialogFor = null; showDeleteConfirm = true }
                 )
             }
         }
@@ -742,7 +745,9 @@ internal fun SaveDialog(
     initialSelectedTagIds: List<Long>,
     suggestedTagNames: List<String>,
     onConfirm: (name: String?, categoryId: Long?, tagNames: List<String>, tagIds: List<Long>) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** 非空时在对话框左下角显示红色「🗑 删除」（分类场景用） */
+    onDelete: (() -> Unit)? = null
 ) {
     // 分类状态
     var selCatId by remember { mutableStateOf(initialSelectedId) }
@@ -849,7 +854,16 @@ internal fun SaveDialog(
                 onConfirm(cname, selCatId, newNames, tagIds)
             }) { Text(s["common.save"]) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(s["common.cancel"]) } }
+        dismissButton = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onDelete != null) {
+                    TextButton(onClick = { onDelete() }) {
+                        Text("🗑 " + s["common.delete"], color = Color(0xFFE53935))
+                    }
+                }
+                TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
+            }
+        }
     )
 }
 
