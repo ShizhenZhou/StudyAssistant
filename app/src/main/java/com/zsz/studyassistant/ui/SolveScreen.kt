@@ -813,6 +813,16 @@ internal fun SaveDialog(
     var newCatMode by remember { mutableStateOf(!initialNewName.isNullOrBlank()) }
     var newCatName by remember { mutableStateOf(initialNewName ?: "") }
     val s = LocalStrings.current
+    // ★ 临时调试（定位预选链路，确认后删除）：对话框实际收到的预选参数
+    Text(
+        "dbg 分类id=" + (initialSelectedId?.toString() ?: "null") +
+            " | 建议标签=" + suggestedTagNames.size +
+            " | 已选标签=" + initialSelectedTagIds.size +
+            " | 新建名=" + (initialNewName ?: "-"),
+        fontSize = 10.sp,
+        color = Color(0xFFFF5252),
+        modifier = Modifier.padding(top = 6.dp, start = 24.dp)
+    )
 
     // 标签：统一用"标签名"集合表示选中（含已有 tag 名与 AI 建议/新建名），最多 5 个
     val existingNames = remember(tags) { tags.map { it.name }.toSet() }
