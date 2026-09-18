@@ -197,6 +197,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var directImages: List<ByteArray> = emptyList()
     /** 拍照搜题（多张）携带的图，作为题目一起识别 */
     private var multiImages: List<ByteArray> = emptyList()
+    /** 正在做兜底分类请求（C）：防止重复发起 */
+    private var classifying = false
 
     /** 供界面显示的"题目图"（base64）：原题/我的提问附图，统一作为浅绿用户气泡显示。
      *  只用于显示，不写入会话 JSON（避免数据库膨胀），旧题由 loadQuestion 从 imageBytes 注入。 */
@@ -292,6 +294,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (cropResults.size < cropExpect) cropNeedsMore = true else finishCropFlow()
     }
 
+    /**
+     * 【C 兜底】单独问一次科目/知识点（封闭集：优先从已有分类里选）。
+     * 用于：模型正文里没按格式给出分类/知识点、或打开保存对话框时预选为空。
+     */
+    fun classifyCurrentQuestion() {
+        if (classifying) return
+        val q = questionText.ifBlank { return }
+        classifying = true
+        viewModelScope.launch {
+            val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value)
+            if (!c.isNullOrBlank()) suggestedCategory = c
+            if (t.isNotEmpty()) suggestedTags = t
+            classifying = false
+        }
+    }
     /** 两张模式：从第 2 张返回第 1 张重新框（丢弃第 1 张已提交的结果，保持队列一致） */
     fun cropGoBackOne() {
         if (cropIndex <= 0) return

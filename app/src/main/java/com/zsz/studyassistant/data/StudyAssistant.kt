@@ -17,6 +17,7 @@ import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.ResponseBody
 
@@ -96,6 +97,58 @@ object StudyAssistant {
 
     fun textUserMessage(text: String): DeepSeekMessage =
         DeepSeekMessage("user", JsonPrimitive(text))
+
+    /**
+     * 【分类兜底 C】只问一次「科目 + 知识点」。
+     * 关键：把**已有分类/标签反向喂给 AI**，并要求它**从列表里选一个原样输出**（封闭集选择，
+     * 命中率远高于让它自由命名）；只有确实都不合适才输出 `新：<简短科目名>`。
+     * 返回 (分类, 知识点列表)；失败返回 (null, emptyList())。
+     */
+    suspend fun classifyQuestion(
+        question: String,
+        categories: List<String> = emptyList(),
+        tags: List<String> = emptyList(),
+        timeoutMs: Long = 8000
+    ): Pair<String?, List<String>> {
+        if (question.isBlank()) return null to emptyList()
+        return runCatching {
+            requireKey()
+            val prompt = buildString {
+                append("你是学科分类助手。判断下面这道理工科题目属于哪个科目、涉及哪些知识点。\n")
+                append("题目：").append(question.take(600)).append("\n")
+                append("已知分类（**必须优先从中选一个并原样输出**）：")
+                append(if (categories.isEmpty()) "（暂无）" else categories.joinToString("、"))
+                append("。只有确实都不合适，才输出 新：<简短科目名>\n")
+                append("已知知识点标签（能对应上的优先使用，不要新造）：")
+                append(if (tags.isEmpty()) "（暂无）" else tags.joinToString("、")).append("\n")
+                append("只输出 JSON，不要任何解释：{\"分类\":\"...\",\"知识点\":[\"...\",\"...\"]}（知识点最多 5 个）")
+            }
+            val resp = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+                ApiClient.deepSeek.chat(
+                    DeepSeekRequest(
+                        model = MODEL_TEXT,
+                        messages = listOf(DeepSeekMessage("user", JsonPrimitive(prompt))),
+                        maxTokens = 200,
+                        temperature = 0.0
+                    )
+                )
+            } ?: return@runCatching null to emptyList()
+            lastUsage = resp.usage
+            val txt = resp.choices.firstOrNull()?.message?.content?.asText()
+                ?: return@runCatching null to emptyList()
+            val s = txt.indexOf('{')
+            val e = txt.lastIndexOf('}')
+            if (s < 0 || e <= s) return@runCatching null to emptyList()
+            val root = Json.parseToJsonElement(txt.substring(s, e + 1)).jsonObject
+            val cat = root["分类"]?.jsonPrimitive?.contentOrNull?.trim()
+                ?.removePrefix("新：")?.removePrefix("新:")?.trim()
+                ?.takeIf { it.isNotBlank() }
+            val tgs = root["知识点"]?.jsonArray
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }
+                ?.filter { it.isNotBlank() }?.take(5) ?: emptyList()
+            cat to tgs
+        }.getOrDefault(null to emptyList())
+    }
 
     /** 追问等场景：文字 + 1~3 张图 → 视觉模型 user 消息（多图 image_url） */
     fun userMessageWithImages(text: String, images: List<ByteArray>): DeepSeekMessage {

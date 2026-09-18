@@ -376,6 +376,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             "save" -> {
                 val defaultCat = vm.suggestedCategory
                 val initCatId = categories.firstOrNull { it.name == defaultCat }?.id
+                // 打开保存对话框时若还没有分类建议 → 后台兜底问一次（C）
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    if (vm.suggestedCategory == null) vm.classifyCurrentQuestion()
+                }
+                androidx.compose.runtime.key(vm.suggestedCategory, vm.suggestedTags) {
                 SaveDialog(
                     title = s["solve.catPicker.select"],
                     categories = categories,
@@ -393,6 +398,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     },
                     onDismiss = { categoryDialogFor = null }
                 )
+                }
             }
             "change" -> {
                 SaveDialog(
