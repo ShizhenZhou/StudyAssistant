@@ -158,7 +158,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 注意：streamInterrupted 也必须作为 key——中止时 streamingText 可能没变（节流窗口内），
     // 少了这个 key 这段就不会重算，末尾的蓝色「继续生成」永远不出现（曾踩过）。
     val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed, vm.streamingText, vm.streamInterrupted) {
-        val items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
+        var items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
+        // ★ 生成中：题干/问答还没进 chatItems 时，先把"题目气泡"补上——
+        //   否则拍题/批改/图文提问从发起到首字出现这段时间里，页面上看不到自己刚发的图与题干
+        if (items.none { it.role == "question" } && vm.questionImages.isNotEmpty()) {
+            items = listOf(com.zsz.studyassistant.ChatItem(-1L, "question", "", vm.questionImages)) + items
+        }
         val mapped = items.map { c ->
             val imgs = if (c.role == "question") {
                 // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
@@ -613,8 +618,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
                     ) { Text(s["solve.forgot"]) }
                 }
-            } else if (vm.chatItems.isNotEmpty()) {
+            } else if (vm.chatItems.isNotEmpty() || vm.busy) {
                 // 输入栏（与同类题页共用组件：附图 + 公式键盘 + 图库 + 发送）
+                // ★ 生成中也显示：否则拍题后到首字出现之前，整条输入栏会被"答案生成中…"顶掉
                 ConversationInputBar(
                     value = followUp,
                     onValueChange = { followUp = it },
