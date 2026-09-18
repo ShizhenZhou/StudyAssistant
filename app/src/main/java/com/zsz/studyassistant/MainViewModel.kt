@@ -542,6 +542,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 recordUsage(app)
                 onDone(prefix + reply)
+                // ★ 分类兜底（C）：正文里没给出「分类：/知识点：」时，解答完成即后台补一次，
+                //   这样等用户去点「存错题本」时建议已经就绪（不必在对话框里干等）
+                if (suggestedCategory == null && questionText.isNotBlank()) classifyCurrentQuestion()
                 // 放在 onDone 之后：万一 onDone 内部抛异常，已生成的内容仍留在界面上（catch 会保留）
                 streamingText = null
                 contMessages = null
