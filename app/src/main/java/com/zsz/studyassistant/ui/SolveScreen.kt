@@ -475,7 +475,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
 
             // 多选不再切到缩略列表：仍在原消息界面上操作（气泡右上角圆圈 + 选中红框）
             // 生成中即使一条消息都还没有，也走 WebView —— 由「流式气泡」显示「思考中…」（用户要求：无内容时要有气泡）
-            if (switching || (vm.chatItems.isEmpty() && !vm.busy)) {
+            // ★ 另外：**被中止**时（busy=false 但 streamingText 还在）也必须走 WebView，
+            //   否则会掉进"正在等待题目…"占位页，把「思考中… + 蓝色继续生成」的气泡弄丢（曾回归）
+            val hasLiveBubble = vm.streamingText != null
+            if (switching || (vm.chatItems.isEmpty() && !vm.busy && !hasLiveBubble)) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
                         if (switching) s["review.nextQuestion"] else s["solve.waitingQuestion"],
