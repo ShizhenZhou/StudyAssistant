@@ -921,3 +921,15 @@ internal fun SaveDialog(
     )
 }
 
+
+/** 在已有分类里找最相近的：完全相等 → 包含关系 → 共有 2 个以上相同字（优先已有科目，避免重复新建） */
+private fun bestCategoryMatch(categories: List<Category>, name: String?): Category? {
+    if (name.isNullOrBlank()) return null
+    val n = name.trim()
+    categories.firstOrNull { it.name.trim() == n }?.let { return it }
+    categories.firstOrNull { it.name.contains(n) || n.contains(it.name.trim()) }?.let { return it }
+    return categories
+        .map { it to it.name.trim().count { ch -> n.contains(ch) } }
+        .filter { it.second >= 2 }
+        .maxByOrNull { it.second }?.first
+}

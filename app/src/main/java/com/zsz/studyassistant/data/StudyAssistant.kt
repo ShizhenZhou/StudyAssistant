@@ -73,6 +73,25 @@ object StudyAssistant {
     fun visionUserMessageMulti(images: List<ByteArray>, categories: List<String> = emptyList(), tags: List<String> = emptyList()): DeepSeekMessage =
         userMessageWithImages(solvePrompt(categories, tags), images)
 
+    /**
+     * 文字解题（图文提问的纯文字路径）：与搜题同样的输出格式（题目：/解答：/分类：/知识点：），
+     * 这样错题本保存时也能自动预选科目与标签。
+     */
+    fun textSolveMessage(text: String, categories: List<String> = emptyList(), tags: List<String> = emptyList()): DeepSeekMessage {
+        val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
+        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
+        return DeepSeekMessage(
+            "user",
+            JsonPrimitive(
+                "请解答下面这道理工科题目并给出详细分步解答。\n题目：$text\n" +
+                    "先输出一行“解答：<详细步骤与结论>”，再另起一行输出“分类：<所属科目>”。" +
+                    "已知分类：$catHint。若属于其中某一个，请直接用该分类名，不要新造；都不符合才给出新的简短科目名。" +
+                    "再另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。已知知识点标签：$tagHint。" +
+                    "数学公式请用 LaTeX 书写。"
+            )
+        )
+    }
+
     fun textUserMessage(text: String): DeepSeekMessage =
         DeepSeekMessage("user", JsonPrimitive(text))
 

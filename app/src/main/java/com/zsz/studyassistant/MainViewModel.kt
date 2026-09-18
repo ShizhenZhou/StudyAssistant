@@ -376,7 +376,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else if (isPhoto && imageBytes != null) {
             msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categoryNames.value, tagNames.value))
         } else if (questionText.isNotBlank()) {
-            msgs.add(StudyAssistant.textUserMessage(questionText))
+            msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames.value, tagNames.value))
         }
         for (item in chatItems) {
             when (item.role) {
@@ -453,6 +453,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 中止生成：立即关闭响应流（模型思考中也能立刻停）+ 取消协程；已生成内容保留 */
     fun abortGeneration() {
+        // ★ 中止时：从已生成的文本里抢救「分类/知识点」，避免中止后存错题本时丢失预选
+        harvestSuggestions(streamingText.orEmpty())
         StudyAssistant.cancelActiveStream()
         callJob?.cancel()
     }
@@ -1311,6 +1313,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { dao.deleteById(id) }
     }
 
+    /** 从（可能不完整的）模型输出里提取「分类：/知识点：」，命中就写入会话建议 */
+    private fun harvestSuggestions(text: String) {
+        if (text.isBlank()) return
+        runCatching {
+            val cat = Regex("分类[：:]\\s*([^\\n\\r]+)").find(text)?.groupValues?.get(1)?.trim()
+            if (!cat.isNullOrBlank() && cat.length <= 12) suggestedCategory = cat
+            val tags = Regex("知识点[：:]\\s*([^\\n\\r]+)").find(text)?.groupValues?.get(1)
+            if (!tags.isNullOrBlank()) {
+                val list = tags.split("、", ",", "，").map { it.trim() }.filter { it.isNotBlank() }.take(5)
+                if (list.isNotEmpty()) suggestedTags = list
+            }
+        }
+    }
     private fun startOfToday(): Long {
         val c = Calendar.getInstance()
         c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
