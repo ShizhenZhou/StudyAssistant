@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -416,7 +417,13 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
         }
 
         // 底部按钮（在 Column 里自然位于图片区下方，不再遮挡图片）
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        // Android 15+ 强制 edge-to-edge：补上导航栏内边距，避免按钮贴住手势条
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(16.dp)
+        ) {
             // 多张时提示当前是第几张
             if (vm.cropTotal > 1) {
                 Text(

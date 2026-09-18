@@ -57,7 +57,15 @@ object ReminderScheduler {
             ensureChannel(c)
             val trigger = nextTriggerAt(c)
             val showIntent = PendingIntent.getActivity(c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-            am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, showIntent), pending(c))
+            // Android 12+ 精确闹钟需要 SCHEDULE_EXACT_ALARM（14+ 起默认不授予）。
+            // 没拿到就退化为 setAndAllowWhileIdle：不保证分秒不差，但 Doze 下也会触发，至少不漏提醒。
+            val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S ||
+                am.canScheduleExactAlarms()
+            if (canExact) {
+                am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, showIntent), pending(c))
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending(c))
+            }
         } catch (_: Exception) {
             // 个别系统/厂商对精确闹钟有限制，忽略避免崩溃
         }
