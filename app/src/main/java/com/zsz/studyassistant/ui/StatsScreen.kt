@@ -74,7 +74,7 @@ fun StatsScreen(vm: MainViewModel) {
         Spacer(Modifier.height(18.dp))
         // ── 掌握度分布（堆叠条） ──
         SectionTitle(s["stats.mastery"])
-        Card(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Column(Modifier.padding(14.dp)) {
                 val total = st.mastery.sumOf { it.second }.coerceAtLeast(1)
                 val colors = listOf(
@@ -142,7 +142,7 @@ fun StatsScreen(vm: MainViewModel) {
                 )
             }
         }
-        Card(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Column(Modifier.padding(14.dp)) {
                 val series = if (monthMode) st.last30Days else st.last7Days
                 val maxV = (series.maxOrNull() ?: 0).coerceAtLeast(1)
@@ -209,7 +209,7 @@ fun StatsScreen(vm: MainViewModel) {
         Spacer(Modifier.height(18.dp))
         // ── 科目分布 ──
         SectionTitle(s["stats.subjects"] + "（${s.format("stats.total", "n" to "${st.totalQuestions}")}）")
-        Card(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Column(Modifier.padding(14.dp)) {
                 if (st.subjects.isEmpty()) {
                     Text(
@@ -266,7 +266,7 @@ private fun SectionTitle(text: String) {
 
 @Composable
 private fun StatCard(label: String, value: String, emoji: String, modifier: Modifier = Modifier) {
-    Card(modifier) {
+    Card(shape = smoothShape(14.dp), modifier = modifier) {
         Column(Modifier.padding(14.dp)) {
             Text("$emoji  $label", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
             Spacer(Modifier.height(6.dp))

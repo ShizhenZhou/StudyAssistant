@@ -124,7 +124,7 @@ private fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedSt
 private fun SettingsSubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("←") }
+            TextButton(shape = smoothPill(), onClick = onBack) { Text("←") }
             Text(title, style = MaterialTheme.typography.titleLarge)
         }
         Spacer(Modifier.height(8.dp))
@@ -363,7 +363,7 @@ private fun SliderTicks(fmt: (Float) -> String, msToT: (Float) -> Float, values:
 
 @Composable
 private fun SettingEntry(title: String, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick)) {
+    Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick)) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -406,7 +406,7 @@ private fun ApiSettings(vm: MainViewModel) {
     Spacer(Modifier.height(6.dp))
     Text(s["api.key.note"], style = MaterialTheme.typography.bodySmall, color = Color(0xFF4CAF50))
     Spacer(Modifier.height(8.dp))
-    TextButton(
+    TextButton(shape = smoothPill(), 
         onClick = {
             if (input.isNotBlank()) {
                 ApiKeyStore.saveKey(context, input.trim())
@@ -434,7 +434,7 @@ private fun ApiSettings(vm: MainViewModel) {
             color = MaterialTheme.colorScheme.outline
         )
         Spacer(Modifier.height(8.dp))
-        TextButton(onClick = { vm.resetUsage() }) { Text(s["api.usage.reset"]) }
+        TextButton(shape = smoothPill(), onClick = { vm.resetUsage() }) { Text(s["api.usage.reset"]) }
     }
 }
 
@@ -471,7 +471,7 @@ private fun DataSettings(vm: MainViewModel) {
             }, onError = { })
         }
     }
-    Button(onClick = { exportLauncher.launch("study-assistant-backup.json") }, modifier = Modifier.fillMaxWidth()) {
+    Button(shape = smoothPill(), onClick = { exportLauncher.launch("study-assistant-backup.json") }, modifier = Modifier.fillMaxWidth()) {
         Text(s["data.export"])
     }
     Spacer(Modifier.height(4.dp))
@@ -490,7 +490,7 @@ private fun DataSettings(vm: MainViewModel) {
             if (text != null) { pendingImport = text; showImportConfirm = true }
         }
     }
-    OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+    OutlinedButton(shape = smoothPill(), onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
         Text(s["data.import"])
     }
     Spacer(Modifier.height(4.dp))
@@ -499,7 +499,7 @@ private fun DataSettings(vm: MainViewModel) {
     Spacer(Modifier.height(16.dp))
 
     // 清空
-    OutlinedButton(
+    OutlinedButton(shape = smoothPill(), 
         onClick = { showClearConfirm = true },
         modifier = Modifier.fillMaxWidth(),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -522,13 +522,13 @@ private fun DataSettings(vm: MainViewModel) {
             title = { Text(s["data.import"]) },
             text = { Text(s["data.import.desc"]) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = smoothPill(), onClick = {
                     pendingImport?.let { vm.importBackup(it) }
                     showImportConfirm = false; pendingImport = null
                     vm.refreshDataSummary()
                 }) { Text(s["common.ok"]) }
             },
-            dismissButton = { TextButton(onClick = { showImportConfirm = false; pendingImport = null }) { Text(s["common.cancel"]) } }
+            dismissButton = { TextButton(shape = smoothPill(), onClick = { showImportConfirm = false; pendingImport = null }) { Text(s["common.cancel"]) } }
         )
     }
 
@@ -559,7 +559,7 @@ private fun DataSettings(vm: MainViewModel) {
             },
             confirmButton = {
                 // 只有输入完全一致才可点，且用红色按钮
-                TextButton(
+                TextButton(shape = smoothPill(), 
                     onClick = {
                         vm.clearAllData()
                         showClearConfirm = false
@@ -572,7 +572,7 @@ private fun DataSettings(vm: MainViewModel) {
                     )
                 ) { Text(s["common.ok"]) }
             },
-            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text(s["common.cancel"]) } }
+            dismissButton = { TextButton(shape = smoothPill(), onClick = { showClearConfirm = false }) { Text(s["common.cancel"]) } }
         )
     }
 }
@@ -684,7 +684,7 @@ private fun NotifyBackgroundSettings() {
     }
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text(s["notify.time"])
-        TextButton(onClick = { showTimePicker = true }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
+        TextButton(shape = smoothPill(), onClick = { showTimePicker = true }) { Text("%02d:%02d".format(notifyHour, notifyMinute)) }
     }
     if (showTimePicker) {
         WheelTimePickerDialog(
@@ -709,7 +709,7 @@ private fun NotifyBackgroundSettings() {
     if (ignoringBattery) {
     Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
     } else {
-    TextButton(onClick = {
+    TextButton(shape = smoothPill(), onClick = {
     try {
     context.startActivity(
     android.content.Intent(
@@ -728,7 +728,7 @@ private fun NotifyBackgroundSettings() {
     )
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
     Text(s["background.autostart"], style = MaterialTheme.typography.bodySmall)
-    TextButton(onClick = {
+    TextButton(shape = smoothPill(), onClick = {
     fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
     var ok = false
     for (pkg in listOf(
@@ -765,7 +765,7 @@ private fun BackgroundSettings() {
         if (ignoringBattery) {
             Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         } else {
-            TextButton(onClick = {
+            TextButton(shape = smoothPill(), onClick = {
                 try {
                     context.startActivity(
                         android.content.Intent(
@@ -784,7 +784,7 @@ private fun BackgroundSettings() {
     )
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text(s["background.autostart"], style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = {
+        TextButton(shape = smoothPill(), onClick = {
             fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
             var ok = false
             for (pkg in listOf(
@@ -819,7 +819,7 @@ private fun AboutSettings() {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         } catch (e: Exception) { "0.0.0" }
     }
-    Card(Modifier.fillMaxWidth()) {
+    Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text("Study Assistant", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(6.dp))

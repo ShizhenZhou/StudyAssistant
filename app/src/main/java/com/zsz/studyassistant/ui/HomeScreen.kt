@@ -53,7 +53,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(8.dp))
             Text(s["home.subtitle"], style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(48.dp))
-            Button(
+            Button(shape = smoothPill(), 
                 onClick = { nav.navigate("camera") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -63,7 +63,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             }
             Spacer(Modifier.height(16.dp))
             // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
-            Button(
+            Button(shape = smoothPill(), 
                 onClick = { nav.navigate("ask") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -72,7 +72,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 Text(s["home.ask"], fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(
+            OutlinedButton(shape = smoothPill(), 
                 onClick = { nav.navigate("notebook") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -81,7 +81,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 Text(s["home.notebook"], fontSize = 20.sp)
             }
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(
+            OutlinedButton(shape = smoothPill(), 
                 onClick = { nav.navigate("review") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -112,7 +112,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = smoothPill(), onClick = {
                     if (input.isNotBlank()) {
                         ApiKeyStore.saveKey(context, input.trim())
                         keyOk = true
@@ -121,7 +121,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 }, enabled = input.isNotBlank()) { Text(s["home.key.save"]) }
             },
             dismissButton = {
-                TextButton(onClick = { showDialog = false }) { Text(s["home.key.later"]) }
+                TextButton(shape = smoothPill(), onClick = { showDialog = false }) { Text(s["home.key.later"]) }
             }
         )
     }
