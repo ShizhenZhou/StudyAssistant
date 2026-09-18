@@ -29,7 +29,11 @@ class AnswerForegroundService : Service() {
         }
         val contentIntent = PendingIntent.getActivity(
             this, 0,
-            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            // ★ CLEAR_TOP + SINGLE_TOP：复用已有的 MainActivity 实例并把任务带到前台，
+            //   这样"生成中点头通知"会回到原来的解题页，而不是新建实例、跳回主页
+            Intent(this, MainActivity::class.java).addFlags(
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            ),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val n = NotificationCompat.Builder(this, CHANNEL_ID)
