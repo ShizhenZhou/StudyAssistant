@@ -197,19 +197,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var directImages: List<ByteArray> = emptyList()
     /** 拍照搜题（多张）携带的图，作为题目一起识别 */
     private var multiImages: List<ByteArray> = emptyList()
-    /** 调试用吐司（定位问题后删除） */
-    private fun toast(msg: String) {
-        // 同时写文件（adb 可读：/sdcard/Android/data/com.zsz.studyassistant/files/dbg.txt）
-        runCatching {
-            val f = java.io.File(getApplication<android.app.Application>().getExternalFilesDir(null), "dbg.txt")
-            f.appendText(java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date()) + "  " + msg + "\n")
-        }
-        runCatching {
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(getApplication(), msg, android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
-    }
 
     /** 正在做兜底分类请求（C）：防止重复发起 */
     private var classifying = false
@@ -314,15 +301,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun classifyCurrentQuestion() {
         if (classifying) return
-        val q = questionText.ifBlank {
-            toast("分类兜底: 题干为空,跳过")
+        val q = questionText
+        val imgs = when {
+            directImages.isNotEmpty() -> directImages
+            multiImages.isNotEmpty() -> multiImages
+            imageBytes != null -> listOf(imageBytes!!)
+            else -> emptyList()
+        }
+        if (q.isBlank() && imgs.isEmpty()) {
             return
         }
-        toast("分类兜底: 请求中…(题干${q.take(12)}…)")
         classifying = true
         viewModelScope.launch {
-            val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value)
-            toast("分类兜底结果: 分类=" + (c ?: "null") + " / 标签" + t.size + "个" + (if (t.isNotEmpty()) "(" + t.joinToString("、") + ")" else ""))
+            val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value, imgs)
             if (!c.isNullOrBlank()) suggestedCategory = c
             if (t.isNotEmpty()) suggestedTags = t
             classifying = false
@@ -857,7 +848,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
     fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {
-        toast("存错题本: 传入分类=" + (name ?: categoryId?.toString() ?: "null") + " / 标签${tagIds.size} / 建议分类=" + (suggestedCategory ?: "null") + " / 建议标签${suggestedTags.size}")
         if (saving) {
             cancelPending = true
             return

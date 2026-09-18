@@ -108,9 +108,10 @@ object StudyAssistant {
         question: String,
         categories: List<String> = emptyList(),
         tags: List<String> = emptyList(),
+        images: List<ByteArray> = emptyList(),
         timeoutMs: Long = 8000
     ): Pair<String?, List<String>> {
-        if (question.isBlank()) return null to emptyList()
+        if (question.isBlank() && images.isEmpty()) return null to emptyList()
         return runCatching {
             requireKey()
             val prompt = buildString {
@@ -123,11 +124,20 @@ object StudyAssistant {
                 append(if (tags.isEmpty()) "（暂无）" else tags.joinToString("、")).append("\n")
                 append("只输出 JSON，不要任何解释：{\"分类\":\"...\",\"知识点\":[\"...\",\"...\"]}（知识点最多 5 个）")
             }
+            // ★ 有图就把图一起发给**视觉模型**（文字+图片一并考虑，避免只看文字漏判科目）
+            val msg = if (images.isNotEmpty()) {
+                userMessageWithImages(
+                    prompt + "\n（请结合我附上的图片一起判断）",
+                    images.take(3)
+                )
+            } else {
+                DeepSeekMessage("user", JsonPrimitive(prompt))
+            }
             val resp = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
                 ApiClient.deepSeek.chat(
                     DeepSeekRequest(
-                        model = MODEL_TEXT,
-                        messages = listOf(DeepSeekMessage("user", JsonPrimitive(prompt))),
+                        model = if (images.isNotEmpty()) MODEL_VISION else MODEL_TEXT,
+                        messages = listOf(DeepSeekMessage("system", JsonPrimitive("")), msg).drop(1),
                         maxTokens = 200,
                         temperature = 0.0
                     )
