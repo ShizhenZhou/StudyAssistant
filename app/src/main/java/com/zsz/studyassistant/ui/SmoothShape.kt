@@ -60,7 +60,7 @@ private fun smoothRoundRectPath(w: Float, h: Float, rIn: Float, smoothing: Float
     //   否则胶囊形按钮（r = 短边一半）上下两角的曲线会互相穿插，交接处出现毛刺。
     // ★ 自适应：越接近胶囊（r 越接近短边一半）越减弱平滑量，让左右两端更圆润。
     val pillness = (r / (minOf(w, h) / 2f)).coerceIn(0f, 1f)
-    val e = smoothing.coerceIn(0f, 1f) * 0.45f * (1f - 0.65f * pillness)
+    val e = smoothing.coerceIn(0f, 1f) * 0.45f * (1f - 0.5f * pillness)
     val rEff = r / (1f + e)
     val ext = rEff * (1f + e)        // == r，永不超出半径
     val k = rEff * (1f - e) * 0.5523f // 0.5523 ≈ 圆弧标准控制点系数
