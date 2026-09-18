@@ -56,9 +56,11 @@ private fun smoothRoundRectPath(w: Float, h: Float, rIn: Float, smoothing: Float
         return p
     }
     // 角的起点沿边外扩、控制点向角内收：e 越大越"方中带圆"（越苹果）。
-    // ★ 关键：半径先按 (1+e) 归一化，保证曲线占用长度恒等于 r；
+    // ★ 归一化：半径先按 (1+e) 缩放，保证曲线占用长度恒等于 r；
     //   否则胶囊形按钮（r = 短边一半）上下两角的曲线会互相穿插，交接处出现毛刺。
-    val e = (smoothing.coerceIn(0f, 1f)) * 0.45f
+    // ★ 自适应：越接近胶囊（r 越接近短边一半）越减弱平滑量，让左右两端更圆润。
+    val pillness = (r / (minOf(w, h) / 2f)).coerceIn(0f, 1f)
+    val e = smoothing.coerceIn(0f, 1f) * 0.45f * (1f - 0.65f * pillness)
     val rEff = r / (1f + e)
     val ext = rEff * (1f + e)        // == r，永不超出半径
     val k = rEff * (1f - e) * 0.5523f // 0.5523 ≈ 圆弧标准控制点系数
