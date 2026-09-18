@@ -191,24 +191,33 @@ object StudyAssistant {
     }
 
     /** 批改提示词（流式/非流式共用） */
-    private fun gradePrompt(answerBytes: ByteArray?, lang: AiLang): String =
+    private fun gradePrompt(answerBytes: ByteArray?, lang: AiLang, catHint: String = "（无）", tagHint: String = "无"): String =
         (if (answerBytes != null)
             "你是一名批改老师。图片中是{题目}和{学生的手写作答}。" +
                 "请批改：①判断作答是否正确；②若不正确，指出错在哪一步、为什么错；" +
                 "③给出正确的解题过程，并针对错误点做针对性讲解。用 LaTeX 写公式，先输出「结论：」再输出「讲解：」。"
         else
             "请识别图片中的题目，并给出完整、分步的解答过程，用 LaTeX 写公式。") +
+            // 补上分类/知识点：错题本保存时要自动预选科目与标签（批改页同样需要）
+            "\n解答最后另起一行输出“分类：<所属科目>”。已知分类：$catHint。属于其中某一类就直接用该名称，不要新造。" +
+            "\n再另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。可用标签：$tagHint。" +
             "\n" + languageInstruction(lang)
 
     /**
      * 批改的 user 消息（文字提示 + 题目图 + 可选作答图）。
      * 批改页复用解题界面时用它构造首轮请求；追问走常规 buildMessages。
      */
-    fun gradeUserMessage(questionBytes: ByteArray, answerBytes: ByteArray?, lang: AiLang = AiLang.DEFAULT): DeepSeekMessage {
+    fun gradeUserMessage(
+        questionBytes: ByteArray,
+        answerBytes: ByteArray?,
+        lang: AiLang = AiLang.DEFAULT,
+        categories: List<String> = emptyList(),
+        tags: List<String> = emptyList()
+    ): DeepSeekMessage {
         val parts = buildJsonArray {
             addJsonObject {
                 put("type", "text")
-                put("text", gradePrompt(answerBytes, lang))
+                put("text", gradePrompt(answerBytes, lang, if (categories.isEmpty()) "（无）" else categories.joinToString("、"), if (tags.isEmpty()) "无" else tags.joinToString("、")))
             }
             addJsonObject {
                 put("type", "image_url")
