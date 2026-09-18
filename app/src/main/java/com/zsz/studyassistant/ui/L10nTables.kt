@@ -575,6 +575,7 @@ private val B2_KO = mapOf(
     "solve.imageDesc" to "첨부 이미지",
     "solve.followUpHint" to "추가 질문 (이미지 가능)…",
     "solve.send" to "전송",
+    "solve.imagesCount" to "이미지 {n}장 첨부",
     "solve.cat.choose" to "분류를 선택하거나 새로 만드세요",
     "solve.cat.new" to "➕ 새 분류",
     "solve.cat.name" to "분류 이름",
