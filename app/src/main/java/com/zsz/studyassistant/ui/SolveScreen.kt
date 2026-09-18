@@ -842,6 +842,10 @@ internal fun SaveDialog(
             }
         },
         confirmButton = {
+            // 有删除时：取消放到右侧紧挨"保存"，删除单独占最左
+            if (onDelete != null) {
+                TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
+            }
             TextButton(onClick = {
                 val cname = if (newCatMode && newCatName.isNotBlank()) newCatName.trim() else null
                 // 拆分为已有 id + 待新建名
@@ -854,13 +858,13 @@ internal fun SaveDialog(
                 onConfirm(cname, selCatId, newNames, tagIds)
             }) { Text(s["common.save"]) }
         },
+        // 有删除时：删除单独占最左，取消移到右侧紧挨"保存"（保存/取消位置与原来一致）
         dismissButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (onDelete != null) {
-                    TextButton(onClick = { onDelete() }) {
-                        Text("🗑 " + s["common.delete"], color = Color(0xFFE53935))
-                    }
+            if (onDelete != null) {
+                TextButton(onClick = { onDelete() }) {
+                    Text(s["common.delete"], color = Color(0xFFE53935))
                 }
+            } else {
                 TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
             }
         }
