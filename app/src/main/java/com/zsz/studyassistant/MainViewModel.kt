@@ -299,6 +299,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 【C 兜底】单独问一次科目/知识点（封闭集：优先从已有分类里选）。
      * 用于：模型正文里没按格式给出分类/知识点、或打开保存对话框时预选为空。
      */
+    /**
+     * 统一入口（用户规格）：
+     *  ① 会话里已有 AI 首次回答解析出的分类/标签 → 直接用（suggestedCategory/Tags 就是"会话固定位置"）
+     *  ② 没有 → 立刻后台问 AI（文字 + 图片一起）
+     *  · 解答完成时调用（相当于①②）
+     *  · 打开旧错题时调用（旧数据没有 → 走②）
+     *  · 点「存错题本」时调用（此时仍没有 → 兜底再问一次）
+     * 同一时刻只会跑一个请求（classifying 防重入）。
+     */
+    fun ensureClassification() {
+        if (suggestedCategory != null && suggestedTags.isNotEmpty()) return
+        classifyCurrentQuestion()
+    }
     fun classifyCurrentQuestion() {
         if (classifying) return
         val q = questionText
@@ -313,10 +326,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         classifying = true
         viewModelScope.launch {
-            val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value, imgs)
-            if (!c.isNullOrBlank()) suggestedCategory = c
-            if (t.isNotEmpty()) suggestedTags = t
-            classifying = false
+            try {
+                val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value, imgs)
+                if (!c.isNullOrBlank()) suggestedCategory = c
+                if (t.isNotEmpty()) suggestedTags = t
+            } finally {
+                // ★ 必须放 finally：请求异常/被取消时也要复位，否则标志卡死 → 之后所有分类都被跳过
+                classifying = false
+            }
         }
     }
     /** 两张模式：从第 2 张返回第 1 张重新框（丢弃第 1 张已提交的结果，保持队列一致） */
@@ -903,6 +920,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
         viewModelScope.launch { dao.deleteById(id) }
+        // ★ 删除后分类/标签状态被清空：立刻用会话里的题干+图重算一次，
+        //   这样"删除后再存错题本"仍能预选分类与标签
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(200)
+            classifyCurrentQuestion()
+        }
     }
 
     /** 修改当前题目的分类（详情页用）；name 非空→新建分类，categoryId 为 null→暂不分类 */
@@ -1353,6 +1376,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val id = similarSavedQuestionId ?: return
         similarSavedQuestionId = null
         viewModelScope.launch { dao.deleteById(id) }
+        // ★ 删除后分类/标签状态被清空：立刻用会话里的题干+图重算一次，
+        //   这样"删除后再存错题本"仍能预选分类与标签
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(200)
+            classifyCurrentQuestion()
+        }
     }
 
     /** 从（可能不完整的）模型输出里提取「分类：/知识点：」，命中就写入会话建议 */
@@ -1586,9 +1615,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // ★ 第5项「按需补」：打开**旧错题**时，若它没有分类（或没有标签），
         //   后台用「题干 + 原图」问一次 AI，拿到结果就直接预选好，
         //   这样即使是很久以前存的题，点「存错题本」/「分类」时也不再是空的。
-        if (q.categoryId == null || suggestedTags.isEmpty()) {
-            classifyCurrentQuestion()
-        }
+        if (q.categoryId == null || suggestedTags.isEmpty()) ensureClassification()
         // 拍照题：气泡只显示原图，不再显示 AI 转译题干（旧会话同样按此处理）
         questionFromPhoto = q.imageBytes != null
         // 异步加载该题的知识点标签

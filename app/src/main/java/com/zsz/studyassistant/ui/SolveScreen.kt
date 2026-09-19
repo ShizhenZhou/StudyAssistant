@@ -326,7 +326,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         } else {
                             TextButton(
-                                onClick = { categoryDialogFor = "save" },
+                                onClick = { vm.ensureClassification(); categoryDialogFor = "save" },
                                 enabled = vm.chatItems.isNotEmpty() && !vm.busy,
                                 contentPadding = smallPad
                             ) { Text(s["solve.saveToNotebook"], fontSize = 13.sp) }
@@ -378,7 +378,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 val initCatId = categories.firstOrNull { it.name == defaultCat }?.id
                 // 打开保存对话框时若还没有分类建议 → 后台兜底问一次（C）
                 androidx.compose.runtime.LaunchedEffect(Unit) {
-                    if (vm.suggestedCategory == null) vm.classifyCurrentQuestion()
+                    vm.ensureClassification()
                 }
                 androidx.compose.runtime.key(vm.suggestedCategory, vm.suggestedTags) {
                 SaveDialog(
