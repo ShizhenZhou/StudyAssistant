@@ -1583,6 +1583,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         // 原题图统一作为浅绿用户气泡显示（旧会话也适用：从 imageBytes 注入）
         questionImages = q.imageBytes?.let { listOf(Base64.encodeToString(it, Base64.NO_WRAP)) } ?: emptyList()
+        // ★ 第5项「按需补」：打开**旧错题**时，若它没有分类（或没有标签），
+        //   后台用「题干 + 原图」问一次 AI，拿到结果就直接预选好，
+        //   这样即使是很久以前存的题，点「存错题本」/「分类」时也不再是空的。
+        if (q.categoryId == null || suggestedTags.isEmpty()) {
+            classifyCurrentQuestion()
+        }
         // 拍照题：气泡只显示原图，不再显示 AI 转译题干（旧会话同样按此处理）
         questionFromPhoto = q.imageBytes != null
         // 异步加载该题的知识点标签
