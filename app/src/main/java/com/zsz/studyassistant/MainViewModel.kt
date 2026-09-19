@@ -308,6 +308,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *  · 点「存错题本」时调用（此时仍没有 → 兜底再问一次）
      * 同一时刻只会跑一个请求（classifying 防重入）。
      */
+    /**
+     * 5b：把"按需补"出来的分类/标签**写回数据库**，这样旧题只需补一次，之后打开直接读。
+     * 只更新现有列（questions.categoryId）与关联表（question_tags），**不改数据库结构、无需 Migration**。
+     */
+    private fun persistSuggestionToDb(cat: String?, tags: List<String>) {
+        val id = savedQuestionId ?: return           // 没落库的题不写
+        if (cat.isNullOrBlank() && tags.isEmpty()) return
+        viewModelScope.launch {
+            if (!cat.isNullOrBlank()) {
+                val n = cat.trim()
+                val all = dao.allCategoriesOnce()
+                // 优先复用已有分类（完全相等 → 包含关系），都没有才新建，避免科目重复
+                val hit = all.firstOrNull { it.name.trim() == n }
+                    ?: all.firstOrNull { it.name.contains(n) || n.contains(it.name.trim()) }
+                val cid = hit?.id ?: dao.insertCategory(Category(name = n))
+                currentQuestionCategoryId = cid
+                dao.setCategoryForIds(listOf(id), cid)
+            }
+            if (tags.isNotEmpty()) {
+                dao.clearQuestionTags(id)
+                val ids = mutableListOf<Long>()
+                for (tn in tags.take(5)) {
+                    val name = tn.trim()
+                    if (name.isBlank()) continue
+                    val ex = dao.getAllTagsOnce().firstOrNull { it.name == name }
+                    val tid = ex?.id ?: dao.insertTag(Tag(name = name))
+                    if (!ids.contains(tid)) ids += tid
+                }
+                for (tid in ids.take(5)) dao.insertQuestionTag(QuestionTag(id, tid))
+                currentQuestionTags = ids.take(5)
+            }
+        }
+    }
     fun ensureClassification() {
         if (suggestedCategory != null && suggestedTags.isNotEmpty()) return
         classifyCurrentQuestion()
@@ -330,6 +363,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value, imgs)
                 if (!c.isNullOrBlank()) suggestedCategory = c
                 if (t.isNotEmpty()) suggestedTags = t
+                // ★ 5b：写回数据库（仅当该题已落库；无 DB 结构变更，仅更新现有列/关联表）
+                if (!c.isNullOrBlank() || t.isNotEmpty()) persistSuggestionToDb(c, t)
             } finally {
                 // ★ 必须放 finally：请求异常/被取消时也要复位，否则标志卡死 → 之后所有分类都被跳过
                 classifying = false

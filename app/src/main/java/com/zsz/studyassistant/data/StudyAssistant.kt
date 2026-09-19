@@ -150,12 +150,19 @@ object StudyAssistant {
             val e = txt.lastIndexOf('}')
             if (s < 0 || e <= s) return@runCatching null to emptyList()
             val root = Json.parseToJsonElement(txt.substring(s, e + 1)).jsonObject
-            val cat = root["分类"]?.jsonPrimitive?.contentOrNull?.trim()
+            // ★ 键名同义容错：模型可能写 分类/科目/类别/学科，知识点/考点/标签/tags
+            fun pick(vararg keys: String) = keys.firstNotNullOfOrNull { k -> root[k] }
+            val catEl = pick("分类", "科目", "类别", "学科", "subject", "category")
+            val tagEl = pick("知识点", "考点", "标签", "tags", "knowledge")
+            val cat = catEl?.jsonPrimitive?.contentOrNull?.trim()
                 ?.removePrefix("新：")?.removePrefix("新:")?.trim()
                 ?.takeIf { it.isNotBlank() }
-            val tgs = root["知识点"]?.jsonArray
+            val tgs = (tagEl as? kotlinx.serialization.json.JsonArray)
                 ?.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }
-                ?.filter { it.isNotBlank() }?.take(5) ?: emptyList()
+                ?.filter { it.isNotBlank() }?.take(5)
+                ?: tagEl?.jsonPrimitive?.contentOrNull
+                    ?.split('、', '，', ',')?.map { it.trim() }?.filter { it.isNotBlank() }?.take(5)
+                ?: emptyList()
             cat to tgs
         }.getOrDefault(null to emptyList())
     }
