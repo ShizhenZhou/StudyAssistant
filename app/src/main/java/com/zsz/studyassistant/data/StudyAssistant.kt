@@ -109,7 +109,10 @@ object StudyAssistant {
         categories: List<String> = emptyList(),
         tags: List<String> = emptyList(),
         images: List<ByteArray> = emptyList(),
-        timeoutMs: Long = 8000
+        needCategory: Boolean = true,
+        needTags: Boolean = true,
+        timeoutMs: Long = 8000,
+        onRaw: ((String) -> Unit)? = null
     ): Pair<String?, List<String>> {
         if (question.isBlank() && images.isEmpty()) return null to emptyList()
         return runCatching {
@@ -146,6 +149,7 @@ object StudyAssistant {
             lastUsage = resp.usage
             val txt = resp.choices.firstOrNull()?.message?.content?.asText()
                 ?: return@runCatching null to emptyList()
+            onRaw?.invoke(txt)
             val s = txt.indexOf('{')
             val e = txt.lastIndexOf('}')
             if (s < 0 || e <= s) return@runCatching null to emptyList()
@@ -163,7 +167,7 @@ object StudyAssistant {
                 ?: tagEl?.jsonPrimitive?.contentOrNull
                     ?.split('、', '，', ',')?.map { it.trim() }?.filter { it.isNotBlank() }?.take(5)
                 ?: emptyList()
-            cat to tgs
+            (if (needCategory) cat else null) to (if (needTags) tgs else emptyList())
         }.getOrDefault(null to emptyList())
     }
 
