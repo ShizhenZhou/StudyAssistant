@@ -265,7 +265,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     } else {
                         Text(
                             // 空会话=图文提问入口，标题显示「图文提问」；有内容后回到「解题」
-                            if (vm.chatItems.isEmpty() && !vm.busy) s["ask.pageTitle"] else s["solve.title"],
+                            if (vm.askMode) s["ask.pageTitle"] else s["solve.title"],
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(min = 40.dp)

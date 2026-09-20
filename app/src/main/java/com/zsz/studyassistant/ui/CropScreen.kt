@@ -467,7 +467,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) { Text(s["crop.confirm"]) }
+            ) { Text(if (vm.cropExpect > 1 && vm.cropPaths.size < vm.cropExpect) s["crop.confirmMore"] else s["crop.confirm"]) }
             Spacer(Modifier.height(8.dp))
             // 「整张图片」：单击 = 跳过这一张（多张时进入下一张）；**按住 2 秒填满 → 松开 = 剩下全部跳过**
             // 没填满松手 = 取消；填满后上滑（填充变浅红）= 取消

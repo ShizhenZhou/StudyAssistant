@@ -271,6 +271,7 @@ private val B1_ZH = mapOf(
     "crop.aiDetect" to "🤖 AI 识别",
     "crop.aiBusy" to "识别中…",
     "crop.confirm" to "✅ 确认框选并解答",
+    "crop.confirmMore" to "✅ 다음 이미지 추가",
     "crop.whole" to "整张图片（跳过框选）",
     "crop.reset" to "重置框选",
     "crop.reshoot" to "📷 重新拍摄"
@@ -306,6 +307,7 @@ private val B1_EN = mapOf(
     "crop.aiDetect" to "🤖 AI detect",
     "crop.aiBusy" to "Detecting…",
     "crop.confirm" to "✅ Confirm selection & solve",
+    "crop.confirmMore" to "✅ 次の画像を追加",
     "crop.whole" to "Whole image (skip cropping)",
     "crop.reset" to "Reset selection",
     "crop.reshoot" to "📷 Retake"
@@ -341,6 +343,7 @@ private val B1_JA = mapOf(
     "crop.aiDetect" to "🤖 AI 認識",
     "crop.aiBusy" to "認識中…",
     "crop.confirm" to "✅ 範囲を確定して解答",
+    "crop.confirmMore" to "✅ Upload next image",
     "crop.whole" to "画像全体（切り抜きなし）",
     "crop.reset" to "範囲をリセット",
     "crop.reshoot" to "📷 撮り直す"
@@ -376,6 +379,7 @@ private val B1_KO = mapOf(
     "crop.aiDetect" to "🤖 AI 인식",
     "crop.aiBusy" to "인식 중…",
     "crop.confirm" to "✅ 선택 확정 후 풀이",
+    "crop.confirmMore" to "✅ 继续上传第二张",
     "crop.whole" to "전체 이미지 (자르기 생략)",
     "crop.reset" to "선택 초기화",
     "crop.reshoot" to "📷 다시 촬영"

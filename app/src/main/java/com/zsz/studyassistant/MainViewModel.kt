@@ -197,6 +197,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var saving = false
     private var cancelPending = false
     private var isPhoto = false
+    /** 本次会话是否来自「图文提问」（用于标题保持"图文提问"） */
+    var askMode by mutableStateOf(false)
+        private set
     /** 供界面判断：当前会话是否来自"拍照搜题"（返回时决定回拍题页还是返回来处） */
     val isPhotoSession: Boolean get() = isPhoto
     private var questionText = ""
@@ -287,8 +290,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 两张模式下又拍到 / 选到第 2 张 */
     fun appendCropPath(path: String) {
-        if (cropPaths.size > cropIndex) return
+        // ★ 只在"确实还缺一张"时追加（cropNeedsMore），并把索引指向**刚追加的这张**：
+        //   否则框选页仍显示上一张（曾经：第一张提交后守卫直接 return，第二张永远进不来/显示错图）
+        if (!cropNeedsMore) return
         cropPaths = cropPaths + path
+        cropIndex = cropPaths.size - 1
         cropNeedsMore = false
     }
 
@@ -847,6 +853,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 直接提问：文字 + 可选多张图，作为一条问题解答 */
     fun solveDirect(text: String, images: List<ByteArray>) {
         resetSession()
+        askMode = true
         isPhoto = images.isNotEmpty()
         isFromNotebook = false
         questionFromPhoto = false   // 直接提问显示用户自己写的文字，不是 AI 转译题干
@@ -930,8 +937,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (savedQuestionId != null) return
-        val q = questionText
-        if (q.isBlank()) return
+        // 图文提问可能"只有图片、没有文字" → 只要有图就允许保存（Room 的 text 不能为空，用占位）
+        val hasImg = questionImages.isNotEmpty() || imageBytes != null || directImages.isNotEmpty()
+        val q = questionText.ifBlank { if (hasImg) "（图片题）" else return }
         val convJson = json.encodeToString(chatItems)
         val img = imageBytes
         val a = lastAnswer()
