@@ -51,7 +51,17 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
         ) {
             Text("Study Assistant", fontSize = 32.sp, style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
-            Text(s["home.subtitle"], style = MaterialTheme.typography.bodyMedium)
+            // 副标题：小一号 + 强制单行（英文 "Photo search · AI solutions · Mistake notebook" 较长）
+            Text(
+                s["home.subtitle"],
+                style = MaterialTheme.typography.bodySmall,
+                fontSize = 12.sp,
+                maxLines = 1,
+                softWrap = false,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            )
             Spacer(Modifier.height(48.dp))
             Button(shape = smoothPill(), 
                 onClick = { nav.navigate("camera") },
