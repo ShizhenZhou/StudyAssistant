@@ -22,6 +22,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -79,7 +85,7 @@ fun SettingsTab(vm: MainViewModel) {
         "api" -> SettingsSubPage(s["settings.api"], { page = "main" }) { ApiSettings(vm) }
         "aicrop" -> SettingsSubPage(s["settings.aiCrop"], { page = "main" }) { AiCropTimeoutSettings() }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
-        "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) }
+        "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) { page = it } }
         "notify" -> SettingsSubPage(s["settings.group.notifyBackground"], { page = "main" }) { NotifyBackgroundSettings() }
         "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataSettings(vm) }
         "about" -> SettingsSubPage(s["settings.about"], { page = "main" }) { AboutPage() }
@@ -641,8 +647,11 @@ private fun systemLangLabel(): String {
 
 /** 🎨 应用主题 */
 @Composable
-private fun ThemeSettings(vm: MainViewModel) {
+private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
     val s = LocalStrings.current
+    var showPicker by remember { mutableStateOf(false) }   // 自定义取色盘
+    // ① 主题模式
+    Text(s["settings.theme.mode"], style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
     val themes = listOf(s["theme.option.system"] to "system", s["theme.option.light"] to "light", s["theme.option.dark"] to "dark")
     themes.forEach { (label, value) ->
         Row(
@@ -655,6 +664,125 @@ private fun ThemeSettings(vm: MainViewModel) {
             RadioButton(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
             Text(label, Modifier.padding(start = 8.dp))
         }
+    }
+    // ② 主题配色（预设色板 + 自定义色，一键切换）
+    Spacer(Modifier.height(14.dp))
+    Text(s["settings.theme.color"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 预设色板（自定义色单独用一个圆点表示，取色后它会跟着变）
+        val dots = AppThemeColor.presets + AppThemeColor.CUSTOM
+        dots.forEach { c ->
+            val selected = vm.themeColor == c
+            val face = if (c == AppThemeColor.CUSTOM) Color(vm.customColor) else c.swatch
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(face)
+                    .clickable { if (c == AppThemeColor.CUSTOM) showPicker = true else vm.updateThemeColor(c) }
+                    .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
+                contentAlignment = Alignment.Center
+            ) {
+                if (c == AppThemeColor.CUSTOM && !selected) {
+                    // 自定义色未选中时，圆点里画一支小画笔提示"可自选"
+                    Text("🎨", fontSize = 16.sp)
+                } else if (selected) {
+                    Text("✓", color = Color.White, fontSize = 20.sp)
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    // 自定义颜色按钮 → 打开取色盘
+    SettingEntry(s["settings.theme.custom"]) { showPicker = true }
+
+    if (showPicker) {
+        ThemeColorPickerDialog(
+            initial = vm.customColor,
+            onDismiss = { showPicker = false },
+            onConfirm = { argb -> vm.updateCustomColor(argb); showPicker = false }
+        )
+    }
+}
+
+/** 取色盘：色相 / 饱和度 / 明度 三条渐变滑杆 + 实时预览（无需第三方库） */
+@Composable
+private fun ThemeColorPickerDialog(
+    initial: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    val s = LocalStrings.current
+    val initHsv = remember(initial) {
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(initial, hsv)
+        hsv
+    }
+    var hue by remember { mutableStateOf(initHsv[0]) }
+    var sat by remember { mutableStateOf(initHsv[1]) }
+    var value by remember { mutableStateOf(initHsv[2].coerceAtLeast(0.35f)) }
+    val argb = remember(hue, sat, value) { android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(s["settings.theme.custom"]) },
+        text = {
+            Column(Modifier.fillMaxWidth()) {
+                // 预览
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                        .background(Color(argb))
+                )
+                Spacer(Modifier.height(12.dp))
+                ChannelSlider(
+                    label = s["settings.theme.hue"],
+                    value = hue / 360f,
+                    colors = listOf(
+                        Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red
+                    )
+                ) { hue = it * 360f }
+                ChannelSlider(
+                    label = s["settings.theme.sat"],
+                    value = sat,
+                    colors = listOf(Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0f, value))),
+                        Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, value))))
+                ) { sat = it }
+                ChannelSlider(
+                    label = s["settings.theme.value"],
+                    value = value,
+                    colors = listOf(Color.Black, Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, 1f))))
+                ) { value = it.coerceIn(0.05f, 1f) }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(argb) }) { Text(s["common.ok"]) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s["common.cancel"]) } }
+    )
+}
+
+/** 单条渐变滑杆（0~1） */
+@Composable
+private fun ChannelSlider(
+    label: String,
+    value: Float,
+    colors: List<Color>,
+    onValueChange: (Float) -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..1f,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

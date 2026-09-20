@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.8
+· 🎨 应用主题：新增主题配色——8 套预设色板 + 自定义取色盘（色相/饱和度/明度可调）；设置页「主题」升级为「应用主题」二级页
+· 🐞 修复复习刷题崩溃：复习队列原来查询 q.*，把每题的图片大字段一起取出，题目一多就超出 Android CursorWindow 的 2MB 上限而崩溃（表现为点熟悉就退回桌面）；现在列表只取轻字段，进题时才按 id 取图片与会话
+· 🔄 修复复习点进去变成查看错题：异步补全图片后覆盖了复习模式标志
+· 🏠 修复复习结束退回桌面：刷完最后一题后改为显式回主页
+
 v0.5.7
 · 🗂 错题自动归类：AI 判定科目与知识点并自动预选，**优先复用已有科目**（近义/上下位也算）；旧错题打开时自动补齐并写回数据库
 · 🧩 解题页多模式统一：拍题 / 批改 / 图文提问 / 错题本共用同一套顶栏与交互；复习返回不再误入拍摄页
@@ -194,6 +200,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.8
+· 🎨 App theme: theme colours — 8 preset swatches plus a custom colour picker (hue / saturation / brightness); the settings entry is now an App theme sub-page
+· 🐞 Fixed a crash while reviewing: the review queue selected q.*, pulling each question image blob, so a longer queue exceeded the Android 2 MB CursorWindow limit and crashed (it looked like tapping Familiar returned to the home screen); the list now selects light columns only and loads the image/session by id when a question is opened
+· 🔄 Fixed review opening as a plain mistake view: completing the image asynchronously overwrote the review-mode flag
+· 🏠 Fixed the review finishing back to the launcher: after the last question the app now navigates home explicitly
+
 v0.5.7
 · 🗂 Auto-classification: the AI decides the subject and knowledge tags and pre-selects them, **preferring your existing subjects** (near-synonyms and broader/narrower ones count); old questions are back-filled and written to the database
 · 🧩 One shared solve screen for photo / grading / text-image ask / notebook; returning from review no longer jumps to the camera
@@ -383,6 +395,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.8
+· 🎨 アプリテーマ：テーマカラーを追加——8 種類のプリセット＋カスタムカラーピッカー（色相/彩度/明度）；設定のテーマはアプリテーマのサブページに
+· 🐞 復習中のクラッシュを修正：復習キューが q.* を取得して各問題の画像 BLOB まで読み込み、問題が増えると Android の CursorWindow 2MB 上限を超えてクラッシュ（熟悉でホームに戻るように見えた）；一覧は軽い列のみ取得し、問題を開くときに id で画像を取得
+· 🔄 復習が誤答を見る画面になる問題を修正：画像の非同期補完が復習モードのフラグを上書きしていた
+· 🏠 復習終了でランチャーに戻る問題を修正：最後の問題の後は明示的にホームへ
+
 v0.5.7
 · 🗂 Auto-classification: the AI picks the subject and knowledge tags, preferring your existing subjects (near-synonyms count); old questions are back-filled and saved to the database
 · 🧩 One shared solve screen for photo / grading / text-image ask / notebook; returning from review no longer jumps to the camera
@@ -572,6 +590,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.8
+· 🎨 앱 테마: 테마 색상 — 8가지 프리셋 + 사용자 지정 색상 선택기(색상/채도/밝기); 설정의 테마가 앱 테마 하위 페이지로
+· 🐞 복습 중 크래시 수정: 복습 큐가 q.*를 조회해 각 문제의 이미지 BLOB까지 읽어, 문제가 많아지면 Android CursorWindow 2MB 한도를 넘어 크래시(熟悉를 누르면 홈으로 가는 것처럼 보임); 이제 목록은 가벼운 컬럼만 조회하고 문제를 열 때 id로 이미지를 가져옴
+· 🔄 복습이 오답 보기로 열리는 문제 수정: 이미지를 비동기로 채우면서 복습 모드 플래그를 덮어썼음
+· 🏠 복습 종료 시 런처로 돌아가는 문제 수정: 마지막 문제 후 명시적으로 홈으로 이동
+
 v0.5.7
 · 🗂 자동 분류: AI가 과목과 지식 태그를 판단해 자동 선택하며 **기존 과목을 우선**합니다(유사어·상하위 포함); 오래된 문제는 자동으로 채워 DB에 저장됩니다
 · 🧩 촬영 / 첨삭 / 글·이미지 질문 / 오답노트가 하나의 화면을 공유합니다; 복습에서 돌아갈 때 카메라로 가지 않습니다

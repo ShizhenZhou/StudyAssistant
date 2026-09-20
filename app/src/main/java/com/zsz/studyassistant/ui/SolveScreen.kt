@@ -649,7 +649,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
                 val onNoMore: () -> Unit = {
                     vm.exitReviewMode()
-                    nav.popBackStack()
+                    // ★ 复习结束：**显式回主页**。原来只 popBackStack()：
+                    //   当复习是从底部页签/通知进入、栈里没有可退页面时会直接把 Activity 退掉
+                    //   → 表现为"点熟悉后回到桌面"。
+                    nav.navigate("home") {
+                        popUpTo("home") { inclusive = true }
+                        launchSingleTop = true
+                    }
                     android.widget.Toast.makeText(context, s["solve.reviewDone"], android.widget.Toast.LENGTH_SHORT).show()
                 }
                 Row(

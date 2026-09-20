@@ -60,6 +60,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .edit().putString("theme", t).apply()
     }
 
+    // ---- 应用主题配色（预设色板，默认紫色）----
+    var themeColor by mutableStateOf(
+        com.zsz.studyassistant.ui.AppThemeColor.fromId(
+            app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                .getString("theme_color", null)
+        )
+    )
+        private set
+    fun updateThemeColor(c: com.zsz.studyassistant.ui.AppThemeColor) {
+        themeColor = c
+        getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit().putString("theme_color", c.id).apply()
+    }
+
+    /** 自定义配色的 ARGB（仅当 themeColor == CUSTOM 时生效；由取色盘选择） */
+    var customColor by mutableStateOf(
+        app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .getInt("theme_color_custom", 0xFF6750A4.toInt())
+    )
+        private set
+    fun updateCustomColor(argb: Int) {
+        customColor = argb
+        themeColor = com.zsz.studyassistant.ui.AppThemeColor.CUSTOM
+        getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putInt("theme_color_custom", argb)
+            .putString("theme_color", com.zsz.studyassistant.ui.AppThemeColor.CUSTOM.id)
+            .apply()
+    }
+
     // ---- AI 生成语言（拍题/直接提问/追问/批改/同类题的回答语言，默认跟随系统）----
     var aiLang by mutableStateOf(AiLangStore.load(app))
         private set
@@ -1148,9 +1178,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadForReview(q: Question) {
-        loadQuestion(q)
-        reviewMode = true
-        currentReviewQuestion = q
+        // 复习队列来自"轻查询"（不含图片 BLOB 与会话 JSON，避免 CursorWindow 溢出崩溃），
+        // 这里按 id 补全重字段，保证进入题目时原图与续答上下文都在。
+        viewModelScope.launch {
+            val full = runCatching { dao.heavyOnce(q.id) }.getOrNull() ?: q
+            loadQuestion(full)
+            // ★ 必须在 loadQuestion **之后**再置复习模式：
+            //   loadQuestion 会复位模式标志（reviewMode=false 等），
+            //   之前写在它前面 + 异步执行 → 被覆盖 → 点进去变成"查看错题"（曾出现的 bug）
+            reviewMode = true
+            currentReviewQuestion = full
+        }
         viewModelScope.launch {
             reviewQueue = dao.dueQuestions(endOfToday()).first()
         }
