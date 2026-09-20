@@ -198,13 +198,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 拍照搜题（多张）携带的图，作为题目一起识别 */
     private var multiImages: List<ByteArray> = emptyList()
 
-    /** 临时调试日志（定位分类链路；adb 读 /sdcard/Android/data/com.zsz.studyassistant/files/cls.txt） */
-    private fun logDebug(msg: String) {
-        runCatching {
-            val f = java.io.File(getApplication<android.app.Application>().getExternalFilesDir(null), "cls.txt")
-            f.appendText(java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date()) + "  " + msg + "\n")
-        }
-    }
+
     /** 正在做兜底分类请求（C）：防止重复发起 */
     private var classifying = false
 
@@ -367,12 +361,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (q.isBlank() && imgs.isEmpty()) {
             return
         }
-        logDebug("分类触发: 题干${q.take(16)}… 图${imgs.size}张")
         classifying = true
         viewModelScope.launch {
             try {
-                val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value, imgs, needCategory, needTags) { raw -> logDebug("分类原始返回: " + raw.take(300)) }
-                logDebug("分类结果: cat=" + (c ?: "null") + " tags=" + t.size + " " + t.joinToString("、"))
+                val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value, imgs, needCategory, needTags)
                 // 已有分类（来自库/用户选择）优先，AI 只补空的
                 if (!c.isNullOrBlank() && suggestedCategory == null) suggestedCategory = c
                 if (t.isNotEmpty()) suggestedTags = t
@@ -1675,7 +1667,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val tnames = dao.tagIdsForQuestion(q.id)
                 .mapNotNull { tid -> allTags.firstOrNull { it.id == tid }?.name }
             if (tnames.isNotEmpty()) suggestedTags = tnames
-            logDebug("进页: 库中分类=" + (qcat?.name ?: "null") + " / 库中标签=" + tnames.size + "个")
             val needCat = qcat == null; val needTags = tnames.isEmpty()
             if (needCat || needTags) classifyCurrentQuestion(needCat, needTags)
         }
