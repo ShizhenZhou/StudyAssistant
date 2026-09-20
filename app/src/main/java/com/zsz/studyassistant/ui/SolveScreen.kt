@@ -923,7 +923,9 @@ internal fun SaveDialog(
             // ★ 有删除时用"占满整行"布局：删除真正贴最左，取消/保存留在右侧
             //   （Material3 默认把按钮整体右对齐，只靠 dismissButton 放不到最左边）
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                // ★ 只有"有删除"时才占满整行（删除贴最左 + 取消/保存在右）
+                //   首次保存对话框没有删除 → 用普通布局，否则整行 Row 会把 dismissButton 的「取消」挤到下一行
+                modifier = if (onDelete != null) Modifier.fillMaxWidth() else Modifier,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (onDelete != null) {
