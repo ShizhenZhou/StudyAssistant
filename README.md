@@ -1,26 +1,34 @@
 # Study Assistant 📚
 
-个人自用安卓应用：**拍照搜题 → AI 解答 → 错题整理**（面向理工科大学题目）。
+个人自用安卓应用：**拍照搜题 → AI 解答 → 错题整理 → 艾宾浩斯复习**（面向理工科大学题目）。
+所有数据只存在本机（Room + Android Keystore），不上传任何服务器，仅调用你自己填写的 DeepSeek API。
+
+**入口一览**：底栏三页签 —— 📚 学习（主页）/ 📊 统计 / ⚙️ 设置；主页四个入口 —— 📷 拍照搜题、✏️ 图文提问、📚 错题本、📖 复习。
 
 ## 功能
 
-- 📷 **拍照解答**：相机拍照 → **框选出题目区域** → DeepSeek 视觉模型（`deepseek-flash`，V4.1-Flash）识别并解答
-- ✏️ **图文提问**：**主页入口**（📚 学习页第二个大按钮），空会话直接给大输入框，可用**文字 + 1~3 张图**直接提问，不必先拍照
-- 🖐 **框选（含自动预框选）**：进入框选页**自动框出题目范围**——本地投影算法与 AI 视觉并行（AI 超时自动回落本地算法/默认框，AI 框选时限可在设置里调）；四条边可单独拖动、支持双指缩放、长按跳过，也可整张图直接识别
-- 🤖 **AI 解答**：分步推导，公式用 **LaTeX/KaTeX** 渲染（积分、分式、矩阵等正确排版）；答案底部附**核心知识点/难点**
+- 📷 **拍照解答**：相机拍照 → **自动预框选 + 手动框选**题目区域 → DeepSeek 视觉模型识别并解答
+- ✏️ **图文提问**：主页入口，空会话直接给**大输入框**，可用**文字 + 1~3 张图**提问，不必先拍照
+- 🤖 **AI 解答**：分步推导，公式用 **LaTeX/KaTeX** 渲染（积分、分式、矩阵等正确排版）；答案底部附**核心知识点/难点**；无输出时也有「思考中…」气泡，流式生成中可随时**中止**，中止后可点蓝色**「继续生成」**
+- 🔊 **超长回答自动转副窗口**：主答案过长时（约 >9000 字）自动转到独立窗口，主界面不再卡顿
 - 🔄 **重新生成** / 💬 **接续提问**：可重新生成，也可多轮追问（**支持附带图片**）；可**编辑多选删除**消息
-- ✏️ **批改题目**：单张/两张拍摄（题目+手写答案），AI 判断正误、指出错误步骤并针对性讲解
-- 📚 **错题本**：本地保存（Room），**两列瀑布流**、**全文搜索**、**科目分类 + 知识点标签（多 tag）**、按分类/标签筛选、长按批量改分类/删除；**保存错题时自动判定科目与知识点标签并预选**（优先复用已有科目，近义/上下位也算，可手动改），**旧错题打开时自动补齐并写入数据库**
+- ✂️ **框选（含自动预框选）**：进入框选页**自动框出题目范围**——本地投影算法与 AI 视觉并行（AI 超时自动回落本地算法/默认框；**AI 框选时限可在设置里调**，默认 500ms，可 100ms~5s）；四条边可单独拖动、双指缩放、长按跳过，也可整张图直接识别；多张图可逐张框选
+- ✏️ **批改题目**：拍照页右上角开关切换；单张或两张拍摄（题目 + 手写答案），AI 判断正误、指出错误步骤并针对性讲解
+- 📚 **错题本**：本地保存（Room），**两列瀑布流**、**全文搜索**、**科目分类 + 知识点标签（多 tag）**、按分类/标签筛选、长按批量改分类/删除
+- 🗂 **自动归类（含旧题补齐）**：保存错题时 **AI 自动判定科目与知识点标签并预选**（**优先复用已有科目**，近义/上下位也算，可手动改；删除入口在分类对话框左下角）；**旧错题打开时自动补齐并写入数据库**
 - 📖 **复习（艾宾浩斯）**：新存错题自动进入按 `0/1/2/4/7/15/30` 天排期的复习队列；**今天/本周**选项卡、按科目→知识点分组；点「熟悉/模糊/忘记」自动跳下一题；可**练同类题**（AI 出题、可互动、点「查看答案」）
+- 📊 **学习统计**：今日复习、近 7 天、连续天数、待复习、掌握度分布、新增趋势（近 7 天 / 近 1 个月可切换，带纵坐标）、科目分布
 - 🔔 **复习提醒通知**：设置页可开每日提醒（自定义滚轮时间），到点通知「今天/本周还有 xx 道错题」；点击通知直达复习页
-- 🔑 **API Key 应用内填写**：在 ⚙️ 设置里填自己的 DeepSeek Key（**Android Keystore 加密**存储）
+- 🔑 **API Key 应用内填写**：在 ⚙️ 设置里填自己的 DeepSeek Key（**Android Keystore 加密**存储）；API 管理里可看累计调用次数与 token 用量、可设 **AI 框选时限**
 - 🌐 **AI 生成语言可选**：设置 → 语言设置 → AI 生成语言（跟随系统 / 跟随题目 / 简繁中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский）
 - 🌐 **界面多语言**：设置 → 语言设置 → 应用语言（跟随系统 / 简体中文 / 繁體中文 / English / 日本語 / 한국어），切换立即生效
-- 💾 **数据管理**：导出/导入 JSON 备份（含图片）、清空数据；🔑 API 管理里可看累计调用次数与 token 用量
+- 💾 **数据管理**：导出/导入 JSON 备份（含图片）、清空数据；启动时自动清理已删除题目与孤儿记录（数据库不会无限增长）
 
 ## 技术栈
 
-Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebView+KaTeX（公式渲染）· AlarmManager（复习提醒）· 阿里云 Maven 镜像
+Kotlin · Jetpack Compose（Material3）· MVVM · Room（v7）· Retrofit/OkHttp（SSE 流式）· kotlinx.serialization · CameraX · WebView + KaTeX（公式渲染）· Navigation Compose · AlarmManager（复习提醒，精确闹钟不可用时自动降级）· Android Keystore（Key 加密）· 阿里云 Maven 镜像
+
+构建环境：AGP 8.13 · Kotlin 2.2 · compileSdk / targetSdk **37** · minSdk **28**
 
 ## 版本记录
 
@@ -243,7 +251,7 @@ Kotlin · Jetpack Compose · MVVM · Room · Retrofit/OkHttp · CameraX · WebVi
 
   手动运行（不提交也能查）：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-secrets.ps1`
 
-- **GitHub 端说明**：本仓库是**私有仓库**，GitHub 的 secret scanning / push protection 属于付费的 *GitHub Secret Protection*，免费版开不了（实测 REST API 返回 `422 Secret scanning is not available for this repository`），所以用上面的本地钩子兜底。
+- **GitHub 端说明**：本仓库是**私有仓库**，GitHub 的 secret scanning / push protection 属于付费的 *GitHub Secret Protection*，免费版开不了（实测 REST API 返回 `422 Secret scanning is not available for this repository`），所以用上面的本地钩子兜底。（现已升级到 GitHub Education/Pro，也可在仓库设置里开启 Secret Protection ✅）
 
 ### 一键提交并推送：`tools/git-sync.ps1`
 
@@ -283,4 +291,4 @@ Key 获取：https://platform.deepseek.com（账号需开通视觉模型权限�
 ## 环境要求
 
 - JDK 17+（本机 JDK 21）
-- Android SDK（compileSdk 37，本机已装 android-37.0）
+- Android SDK：**compileSdk / targetSdk 37**（本机已装 android-37.0），**minSdk 28**
