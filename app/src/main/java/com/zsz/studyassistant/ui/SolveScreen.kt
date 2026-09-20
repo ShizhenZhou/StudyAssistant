@@ -17,6 +17,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -827,9 +828,14 @@ internal fun SaveDialog(
 
     fun toggleTagName(name: String) {
         if (selectedNames.contains(name)) {
-            selectedNames = LinkedHashSet(selectedNames.apply { remove(name) })
+            // ★ 必须"构造新集合再赋值"：原地修改同一个 Set 实例可能不触发重组（表现为点了去不掉）
+            val ns = LinkedHashSet(selectedNames)
+            ns.remove(name)
+            selectedNames = ns
         } else if (selectedNames.size < 5) {
-            selectedNames = LinkedHashSet(selectedNames.apply { add(name) })
+            val ns = LinkedHashSet(selectedNames)
+            ns.add(name)
+            selectedNames = ns
         }
     }
 
@@ -878,9 +884,22 @@ internal fun SaveDialog(
                 }
                 // 已选（含 AI 自动预选、新建），点按可移除
                 if (selectedNames.isNotEmpty()) {
-                    LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(selectedNames.toList(), key = { it }) { name ->
-                            FilterChip(selected = true, onClick = { toggleTagName(name) }, label = { Text(name) })
+                    // ★ Row + horizontalScroll（而不是 LazyRow）：在 AlertDialog 里嵌套滚动更可靠，
+                    //   否则标签行滑不动；点按标签可移除（含 AI 自动预选的）
+                    Row(
+                        Modifier
+                            .padding(top = 6.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        selectedNames.toList().forEach { name ->
+                            FilterChip(
+                                selected = true,
+                                onClick = { toggleTagName(name) },
+                                label = { Text(name) },
+                                trailingIcon = { Text("✕", fontSize = 12.sp) }
+                            )
                         }
                     }
                 }
