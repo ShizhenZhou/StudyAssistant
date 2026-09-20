@@ -194,11 +194,11 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.5.7
-· 🗂 错题自动归类：AI 判定科目与知识点并自动预选，**优先复用已有科目**（近义/上下位也算）；旧错题打开时自动补齐并写回数据库
-· 🧩 解题页多模式统一：拍题 / 批改 / 图文提问 / 错题本共用同一套顶栏与交互；复习返回不再误入拍摄页
-· ✏️ 图文提问空会话直接给大输入框（少一跳），标题与会话一致
-· 🗑 删除入口并入分类对话框：左下角红色「删除」+ 确认框，删除后留在当前会话
-· 🛠 修复：生成中输入栏被顶掉、看不到刚发的图与题干、点通知跳主页、中止后丢气泡、预框选被取消、标签行不能横滑/取消
+· 🗂 Auto-classification: the AI decides the subject and knowledge tags and pre-selects them, **preferring your existing subjects** (near-synonyms and broader/narrower ones count); old questions are back-filled and written to the database
+· 🧩 One shared solve screen for photo / grading / text-image ask / notebook; returning from review no longer jumps to the camera
+· ✏️ Text-image ask now opens a large input box right away (one hop less), and the title matches the session
+· 🗑 Delete moved into the category dialog: red "Delete" at the bottom-left plus a confirm sheet; you stay in the current session
+· 🛠 Fixes: input bar pushed away while generating, photo/question not visible while generating, notification jumping home, bubble lost after stopping, pre-selection request cancelled, tag row not scrollable or deselectable
 
 v0.5.6
 · **📊 New "Learning stats" page**: bottom bar now has three tabs — 📚 Learn (renamed from Home) / 📊 Stats / ⚙️ Settings
@@ -570,11 +570,11 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.5.7
-· 🗂 自動分類：AI が科目と知識タグを判定して自動選択（既存科目を優先、類義語も可）；古い問題は自動補完して DB に保存
-· 🧩 撮影／添削／文字・画像質問／誤答ノートで画面を統一；復習から戻ってもカメラに飛ばなくなりました
-· ✏️ 文字・画像質問は大きな入力欄を直接表示
-· 🗑 削除を分類ダイアログへ移動（左下に赤い削除＋確認）
-· 🛠 修正：生成中に入力欄が消える／写真と問題文が出ない／通知でホームに戻る／中止後に吹き出しが消える／事前枠取りがキャンセルされる／タグ行が横スクロール・解除できない
+· 🗂 자동 분류: AI가 과목과 지식 태그를 판단해 자동 선택하며 **기존 과목을 우선**합니다(유사어·상하위 포함); 오래된 문제는 자동으로 채워 DB에 저장됩니다
+· 🧩 촬영 / 첨삭 / 글·이미지 질문 / 오답노트가 하나의 화면을 공유합니다; 복습에서 돌아갈 때 카메라로 가지 않습니다
+· ✏️ 글·이미지 질문은 빈 세션이면 바로 큰 입력창을 보여줍니다(한 단계 감소), 제목도 세션과 일치합니다
+· 🗑 삭제를 분류 대화상자로 이동했습니다: 왼쪽 아래 빨간 "삭제" + 확인창, 삭제 후에도 현재 세션에 머뭅니다
+· 🛠 수정: 생성 중 입력창이 밀려남, 생성 중 사진·문제가 안 보임, 알림이 홈으로 이동, 중단 후 말풍선 소실, 사전 선택 요청 취소됨, 태그 줄 가로 스크롤·해제 불가
 
 v0.5.6
 · **📊 "학습 통계" 페이지 추가**: 하단 바가 3개 탭으로 —— 📚 학습(기존 홈) / 📊 통계 / ⚙️ 설정
