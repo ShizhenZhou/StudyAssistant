@@ -114,12 +114,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val weekStart = todayStart - 6 * dayMs
             val byId = rs.associateBy { it.questionId }
 
-            val todayReviewed = rs.count { it.lastReviewedAt >= todayStart }
-            val weekReviewed = rs.count { it.lastReviewedAt >= weekStart }
-            val dueNow = rs.count { it.nextReviewAt <= now }
+            // ★ 只统计"未被删除"的题：复习记录可能残留在已删除的题上（软删除/移除错题），
+            //   原来直接用 allReviews() 会把它们算进"今日复习/近7天/待复习"，导致数字偏大
+            val aliveIds = qs.map { it.id }.toSet()
+            // 待复习口径与复习会话一致：dueQuestions(endOfToday()) = 未删除 + nextReviewAt <= 今天末
+            val endOfToday = todayStart + dayMs
+            val todayReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt >= todayStart }
+            val weekReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt >= weekStart }
+            val dueNow = rs.count { it.questionId in aliveIds && it.nextReviewAt <= endOfToday }
 
             // 连续复习天数：从今天（或昨天）往前数，哪天有复习记录就 +1
-            val daysWithReview = rs.filter { it.lastReviewedAt > 0 }
+            val daysWithReview = rs.filter { it.lastReviewedAt > 0 && it.questionId in aliveIds }
                 .map { ((it.lastReviewedAt - todayStart) / dayMs).toInt() }
                 .toSet()
             var streak = 0
@@ -201,6 +206,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var multiImages: List<ByteArray> = emptyList()
 
 
+    /** 启动时定期清理：软删除的题 + 孤儿复习记录/标签关联（不影响当前会话的「恢复」） */
+    fun purgeDeletedData() {
+        viewModelScope.launch {
+            runCatching {
+                dao.purgeDeletedQuestions()
+                dao.purgeOrphanReviews()
+                dao.purgeOrphanQuestionTags()
+            }
+        }
+    }
     /** 正在做兜底分类请求（C）：防止重复发起 */
     private var classifying = false
 

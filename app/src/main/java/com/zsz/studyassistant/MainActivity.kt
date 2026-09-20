@@ -56,6 +56,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 启动时清理已删除题目与孤儿记录（定期维护数据库）
+        viewModel.purgeDeletedData()
         // 启动即创建通知渠道（否则系统"通知管理"会显示"未发布任何通知"），并按需申请通知权限
         com.zsz.studyassistant.data.ReminderScheduler.ensureChannel(this)
         if (android.os.Build.VERSION.SDK_INT >= 33 && com.zsz.studyassistant.data.ReminderScheduler.isEnabled(this)) {

@@ -134,6 +134,18 @@ interface QuestionDao {
     @Query("DELETE FROM questions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    /** 物理清除软删除的题（App 启动时定期清理，避免数据库无限增长） */
+    @Query("DELETE FROM questions WHERE deleted = 1")
+    suspend fun purgeDeletedQuestions(): Int
+
+    /** 清除孤儿复习记录（题目已被物理删除） */
+    @Query("DELETE FROM review WHERE questionId NOT IN (SELECT id FROM questions)")
+    suspend fun purgeOrphanReviews(): Int
+
+    /** 清除孤儿标签关联（题目已被物理删除） */
+    @Query("DELETE FROM question_tags WHERE questionId NOT IN (SELECT id FROM questions)")
+    suspend fun purgeOrphanQuestionTags(): Int
+
     // 批量：改分类（cid = null → 暂不分类），支持空列表直接返回
     @Query("UPDATE questions SET categoryId = :cid WHERE id IN (:ids)")
     suspend fun setCategoryForIds(ids: List<Long>, cid: Long?)

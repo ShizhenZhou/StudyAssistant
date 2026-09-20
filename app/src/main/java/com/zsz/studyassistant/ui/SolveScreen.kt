@@ -145,7 +145,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
 
     // 复习切题：先做一次「清屏」（人眼可见地提示换了题），同时折叠答案、回到顶部
     var switching by remember { mutableStateOf(false) }
-    LaunchedEffect(vm.reviewMode, vm.reviewDone) {
+    LaunchedEffect(sessionMode == SessionMode.REVIEW, vm.reviewDone) {
         if (sessionMode == SessionMode.REVIEW) {
             answerRevealed = false      // 切换题目时自动把答案折叠回去
             resetScrollTick++           // 新题从顶部开始
@@ -157,8 +157,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
 
     // 复习：题目切换（reviewDone 变化或换了题）→ 页面回到顶端
     // 只在复习模式生效：否则「存错题本」等操作改了 savedQuestionId 也会误触发回顶
-    LaunchedEffect(vm.reviewMode, vm.reviewDone, vm.savedQuestionId) {
-        if (vm.reviewMode) resetScrollTick++
+    LaunchedEffect(sessionMode == SessionMode.REVIEW, vm.reviewDone, vm.savedQuestionId) {
+        if (sessionMode == SessionMode.REVIEW) resetScrollTick++
     }
 
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
@@ -166,8 +166,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 复习模式且未展开解答时：只渲染题目气泡（先想再看）
     // 注意：streamInterrupted 也必须作为 key——中止时 streamingText 可能没变（节流窗口内），
     // 少了这个 key 这段就不会重算，末尾的蓝色「继续生成」永远不出现（曾踩过）。
-    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed, vm.streamingText, vm.streamInterrupted) {
-        var items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
+    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, sessionMode == SessionMode.REVIEW, answerRevealed, vm.streamingText, vm.streamInterrupted) {
+        var items = if (sessionMode == SessionMode.REVIEW && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         // ★ 生成中：题干/问答还没进 chatItems 时，先把"题目气泡"补上——
         //   否则拍题/批改/图文提问从发起到首字出现这段时间里，页面上看不到自己刚发的图与题干
         if (items.none { it.role == "question" } && vm.questionImages.isNotEmpty()) {
@@ -309,7 +309,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         } else {
                             TextButton(
-                                onClick = { if (vm.gradeMode) vm.regrade() else vm.regenerate() },
+                                onClick = { if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
                                 // ★ 中止后 chatItems 可能还是空的（题干/答案要流式结束才进），
                                 //   但仍有流式气泡/已中断状态 → 「重新生成」必须可用
                                 enabled = vm.chatItems.isNotEmpty() ||
@@ -981,7 +981,7 @@ private fun bestCategoryMatch(categories: List<Category>, name: String?): Catego
 // ─────────────────────────────────────────────────────────────
 // 解题页「多模式共用模板」配置化
 // 拍题 / 批改 / 图文提问 / 复习 / 错题本 共用同一个 SolveScreen，
-// 差异全部集中到这里：以后新增模式 = 加一个枚举值 + 一份配置，不再满屏 if (vm.gradeMode)。
+// 差异全部集中到这里：以后新增模式 = 加一个枚举值 + 一份配置，不再满屏 if (sessionMode == SessionMode.GRADE)。
 // ─────────────────────────────────────────────────────────────
 
 /** 解题页的会话模式 */
