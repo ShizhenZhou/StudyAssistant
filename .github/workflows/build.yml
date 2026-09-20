@@ -46,10 +46,15 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
 
-      - name: 若是标签推送 → 自动创建 / 更新 Release 并挂上 APK
+      # 标签推送 → 只负责「编译 + 挂附件」：
+      #   建 draft Release（草稿），发布者补充图文分组说明后再点发布，
+      #   这样 Release 说明与历史版本保持同一种格式（中文、emoji 分组）。
+      #   若想改成 GitHub 自动生成说明：draft 改 false，generate_release_notes 改 true。
+      - name: 若是标签推送 → 建草稿 Release 并挂上 APK
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/release/*.apk
-          generate_release_notes: true
+          draft: true
+          generate_release_notes: false
           fail_on_unmatched_files: false
