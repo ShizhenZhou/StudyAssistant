@@ -901,29 +901,36 @@ internal fun SaveDialog(
             }
         },
         confirmButton = {
-            // 有删除时：取消放到右侧紧挨"保存"，删除单独占最左
-            if (onDelete != null) {
-                TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
+            // ★ 有删除时用"占满整行"布局：删除真正贴最左，取消/保存留在右侧
+            //   （Material3 默认把按钮整体右对齐，只靠 dismissButton 放不到最左边）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onDelete != null) {
+                    TextButton(onClick = { onDelete() }) {
+                        Text(s["common.delete"], color = Color(0xFFE53935))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                if (onDelete != null) {
+                    TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
+                }
+                TextButton(onClick = {
+                    val cname = if (newCatMode && newCatName.isNotBlank()) newCatName.trim() else null
+                    // 拆分为已有 id + 待新建名
+                    val tagIds = mutableListOf<Long>()
+                    val newNames = mutableListOf<String>()
+                    for (name in selectedNames) {
+                        val t = tags.firstOrNull { it.name == name }
+                        if (t != null) tagIds += t.id else newNames += name
+                    }
+                    onConfirm(cname, selCatId, newNames, tagIds)
+                }) { Text(s["common.save"]) }
             }
-            TextButton(onClick = {
-                val cname = if (newCatMode && newCatName.isNotBlank()) newCatName.trim() else null
-                // 拆分为已有 id + 待新建名
-                val tagIds = mutableListOf<Long>()
-                val newNames = mutableListOf<String>()
-                for (name in selectedNames) {
-                    val t = tags.firstOrNull { it.name == name }
-                    if (t != null) tagIds += t.id else newNames += name
-                }
-                onConfirm(cname, selCatId, newNames, tagIds)
-            }) { Text(s["common.save"]) }
         },
-        // 有删除时：删除单独占最左，取消移到右侧紧挨"保存"（保存/取消位置与原来一致）
         dismissButton = {
-            if (onDelete != null) {
-                TextButton(onClick = { onDelete() }) {
-                    Text(s["common.delete"], color = Color(0xFFE53935))
-                }
-            } else {
+            if (onDelete == null) {
                 TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
             }
         }
