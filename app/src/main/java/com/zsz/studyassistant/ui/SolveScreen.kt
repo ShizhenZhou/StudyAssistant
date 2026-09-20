@@ -93,6 +93,14 @@ import java.io.File
 @Composable
 fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     val context = LocalContext.current
+    // 当前模式 + 该模式的界面配置（唯一的分支来源；放在函数最前面，供 LaunchedEffect 等使用）
+    val sessionMode = when {
+        vm.reviewMode -> SessionMode.REVIEW
+        vm.gradeMode -> SessionMode.GRADE
+        vm.isFromNotebook -> SessionMode.NOTEBOOK
+        else -> SessionMode.SOLVE
+    }
+    val cfg = sessionConfig(sessionMode)
     val s = LocalStrings.current
     var followUp by remember { mutableStateOf("") }
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
@@ -138,7 +146,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 复习切题：先做一次「清屏」（人眼可见地提示换了题），同时折叠答案、回到顶部
     var switching by remember { mutableStateOf(false) }
     LaunchedEffect(vm.reviewMode, vm.reviewDone) {
-        if (vm.reviewMode) {
+        if (sessionMode == SessionMode.REVIEW) {
             answerRevealed = false      // 切换题目时自动把答案折叠回去
             resetScrollTick++           // 新题从顶部开始
             switching = true
@@ -158,14 +166,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 复习模式且未展开解答时：只渲染题目气泡（先想再看）
     // 注意：streamInterrupted 也必须作为 key——中止时 streamingText 可能没变（节流窗口内），
     // 少了这个 key 这段就不会重算，末尾的蓝色「继续生成」永远不出现（曾踩过）。
-    // 当前模式 + 该模式的界面配置（唯一的分支来源）
-    val sessionMode = when {
-        vm.reviewMode -> SessionMode.REVIEW
-        vm.gradeMode -> SessionMode.GRADE
-        vm.isFromNotebook -> SessionMode.NOTEBOOK
-        else -> SessionMode.SOLVE
-    }
-    val cfg = sessionConfig(sessionMode)
     val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed, vm.streamingText, vm.streamInterrupted) {
         var items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         // ★ 生成中：题干/问答还没进 chatItems 时，先把"题目气泡"补上——
@@ -237,14 +237,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 softWrap = false
                             )
                         }
-                    } else if (vm.gradeMode) {
+                    } else if (sessionMode == SessionMode.GRADE) {
                         // 批改模式：全屏复用解题界面，标题「批改」
                         Text(
                             s["solve.gradeTitle"],
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                    } else if (vm.reviewMode) {
+                    } else if (sessionMode == SessionMode.REVIEW) {
                         // 复习：标题显示「复习 当前/总数」（总数 = 打开复习时今日剩余的错题数）
                         Text(
                             s.format(
@@ -255,7 +255,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                    } else if (vm.isFromNotebook) {
+                    } else if (sessionMode == SessionMode.NOTEBOOK) {
                         // 错题页标题：与「解题」「错题本」统一用大字号（TopAppBar 默认）
                         Text(
                             s["solve.mistakeTitle"],
@@ -276,7 +276,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
                     } else {
                         TextButton(onClick = {
-                            if (vm.isFromNotebook || vm.gradeMode) {
+                            if (sessionMode == SessionMode.NOTEBOOK || sessionMode == SessionMode.GRADE) {
                                 // 错题本 / 批改：返回上一页
                                 nav.popBackStack()
                             } else {
@@ -539,7 +539,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择，JS 侧已拦截，这里再兜一层）
                         // 受保护的消息（题干 / AI 首条回复）：从普通态长按进入多选时**不选中它**（显示灰色虚线圈）
                         onLongPressMessage = { idx ->
-                            if (!editMode && !vm.reviewMode && !vm.busy && idx in vm.chatItems.indices) {
+                            if (!editMode && sessionMode != SessionMode.REVIEW && !vm.busy && idx in vm.chatItems.indices) {
                                 if (idx in lockedIndices) {
                                     if (!editMode) {
                                         editMode = true
@@ -604,7 +604,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             }
 
             // 复习模式：进度 + 折叠解答；底部为 熟悉/模糊/忘记 三按钮
-            if (vm.reviewMode) {
+            if (sessionMode == SessionMode.REVIEW) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,

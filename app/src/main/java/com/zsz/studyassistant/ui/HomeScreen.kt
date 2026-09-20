@@ -64,7 +64,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(16.dp))
             // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
             Button(shape = smoothPill(), 
-                onClick = { nav.navigate("ask") },
+                onClick = { vm.startNewQuestion(); nav.navigate("solve") { popUpTo("home") } },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
