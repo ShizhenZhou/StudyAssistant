@@ -376,6 +376,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         classifyCurrentQuestion(needCat, needTags)
     }
 
+    /**
+     * 统一的会话准备：所有生成入口都从这里开始。
+     * 之前每个入口各自 resetSession() + 手工设置 isPhoto/gradeMode/isFromNotebook/questionFromPhoto，
+     * 容易漏项（如"带着上一轮的 gradeMode"，曾踩过）——现在集中在这里。
+     */
+    private fun prepareSession(
+        photo: Boolean = false,
+        grade: Boolean = false,
+        ask: Boolean = false,
+        fromNotebook: Boolean = false
+    ) {
+        resetSession()          // 内部会把 askMode 复位
+        isPhoto = photo
+        gradeMode = grade
+        askMode = ask
+        isFromNotebook = fromNotebook
+        questionFromPhoto = photo
+    }
+
     /** 主页「图文提问」入口：开一个空会话并标记为图文提问（标题保持"图文提问"） */
     fun startAskSession() {
         startNewQuestion()
@@ -810,7 +829,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 拍照解答 */
     fun solveWithImage(bytes: ByteArray) {
-        resetSession()
+        prepareSession(photo = true)
         imageBytes = bytes
         isPhoto = true
         isFromNotebook = false
@@ -828,7 +847,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 拍照解答（多张）：两张图作为同一道题目一起识别解答 */
     fun solveWithImages(images: List<ByteArray>) {
-        resetSession()
+        prepareSession(photo = true)
         isPhoto = true
         isFromNotebook = false
         multiImages = images
@@ -846,7 +865,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 文字解答 */
     fun solveText(question: String) {
-        resetSession()
+        prepareSession()
         isPhoto = false
         isFromNotebook = false
         questionFromPhoto = false
@@ -860,8 +879,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 直接提问：文字 + 可选多张图，作为一条问题解答 */
     fun solveDirect(text: String, images: List<ByteArray>) {
-        resetSession()
-        askMode = true
+        prepareSession(photo = images.isNotEmpty(), ask = true)
         isPhoto = images.isNotEmpty()
         isFromNotebook = false
         questionFromPhoto = false   // 直接提问显示用户自己写的文字，不是 AI 转译题干
@@ -947,7 +965,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (savedQuestionId != null) return
         // 图文提问可能"只有图片、没有文字" → 只要有图就允许保存（Room 的 text 不能为空，用占位）
         val hasImg = questionImages.isNotEmpty() || imageBytes != null || directImages.isNotEmpty()
-        val q = questionText.ifBlank { if (hasImg) "（图片题）" else return }
+        val q = questionText.ifBlank {
+            if (!hasImg) return
+            // 只有图片没文字：优先用 AI 识别出的题干（存错题本/搜索/复习都更好读），实在拿不到才用占位
+            val recognized = runCatching {
+                StudyAssistant.parseVisionOutput(lastAnswer() ?: "").question
+            }.getOrNull()?.trim().orEmpty()
+            recognized.ifBlank { "（图片题）" }
+        }
         val convJson = json.encodeToString(chatItems)
         val img = imageBytes
         val a = lastAnswer()
@@ -1595,7 +1620,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 批改结果流式追加；之后可继续带图追问。
      */
     fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?) {
-        resetSession()
+        prepareSession(grade = true)
         gradeMode = true
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
         val imgs = buildList {

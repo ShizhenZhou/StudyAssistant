@@ -11,6 +11,7 @@ v0.5.7
 · ✏️ 图文提问空会话直接给大输入框（少一跳），标题与会话一致
 · 🗑 删除入口并入分类对话框：左下角红色「删除」+ 确认框，删除后留在当前会话
 · 🛠 修复：生成中输入栏被顶掉、看不到刚发的图与题干、点通知跳主页、中止后丢气泡、预框选被取消、标签行不能横滑/取消
+· 🛠 补充修复：两张模式拍/传第二张后框选页显示错图（现正确显示第二张，第一张的按钮改为「继续上传」）；图文提问只传图片不写字也能存错题本；图文提问提问后标题保持「图文提问」；拍题遇到网络中断（如 503）后不再误显示成图文提问界面，已拍题目保留
 
 v0.5.6
 · **📊 新增「学习统计」页**：底栏改为三个页签 —— 📚 学习（原「主页」）/ 📊 统计 / ⚙️ 设置
@@ -199,6 +200,7 @@ v0.5.7
 · ✏️ Text-image ask now opens a large input box right away (one hop less), and the title matches the session
 · 🗑 Delete moved into the category dialog: red "Delete" at the bottom-left plus a confirm sheet; you stay in the current session
 · 🛠 Fixes: input bar pushed away while generating, photo/question not visible while generating, notification jumping home, bubble lost after stopping, pre-selection request cancelled, tag row not scrollable or deselectable
+· 🛠 More fixes: in two-shot mode the crop page showed the wrong (first) image after the second shot — now the second image is shown and the first-step button reads "Upload next image"; saving to the notebook works with images and no text; the title stays "Ask with text/image" after asking; a network failure (e.g. 503) while solving no longer looks like the ask screen, and the captured question is kept
 
 v0.5.6
 · **📊 New "Learning stats" page**: bottom bar now has three tabs — 📚 Learn (renamed from Home) / 📊 Stats / ⚙️ Settings
@@ -387,6 +389,7 @@ v0.5.7
 · ✏️ Text/image ask now opens a large input box directly
 · 🗑 Delete moved into the category dialog (red Delete at bottom-left + confirm), staying in the session
 · 🛠 Fixes: input bar hidden while generating, photo/question missing while generating, notification jumping home, bubble lost after abort, pre-selection request cancelled, tag row not scrollable or deselectable
+· 🛠 追加修正：2枚モードで2枚目を撮影/選択した後も枠取り画面が1枚目を表示していた問題（正しく2枚目を表示し、1枚目のボタンは「次の画像を追加」に）；文字なし・画像のみでも誤りノートに保存可能に；質問後もタイトルは「文字/画像で質問」を維持；通信エラー（503 など）時に質問画面と誤認されず、撮影済みの問題も保持
 
 v0.5.6
 · **📊 「学習統計」ページを追加**：下部バーを 3 タブに —— 📚 学習（旧「ホーム」）/ 📊 統計 / ⚙️ 設定
@@ -575,6 +578,7 @@ v0.5.7
 · ✏️ 글·이미지 질문은 빈 세션이면 바로 큰 입력창을 보여줍니다(한 단계 감소), 제목도 세션과 일치합니다
 · 🗑 삭제를 분류 대화상자로 이동했습니다: 왼쪽 아래 빨간 "삭제" + 확인창, 삭제 후에도 현재 세션에 머뭅니다
 · 🛠 수정: 생성 중 입력창이 밀려남, 생성 중 사진·문제가 안 보임, 알림이 홈으로 이동, 중단 후 말풍선 소실, 사전 선택 요청 취소됨, 태그 줄 가로 스크롤·해제 불가
+· 🛠 추가 수정: 2장 모드에서 두 번째 사진을 찍거나 선택한 뒤에도 자르기 화면이 첫 번째 사진을 보여주던 문제(이제 두 번째를 표시하고 첫 단계 버튼은 "다음 이미지 추가"); 글 없이 이미지만으로도 오답노트 저장 가능; 질문 후에도 제목이 "글/이미지 질문" 유지; 네트워크 오류(503 등) 때 질문 화면으로 오인되지 않고 촬영한 문제도 유지
 
 v0.5.6
 · **📊 "학습 통계" 페이지 추가**: 하단 바가 3개 탭으로 —— 📚 학습(기존 홈) / 📊 통계 / ⚙️ 설정
