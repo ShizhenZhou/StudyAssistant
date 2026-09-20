@@ -389,7 +389,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     vm.ensureClassification()
                 }
-                androidx.compose.runtime.key(vm.suggestedCategory, vm.suggestedTags) {
+                // 注意：这里**不能**用 key(suggestedCategory/suggestedTags) 包住对话框——
+                // AI 建议稍后到达会让 key 变化 → 对话框被重建 → 用户刚取消的标签会"复活"
                 SaveDialog(
                     title = s["solve.catPicker.select"],
                     categories = categories,
@@ -407,7 +408,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     },
                     onDismiss = { categoryDialogFor = null }
                 )
-                }
             }
             "change" -> {
                 SaveDialog(
