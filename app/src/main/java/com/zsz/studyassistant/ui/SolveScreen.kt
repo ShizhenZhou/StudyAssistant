@@ -158,6 +158,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 复习模式且未展开解答时：只渲染题目气泡（先想再看）
     // 注意：streamInterrupted 也必须作为 key——中止时 streamingText 可能没变（节流窗口内），
     // 少了这个 key 这段就不会重算，末尾的蓝色「继续生成」永远不出现（曾踩过）。
+    // 当前模式 + 该模式的界面配置（唯一的分支来源）
+    val sessionMode = when {
+        vm.reviewMode -> SessionMode.REVIEW
+        vm.gradeMode -> SessionMode.GRADE
+        vm.isFromNotebook -> SessionMode.NOTEBOOK
+        else -> SessionMode.SOLVE
+    }
+    val cfg = sessionConfig(sessionMode)
     val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, vm.reviewMode, answerRevealed, vm.streamingText, vm.streamInterrupted) {
         var items = if (vm.reviewMode && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         // ★ 生成中：题干/问答还没进 chatItems 时，先把"题目气泡"补上——
@@ -281,7 +289,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 actions = {
                     val smallPad = PaddingValues(horizontal = 6.dp)
-                    if (vm.reviewMode) {
+                    if (cfg.showPracticeSimilar) {
                         TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = 13.sp) }
                     } else if (editMode) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
@@ -920,34 +928,34 @@ internal fun SaveDialog(
             }
         },
         confirmButton = {
-            // ★ 有删除时用"占满整行"布局：删除真正贴最左，取消/保存留在右侧
-            //   （Material3 默认把按钮整体右对齐，只靠 dismissButton 放不到最左边）
-            Row(
-                // ★ 只有"有删除"时才占满整行（删除贴最左 + 取消/保存在右）
-                //   首次保存对话框没有删除 → 用普通布局，否则整行 Row 会把 dismissButton 的「取消」挤到下一行
-                modifier = if (onDelete != null) Modifier.fillMaxWidth() else Modifier,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (onDelete != null) {
+            // 保存动作（两种布局共用，避免重复）
+            val doSave: () -> Unit = {
+                val cname = if (newCatMode && newCatName.isNotBlank()) newCatName.trim() else null
+                // 拆分为已有 id + 待新建名
+                val tagIds = mutableListOf<Long>()
+                val newNames = mutableListOf<String>()
+                for (name in selectedNames) {
+                    val t = tags.firstOrNull { it.name == name }
+                    if (t != null) tagIds += t.id else newNames += name
+                }
+                onConfirm(cname, selCatId, newNames, tagIds)
+            }
+            if (onDelete == null) {
+                // 首次保存：**不要**用 Row/Spacer（weight 会把整行撑满，导致 dismissButton 的「取消」被挤到下一行）
+                TextButton(onClick = doSave) { Text(s["common.save"]) }
+            } else {
+                // 分类对话框：占满整行 → 删除贴最左，取消/保存留在右侧
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     TextButton(onClick = { onDelete() }) {
                         Text(s["common.delete"], color = Color(0xFFE53935))
                     }
-                }
-                Spacer(Modifier.weight(1f))
-                if (onDelete != null) {
+                    Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
+                    TextButton(onClick = doSave) { Text(s["common.save"]) }
                 }
-                TextButton(onClick = {
-                    val cname = if (newCatMode && newCatName.isNotBlank()) newCatName.trim() else null
-                    // 拆分为已有 id + 待新建名
-                    val tagIds = mutableListOf<Long>()
-                    val newNames = mutableListOf<String>()
-                    for (name in selectedNames) {
-                        val t = tags.firstOrNull { it.name == name }
-                        if (t != null) tagIds += t.id else newNames += name
-                    }
-                    onConfirm(cname, selCatId, newNames, tagIds)
-                }) { Text(s["common.save"]) }
             }
         },
         dismissButton = {
@@ -969,4 +977,37 @@ private fun bestCategoryMatch(categories: List<Category>, name: String?): Catego
         .map { it to it.name.trim().count { ch -> n.contains(ch) } }
         .filter { it.second >= 2 }
         .maxByOrNull { it.second }?.first
+}
+
+// ─────────────────────────────────────────────────────────────
+// 解题页「多模式共用模板」配置化
+// 拍题 / 批改 / 图文提问 / 复习 / 错题本 共用同一个 SolveScreen，
+// 差异全部集中到这里：以后新增模式 = 加一个枚举值 + 一份配置，不再满屏 if (vm.gradeMode)。
+// ─────────────────────────────────────────────────────────────
+
+/** 解题页的会话模式 */
+enum class SessionMode { SOLVE, GRADE, ASK, REVIEW, NOTEBOOK }
+
+/**
+ * 各模式在共用界面上的差异配置。
+ * 说明：只描述"模式差异"；"生成中/多选"等瞬时状态仍由 vm.busy / editMode 判断。
+ */
+data class SessionUiConfig(
+    val mode: SessionMode,
+    /** 顶栏右侧第一个按钮：[⏸ 中止 / 🔄 重新生成] */
+    val showAbortOrRegen: Boolean,
+    /** 顶栏最右按钮：[📚 存错题本 / 📁 分类] */
+    val showSaveOrCategory: Boolean,
+    /** 顶栏「练同类题」（复习模式专用） */
+    val showPracticeSimilar: Boolean,
+    /** 题目气泡锁定（批改模式下原题不可选/不可删） */
+    val lockQuestionBubbles: Boolean
+)
+
+fun sessionConfig(mode: SessionMode): SessionUiConfig = when (mode) {
+    SessionMode.SOLVE -> SessionUiConfig(mode, true, true, false, false)
+    SessionMode.GRADE -> SessionUiConfig(mode, true, true, false, true)
+    SessionMode.ASK -> SessionUiConfig(mode, true, true, false, false)
+    SessionMode.NOTEBOOK -> SessionUiConfig(mode, true, true, false, false)
+    SessionMode.REVIEW -> SessionUiConfig(mode, false, false, true, false)
 }
