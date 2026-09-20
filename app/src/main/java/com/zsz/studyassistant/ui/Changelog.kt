@@ -5,9 +5,6 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
-v0.5.7_beta
-· 修复 AI 预框选**经常拿不到结果**的问题：请求原先挂在会随布局变化重启的任务里，等待中被取消；现改为独立作用域运行（拍题 / 两张 / 批改都受益）
-
 v0.5.6
 · **📊 新增「学习统计」页**：底栏改为三个页签 —— 📚 学习（原「主页」）/ 📊 统计 / ⚙️ 设置
 · 统计内容：今日复习、近 7 天复习、连续天数、待复习；掌握度分布（未开始 / 复习中 / 已掌握）；近 7 天新增错题（可一键切换成**近 1 个月**，带纵坐标刻度）；科目分布
@@ -189,8 +186,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
-v0.5.7_beta
-· Fixed AI pre-selection often returning nothing: the request lived in a task that restarts on layout changes and was cancelled while waiting; it now runs in its own scope (helps photo / two-shot / grading).
+v0.5.7
+· 🗂 错题自动归类：AI 判定科目与知识点并自动预选，**优先复用已有科目**（近义/上下位也算）；旧错题打开时自动补齐并写回数据库
+· 🧩 解题页多模式统一：拍题 / 批改 / 图文提问 / 错题本共用同一套顶栏与交互；复习返回不再误入拍摄页
+· ✏️ 图文提问空会话直接给大输入框（少一跳），标题与会话一致
+· 🗑 删除入口并入分类对话框：左下角红色「删除」+ 确认框，删除后留在当前会话
+· 🛠 修复：生成中输入栏被顶掉、看不到刚发的图与题干、点通知跳主页、中止后丢气泡、预框选被取消、标签行不能横滑/取消
 
 v0.5.6
 · **📊 New "Learning stats" page**: bottom bar now has three tabs — 📚 Learn (renamed from Home) / 📊 Stats / ⚙️ Settings
@@ -373,8 +374,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
-v0.5.7_beta
-· AI の自動枠取りが結果を返さないことが多い問題を修正：レイアウト変化で再起動するタスク内で待機していたためキャンセルされていました。独立スコープで実行するよう変更（撮影・2枚・添削すべてに効果）
+v0.5.7
+· 🗂 Auto-classification: the AI picks the subject and knowledge tags, preferring your existing subjects (near-synonyms count); old questions are back-filled and saved to the database
+· 🧩 One shared solve screen for photo / grading / text-image ask / notebook; returning from review no longer jumps to the camera
+· ✏️ Text/image ask now opens a large input box directly
+· 🗑 Delete moved into the category dialog (red Delete at bottom-left + confirm), staying in the session
+· 🛠 Fixes: input bar hidden while generating, photo/question missing while generating, notification jumping home, bubble lost after abort, pre-selection request cancelled, tag row not scrollable or deselectable
 
 v0.5.6
 · **📊 「学習統計」ページを追加**：下部バーを 3 タブに —— 📚 学習（旧「ホーム」）/ 📊 統計 / ⚙️ 設定
@@ -557,8 +562,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
-v0.5.7_beta
-· AI 자동 선택이 결과를 못 받는 문제 수정: 레이아웃 변경으로 재시작되는 작업 안에서 대기하다 취소되었습니다. 독립 스코프에서 실행하도록 변경(촬영·2장·첨삭 모두 개선)
+v0.5.7
+· 🗂 自動分類：AI が科目と知識タグを判定して自動選択（既存科目を優先、類義語も可）；古い問題は自動補完して DB に保存
+· 🧩 撮影／添削／文字・画像質問／誤答ノートで画面を統一；復習から戻ってもカメラに飛ばなくなりました
+· ✏️ 文字・画像質問は大きな入力欄を直接表示
+· 🗑 削除を分類ダイアログへ移動（左下に赤い削除＋確認）
+· 🛠 修正：生成中に入力欄が消える／写真と問題文が出ない／通知でホームに戻る／中止後に吹き出しが消える／事前枠取りがキャンセルされる／タグ行が横スクロール・解除できない
 
 v0.5.6
 · **📊 "학습 통계" 페이지 추가**: 하단 바가 3개 탭으로 —— 📚 학습(기존 홈) / 📊 통계 / ⚙️ 설정
