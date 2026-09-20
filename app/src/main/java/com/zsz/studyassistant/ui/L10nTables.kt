@@ -255,7 +255,7 @@ private val B1_ZH = mapOf(
     "camera.hint.twoSecond" to "两张模式：请拍第二张",
     "camera.askDirect" to "✏️ 直接提问",
 
-    "ask.title" to "直接提问",
+    "ask.pageTitle" to "图文提问",
     "ask.addImage" to "🖼 加图",
     "ask.placeholder" to "输入你的问题，可直接用文字提问…",
     "ask.imageDesc" to "附图",
@@ -290,7 +290,7 @@ private val B1_EN = mapOf(
     "camera.hint.twoSecond" to "Two-shot mode: take the second photo",
     "camera.askDirect" to "✏️ Ask directly",
 
-    "ask.title" to "Ask directly",
+    "ask.pageTitle" to "Ask with text/image",
     "ask.addImage" to "🖼 Add image",
     "ask.placeholder" to "Type your question — text only is fine…",
     "ask.imageDesc" to "Attached image",
@@ -325,7 +325,7 @@ private val B1_JA = mapOf(
     "camera.hint.twoSecond" to "2枚モード：2枚目を撮影してください",
     "camera.askDirect" to "✏️ 直接質問",
 
-    "ask.title" to "直接質問",
+    "ask.pageTitle" to "文字/画像で質問",
     "ask.addImage" to "🖼 画像を追加",
     "ask.placeholder" to "質問を入力（文字だけでもOK）…",
     "ask.imageDesc" to "添付画像",
@@ -360,7 +360,7 @@ private val B1_KO = mapOf(
     "camera.hint.twoSecond" to "2장 모드: 두 번째 사진을 찍으세요",
     "camera.askDirect" to "✏️ 직접 질문",
 
-    "ask.title" to "직접 질문",
+    "ask.pageTitle" to "글/이미지 질문",
     "ask.addImage" to "🖼 이미지 추가",
     "ask.placeholder" to "질문을 입력하세요 (텍스트만으로도 가능)…",
     "ask.imageDesc" to "첨부 이미지",

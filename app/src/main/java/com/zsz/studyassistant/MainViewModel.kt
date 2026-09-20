@@ -323,6 +323,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // 优先复用已有分类（完全相等 → 包含关系），都没有才新建，避免科目重复
                 val hit = all.firstOrNull { it.name.trim() == n }
                     ?: all.firstOrNull { it.name.contains(n) || n.contains(it.name.trim()) }
+                    // 容忍近义/写法差异：取"共有 2 个以上相同字"里最接近的已有分类
+                    ?: all.map { it to it.name.trim().count { ch -> n.contains(ch) } }
+                        .filter { it.second >= 2 }.maxByOrNull { it.second }?.first
                 val cid = hit?.id ?: dao.insertCategory(Category(name = n))
                 currentQuestionCategoryId = cid
                 dao.setCategoryForIds(listOf(id), cid)

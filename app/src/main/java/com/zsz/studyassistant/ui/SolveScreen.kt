@@ -264,7 +264,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         )
                     } else {
                         Text(
-                            s["solve.title"],
+                            // 空会话=图文提问入口，标题显示「图文提问」；有内容后回到「解题」
+                            if (vm.chatItems.isEmpty() && !vm.busy) s["ask.pageTitle"] else s["solve.title"],
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(min = 40.dp)
@@ -484,18 +485,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 } else {
                     // ★ 空会话：直接给大输入框（图文提问的入口）——
                     //   省掉"先进入独立输入页再跳转"的一跳，三种模式从此共用同一页
-                    Column(Modifier.weight(1f).fillMaxWidth().padding(16.dp)) {
-                        Text(
-                            s["ask.title"],
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(Modifier.height(10.dp))
+                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
+
                         OutlinedTextField(
                             value = followUp,
                             onValueChange = { followUp = it },
-                            placeholder = { Text(s["ask.hint"]) },
+                            placeholder = { Text(s["ask.placeholder"]) },
                             modifier = Modifier.fillMaxWidth().weight(1f),
                             maxLines = 12
                         )

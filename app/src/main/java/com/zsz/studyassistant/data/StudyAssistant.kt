@@ -121,7 +121,7 @@ object StudyAssistant {
                 append("题目：").append(question.take(600)).append("\n")
                 append("已知分类（**必须优先从中选一个并原样输出**）：")
                 append(if (categories.isEmpty()) "（暂无）" else categories.joinToString("、"))
-                append("。只有确实都不合适，才输出 新：<简短科目名>\n")
+                append("。**只要有一个已知分类与本题沾边（近义、上下位、范围更大或更小都算）就必须选它，宁可粗一点也不要新建**；只有全都不沾边，才输出 新：<简短科目名>\n")
                 append("已知知识点标签（能对应上的优先使用，不要新造）：")
                 append(if (tags.isEmpty()) "（暂无）" else tags.joinToString("、")).append("\n")
                 append("只输出 JSON，不要任何解释：{\"分类\":\"...\",\"知识点\":[\"...\",\"...\"]}（知识点最多 5 个）")
