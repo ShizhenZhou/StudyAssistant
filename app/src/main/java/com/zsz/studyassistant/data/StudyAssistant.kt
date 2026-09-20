@@ -141,7 +141,7 @@ object StudyAssistant {
                     DeepSeekRequest(
                         model = if (images.isNotEmpty()) MODEL_VISION else MODEL_TEXT,
                         messages = listOf(DeepSeekMessage("system", JsonPrimitive("")), msg).drop(1),
-                        maxTokens = 200,
+                        maxTokens = 1024,
                         temperature = 0.0
                     )
                 )
