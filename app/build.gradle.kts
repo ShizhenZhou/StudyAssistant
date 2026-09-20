@@ -11,7 +11,7 @@ plugins {
 }
 
 // 应用版本（供 versionName 与 APK 命名使用）
-val appVersionName = "0.5.7_beta"
+val appVersionName = "0.5.7"
 
 android {
     namespace = "com.zsz.studyassistant"
