@@ -375,6 +375,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!needCat && !needTags) return
         classifyCurrentQuestion(needCat, needTags)
     }
+
+    /** 主页「图文提问」入口：开一个空会话并标记为图文提问（标题保持"图文提问"） */
+    fun startAskSession() {
+        startNewQuestion()
+        askMode = true
+    }
+
     fun classifyCurrentQuestion(needCategory: Boolean = true, needTags: Boolean = true) {
         if (classifying) return
         val q = questionText
@@ -531,6 +538,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun resetSession() {
+        askMode = false   // 每次进入新会话先复位，只有图文提问入口会置 true
         chatItems = emptyList()
         imageBytes = null
         questionText = ""
@@ -908,7 +916,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             keptQuestions
         } else {
             // 极端情况：调用方没先插入 question（如 solveText 路径）→ 用 questionText 补一条
-            listOf(ChatItem(0L, "question", questionText))
+            listOf(ChatItem(0L, "question", questionText, questionImages.ifEmpty { null }))
         }
         val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         if (isPhoto) {

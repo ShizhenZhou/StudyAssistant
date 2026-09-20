@@ -486,8 +486,18 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
+                } else if (!vm.askMode) {
+                    // 非图文提问会话（如拍题/批改在失败后 chatItems 为空）**不能**显示大输入框，
+                    // 否则用户会以为"被弹到图文提问界面、题目丢了"
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            s["solve.waitingQuestion"],
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 } else {
-                    // ★ 空会话：直接给大输入框（图文提问的入口）——
+                    // ★ 空会话 + 图文提问：直接给大输入框（图文提问的入口）——
                     //   省掉"先进入独立输入页再跳转"的一跳，三种模式从此共用同一页
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
 
