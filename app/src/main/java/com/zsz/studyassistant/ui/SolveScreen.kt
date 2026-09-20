@@ -277,11 +277,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
                     } else {
                         TextButton(onClick = {
-                            if (sessionMode == SessionMode.NOTEBOOK || sessionMode == SessionMode.GRADE) {
-                                // 错题本 / 批改：返回上一页
+                            // 只有"拍照搜题"这条流程返回时回拍题界面（方便再拍一张）；
+                            // 复习 / 错题本 / 批改 / 图文提问（含空态、纯文字提问）一律返回来处
+                            if (sessionMode == SessionMode.REVIEW ||
+                                sessionMode == SessionMode.NOTEBOOK ||
+                                sessionMode == SessionMode.GRADE ||
+                                !vm.isPhotoSession
+                            ) {
                                 nav.popBackStack()
                             } else {
-                                // 拍题流程：返回直接回拍题界面
                                 vm.startNewQuestion()
                                 nav.navigate("camera") { popUpTo("home") }
                             }

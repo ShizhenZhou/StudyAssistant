@@ -192,6 +192,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var saving = false
     private var cancelPending = false
     private var isPhoto = false
+    /** 供界面判断：当前会话是否来自"拍照搜题"（返回时决定回拍题页还是返回来处） */
+    val isPhotoSession: Boolean get() = isPhoto
     private var questionText = ""
     /** 直接提问携带的附图（文字 + 多图） */
     private var directImages: List<ByteArray> = emptyList()
