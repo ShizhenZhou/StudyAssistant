@@ -32,6 +32,9 @@
     -webkit-user-select:none; user-select:none;
     -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
   }
+  details.origimg{margin-top:6px}
+  details.origimg>summary{cursor:pointer;font-size:13px;opacity:.75;padding:2px 0;list-style:none}
+  details.origimg .msgimg{margin-top:4px}
 </style>
 </head>
 <body><div id="out"></div>
@@ -227,11 +230,18 @@ function bubbleHtml(m, idx){
   var isSel = !locked && !!selectedSet[idx];
   var imgHtml = '';
   if(m.images && m.images.length){
+    var imgs = '';
     for(var j=0;j<m.images.length;j++){
       var b64=m.images[j];
       // data-b64 供点击放大时回传给原生；多选态下点图 = 切换选中，否则打开全屏查看
-      imgHtml+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="imgTap(event,this,'+idx+')">';
+      imgs+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="imgTap(event,this,'+idx+')">';
     }
+    // ★ 默认折叠原图：题目以「文字 + 公式」为主（提高易读性），点开才看原始拍摄的图片。
+    //   AI 回复里的附图（如追问带图）保持原样直接显示。
+    // 只有当气泡正文存在时才折叠（拍题/图文提问：文字为主）；
+    // 正文为空说明该气泡只以图为准（复习模式）→ 直接显示图片，避免什么都看不到。
+    var hasText = !!(m.content && m.content.length);
+    imgHtml = (m.role === 'assistant' || !hasText) ? imgs : ('<details class="origimg"><summary>📷 查看原题图片</summary>' + imgs + '</details>');
   }
   // 末尾的「继续生成」标记：[[CONTINUE|文案]] → 蓝色可点一行（生成中断时由原生追加）
   var text = m.content || '';

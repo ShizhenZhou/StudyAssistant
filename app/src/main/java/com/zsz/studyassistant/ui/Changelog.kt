@@ -5,6 +5,16 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.5.9
+· 📝 题目以文字为主：拍题/图文提问的题干由 AI 忠实转写（公式用 LaTeX、KaTeX 排版），原图默认折叠成「📷 查看原题图片」点击展开；复习仍以原图自测
+· ✍️ 新增「AI 配置」页：框选时限 + 自定义要求（Prompt），自定义要求会附加到解题/批改/同类题的每次请求
+· 📚 列表预览轻量排版：复习与错题本列表里的题干把 LaTeX 转成 ∫ ∮ ∑ ≤ √ ρ 等可读符号
+· 🐞 修复复习刷题崩溃：复习队列原查询 q.* 会连带图片大字段，超出 CursorWindow 2MB 上限
+· 🔁 修复复习时同一题连续出现两次：艾宾浩斯第 0 档为 0 天导致今天反复到期，现最短周期为 1 天，今天点过不再出现
+· 🖼 修复错题本原图丢失：列表改为轻查询后未补全图片，现进入题目时按 id 补全
+· 🎯 修复复习点进去变成查看错题：异步补全图片时覆盖了复习模式
+· 🏠 修复复习结束退回桌面：改为显式回主页
+
 v0.5.8
 · 🎨 应用主题：新增主题配色——8 套预设色板 + 自定义取色盘（色相/饱和度/明度可调）；设置页「主题」升级为「应用主题」二级页
 · 🐞 修复复习刷题崩溃：复习队列原来查询 q.*，把每题的图片大字段一起取出，题目一多就超出 Android CursorWindow 的 2MB 上限而崩溃（表现为点熟悉就退回桌面）；现在列表只取轻字段，进题时才按 id 取图片与会话
@@ -200,6 +210,16 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.5.9
+· 📝 Text-first questions: for photo/ask the stem is faithfully transcribed by the AI (LaTeX rendered with KaTeX) and the original photo is collapsed behind a View original photo toggle; review still shows the photo for self-testing
+· ✍️ New AI settings page: crop timeout plus a custom instructions prompt that is appended to every solve / grading / similar-question request
+· 📚 Light typography in list previews: LaTeX in the review and notebook lists is converted to readable symbols such as ∫ ∮ ∑ ≤ √ ρ
+· 🐞 Fixed a crash while reviewing: the queue query selected q.* and pulled image blobs, exceeding the 2 MB CursorWindow limit
+· 🔁 Fixed the same question appearing twice in a row during review: interval step 0 was 0 days so it stayed due today; the minimum interval is now 1 day, so a question reviewed today will not show up again today
+· 🖼 Fixed missing original photos in the notebook: the list now uses a light query and the image is loaded by id when opening a question
+· 🎯 Fixed review opening as a plain mistake view: completing the image asynchronously overwrote review mode
+· 🏠 Fixed review finishing back to the launcher: it now navigates home explicitly
+
 v0.5.8
 · 🎨 App theme: theme colours — 8 preset swatches plus a custom colour picker (hue / saturation / brightness); the settings entry is now an App theme sub-page
 · 🐞 Fixed a crash while reviewing: the review queue selected q.*, pulling each question image blob, so a longer queue exceeded the Android 2 MB CursorWindow limit and crashed (it looked like tapping Familiar returned to the home screen); the list now selects light columns only and loads the image/session by id when a question is opened
@@ -395,6 +415,16 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.5.9
+· 📝 問題文を文字主体に：撮影/質問では AI が忠実に転写し（LaTeX は KaTeX で描画）、元画像は「元の画像を見る」で折りたたみ。復習は従来どおり画像で自測
+· ✍️ AI 設定ページを追加：枠取り制限時間＋カスタム指示（Prompt）。カスタム指示は解答・添削・類似問題の毎回のリクエストに付加
+· 📚 一覧プレビューの軽量組版：復習と誤答ノートの一覧で LaTeX を ∫ ∮ ∑ ≤ √ ρ などの読みやすい記号に変換
+· 🐞 復習中のクラッシュを修正：キューが q.* を取得し画像 BLOB を読み込み、CursorWindow 2MB 上限を超えていた
+· 🔁 復習で同じ問題が連続して出る問題を修正：第 0 段階が 0 日のため当日に再到期していた。最短周期を 1 日にし、今日解いた問題は今日は出ない
+· 🖼 誤答ノートで元画像が消える問題を修正：軽量クエリ後に id で画像を補完
+· 🎯 復習が「誤答を見る」になる問題を修正：画像の非同期補完が復習モードを上書きしていた
+· 🏠 復習終了でランチャーに戻る問題を修正：明示的にホームへ
+
 v0.5.8
 · 🎨 アプリテーマ：テーマカラーを追加——8 種類のプリセット＋カスタムカラーピッカー（色相/彩度/明度）；設定のテーマはアプリテーマのサブページに
 · 🐞 復習中のクラッシュを修正：復習キューが q.* を取得して各問題の画像 BLOB まで読み込み、問題が増えると Android の CursorWindow 2MB 上限を超えてクラッシュ（熟悉でホームに戻るように見えた）；一覧は軽い列のみ取得し、問題を開くときに id で画像を取得
@@ -590,6 +620,16 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.5.9
+· 📝 문제를 텍스트 중심으로: 촬영/질문 시 AI가 충실히 전사하고(LaTeX는 KaTeX로 렌더링) 원본 사진은 원본 이미지 보기로 접어 둡니다. 복습은 기존처럼 사진으로 자체 점검
+· ✍️ AI 설정 페이지 추가: 자르기 제한 시간 + 사용자 지정 지시(Prompt). 사용자 지정 지시는 풀이·첨삭·유사 문제의 모든 요청에 추가됩니다
+· 📚 목록 미리보기 경량 조판: 복습/오답노트 목록의 LaTeX를 ∫ ∮ ∑ ≤ √ ρ 등 읽기 쉬운 기호로 변환
+· 🐞 복습 중 크래시 수정: 큐가 q.*를 조회해 이미지 BLOB까지 읽어 CursorWindow 2MB 한도를 초과했음
+· 🔁 복습에서 같은 문제가 연속으로 나오던 문제 수정: 0단계가 0일이라 당일 재도래했음. 최단 주기를 1일로 하여 오늘 푼 문제는 오늘 나오지 않음
+· 🖼 오답노트에서 원본 사진이 사라지던 문제 수정: 경량 조회 후 id로 이미지를 보완
+· 🎯 복습이 오답 보기로 열리던 문제 수정: 이미지 비동기 보완이 복습 모드를 덮어썼음
+· 🏠 복습 종료 시 런처로 돌아가던 문제 수정: 명시적으로 홈으로 이동
+
 v0.5.8
 · 🎨 앱 테마: 테마 색상 — 8가지 프리셋 + 사용자 지정 색상 선택기(색상/채도/밝기); 설정의 테마가 앱 테마 하위 페이지로
 · 🐞 복습 중 크래시 수정: 복습 큐가 q.*를 조회해 각 문제의 이미지 BLOB까지 읽어, 문제가 많아지면 Android CursorWindow 2MB 한도를 넘어 크래시(熟悉를 누르면 홈으로 가는 것처럼 보임); 이제 목록은 가벼운 컬럼만 조회하고 문제를 열 때 id로 이미지를 가져옴

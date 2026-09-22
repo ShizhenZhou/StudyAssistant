@@ -204,7 +204,7 @@ private fun AiCropTimeoutSettings() {
     val snapPoints = listOf(100f, 500f, 1000f, 3000f, 5000f)
 
     Column(Modifier.fillMaxWidth()) {
-        Text(s["settings.aiCrop"], style = MaterialTheme.typography.titleMedium)
+        Text(s["settings.aiCrop.timeout"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
             s["settings.aiCrop.desc"],
@@ -233,6 +233,39 @@ private fun AiCropTimeoutSettings() {
             msToT = ::msToT,
             tToMs = ::tToMs
         )
+    }
+    // ---- 自定义要求（Prompt）：会附加到每次 AI 请求 ----
+    Spacer(Modifier.height(22.dp))
+    Text(s["settings.customPrompt"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(4.dp))
+    Text(s["settings.customPrompt.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Spacer(Modifier.height(8.dp))
+    var cpText by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
+    // 是否已修改：未修改时保存按钮置灰，避免误以为没生效
+    var cpDirty by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = cpText,
+        onValueChange = {
+            cpText = it
+            cpDirty = true
+        },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 6,
+    )
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = {
+                com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
+                cpDirty = false
+                android.widget.Toast.makeText(ctx, s["common.save"], android.widget.Toast.LENGTH_SHORT).show()
+            },
+            enabled = cpDirty
+        ) { Text(s["common.save"]) }
     }
 }
 

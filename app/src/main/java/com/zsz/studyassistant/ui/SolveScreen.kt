@@ -168,6 +168,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 少了这个 key 这段就不会重算，末尾的蓝色「继续生成」永远不出现（曾踩过）。
     val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, sessionMode == SessionMode.REVIEW, answerRevealed, vm.streamingText, vm.streamInterrupted) {
         var items = if (sessionMode == SessionMode.REVIEW && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
+        // ★ 兜底去重：题干项按内容去重（旧数据/不同入口可能塞进重复题干，表现为"题目出现两遍"）
+        run {
+            val seen = HashSet<String>()
+            items = items.filter { c -> c.role != "question" || seen.add(c.content.trim()) }
+        }
         // ★ 生成中：题干/问答还没进 chatItems 时，先把"题目气泡"补上——
         //   否则拍题/批改/图文提问从发起到首字出现这段时间里，页面上看不到自己刚发的图与题干
         if (items.none { it.role == "question" } && vm.questionImages.isNotEmpty()) {
@@ -180,7 +185,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             } else {
                 c.images ?: emptyList()
             }
-            val hideAiText = c.role == "question" && vm.questionFromPhoto && imgs.isNotEmpty()
+            // 拍题/图文提问：以「文字+公式」为主，原图在气泡里默认折叠（提高易读性）
+            // 复习：仍只显示原图（复习就是要看原题自测），不显示转写文字、也不折叠
+            val hideAiText = sessionMode == SessionMode.REVIEW && imgs.isNotEmpty()
             ChatMsg(
                 role = if (c.role == "assistant") "assistant" else "user",
                 content = if (hideAiText) "" else c.content,

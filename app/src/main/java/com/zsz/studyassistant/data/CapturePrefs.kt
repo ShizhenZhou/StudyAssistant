@@ -14,6 +14,11 @@ object CapturePrefs {
     private fun prefs(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** 拍照搜题页：上次是否为「两张」模式 */
+    // ---- 用户自定义 Prompt（附加到每次 AI 请求，用于"只给思路/指定语言/更详细…"等个人要求）----
+    private const val KEY_CUSTOM_PROMPT = "custom_prompt"
+    fun customPrompt(c: Context): String = prefs(c).getString(KEY_CUSTOM_PROMPT, "") ?: ""
+    fun setCustomPrompt(c: Context, v: String) =
+        prefs(c).edit().putString(KEY_CUSTOM_PROMPT, v).apply()
     fun solveDouble(c: Context): Boolean = prefs(c).getBoolean(KEY_SOLVE_DOUBLE, false)
 
     fun setSolveDouble(c: Context, v: Boolean) =

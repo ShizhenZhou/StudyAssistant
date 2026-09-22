@@ -227,6 +227,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var saving = false
     private var cancelPending = false
     private var isPhoto = false
+    /** 正在为"轻查询"结果补全重字段（防重入） */
+    private var heavyRedirect = false
     /** 本次会话是否来自「图文提问」（用于标题保持"图文提问"） */
     var askMode by mutableStateOf(false)
         private set
@@ -529,6 +531,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
+    /**
+     * 用户自定义要求（设置 → AI 配置）：非空时作为一条 system 消息附加到每次请求，
+     * 让 AI 遵守个人偏好（只给思路 / 步骤编号 / 更简洁 …）。
+     */
+    private fun customPromptMessage(): DeepSeekMessage? {
+        val cp = com.zsz.studyassistant.data.CapturePrefs.customPrompt(getApplication()).trim()
+        if (cp.isEmpty()) return null
+        return DeepSeekMessage("system", kotlinx.serialization.json.JsonPrimitive("用户自定义要求（请务必遵守）：\n$cp"))
+    }
     private fun buildMessages(): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
         // 回答语言：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
@@ -1154,7 +1165,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 1 -> r.intervalStep                                            // 模糊：保持档位
                 else -> 0                                                      // 忘记：重置第 0 档
             }
-            val next = base + INTERVAL_DAYS[step] * DAY_MS
+            // ★ 最短复习周期为 **1 天**：第 0 档原本是 0 天 → nextReviewAt 落回"今天零点"，
+            //   于是今天点过之后它依然算"今天到期"，同一道题会在本轮反复出现（第1=第2…）。
+            //   这里把天数下限设为 1 天：今天点过一次，今天就不再出现，最早明天。
+            val days = INTERVAL_DAYS[step].coerceAtLeast(1)
+            val next = base + days * DAY_MS
             dao.updateReview(questionId, step, next, System.currentTimeMillis())
         }
     }
@@ -1201,9 +1216,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val due = dao.dueQuestions(endOfToday()).first()
             val cat = currentQuestionCategoryId
-            val next = due.firstOrNull { it.categoryId == cat } ?: due.firstOrNull()
+            // ★ 必须排除"刚答过的这道题"：艾宾浩斯第一档间隔是 0 天，
+            //   答完后 nextReviewAt 仍是今天 → 它依然在"今天到期"里排第一
+            //   → 不排除的话，同一道题会连续出现两次（第1=第2、第3=第4…）
+            val rest = due.filter { it.id != qid }
+            val next = rest.firstOrNull { it.categoryId == cat } ?: rest.firstOrNull()
             if (next != null) {
-                reviewQueue = due
+                reviewQueue = rest
                 reviewDone += 1
                 loadForReview(next)
             } else {
@@ -1713,6 +1732,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 加载某条错题的完整对话会话（用于续答） */
     fun loadQuestion(q: Question) {
+        // ★ 列表页可能是"轻查询"（不含 imageBytes / conversationJson，避免大 BLOB 撑爆 CursorWindow），
+        //   这里先按 id 补全再走原来的加载逻辑，避免"点进错题本发现原图丢失"。
+        if (!heavyRedirect && (q.imageBytes == null || q.conversationJson == null)) {
+            val id = q.id
+            viewModelScope.launch {
+                val full = runCatching { dao.heavyOnce(id) }.getOrNull() ?: q
+                heavyRedirect = true
+                try { loadQuestion(full) } finally { heavyRedirect = false }
+            }
+            return
+        }
         // 打开错题本/复习里的题目：先作废并停掉可能还在跑的流式请求，并清掉**模式残留**
         // （否则会带着上一轮的 gradeMode → 标题显示「批改」、按钮组走错分支）
         callSeq++                       // 让旧请求收尾时不再覆盖界面状态

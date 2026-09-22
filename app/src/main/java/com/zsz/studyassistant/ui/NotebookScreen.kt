@@ -420,7 +420,7 @@ private fun NotebookItem(
                     )
                 } else {
                     Text(
-                        q.text.replace('\n', ' '),
+                        TextPretty.oneLine(q.text, 110),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium

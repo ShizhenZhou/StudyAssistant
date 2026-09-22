@@ -80,7 +80,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     // 按 科目 → 知识点 分组；组内保持 nextReviewAt 升序（dueQuestions 已排序）
     val groups = remember(questions, catById, tagById, qTagIds, s) {
         val m = LinkedHashMap<String, MutableList<Question>>()
-        for (q in questions) {
+        for (q in questions.distinctBy { it.id }) {   // 去重兜底：同 id 只出现一次
             val cn = q.categoryId?.let { catById[it]?.name } ?: s["notebook.filter.uncategorized"]
             val tn = (qTagIds[q.id] ?: emptyList()).mapNotNull { tagById[it]?.name }
             val key = if (tn.isEmpty()) cn else "$cn · ${tn.joinToString("/")}"
@@ -167,7 +167,7 @@ private fun ReviewCard(q: Question, onClick: () -> Unit) {
                 )
             } else {
                 Text(
-                    q.text.replace('\n', ' '),
+                    TextPretty.oneLine(q.text, 110),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
