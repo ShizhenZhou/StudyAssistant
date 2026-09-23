@@ -141,14 +141,20 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
     androidx.activity.compose.BackHandler { handleBack() }
 
     /** 归一化矩形 → 屏幕显示坐标（相对当前显示的图片区域） */
-    fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
-        val l = d.left + n.x * d.width
+    /** 安全钳制：区间非法（min > max，例如显示矩形瞬时退化成 0 宽/高）时取中点，
+ *  绝不抛 IllegalArgumentException（曾导致"拖动选框时应用自动退出"）。 */
+fun safeCoerceRange(v: Float, a: Float, b: Float): Float =
+    if (a <= b) v.coerceIn(a, b) else (a + b) / 2f
+fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
+        // 布局未就绪 / 缩放过程中 d 可能退化（宽或高接近 0）→ 直接返回，避免后续出现非法区间
+    if (d.width < 2f || d.height < 2f) return Rect(d.left, d.top, d.left + 1f, d.top + 1f)
+    val l = d.left + n.x * d.width
         val t = d.top + n.y * d.height
         val r = l + n.w * d.width
         val b = t + n.h * d.height
         return Rect(
-            l.coerceIn(d.left, d.right - 8f), t.coerceIn(d.top, d.bottom - 8f),
-            r.coerceIn(d.left + 8f, d.right), b.coerceIn(d.top + 8f, d.bottom)
+            safeCoerceRange(l, d.left, d.right - 8f), safeCoerceRange(t, d.top, d.bottom - 8f),
+            safeCoerceRange(r, d.left + 8f, d.right), safeCoerceRange(b, d.top + 8f, d.bottom)
         )
     }
 
