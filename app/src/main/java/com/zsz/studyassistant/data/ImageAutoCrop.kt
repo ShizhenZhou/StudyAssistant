@@ -17,7 +17,14 @@ object ImageAutoCrop {
     data class NormRect(val x: Float, val y: Float, val w: Float, val h: Float) {
         val area: Float get() = w * h
         /** 本地结果是否"可疑"（几乎整页 / 只有一行 / 太窄）——可疑时更应采纳 AI 的结果 */
-        fun looksUnreliable(): Boolean = h > 0.72f || h < 0.055f || w < 0.30f
+        /**
+     * 是否"贴到照片边界"。
+     * AI 给的框一旦贴边（x/y≈0 或 x+w/y+h≈1），往往意味着它没框准（把整页当一题），
+     * 而且这类框在拖动/裁剪时更容易踩到边界条件。策略：宁可丢弃它，回退到默认框。
+     */
+    fun touchesEdge(margin: Float = 0.012f): Boolean =
+        x <= margin || y <= margin || (x + w) >= (1f - margin) || (y + h) >= (1f - margin)
+    fun looksUnreliable(): Boolean = h > 0.72f || h < 0.055f || w < 0.30f
     }
 
     /** 按文本块切分，返回按面积从大到小排序的归一化矩形 */

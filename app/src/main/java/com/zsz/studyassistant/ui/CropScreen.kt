@@ -321,8 +321,8 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                                     val onImage = dNow.width <= 1f || dNow.contains(mid)
                                     if (sameSide && onImage && prevDist > 1f && dist > 1f) {
                                         // 单次事件限幅 ±10%，避免异常比值把图瞬间放大/缩小
-                                        val ratio = (dist / prevDist).coerceIn(0.9f, 1.1f)
-                                        val newZoom = (zoom * ratio).coerceIn(1f, 4f)
+                                        val ratio = safeCoerceRange(dist / prevDist, 0.9f, 1.1f)
+                                        val newZoom = safeCoerceRange(zoom * ratio, 1f, 4f)
                                         if (newZoom != zoom) {
                                             // ★ 以两指中点为中心缩放：中点下方的图像内容保持不动
                                             val oldDisp = dispRect
@@ -399,23 +399,23 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                             val d2 = dispRect
                             if (r != null && d2 != Rect.Zero) {
                                 val n = when (mode) {
-                                    "TOP" -> Rect(r.left, (r.top + drag.y).coerceIn(d2.top, r.bottom - MIN_SIZE), r.right, r.bottom)
-                                    "BOTTOM" -> Rect(r.left, r.top, r.right, (r.bottom + drag.y).coerceIn(r.top + MIN_SIZE, d2.bottom))
-                                    "LEFT" -> Rect((r.left + drag.x).coerceIn(d2.left, r.right - MIN_SIZE), r.top, r.right, r.bottom)
-                                    "RIGHT" -> Rect(r.left, r.top, (r.right + drag.x).coerceIn(r.left + MIN_SIZE, d2.right), r.bottom)
+                                    "TOP" -> Rect(r.left, safeCoerceRange(r.top + drag.y, d2.top, r.bottom - MIN_SIZE), r.right, r.bottom)
+                                    "BOTTOM" -> Rect(r.left, r.top, r.right, safeCoerceRange(r.bottom + drag.y, r.top + MIN_SIZE, d2.bottom))
+                                    "LEFT" -> Rect(safeCoerceRange(r.left + drag.x, d2.left, r.right - MIN_SIZE), r.top, r.right, r.bottom)
+                                    "RIGHT" -> Rect(r.left, r.top, safeCoerceRange(r.right + drag.x, r.left + MIN_SIZE, d2.right), r.bottom)
                                     // 四角：同时改长宽
-                                    "TL" -> Rect((r.left + drag.x).coerceIn(d2.left, r.right - MIN_SIZE),
-                                        (r.top + drag.y).coerceIn(d2.top, r.bottom - MIN_SIZE), r.right, r.bottom)
-                                    "TR" -> Rect(r.left, (r.top + drag.y).coerceIn(d2.top, r.bottom - MIN_SIZE),
-                                        (r.right + drag.x).coerceIn(r.left + MIN_SIZE, d2.right), r.bottom)
-                                    "BL" -> Rect((r.left + drag.x).coerceIn(d2.left, r.right - MIN_SIZE), r.top,
-                                        r.right, (r.bottom + drag.y).coerceIn(r.top + MIN_SIZE, d2.bottom))
+                                    "TL" -> Rect(safeCoerceRange(r.left + drag.x, d2.left, r.right - MIN_SIZE),
+                                        safeCoerceRange(r.top + drag.y, d2.top, r.bottom - MIN_SIZE), r.right, r.bottom)
+                                    "TR" -> Rect(r.left, safeCoerceRange(r.top + drag.y, d2.top, r.bottom - MIN_SIZE),
+                                        safeCoerceRange(r.right + drag.x, r.left + MIN_SIZE, d2.right), r.bottom)
+                                    "BL" -> Rect(safeCoerceRange(r.left + drag.x, d2.left, r.right - MIN_SIZE), r.top,
+                                        r.right, safeCoerceRange(r.bottom + drag.y, r.top + MIN_SIZE, d2.bottom))
                                     "BR" -> Rect(r.left, r.top,
-                                        (r.right + drag.x).coerceIn(r.left + MIN_SIZE, d2.right),
-                                        (r.bottom + drag.y).coerceIn(r.top + MIN_SIZE, d2.bottom))
+                                        safeCoerceRange(r.right + drag.x, r.left + MIN_SIZE, d2.right),
+                                        safeCoerceRange(r.bottom + drag.y, r.top + MIN_SIZE, d2.bottom))
                                     "MOVE" -> {
-                                        val dt = (r.left + drag.x).coerceIn(d2.left, d2.right - r.width)
-                                        val dtp = (r.top + drag.y).coerceIn(d2.top, d2.bottom - r.height)
+                                        val dt = safeCoerceRange(r.left + drag.x, d2.left, d2.right - r.width)
+                                        val dtp = safeCoerceRange(r.top + drag.y, d2.top, d2.bottom - r.height)
                                         Rect(dt, dtp, dt + r.width, dtp + r.height)
                                     }
                                     else -> null
@@ -463,10 +463,11 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                     val r = sel ?: dispRect
                     if (r != null && dispRect != Rect.Zero) {
                         val d2 = dispRect
-                        val x = ((r.left - d2.left) / d2.width * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
-                        val y = ((r.top - d2.top) / d2.height * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
-                        val w = ((r.width / d2.width) * bitmap.width).toInt().coerceIn(1, bitmap.width - x)
-                        val h = ((r.height / d2.height) * bitmap.height).toInt().coerceIn(1, bitmap.height - y)
+                        // 裁剪区域：全部用 safeCoerceRange（原来 1..bitmap.width-x 在贴边时会出现 1 > max → 崩溃）
+                        val x = safeCoerceRange((r.left - d2.left) / d2.width * bitmap.width, 0f, (bitmap.width - 1).toFloat()).toInt()
+                        val y = safeCoerceRange((r.top - d2.top) / d2.height * bitmap.height, 0f, (bitmap.height - 1).toFloat()).toInt()
+                        val w = safeCoerceRange((r.width / d2.width) * bitmap.width, 1f, (bitmap.width - x).toFloat()).toInt()
+                        val h = safeCoerceRange((r.height / d2.height) * bitmap.height, 1f, (bitmap.height - y).toFloat()).toInt()
                         val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
                         vm.submitCropResult(compressBitmap(cropped))
                         afterSubmit()
