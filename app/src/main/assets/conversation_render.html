@@ -299,11 +299,11 @@ function bubbleHtml(m, idx){
     window.thinkText[idx] = m.thinking;
     window.thinkDone[idx] = tDone;
     thinkHtml = '<div class="think" data-box="' + idx + '">'
-      + '<div class="thinkhead" data-think="' + idx + '">💭 思考过程' + thinkLabel(tOpen, tDone) + '</div>'
+      + '<div class="thinkhead" data-think="' + idx + '">' + esc(TL().title) + esc(thinkLabel(tOpen, tDone)) + '</div>'
       + (tOpen ? '<div class="thinkbody">' + esc(m.thinking) + '</div>' : '')
       // 底端蓝色切换行：**展开与收起都在**（展开时=收起、收起时=展开），
       // 思考很长时不用滚回顶部，收起后也不会"什么都不剩"
-      + '<div class="thinkfold" data-think="' + idx + '">' + (tOpen ? '折叠思考区' : '展开思考区') + '</div>'
+      + '<div class="thinkfold" data-think="' + idx + '">' + esc(tOpen ? TL().fold : TL().unfold) + '</div>'
       + '</div>';
     // 思考「刚结束」的那一帧 → 安排一次跳转（只跳一次；重新思考时解锁）
     if (m.thinkingDone) {
@@ -356,9 +356,33 @@ function continueGen(){
 //   流式生成时实时气泡的 msgKey 每 ~180ms 就变 → 节点被 removeChild + insertAdjacentHTML 换掉；
 //   若"按下"和"抬起"落在不同节点上，浏览器**不会派发 click** → 表现为"点了没反应"。
 //   所以这里用 document 上的 touchstart/touchend 自己判定（不依赖节点存活），并按 idx 记账。
+// ★ 多语言：思考块的文案由原生侧注入（window.THINK_LABELS），HTML 里只留一份简体兜底。
+//   注入点：ConversationWebView 调用 renderMessages(json, sel, labels) 的第三个参数。
+var THINK_DEFAULT = {
+  title: '💭 思考过程',
+  thinking: '（思考中…）',
+  collapse: '（点击折叠）',
+  expand: '（点击展开）',
+  fold: '折叠思考区',
+  unfold: '展开思考区'
+};
+function TL(){
+  var L = window.THINK_LABELS;
+  if(!L) return THINK_DEFAULT;
+  // 逐字段兜底：某个 key 缺失时退回简体，避免出现 undefined
+  return {
+    title: L.title || THINK_DEFAULT.title,
+    thinking: L.thinking || THINK_DEFAULT.thinking,
+    collapse: L.collapse || THINK_DEFAULT.collapse,
+    expand: L.expand || THINK_DEFAULT.expand,
+    fold: L.fold || THINK_DEFAULT.fold,
+    unfold: L.unfold || THINK_DEFAULT.unfold
+  };
+}
 function thinkLabel(open, done){
-  if(!open) return '（点击展开）';
-  return done ? '（点击折叠）' : '（思考中…）';
+  var L = TL();
+  if(!open) return L.expand;
+  return done ? L.collapse : L.thinking;
 }
 /** 立即把某个气泡的思考块切到 open 状态（不重建整段；收起时把正文与底端折叠行一起删掉） */
 function applyThinkOpen(idx, open){
@@ -376,8 +400,10 @@ function applyThinkOpen(idx, open){
     box.removeChild(body);
   }
   // 底端蓝色行两种状态都保留，只换文案
-  if(fold) fold.textContent = open ? '折叠思考区' : '展开思考区';
-  if(head) head.innerHTML = '💭 思考过程' + thinkLabel(open, !!window.thinkDone[idx]);
+  var L = TL();
+  if(fold) fold.textContent = open ? L.fold : L.unfold;
+  // 用 textContent 而非 innerHTML：文案是纯文本（含 emoji），不给注入留口子
+  if(head) head.textContent = L.title + thinkLabel(open, !!window.thinkDone[idx]);
 }
 /** 切换某个气泡的思考块展开态，并把用户意图记进 thinkUserOpen/thinkUserClosed */
 function toggleThink(idx){
@@ -428,7 +454,14 @@ document.addEventListener('click', function(e){
   toggleThink(idx);
 }, true);
 
-function renderMessages(arr, sel){
+// labels（可选）：思考块的多语言文案，由原生按界面语言注入；缺省时用简体兜底
+function renderMessages(arr, sel, labels){
+  if(labels && typeof labels === 'object'){
+    // 文案变化（切换界面语言）→ 清掉增量渲染缓存，强制整段重建（否则已渲染的气泡不会换文案）
+    var lk = JSON.stringify(labels);
+    if(lk !== window.thinkLabelsKey){ window.thinkLabelsKey = lk; renderedKeys = []; }
+    window.THINK_LABELS = labels;
+  }
   selInit(sel);
   var out = document.getElementById('out');
   // 换会话（首条消息变了）→ 清空思考展开/跳转状态，避免旧下标串味

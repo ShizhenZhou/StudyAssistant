@@ -1247,6 +1247,13 @@ private val B9_ZH = mapOf(
     "solve.regrade" to "🔄 重新批改",
     "solve.abortGrade" to "⏸ 中止批改",
     "solve.thinking" to "思考中…",
+    // 思考块（WebView 渲染）的文案：由 ConversationWebView 以 JSON 注入 conversation_render.html
+    "think.title" to "💭 思考过程",
+    "think.state.thinking" to "（思考中…）",
+    "think.state.collapse" to "（点击折叠）",
+    "think.state.expand" to "（点击展开）",
+    "think.fold" to "折叠思考区",
+    "think.unfold" to "展开思考区",
     "review.titleProgress" to "复习 {i}/{n}",
     "review.nextQuestion" to "下一题"
 )
@@ -1261,6 +1268,12 @@ private val B9_EN = mapOf(
     "solve.regrade" to "🔄 Re-grade",
     "solve.abortGrade" to "⏸ Stop grading",
     "solve.thinking" to "Thinking…",
+    "think.title" to "💭 Thinking",
+    "think.state.thinking" to " (thinking…)",
+    "think.state.collapse" to " (tap to collapse)",
+    "think.state.expand" to " (tap to expand)",
+    "think.fold" to "Collapse thinking",
+    "think.unfold" to "Expand thinking",
     "review.titleProgress" to "Review {i}/{n}",
     "review.nextQuestion" to "Next"
 )
@@ -1275,6 +1288,12 @@ private val B9_JA = mapOf(
     "solve.regrade" to "🔄 再添削",
     "solve.abortGrade" to "⏸ 添削を中止",
     "solve.thinking" to "考え中…",
+    "think.title" to "💭 思考プロセス",
+    "think.state.thinking" to "（思考中…）",
+    "think.state.collapse" to "（タップで折りたたむ）",
+    "think.state.expand" to "（タップで展開）",
+    "think.fold" to "思考を折りたたむ",
+    "think.unfold" to "思考を展開する",
     "review.titleProgress" to "復習 {i}/{n}",
     "review.nextQuestion" to "次の問題"
 )
@@ -1289,6 +1308,12 @@ private val B9_KO = mapOf(
     "solve.regrade" to "🔄 다시 첨삭",
     "solve.abortGrade" to "⏸ 첨삭 중단",
     "solve.thinking" to "생각 중…",
+    "think.title" to "💭 사고 과정",
+    "think.state.thinking" to " (생각 중…)",
+    "think.state.collapse" to " (탭하여 접기)",
+    "think.state.expand" to " (탭하여 펼치기)",
+    "think.fold" to "사고 과정 접기",
+    "think.unfold" to "사고 과정 펼치기",
     "review.titleProgress" to "복습 {i}/{n}",
     "review.nextQuestion" to "다음 문제"
 )

@@ -15,6 +15,7 @@ v0.6.0
 · 🛠 解题 / 文字解题 / 批改的提示词统一为「**序号 + 标签**」协议，去掉自相矛盾的重复要求
 · 🐞 修复追问时**上一轮答案的思考被本轮思考覆盖**
 · 🐞 修复回主页时「停掉在跑的生成 + 清拍摄缓存」因条件写错而静默失效
+· 🌐 思考块的文案（思考过程 / 折叠思考区 / 展开思考区）已跟随**界面语言**（简体 · 繁體 · English · 日本語 · 한국어）
 
 v0.5.9
 · 📝 题目以文字为主：拍题/图文提问的题干由 AI 忠实转写（公式用 LaTeX、KaTeX 排版），原图默认折叠成「📷 查看原题图片」点击展开；复习仍以原图自测
@@ -231,6 +232,7 @@ v0.6.0
 · 🛠 Unified the solve / text-solve / grading prompts on one **numbered-label** protocol and removed contradictory duplicated instructions
 · 🐞 Fixed the **previous answer's thinking being overwritten** by the current turn on follow-up questions
 · 🐞 Fixed "stop the running generation + clear the capture cache on returning home" silently doing nothing due to a wrong condition
+· 🌐 The thinking block labels (Thinking / Collapse thinking / Expand thinking) now follow the **app language** (简体 · 繁體 · English · 日本語 · 한국어)
 
 v0.5.9
 · 📝 Text-first questions: for photo/ask the stem is faithfully transcribed by the AI (LaTeX rendered with KaTeX) and the original photo is collapsed behind a View original photo toggle; review still shows the photo for self-testing
@@ -447,6 +449,7 @@ v0.6.0
 · 🛠 解答／文字解答／添削のプロンプトを「**番号＋ラベル**」方式に統一し、矛盾した重複指示を削除
 · 🐞 追加質問時に**前の回答の思考が今回の思考で上書きされる**不具合を修正
 · 🐞 ホームに戻る際の「生成停止＋撮影キャッシュ削除」が条件ミスで無効だった不具合を修正
+· 🌐 思考ブロックの文言（思考プロセス／折りたたむ／展開する）が**アプリの言語**に追従（简体 · 繁體 · English · 日本語 · 한국어）
 
 v0.5.9
 · 📝 問題文を文字主体に：撮影/質問では AI が忠実に転写し（LaTeX は KaTeX で描画）、元画像は「元の画像を見る」で折りたたみ。復習は従来どおり画像で自測
@@ -663,6 +666,7 @@ v0.6.0
 · 🛠 풀이/텍스트 풀이/첨삭 프롬프트를 「**번호 + 라벨**」 방식으로 통일하고 모순된 중복 지시 삭제
 · 🐞 추가 질문 시 **이전 답변의 사고가 이번 사고로 덮어써지던** 문제 수정
 · 🐞 홈으로 돌아갈 때 「생성 중지 + 촬영 캐시 삭제」가 조건 오류로 동작하지 않던 문제 수정
+· 🌐 사고 과정 블록의 문구(사고 과정 / 접기 / 펼치기)가 **앱 언어**를 따릅니다 (简体 · 繁體 · English · 日本語 · 한국어)
 
 v0.5.9
 · 📝 문제를 텍스트 중심으로: 촬영/질문 시 AI가 충실히 전사하고(LaTeX는 KaTeX로 렌더링) 원본 사진은 원본 이미지 보기로 접어 둡니다. 복습은 기존처럼 사진으로 자체 점검

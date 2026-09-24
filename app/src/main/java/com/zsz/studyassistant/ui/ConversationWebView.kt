@@ -104,6 +104,21 @@ fun ConversationWebView(
             "{\"on\":false,\"selected\":[],\"locked\":[]}"
         }
 
+    // 思考块的文案按当前界面语言注入 WebView（繁體由 Strings 内部 s2t 自动转换）
+    // ⚠️ 必须进「去重 key」：否则切换界面语言时 JSON 没变 → 不重渲染 → 思考块文案还是旧语言
+    val s = LocalStrings.current
+    fun thinkLabelsJson(): String {
+        fun esc(t: String) = t
+            .replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\n", "\\n").replace("\r", "\\r")
+        return "{\"title\":\"" + esc(s["think.title"]) + "\"" +
+            ",\"thinking\":\"" + esc(s["think.state.thinking"]) + "\"" +
+            ",\"collapse\":\"" + esc(s["think.state.collapse"]) + "\"" +
+            ",\"expand\":\"" + esc(s["think.state.expand"]) + "\"" +
+            ",\"fold\":\"" + esc(s["think.fold"]) + "\"" +
+            ",\"unfold\":\"" + esc(s["think.unfold"]) + "\"}"
+    }
+
     // 回到顶部：同时暂停流式跟随，避免又被自动拉回底部
     LaunchedEffect(scrollTopSignal) {
         if (scrollTopSignal > 0) {
@@ -201,22 +216,25 @@ fun ConversationWebView(
                             loaded = true
                             val json = buildMessagesJson(currentMessages)
                             val sel = selectionJson()
-                            lastJson = json + "|" + sel
-                            view?.evaluateJavascript("renderMessages($json, $sel);", null)
+                            val labels = thinkLabelsJson()
+                            lastJson = json + "|" + sel + "|" + labels
+                            view?.evaluateJavascript("renderMessages($json, $sel, $labels);", null)
                         }
                     }
                     loadUrl("file:///android_asset/conversation_render.html")
                 }
             },
             update = { v ->
-                // 内容未变化时跳过重渲染，减少 WebView 开销（多选状态也进 key：圆圈/红框要即时刷新）
+                // 内容未变化时跳过重渲染，减少 WebView 开销（多选状态也进 key：圆圈/红框要即时刷新；
+                // 思考块文案（界面语言）同样进 key：切语言要立刻换掉文案）
                 if (loaded) {
                     val json = buildMessagesJson(currentMessages)
                     val sel = selectionJson()
-                    val key = json + "|" + sel
+                    val labels = thinkLabelsJson()
+                    val key = json + "|" + sel + "|" + labels
                     if (key != lastJson) {
                         lastJson = key
-                        v.evaluateJavascript("renderMessages($json, $sel);", null)
+                        v.evaluateJavascript("renderMessages($json, $sel, $labels);", null)
                     }
                 }
             },
