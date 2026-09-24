@@ -251,6 +251,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+    /** 推理模型的思考流（浅灰小字展示；非推理模型为 null） */
+    var thinkingText by mutableStateOf<String?>(null)
+        private set
+    /** 思考是否已结束（结束后不再自动跟随、并触发跳转到答案开头） */
+    var thinkingDone by mutableStateOf(false)
+        private set
     /** 正在做兜底分类请求（C）：防止重复发起 */
     private var classifying = false
 
@@ -695,9 +701,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             var lastEmit = 0L
             var keepPartial = false
             streamingText = prefix
+            // 思考流（推理模型才有）：每次新请求都清空
+            thinkingText = null
+            thinkingDone = false
+            val thinkSb = StringBuilder()
+            var lastThinkEmit = 0L
             try {
                 val reply = withContext(Dispatchers.IO) {
-                    StudyAssistant.chatStream(model, messages) { delta ->
+                    StudyAssistant.chatStream(model, messages, onDelta = { delta ->
                         sb.append(delta)
                         // 节流：最多 ~180ms 刷一次界面，避免 WebView 被逐字重渲染拖垮
                         val now = System.currentTimeMillis()
@@ -706,8 +717,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             val snapshot = prefix + sb.toString()
                             withContext(Dispatchers.Main) { streamingText = snapshot }
                         }
-                    }
+                    }, onReasoning = { r ->
+                        thinkSb.append(r)
+                        val now = System.currentTimeMillis()
+                        if (now - lastThinkEmit >= 120) {
+                            lastThinkEmit = now
+                            val snap = thinkSb.toString()
+                            withContext(Dispatchers.Main) { thinkingText = snap }
+                        }
+                    })
                 }
+                thinkingDone = true
                 recordUsage(app)
                 onDone(prefix + reply)
                 // ★ 分类兜底（C）：正文里没给出「分类：/知识点：」时，解答完成即后台补一次，
@@ -1360,7 +1380,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 if (mySeq == similarSeq) {
-                    recordUsage(app)
+                    thinkingDone = true
+                recordUsage(app)
                     similarQuestion = r.question
                     similarAnswer = r.answer
                     similarStreamingText = null
@@ -1442,7 +1463,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 else msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
                 val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
                 val reply = withContext(Dispatchers.IO) {
-                    StudyAssistant.chatStream(model, msgs) { delta ->
+                    StudyAssistant.chatStream(model, msgs, onDelta = { delta ->
                         sb.append(delta)
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -1452,10 +1473,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 if (mySeq == similarSeq) similarStreamingText = snapshot
                             }
                         }
-                    }
+                    })
                 }
                 if (mySeq == similarSeq) {
-                    recordUsage(app)
+                    thinkingDone = true
+                recordUsage(app)
                     similarStreamingText = null
                     similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
                 }
@@ -1656,6 +1678,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 //             com.zsz.studyassistant.data.AnswerForegroundService.start(app)
 //             try {
 //                 gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes, aiLang)
+//                 thinkingDone = true
 //                 recordUsage(app)
 //             } catch (e: Exception) {
 //                 gradeResult = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.gradeFailed", "msg" to (e.message ?: ""))

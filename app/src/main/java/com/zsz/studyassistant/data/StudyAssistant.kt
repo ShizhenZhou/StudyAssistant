@@ -30,7 +30,7 @@ object StudyAssistant {
     // V4.1-Flash：原生多模态，文字/图片通用。
     // （旧 deepseek-v4-flash-vision-exp 已退役、deepseek-v4-pro 于 2026/09/14 起被路由到 V4.1-Flash）
     const val MODEL_VISION = "deepseek-flash"
-    const val MODEL_TEXT = "deepseek-flash"
+    const val MODEL_TEXT = "deepseek-reasoner"   // 推理模型：纯文字问答会返回 reasoning_content（思考流）
 
     fun requireKey() {
         if (KeyManager.getApiKey().isBlank()) {
@@ -140,7 +140,7 @@ object StudyAssistant {
                     DeepSeekRequest(
                         model = if (images.isNotEmpty()) MODEL_VISION else MODEL_TEXT,
                         messages = listOf(DeepSeekMessage("system", JsonPrimitive("")), msg).drop(1),
-                        maxTokens = 1024,
+                        maxTokens = 2048,
                         temperature = 0.0
                     )
                 )
@@ -242,7 +242,9 @@ object StudyAssistant {
     suspend fun chatStream(
         model: String,
         messages: List<DeepSeekMessage>,
-        onDelta: suspend (String) -> Unit
+        onDelta: suspend (String) -> Unit,
+        /** 推理模型（deepseek-reasoner 等）的思考增量回调；不支持思考的模型不会触发 */
+        onReasoning: (suspend (String) -> Unit)? = null
     ): String {
         requireKey()
         val body = ApiClient.deepSeekStream.chatStream(
@@ -269,7 +271,10 @@ object StudyAssistant {
                     if (payload == "[DONE]") break
                     val chunk = runCatching { streamJson.decodeFromString<StreamChunk>(payload) }.getOrNull() ?: continue
                     chunk.usage?.let { usage = it }
-                    val delta = chunk.choices.firstOrNull()?.delta?.content
+                    val d = chunk.choices.firstOrNull()?.delta
+                    // ★ 推理模型的"思考流"：单独回调，且**不并入**正文（避免污染答案与解析）
+                    d?.reasoningContent?.takeIf { it.isNotEmpty() }?.let { r -> onReasoning?.invoke(r) }
+                    val delta = d?.content
                     if (!delta.isNullOrEmpty()) {
                         sb.append(delta)
                         onDelta(delta)

@@ -50,5 +50,9 @@ data class StreamChunk(
 data class StreamChoice(val delta: StreamDelta? = null)
 
 @Serializable
-data class StreamDelta(val content: String? = null)
+data class StreamDelta(
+    val content: String? = null,
+    /** 推理模型（如 deepseek-reasoner）的思考增量；非推理模型不会返回该字段 */
+    @SerialName("reasoning_content") val reasoningContent: String? = null
+)
 
