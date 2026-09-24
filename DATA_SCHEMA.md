@@ -104,9 +104,15 @@ data class ChatItem(
     val id: Long,
     val role: String,        // "user" | "assistant" | "question"
     val content: String,
-    val images: List<String>? = null   // base64 编码的追问附图（1~3 张）
+    val images: List<String>? = null,  // base64 编码的追问附图（1~3 张）
+    val thinking: String? = null       // v0.6.0 新增：该轮 AI 的思考过程（思考流）；旧 JSON 无此键 → null
 )
 ```
+
+> **v0.6.0 变更（思考流）**：`ChatItem` 新增可空字段 `thinking`（默认 `null`）。
+> **不涉及 Room 表结构**（仍存在 `questions.conversationJson` 这个 TEXT 列里），
+> 因此**数据库版本保持 v7、无需 Migration**；旧会话 JSON 缺少该键 → 反序列化为 `null`（`ignoreUnknownKeys=true`），
+> 旧数据读取与显示不受影响；新备份在旧版本上读取时该键会被忽略。
 
 - 代码位置：`app/src/main/java/com/zsz/studyassistant/MainViewModel.kt`（`ChatItem`）。
 - 构建给模型的对话历史见 `MainViewModel.buildMessages()`。
