@@ -16,8 +16,18 @@ data class DeepSeekRequest(
     /** true = 流式（SSE，逐块返回）；仅解题/追问链路使用 */
     val stream: Boolean = false,
     /** 流式时让服务端在最后一片里带上 token 用量，保证「API 管理」的统计不断档 */
-    @SerialName("stream_options") val streamOptions: StreamOptions? = null
+    @SerialName("stream_options") val streamOptions: StreamOptions? = null,
+    /**
+     * 思考模式开关（官方 OpenAI 格式：{"thinking":{"type":"enabled"|"disabled"}}）。
+     * null = 不传该字段，用服务端默认（默认就是 enabled、effort=high）。
+     */
+    val thinking: ThinkingOption? = null,
+    /** 思考强度：low / high / max（仅思考模式有效） */
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null
 )
+
+@Serializable
+data class ThinkingOption(val type: String = "enabled")
 
 @Serializable
 data class StreamOptions(@SerialName("include_usage") val includeUsage: Boolean = true)

@@ -295,9 +295,13 @@ private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
 
 private fun buildMessagesJson(messages: List<ChatMsg>): String =
     messages.joinToString(",", "[", "]") { m ->
-        val c = m.content
+        fun esc(s: String) = s
             .replace("\\", "\\\\").replace("\"", "\\\"")
             .replace("\n", "\\n").replace("\r", "\\r")
+        val c = esc(m.content)
         val imgs = m.images.joinToString(",", "[", "]") { b -> "\"$b\"" }
-        "{\"role\":\"${m.role}\",\"content\":\"$c\",\"images\":$imgs}"
+        // ★ 思考流字段必须一起输出：这里是手拼 JSON，漏了前端就完全拿不到（曾导致"思考不显示"）
+        val th = m.thinking?.let { "\"${esc(it)}\"" } ?: "null"
+        "{\"role\":\"${m.role}\",\"content\":\"$c\",\"images\":$imgs," +
+            "\"thinking\":$th,\"thinkingOpen\":${m.thinkingOpen}}"
     }

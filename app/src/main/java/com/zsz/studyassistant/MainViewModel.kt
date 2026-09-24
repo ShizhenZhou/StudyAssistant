@@ -708,21 +708,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             var lastThinkEmit = 0L
             try {
                 val reply = withContext(Dispatchers.IO) {
+                    val thinkOn = com.zsz.studyassistant.data.CapturePrefs.solveModel(app) != "flash"
                     StudyAssistant.chatStream(model, messages, onDelta = { delta ->
                         sb.append(delta)
                         // ★ 路线 A 分流：<思考>…</思考> 进思考流，其余进正文
+                        // 先把各种可能的写法统一成 <思考>…</思考>：
+                        //   全角〈思考〉、HTML 转义 &lt;思考&gt;、<thinking>、DeepSeek 有时写 "思考："
                         val full = sb.toString()
+                            .replace("〈思考〉", "<思考>").replace("〈/思考〉", "</思考>")
+                            .replace("&lt;思考&gt;", "<思考>").replace("&lt;/思考&gt;", "</思考>")
+                            .replace("<thinking>", "<思考>").replace("</thinking>", "</思考>")
+                            .replace("【思考】", "<思考>").replace("【/思考】", "</思考>")
                         val ts = full.indexOf("<思考>")
                         val te = full.indexOf("</思考>")
                         var bodyText = full
-                        if (ts >= 0) {
-                            val think = if (te > ts) full.substring(ts + 4, te) else full.substring(ts + 4)
+                        // 兜底②：模型没写标记但用了"思考：…解答："这类纯文本写法时，也能分流
+                        var ts2 = ts
+                        var te2 = te
+                        if (ts2 < 0) {
+                            val m = Regex("(?:^|\\n)\\s*(?:思考|分析|思路)[:：]").find(full)
+                            val mEnd = Regex("\\n\\s*(?:解答|答案|题目)[:：]").find(full)
+                            if (m != null && mEnd != null && mEnd.range.first > m.range.last) {
+                                ts2 = m.range.first; te2 = mEnd.range.first
+                                val think = full.substring(m.range.last + 1, te2)
+                                val nowT = System.currentTimeMillis()
+                                if (nowT - lastThinkEmit >= 120) {
+                                    lastThinkEmit = nowT
+                                    withContext(Dispatchers.Main) { thinkingText = think.trim() }
+                                }
+                            }
+                        }
+                        if (ts2 >= 0) {
+                            val think = if (te2 > ts2) full.substring(ts2 + 4, te2) else full.substring(ts2 + 4)
                             val nowT = System.currentTimeMillis()
                             if (nowT - lastThinkEmit >= 120) {
                                 lastThinkEmit = nowT
                                 withContext(Dispatchers.Main) { thinkingText = think }
                             }
-                            bodyText = if (te > ts) full.substring(te + 5) else ""
+                            bodyText = if (te2 > ts2) full.substring(te2 + 5) else ""
                         }
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -730,7 +753,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             val snapshot = prefix + bodyText
                             withContext(Dispatchers.Main) { streamingText = snapshot }
                         }
-                    }, onReasoning = { r ->
+                    }, thinkingEnabled = thinkOn, onReasoning = { r ->
                         thinkSb.append(r)
                         val now = System.currentTimeMillis()
                         if (now - lastThinkEmit >= 120) {
@@ -742,6 +765,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 thinkingDone = true
                 recordUsage(app)
+                // ★ 把本轮思考挂到最后一条助手消息上（随会话 JSON 持久化；否则流式结束后气泡重建就丢了）
+                thinkingText?.takeIf { it.isNotBlank() }?.let { th ->
+                    val idx = chatItems.indexOfLast { it.role == "assistant" }
+                    if (idx >= 0) {
+                        val list = chatItems.toMutableList()
+                        list[idx] = list[idx].copy(thinking = th)
+                        chatItems = list
+                    }
+                }
                 onDone(prefix + reply.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim())
                 // ★ 分类兜底（C）：正文里没给出「分类：/知识点：」时，解答完成即后台补一次，
                 //   这样等用户去点「存错题本」时建议已经就绪（不必在对话框里干等）
@@ -1395,6 +1427,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (mySeq == similarSeq) {
                     thinkingDone = true
                 recordUsage(app)
+                // ★ 把本轮思考挂到最后一条助手消息上（随会话 JSON 持久化；否则流式结束后气泡重建就丢了）
+                thinkingText?.takeIf { it.isNotBlank() }?.let { th ->
+                    val idx = chatItems.indexOfLast { it.role == "assistant" }
+                    if (idx >= 0) {
+                        val list = chatItems.toMutableList()
+                        list[idx] = list[idx].copy(thinking = th)
+                        chatItems = list
+                    }
+                }
                     similarQuestion = r.question
                     similarAnswer = r.answer
                     similarStreamingText = null
@@ -1491,6 +1532,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (mySeq == similarSeq) {
                     thinkingDone = true
                 recordUsage(app)
+                // ★ 把本轮思考挂到最后一条助手消息上（随会话 JSON 持久化；否则流式结束后气泡重建就丢了）
+                thinkingText?.takeIf { it.isNotBlank() }?.let { th ->
+                    val idx = chatItems.indexOfLast { it.role == "assistant" }
+                    if (idx >= 0) {
+                        val list = chatItems.toMutableList()
+                        list[idx] = list[idx].copy(thinking = th)
+                        chatItems = list
+                    }
+                }
                     similarStreamingText = null
                     similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
                 }
@@ -1693,6 +1743,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 //                 gradeResult = StudyAssistant.gradeWithImages(questionBytes, answerBytes, aiLang)
 //                 thinkingDone = true
 //                 recordUsage(app)
+//                thinkingText?.takeIf { it.isNotBlank() }?.let { th ->
+//                    val idx = chatItems.indexOfLast { it.role == "assistant" }
+//                    if (idx >= 0) {
+//                        val list = chatItems.toMutableList()
+//                        list[idx] = list[idx].copy(thinking = th)
+//                        chatItems = list
+//                    }
+//                }
 //             } catch (e: Exception) {
 //                 gradeResult = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.gradeFailed", "msg" to (e.message ?: ""))
 //             } finally {

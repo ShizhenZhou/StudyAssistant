@@ -30,7 +30,7 @@ object StudyAssistant {
     // V4.1-Flash：原生多模态，文字/图片通用。
     // （旧 deepseek-v4-flash-vision-exp 已退役、deepseek-v4-pro 于 2026/09/14 起被路由到 V4.1-Flash）
     const val MODEL_VISION = "deepseek-flash"
-    const val MODEL_TEXT = "deepseek-reasoner"   // 推理模型：纯文字问答会返回 reasoning_content（思考流）
+    const val MODEL_TEXT = "deepseek-flash"   // 官方仅 flash / v4-pro；flash 默认开启思考模式并支持图像
 
     fun requireKey() {
         if (KeyManager.getApiKey().isBlank()) {
@@ -85,7 +85,7 @@ object StudyAssistant {
         return DeepSeekMessage(
             "user",
             JsonPrimitive(
-                "【重要】先用一行 <思考>…</思考> 写出你的分析思路（30~150字，不要放最终答案），再按下面的格式正式回答。\n" +
+                
                 "请解答下面这道理工科题目并给出详细分步解答。请**严格按固定格式**输出，每项单独一行：\n" +
                     "① 题目：$text（照抄即可）；② 分类：<所属科目>；③ 知识点：<知识点1、知识点2、知识点3>；④ 解答：<详细步骤与结论>（顺序固定）\n" +
                     "先输出一行“解答：<详细步骤与结论>”，再另起一行输出“分类：<所属科目>”。" +
@@ -142,6 +142,7 @@ object StudyAssistant {
                         model = if (images.isNotEmpty()) MODEL_VISION else MODEL_TEXT,
                         messages = listOf(DeepSeekMessage("system", JsonPrimitive("")), msg).drop(1),
                         maxTokens = 2048,
+                        thinking = ThinkingOption("disabled"),   // 分类是简单判定，别花思考 token
                         temperature = 0.0
                     )
                 )
@@ -244,8 +245,10 @@ object StudyAssistant {
         model: String,
         messages: List<DeepSeekMessage>,
         onDelta: suspend (String) -> Unit,
-        /** 推理模型（deepseek-reasoner 等）的思考增量回调；不支持思考的模型不会触发 */
-        onReasoning: (suspend (String) -> Unit)? = null
+        /** 思考模式增量回调（官方 reasoning_content；思考模式关闭时不会触发） */
+        onReasoning: (suspend (String) -> Unit)? = null,
+        /** 是否开启思考模式（设置 → AI 配置 → 解题模型） */
+        thinkingEnabled: Boolean = true
     ): String {
         requireKey()
         val body = ApiClient.deepSeekStream.chatStream(
@@ -254,10 +257,13 @@ object StudyAssistant {
                 messages = messages,
                 maxTokens = 4096,
                 stream = true,
-                streamOptions = StreamOptions(includeUsage = true)
+                streamOptions = StreamOptions(includeUsage = true),
+                // 思考模式：仅"关闭"时显式传 disabled（开启用服务端默认，避免多传字段被拒 422）
+                thinking = if (!thinkingEnabled) ThinkingOption("disabled") else null
             )
         )
         val sb = StringBuilder()
+        var rawLogged = 0
         var usage: DeepSeekUsage? = null
         activeStreamBody = body
         try {
@@ -270,6 +276,7 @@ object StudyAssistant {
                     if (line.isEmpty() || !line.startsWith("data:")) continue
                     val payload = line.substring(5).trim()
                     if (payload == "[DONE]") break
+                    runCatching { if (rawLogged < 6) { rawLogged++; android.util.Log.d("dsh-raw", payload) } }
                     val chunk = runCatching { streamJson.decodeFromString<StreamChunk>(payload) }.getOrNull() ?: continue
                     chunk.usage?.let { usage = it }
                     val d = chunk.choices.firstOrNull()?.delta
