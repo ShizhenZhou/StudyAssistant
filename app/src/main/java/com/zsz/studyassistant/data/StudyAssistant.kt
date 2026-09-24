@@ -44,14 +44,15 @@ object StudyAssistant {
     fun solvePrompt(categories: List<String>, tags: List<String>): String {
         val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
         val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
-        return "请识别图片中的理工科题目并给出详细分步解答。请**严格按固定格式**输出，每项单独一行：" +
-            "① 题目：<忠实转写的题干：逐字照录、不改写不省略；所有公式用 LaTeX（行内 $...$、独立成行 $$...$$），上下标/分式/积分/矩阵/希腊字母必须正确>；② 分类：<所属科目>；③ 知识点：<知识点1、知识点2、知识点3>；④ 解答：<详细步骤与结论>。" +
-            "（顺序固定：先写①②③三行，再写④的正文）" +
-            "解答最后另起一行输出“分类：<所属科目>”。" +
-            "已知分类：$catHint。若题目属于其中某一个，请直接用该分类名作为“分类”，不要新造；" +
+        return "请识别图片中的理工科题目并给出详细分步解答。请**严格按固定格式**输出，" +
+            "四项各自独立成行、**每行开头都必须带对应序号**，不要省略序号、不要把多项合并到一行、也不要重复输出同一项：\n" +
+            "① 题目：<忠实转写的题干：逐字照录、不改写不省略；所有公式用 LaTeX（行内 $...$、独立成行 $$...$$），上下标/分式/积分/矩阵/希腊字母必须正确>\n" +
+            "② 分类：<所属科目>\n" +
+            "③ 知识点：<知识点1、知识点2、知识点3>\n" +
+            "④ 解答：<详细步骤与结论，可以多行>\n" +
+            "已知分类：$catHint。若题目属于其中某一个，请直接用该分类名作为「② 分类」，不要新造；" +
             "若都不符合，才给出一个新的简短科目名。" +
-            "再在“分类”之后另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。" +
-            "已知知识点标签：$tagHint。若题目涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签。" +
+            "已知知识点标签：$tagHint。若题目涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签（最多 5 个、用中文顿号分隔）。" +
             "数学公式请用 LaTeX 书写。"
     }
 
@@ -86,11 +87,14 @@ object StudyAssistant {
             "user",
             JsonPrimitive(
                 
-                "请解答下面这道理工科题目并给出详细分步解答。请**严格按固定格式**输出，每项单独一行：\n" +
-                    "① 题目：$text（照抄即可）；② 分类：<所属科目>；③ 知识点：<知识点1、知识点2、知识点3>；④ 解答：<详细步骤与结论>（顺序固定）\n" +
-                    "先输出一行“解答：<详细步骤与结论>”，再另起一行输出“分类：<所属科目>”。" +
-                    "已知分类：$catHint。若属于其中某一个，请直接用该分类名，不要新造；都不符合才给出新的简短科目名。" +
-                    "再另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。已知知识点标签：$tagHint。" +
+                "请解答下面这道理工科题目并给出详细分步解答。请**严格按固定格式**输出，" +
+                    "四项各自独立成行、**每行开头都必须带对应序号**，不要省略序号、不要把多项合并到一行、也不要重复输出同一项：\n" +
+                    "① 题目：$text\n" +
+                    "② 分类：<所属科目>\n" +
+                    "③ 知识点：<知识点1、知识点2、知识点3>\n" +
+                    "④ 解答：<详细步骤与结论，可以多行>\n" +
+                    "已知分类：$catHint。若属于其中某一个，请直接用该分类名作为「② 分类」，不要新造；都不符合才给出新的简短科目名。" +
+                    "已知知识点标签：$tagHint。若涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签（最多 5 个、用中文顿号分隔）。" +
                     "数学公式请用 LaTeX 书写。"
             )
         )
@@ -296,18 +300,40 @@ object StudyAssistant {
         return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }
     }
 
-    /** 批改提示词（流式/非流式共用） */
-    private fun gradePrompt(answerBytes: ByteArray?, lang: AiLang, catHint: String = "（无）", tagHint: String = "无"): String =
-        (if (answerBytes != null)
+    /**
+     * 批改提示词（流式/非流式共用）。
+     * ⚠️ 与拍题统一成**同一套「序号 + 标签」格式**，原因（2026-09-25 踩坑）：
+     *   旧文案写「请批改：①判断作答是否正确；②若不正确…；③给出正确的解题过程…」——
+     *   这里的 ①②③ 是**给模型的指令编号**，模型会把它当成**段落标签照抄进答案**，
+     *   于是答案里出现「① …② …③ …」这种莫名其妙的序号（与拍题里"④ 泄漏"同一类问题）；
+     *   而且批改没有「解答：」标记 → `parseVisionOutput` 取不到正文，只能整段返回，清洗也不一致。
+     *   现在统一：① 分类 / ② 知识点 / ③ 解答（正文里再写「结论：」「讲解：」），
+     *   指令本身不再编号，避免被照抄。
+     */
+    private fun gradePrompt(answerBytes: ByteArray?, lang: AiLang, catHint: String = "（无）", tagHint: String = "无"): String {
+        // 带手写作答（真批改）：不要求回显题干，直接 ① 分类 / ② 知识点 / ③ 解答
+        val fmtWithAnswer =
+            "① 分类：<所属科目>\n" +
+            "② 知识点：<知识点1、知识点2、知识点3>\n" +
+            "③ 解答：先写一行「结论：<正确/错误，错在哪一步>」，再写「讲解：<正确解法与针对性讲解，可多行>」"
+        // 只拍了题目（无作答）：与拍题一致，含 ① 题目
+        val fmtNoAnswer =
+            "① 题目：<忠实转写的题干>\n" +
+            "② 分类：<所属科目>\n" +
+            "③ 知识点：<知识点1、知识点2、知识点3>\n" +
+            "④ 解答：<详细步骤与结论，可多行>"
+        return (if (answerBytes != null)
             "你是一名批改老师。图片中是{题目}和{学生的手写作答}。" +
-                "请批改：①判断作答是否正确；②若不正确，指出错在哪一步、为什么错；" +
-                "③给出正确的解题过程，并针对错误点做针对性讲解。用 LaTeX 写公式，先输出「结论：」再输出「讲解：」。"
+                "请判断作答是否正确；若不正确，指出错在哪一步、为什么错；并给出正确的解题过程与针对性讲解。用 LaTeX 写公式。"
         else
             "请识别图片中的题目，并给出完整、分步的解答过程，用 LaTeX 写公式。") +
-            // 补上分类/知识点：错题本保存时要自动预选科目与标签（批改页同样需要）
-            "\n解答最后另起一行输出“分类：<所属科目>”。已知分类：$catHint。属于其中某一类就直接用该名称，不要新造。" +
-            "\n再另起一行输出“知识点：<核心知识点1、知识点2、知识点3>”，最多 5 个、用中文顿号分隔。可用标签：$tagHint。" +
-            "\n" + languageInstruction(lang)
+            "\n请**严格按固定格式**输出，各项独立成行、**每行开头都必须带对应序号**，" +
+            "不要省略序号、不要把多项合并到一行、也不要重复输出同一项：\n" +
+            (if (answerBytes != null) fmtWithAnswer else fmtNoAnswer) + "\n" +
+            "已知分类：$catHint。属于其中某一类就直接用该名称，不要新造；都不符合才给一个新的简短科目名。\n" +
+            "已知知识点标签：$tagHint。若涉及其中某个就直接用该标签名，不要新造；最多 5 个、用中文顿号分隔。\n" +
+            languageInstruction(lang)
+    }
 
     /**
      * 批改的 user 消息（文字提示 + 题目图 + 可选作答图）。
@@ -354,6 +380,70 @@ object StudyAssistant {
             ?: throw IllegalStateException("批改返回为空")
     }
 
+    /** 行首的序号 / 项目符号前缀（模型常写成「① 题目：…」「2. 分类：…」「- 知识点：…」） */
+    private const val META_LEAD = "[\\s\\u2460-\\u2473\\d.、,，)）\\-*•·]*"
+    /**
+     * 元信息「标签 + 冒号」本体，容忍「核心知识点/难点」这类带修饰语、用 / 、 并列的写法。
+     */
+    private const val META_LABELS =
+        "(?:核心|主要|本题|考察|考查)?\\s*" +
+        "(?:题目|分类|科目|类别|分类名|所属科目|知识点|考点|标签|难点)" +
+        "(?:[/／、和及](?:知识点|考点|标签|难点))*\\s*[:：]"
+
+    /**
+     * 元信息行：题目/分类/知识点…（模型偶尔把题干整行抄回答案里）。
+     * ⚠️ 必须容忍**序号前缀**：提示词要求写「① 题目：…② 分类：…」，但模型经常只给第一项加序号
+     * （`① 题目：…`）、其余不加 —— 只认"行首即标签"会让带序号的题干行逃过剔除
+     * （用户 2026-09-25 截图实测：答案区开头又出现「① 题目：介绍一下高斯公式…」）。
+     */
+    private val META_LINE = Regex("^$META_LEAD$META_LABELS")
+
+    /** 只匹配"开头那一个"标签（用于模型把题干与解答写在同一行/同一段时，去掉标签但保住正文） */
+    private val META_PREFIX = Regex("^$META_LEAD$META_LABELS\\s*")
+
+    /** 圈码①-⑳ 出现在行首 */
+    private val CIRC_HEAD = Regex("^\\s*([\\u2460-\\u2473])")
+    /** 圈码后面紧跟数字分点（如 `④ 1. 条件：…`）→ 那个圈码一定是泄漏的节标签 */
+    private val CIRC_THEN_NUM = Regex("^\\s*[\\u2460-\\u2473]\\s*(?=\\d+\\s*[.、)）])")
+
+    /**
+     * 去掉模型把**节序号泄漏到每一行**的写法（用户 2026-09-25 截图反馈的「莫名其妙的④」）。
+     * 例：提示词用「④ 解答：…」，模型却写成
+     *   `④ 1. 条件：…` / `④ 2. 坐标形式：…` / `④ 3. 向量形式：…`
+     * —— 每行开头的 ④ 是「节标签」而不是内容（真正的分点是它自己写的 1./2./3.）。
+     * 判据（保守，避免误删模型自己的分点）：
+     *   ① **同一个圈码在 ≥2 行行首重复出现** → 判为泄漏，整篇剔掉；
+     *   ② 圈码后面紧跟数字分点（`④ 1.`）→ 只剔那一个。
+     * 只在某一行出现过一次的圈码**不动**（可能是模型自己有意义的分点编号）。
+     */
+    private fun stripLeakedSectionMarks(text: String): String {
+        if (text.isBlank()) return text
+        val lines = text.lines()
+        val counts = HashMap<String, Int>()
+        for (l in lines) {
+            CIRC_HEAD.find(l)?.groupValues?.get(1)?.let { counts[it] = (counts[it] ?: 0) + 1 }
+        }
+        val leaked = counts.filterValues { it >= 2 }.keys
+        return lines.joinToString("\n") { l ->
+            val m = CIRC_HEAD.find(l)
+            val isLeaked = m != null && m.groupValues[1] in leaked
+            if (isLeaked || CIRC_THEN_NUM.containsMatchIn(l)) CIRC_HEAD.replaceFirst(l, "").trimStart() else l
+        }
+    }
+
+    /**
+     * 清洗回答里**回显的元信息行**（"答案里又出现题目"的根因）与**泄漏的节序号**。
+     * 只按行首标记剔整行 / 剔行首圈码，不做 `.*$` 式截断，因此对追问/口语化回答也安全。
+     */
+    fun stripMetaLines(output: String): String {
+        val kept = output.replace(Regex("<思考>[\\s\\S]*?</思考>"), "")
+            .lines()
+            .filterNot { META_LINE.containsMatchIn(it) }
+            .joinToString("\n")
+            .trim()
+        return stripLeakedSectionMarks(kept)
+    }
+
     /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
     fun parseVisionOutput(output: String): SolveResult {
         // 路线 A：若正文里混进了 <思考> 块，先剥掉（避免污染题目/解答）
@@ -368,9 +458,21 @@ object StudyAssistant {
             ?.filter { it.isNotBlank() }
             ?.take(5)
             ?: emptyList()
-        // 解答：取"解答："之后，去掉末尾的"分类：/知识点："整块
+        // 解答：取"解答："之后
         var answer = Regex("解答[:：]([\\s\\S]+)").find(output)?.groupValues?.get(1)?.trim() ?: output
-        answer = answer.replace(Regex("\\n*\\s*(?:分类|科目|类别|分类名|所属科目|知识点|考点|标签)[:：].*$", RegexOption.DOT_MATCHES_ALL), "").trim()
+        // 🚨 这里原本还有一条 `\\n*\\s*(?:分类|科目|…|知识点|考点|标签)[:：].*$`（DOT_MATCHES_ALL）的
+        //    "砍掉末尾元信息整块"，**已删除**，它是「答案生成完就消失」和「答案里又出现题目」的共同根因：
+        //    · 模型**没写「解答：」**时（很常见），上面一行会让 answer = 整段回复（含开头的"题目：/分类：/知识点："），
+        //      于是那条正则从"分类："一路 DOT_MATCHES_ALL 砍到文末 → **把真正的解答整段删掉** → 气泡变空 =
+        //      用户看到的"正式答案莫名其妙消失"；
+        //    · 反之若没被砍空，回显的"题目：…"就会留在答案里 = 之前的"答案里又出现题目"。
+        //    现在统一改成**按行**剔元信息（stripMetaLines），只删那些标签行本身，绝不截断正文。
+        answer = stripMetaLines(answer)
+        // 兜底①：整段都被当成元信息行剔掉了（模型把题干与解答写在同一行/同一段）→
+        //   只去掉开头那一个「① 题目：」标签，**保住正文**（用户截图里的高斯公式那题就是这种写法）
+        if (answer.isBlank()) answer = output.trim().replace(META_PREFIX, "").trim()
+        // 兜底②：万一连正文都取不到，退回原始输出，绝不显示空气泡
+        if (answer.isBlank()) answer = output.trim()
         return SolveResult(
             question = question?.takeIf { it.isNotBlank() } ?: output.take(80),
             answer = answer,

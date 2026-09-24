@@ -35,9 +35,16 @@
   details.origimg{margin-top:6px}
   details.origimg>summary{cursor:pointer;font-size:13px;opacity:.75;padding:2px 0;list-style:none}
   details.origimg .msgimg{margin-top:4px}
-  details.think{margin-bottom:6px}
-  details.think>summary{cursor:pointer;font-size:12px;color:#8f8f8f;list-style:none;opacity:.9}
+  /* 思考块改用普通 div（不再用 <details>）：流式期间气泡每 ~180ms 被重建，
+     <details> 的原生折叠既依赖"按下/抬起落在同一节点"、又依赖 ontoggle 落库，
+     两者在重建中都不可靠 → 改为 JS 自管展开态 + document 级事件委托 */
+  .think{margin-bottom:6px}
+  .thinkhead{cursor:pointer;font-size:12px;color:#8f8f8f;opacity:.9;padding:3px 0;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   .thinkbody{font-size:12px;line-height:1.5;color:#9a9a9a;white-space:pre-wrap;border-left:2px solid #cfcfcf;padding:4px 0 4px 8px;margin-top:4px}
+  /* 思考块底端的蓝色「折叠思考区」：思考很长时不必再滚回顶部去收起（蓝色与「继续生成」一致） */
+  .thinkfold{color:#2196F3;font-size:12px;font-weight:600;padding:6px 0 2px 8px;cursor:pointer;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 </style>
 </head>
 <body><div id="out"></div>
@@ -97,13 +104,17 @@ function openImg(el){
 // touching ：用触摸事件判断「是用户在滚」，避免把程序滚动误判成用户滚动
 var following = false;   // 打开会话时**默认停在顶部**、不自动跟随；提问后才开始跟随
 var touching = false;
+// ★ 用户**显式**按过「↓ 到底部」→ 他要一直跟到底部；
+//   此时思考结束的"自动跳到思考结尾/答案开头"必须让路，否则跟随被抢走、
+//   而且视图会被拉回思考块边界（思考块很长时 = 大跨度上跳），观感就是"正式答案莫名其妙消失"。
+var userForcedFollow = false;
 var lastMax = 0, lastTs = 0, growthV = 0;   // growthV：内容增长速度（px/s，EMA 平滑）
 
 function bottomY(){ return Math.max(0, document.body.scrollHeight - window.innerHeight); }
 var scrollTopAnim = null;
 /** 供原生「↑ 回到顶部」按钮调用：快速向上滚动（缓出动画，约 0.25~0.6s），并暂停跟随 */
 window.dshScrollToTop = function(){
-  following = false; touching = false;
+  following = false; touching = false; userForcedFollow = false;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
   var startY = window.scrollY || 0;
   if(startY <= 0) return;
@@ -121,6 +132,7 @@ window.dshScrollToTop = function(){
 /** 供原生「↓ 到底部」按钮调用：快速向下滚动（同样的缓出节奏） */
 window.dshScrollToBottom = function(){
   following = true;
+  userForcedFollow = true;   // 显式要求跟随：思考结束的自动跳转要给这条让路（见 renderMessages）
   var max = bottomY(), startY = window.scrollY || 0;
   if(max - startY <= 1) return;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
@@ -140,7 +152,7 @@ var lastAtTop = null;
 var lastScrollable = null;   // 是否可滚动（内容超过一屏）
 /** 立刻回到顶部（换题/换会话时用，不做动画） */
 window.dshScrollReset = function(){
-  following = false; touching = false;
+  following = false; touching = false; userForcedFollow = false;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
   try{ window.scrollTo(0, 0); }catch(e){}
   lastAtTop = null;   // 下一帧重新上报，保证按钮状态正确
@@ -148,7 +160,7 @@ window.dshScrollReset = function(){
 };
 /** 只关闭「自动跟随」，不改变滚动位置（例如展开答案时希望画面保持不动） */
 window.dshNoFollow = function(){
-  following = false; touching = false;
+  following = false; touching = false; userForcedFollow = false;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
 };
 function reportPos(){
@@ -215,6 +227,8 @@ document.addEventListener('touchend', function(){
   setTimeout(function(){
     touching = false;
     following = (window.scrollY + window.innerHeight) >= (document.body.scrollHeight - 48);
+    // 用户自己滑离了底部 → 撤销"显式跟随"（下次思考结束的自动跳转又可以生效）
+    if(!following) userForcedFollow = false;
   }, 250);
 }, {passive:true});
 
@@ -222,10 +236,22 @@ document.addEventListener('touchend', function(){
 // （此前每次刷新都 innerHTML 重置整段对话 → 所有公式重新 KaTeX 渲染，长答案会明显卡顿）
 var renderedKeys = [];
 var renderedSelKey = '';
+// ★ 此前 lastCount 从未声明/赋值 → 读到未声明变量直接抛 ReferenceError，
+//   导致 renderMessages 末尾的「恢复跟随」与 onHeightChange 全成了死代码（自动跟随一直失效）
+var lastCount = 0;
+var pendingJumpIdx = null;   // 思考刚结束：待跳转到「思考结尾 / 答案开头」的气泡下标
+window.thinkUserOpen = {};   // 用户手动展开过
+window.thinkUserClosed = {}; // 用户手动收起过（优先级最高，压过原生的 thinkingOpen）
+window.thinkJumped = {};     // 已执行过「思考结束跳转」的下标
+window.thinkText = {};       // 每个气泡的思考原文（收起时 body 被删掉，切回展开要靠它重填）
+window.thinkDone = {};       // 每个气泡的思考是否已结束（决定标题文案）
+window.thinkFirstKey = null; // 会话标识：换会话时清空上面的状态，避免旧下标串味
 function msgKey(m){
   var imgs = (m.images && m.images.length) ? m.images.length : 0;
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
-  return m.role + '|' + (m.content||'') + '|' + imgs + '|' + firstLen;
+  // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
+  return m.role + '|' + (m.content||'') + '|' + imgs + '|' + firstLen
+       + '|' + ((m.thinking||'').length) + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
 }
 function bubbleHtml(m, idx){
   var cls = (m.role==='assistant') ? 'assistant' : 'user';
@@ -257,12 +283,34 @@ function bubbleHtml(m, idx){
   // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
   var body = (text && text.length) ? renderMath(text) : '';
   // ★ 思考流：显示在**该气泡的顶端**（浅灰小字、可折叠）
-  //   思考中默认展开（便于跟随思路滚动）；思考结束后由原生置为收起
+  //   展开态由 JS 自管（window.thinkUserOpen / thinkUserClosed），不用 <details>：
+  //   流式重建会把节点换掉，原生折叠既可能丢 click、又可能丢 ontoggle。
   var thinkHtml = '';
   if (m.thinking && m.thinking.length && cls === 'assistant') {
-    thinkHtml = '<details class="think"' + (m.thinkingOpen ? ' open' : '') + '>'
-      + '<summary>💭 思考过程' + (m.thinkingOpen ? '（思考中…）' : '（点击展开）') + '</summary>'
-      + '<div class="thinkbody">' + esc(m.thinking) + '</div></details>';
+    // 展开态「闭锁」：流式期间原生一直传 thinkingOpen=true，一旦展开过就记住，
+    // 之后重渲染（正文到达 / 思考结束）不会再自己收起 —— 否则观感就是"正文一出思考块被吞"。
+    var tOpen = !window.thinkUserClosed[idx] && (!!window.thinkUserOpen[idx] || !!m.thinkingOpen);
+    if (tOpen) window.thinkUserOpen[idx] = 1;
+    // 标题文案的"是否仍在思考"：只有**原生正在流式的那条**才看 thinkingDone，
+    // 已保存进 chatItems 的气泡（thinkingOpen=false）一律算思考结束 → 否则生成完标题永远停在"思考中…"
+    var tLive = !!m.thinkingOpen;
+    var tDone = !!m.thinkingDone || !tLive;
+    // 供"点折叠"时无需重建整段即可切回（收起时 body 元素不存在，故把文本与完成态存在 JS 里）
+    window.thinkText[idx] = m.thinking;
+    window.thinkDone[idx] = tDone;
+    thinkHtml = '<div class="think" data-box="' + idx + '">'
+      + '<div class="thinkhead" data-think="' + idx + '">💭 思考过程' + thinkLabel(tOpen, tDone) + '</div>'
+      + (tOpen ? '<div class="thinkbody">' + esc(m.thinking) + '</div>' : '')
+      // 底端蓝色切换行：**展开与收起都在**（展开时=收起、收起时=展开），
+      // 思考很长时不用滚回顶部，收起后也不会"什么都不剩"
+      + '<div class="thinkfold" data-think="' + idx + '">' + (tOpen ? '折叠思考区' : '展开思考区') + '</div>'
+      + '</div>';
+    // 思考「刚结束」的那一帧 → 安排一次跳转（只跳一次；重新思考时解锁）
+    if (m.thinkingDone) {
+      if (!window.thinkJumped[idx]) { window.thinkJumped[idx] = 1; pendingJumpIdx = idx; }
+    } else {
+      delete window.thinkJumped[idx];
+    }
   }
   if(contLabel !== null){
     body += '<div class="continue" onclick="event.stopPropagation();continueGen()">'+esc(contLabel)+'</div>';
@@ -303,9 +351,94 @@ function imgTap(e, el, idx){
 function continueGen(){
   try{ if(window.Android && Android.continueGeneration){ Android.continueGeneration(); } }catch(e){}
 }
+// ── 思考块折叠（JS 自管 + document 级委托） ──────────────────────────────
+// 为什么不能用 <details> / 节点级 onclick：
+//   流式生成时实时气泡的 msgKey 每 ~180ms 就变 → 节点被 removeChild + insertAdjacentHTML 换掉；
+//   若"按下"和"抬起"落在不同节点上，浏览器**不会派发 click** → 表现为"点了没反应"。
+//   所以这里用 document 上的 touchstart/touchend 自己判定（不依赖节点存活），并按 idx 记账。
+function thinkLabel(open, done){
+  if(!open) return '（点击展开）';
+  return done ? '（点击折叠）' : '（思考中…）';
+}
+/** 立即把某个气泡的思考块切到 open 状态（不重建整段；收起时把正文与底端折叠行一起删掉） */
+function applyThinkOpen(idx, open){
+  var box = document.querySelector('.think[data-box="' + idx + '"]');
+  if(!box) return;                         // 当前不在屏幕上（或已被替换）→ 交给下次渲染
+  var head = box.querySelector('.thinkhead');
+  var body = box.querySelector('.thinkbody');
+  var fold = box.querySelector('.thinkfold');
+  if(open && !body){
+    body = document.createElement('div');
+    body.className = 'thinkbody';
+    body.textContent = window.thinkText[idx] || '';
+    if(fold) box.insertBefore(body, fold); else box.appendChild(body);   // fold 恒存在，插在它前面
+  } else if(!open && body){
+    box.removeChild(body);
+  }
+  // 底端蓝色行两种状态都保留，只换文案
+  if(fold) fold.textContent = open ? '折叠思考区' : '展开思考区';
+  if(head) head.innerHTML = '💭 思考过程' + thinkLabel(open, !!window.thinkDone[idx]);
+}
+/** 切换某个气泡的思考块展开态，并把用户意图记进 thinkUserOpen/thinkUserClosed */
+function toggleThink(idx){
+  if(isNaN(idx)) return;
+  var nowOpen = !!window.thinkUserOpen[idx] && !window.thinkUserClosed[idx];
+  var next = !nowOpen;
+  if(next){
+    window.thinkUserOpen[idx] = 1; delete window.thinkUserClosed[idx];
+  } else {
+    delete window.thinkUserOpen[idx]; window.thinkUserClosed[idx] = 1;
+    following = false; touching = false;   // 折叠后不要还被"跟随思路滚动"往下拉
+    if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
+  }
+  applyThinkOpen(idx, next);
+}
+var thinkTouch = null;          // 手指按下时记的候选 {idx,x,y,t}
+var thinkClickGuard = 0;        // 刚用 touchend 处理过 → 忽略随后合成的 click，避免切两次
+function thinkHeadIdx(node){
+  if(!node || !node.closest) return NaN;
+  // 顶部标题行 与 底端蓝色「折叠思考区」都可点
+  var head = node.closest('.thinkhead') || node.closest('.thinkfold');
+  if(!head) return NaN;
+  return parseInt(head.getAttribute('data-think'));
+}
+document.addEventListener('touchstart', function(e){
+  if(selectionMode){ thinkTouch = null; return; }   // 多选态：点思考块 = 选中该消息，不折叠
+  var idx = thinkHeadIdx(e.target);
+  if(isNaN(idx)){ thinkTouch = null; return; }
+  var t = (e.touches && e.touches[0]) || {};
+  thinkTouch = { idx: idx, x: t.clientX || 0, y: t.clientY || 0, t0: Date.now() };
+}, {passive:true});
+document.addEventListener('touchend', function(){
+  if(!thinkTouch) return;
+  var cand = thinkTouch; thinkTouch = null;
+  // 长按（≥400ms，长按多选的阈值是 450ms）或滑动（≥12px）不算点击
+  if(Date.now() - cand.t0 >= 400) return;
+  thinkClickGuard = Date.now() + 600;
+  toggleThink(cand.idx);
+}, {passive:true});
+document.addEventListener('touchmove', function(){ thinkTouch = null; }, {passive:true});
+// 兜底：非触摸（鼠标/触控笔）或某些 WebView 只给 click 的情况
+document.addEventListener('click', function(e){
+  if(selectionMode) return;                         // 多选态：交给 bubbleTap 选中消息
+  if(Date.now() < thinkClickGuard) return;
+  var idx = thinkHeadIdx(e.target);
+  if(isNaN(idx)) return;
+  if(e.stopPropagation) e.stopPropagation();
+  toggleThink(idx);
+}, true);
+
 function renderMessages(arr, sel){
   selInit(sel);
   var out = document.getElementById('out');
+  // 换会话（首条消息变了）→ 清空思考展开/跳转状态，避免旧下标串味
+  var firstKey = arr.length ? msgKey(arr[0]) : '';
+  if(firstKey !== window.thinkFirstKey){
+    window.thinkFirstKey = firstKey;
+    window.thinkUserOpen = {}; window.thinkUserClosed = {}; window.thinkJumped = {};
+    window.thinkText = {}; window.thinkDone = {};
+    pendingJumpIdx = null;
+  }
   // 选择态变化时必须全量重建（否则已渲染的气泡不会更新圆圈/红框）
   var selKey = (selectionMode ? '1' : '0') + ':' + Object.keys(selectedSet).sort().join(',')
              + '|' + Object.keys(lockedSet).sort().join(',');
@@ -324,6 +457,29 @@ function renderMessages(arr, sel){
   if(lastCount > 0 && arr.length > lastCount && arr.length && arr[arr.length-1].role !== 'assistant'){
     following = true;
     setTimeout(function(){ try{ window.scrollTo(0, bottomY()); }catch(e){} }, 30);
+  }
+  lastCount = arr.length;
+  // 思考刚结束 → 跳到「思考的结尾 + 正式答案的开头」（只跳一次，且不再被跟随逻辑拉回底部）
+  // ★ 例外：用户显式按过「↓ 到底部」时**不跳** —— 他要一直跟到底部看答案，
+  //   此时若把视图拉回思考块边界并置 following=false，答案就"消失"在屏幕下方了（用户反馈的真 bug）。
+  if(pendingJumpIdx !== null){
+    var jIdx = pendingJumpIdx; pendingJumpIdx = null;
+    if(!userForcedFollow) setTimeout(function(){
+      try{
+        var el = out.querySelector('.bubble[data-idx="'+jIdx+'"]');
+        if(!el) return;
+        // 思考块折叠状态下没有 .thinkbody（或高度为 0）→ 回退成"滚到气泡顶部"，
+        // 否则 getBoundingClientRect() 全 0 会把页面跳到错误位置
+        var tb = el.querySelector('.thinkbody');
+        var tbRect = tb ? tb.getBoundingClientRect() : null;
+        var y = (tbRect && tbRect.height > 0)
+              ? (tbRect.bottom + (window.scrollY || 0))
+              : (el.getBoundingClientRect().top + (window.scrollY || 0));
+        following = false; touching = false;
+        if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
+        window.scrollTo(0, Math.max(0, Math.round(y - 8)));
+      }catch(e){}
+    }, 40);
   }
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
 }

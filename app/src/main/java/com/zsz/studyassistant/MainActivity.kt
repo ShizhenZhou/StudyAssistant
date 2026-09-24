@@ -108,8 +108,13 @@ class MainActivity : ComponentActivity() {
                     val blockJob = remember { androidx.compose.runtime.mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     androidx.compose.runtime.DisposableEffect(nav) {
                         val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, destination, _ ->
-                            // ★ 回到主页 → 清空所有拍摄/框选缓存（不保留任何"已框或未框"的图）
-                            if (destination.route == "home") viewModel.clearCaptureCaches()
+                            // ★ 回到主页 → 停掉在跑的生成 + 清空所有拍摄/框选缓存（不保留任何"已框或未框"的图）
+                            // ⚠️ 这里必须是 if 条件语句；曾误写成裸 lambda `{ … }`（没有 if）→ 块永不执行，
+                            //    两个功能静默失效（发布前复查 git diff 时发现）
+                            if (destination.route == "home") {
+                                viewModel.stopActiveGeneration()
+                                viewModel.clearCaptureCaches()
+                            }
                             blockJob.value?.cancel()
                             blockJob.value = blockScope.launch {
                                 navBlocking.value = true

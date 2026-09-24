@@ -435,6 +435,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 主页「图文提问」入口：开一个空会话并标记为图文提问（标题保持"图文提问"） */
     fun startAskSession() {
+        stopActiveGeneration()   // 新会话前先停掉可能在跑的上一轮
         startNewQuestion()
         askMode = true
     }
@@ -479,6 +480,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 内存里的框选队列、已框结果、待框路径、追问附图，以及缓存目录里的临时图片文件。
      * （用户要求：回主页不保留任何"已框或未框"的图）
      */
+    /**
+     * 中止当前生成并清掉流式/思考状态。
+     * 用于：**从解题页返回主页**、开始新会话时 —— 否则"回到主页后 AI 还在思考"，
+     * 再进图文提问会看到上一轮仍在流式。
+     */
+    /** 当前是否开启思考模式（设置 → AI 配置 → 解题模型）：Flash=关闭 → 界面不渲染思考块 */
+    val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
+
+    fun stopActiveGeneration() {
+        callSeq++                 // 让旧请求收尾时不再覆盖界面状态
+        callJob?.cancel()
+        callJob = null
+        busy = false
+        streamingText = null
+        thinkingText = null
+        thinkingDone = false
+        streamInterrupted = false
+        networkError = false
+        contMessages = null
+        contOnDone = null
+        contPrefix = ""
+        runCatching { com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication()) }
+    }
     fun clearCaptureCaches() {
         cancelCropFlow()
         pendingImagePath = null
@@ -600,7 +624,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun addItem(role: String, content: String, images: List<String>? = null, thinking: String? = null) {
-        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, thinking)
+        // 助手消息默认带上本轮思考（这样所有调用方都不用改，避免"正文一出思考就没了"）
+        val th = thinking ?: if (role == "assistant") thinkingText?.takeIf { it.isNotBlank() } else null
+        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th)
     }
 
     private fun resetSession() {
@@ -765,15 +791,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 thinkingDone = true
                 recordUsage(app)
-                // ★ 把本轮思考挂到最后一条助手消息上（随会话 JSON 持久化；否则流式结束后气泡重建就丢了）
-                thinkingText?.takeIf { it.isNotBlank() }?.let { th ->
-                    val idx = chatItems.indexOfLast { it.role == "assistant" }
-                    if (idx >= 0) {
-                        val list = chatItems.toMutableList()
-                        list[idx] = list[idx].copy(thinking = th)
-                        chatItems = list
-                    }
-                }
+                // ⚠️ 这里原先有一段「把 thinkingText 挂到 indexOfLast{assistant}」的代码，已删除：
+                //   调用点在 onDone 之前，此刻 chatItems 里最后一条助手消息是**上一轮的** →
+                //   追问时会把上一轮答案的思考块覆盖成本轮思考。
+                //   本轮思考由 addItem() 的默认值自动挂到**新建的那条**助手消息上（见 addItem）。
                 onDone(prefix + reply.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim())
                 // ★ 分类兜底（C）：正文里没给出「分类：/知识点：」时，解答完成即后台补一次，
                 //   这样等用户去点「存错题本」时建议已经就绪（不必在对话框里干等）
@@ -977,9 +998,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         questionFromPhoto = false
         questionText = question
         suggestedCategory = null
+        suggestedTags = emptyList()
         runCall(StudyAssistant.MODEL_TEXT, onDone = { reply ->
             addItem("question", question)
-            addItem("assistant", reply)
+            // ★ 与图文提问走同一条清洗路径：否则原始 reply 里的「题目：/分类：」整块会显示出来
+            //   （这就是"答案里又出现了题目"）
+            val r = StudyAssistant.parseVisionOutput(reply)
+            suggestedCategory = r.category
+            suggestedTags = r.tags
+            addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
         }, repeat = { solveText(question) })
     }
 
@@ -1022,13 +1049,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         addItem("user", text, encoded)
         val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp(encoded) })
+        runCall(model, onDone = { reply ->
+            // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
+            addItem("assistant", StudyAssistant.stripMetaLines(reply))
+        }, repeat = { retryFollowUp(encoded) })
     }
 
     /** 网络失败后重新发送最后一次追问（不重复添加 user 消息，保留附图） */
     private fun retryFollowUp(images: List<String>? = null) {
         val model = if (isPhoto || !images.isNullOrEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        runCall(model, onDone = { reply -> addItem("assistant", reply) }, repeat = { retryFollowUp(images) })
+        runCall(model, onDone = { reply ->
+            addItem("assistant", StudyAssistant.stripMetaLines(reply))
+        }, repeat = { retryFollowUp(images) })
     }
 
     /** 重新生成：**保留提问气泡**，只重做回答 */
@@ -1054,7 +1086,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }, repeat = { regenerate() })
         } else {
             runCall(model, onDone = { reply ->
-                addItem("assistant", reply)
+
+                // 同上：文字分支也要剥离元信息（否则重新生成后答案里又出现题目）
+
+                val r = StudyAssistant.parseVisionOutput(reply)
+
+                suggestedCategory = r.category
+
+                suggestedTags = r.tags
+
+                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
             }, repeat = { regenerate() })
         }
     }
@@ -1427,15 +1468,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (mySeq == similarSeq) {
                     thinkingDone = true
                 recordUsage(app)
-                // ★ 把本轮思考挂到最后一条助手消息上（随会话 JSON 持久化；否则流式结束后气泡重建就丢了）
-                thinkingText?.takeIf { it.isNotBlank() }?.let { th ->
-                    val idx = chatItems.indexOfLast { it.role == "assistant" }
-                    if (idx >= 0) {
-                        val list = chatItems.toMutableList()
-                        list[idx] = list[idx].copy(thinking = th)
-                        chatItems = list
-                    }
-                }
+                // ⚠️ 已删除「挂到 indexOfLast{assistant}」的旧代码：同类题的产物存进 similarQuestion/
+                //   similarAnswer，并不在 chatItems 里 → 那段只会去改**别的**气泡，纯属误伤。
                     similarQuestion = r.question
                     similarAnswer = r.answer
                     similarStreamingText = null
@@ -1532,15 +1566,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (mySeq == similarSeq) {
                     thinkingDone = true
                 recordUsage(app)
-                // ★ 把本轮思考挂到最后一条助手消息上（随会话 JSON 持久化；否则流式结束后气泡重建就丢了）
-                thinkingText?.takeIf { it.isNotBlank() }?.let { th ->
-                    val idx = chatItems.indexOfLast { it.role == "assistant" }
-                    if (idx >= 0) {
-                        val list = chatItems.toMutableList()
-                        list[idx] = list[idx].copy(thinking = th)
-                        chatItems = list
-                    }
-                }
+                // ⚠️ 已删除「挂到 indexOfLast{assistant}」的旧代码：此处该挂的是**新建的** similarMessages 末条，
+                //   而旧代码去改 chatItems 里的别的气泡（同类题页也不渲染思考块）。
                     similarStreamingText = null
                     similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
                 }

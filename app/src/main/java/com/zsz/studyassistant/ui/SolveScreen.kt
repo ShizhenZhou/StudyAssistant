@@ -166,7 +166,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 复习模式且未展开解答时：只渲染题目气泡（先想再看）
     // 注意：streamInterrupted 也必须作为 key——中止时 streamingText 可能没变（节流窗口内），
     // 少了这个 key 这段就不会重算，末尾的蓝色「继续生成」永远不出现（曾踩过）。
-    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, sessionMode == SessionMode.REVIEW, answerRevealed, vm.streamingText, vm.streamInterrupted) {
+    // ★★ 同一个坑第二次踩：thinkingText / thinkingDone / thinkingEnabled 只在 remember 块**内部**被读，
+    //    块外的 key 不变时 remember 直接返回**缓存列表** → 思考增长期间 messages 根本不重算 →
+    //    WebView 收到的 JSON 一模一样 → 表现成「思考不流式输出（最后一次性蹦出来）」。必须进 key。
+    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, sessionMode == SessionMode.REVIEW, answerRevealed, vm.streamingText, vm.streamInterrupted, vm.thinkingText, vm.thinkingDone, vm.thinkingEnabled) {
         var items = if (sessionMode == SessionMode.REVIEW && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         // ★ 兜底去重：题干项按内容去重（旧数据/不同入口可能塞进重复题干，表现为"题目出现两遍"）
         run {
@@ -192,7 +195,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 role = if (c.role == "assistant") "assistant" else "user",
                 content = if (hideAiText) "" else c.content,
                 images = imgs,
-                thinking = c.thinking          // 思考块显示在对应气泡顶端
+                thinking = if (vm.thinkingEnabled) c.thinking else null,
+                // 思考块显示在对应气泡顶端；**快速模式（未开启思考）不渲染**
             )
         }
         // 流式：把已生成的部分作为一条「正在生成」的助手气泡实时渲染（末尾光标提示未完成）
@@ -204,10 +208,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             vm.streamInterrupted -> mapped + ChatMsg(
                 role = "assistant",
                 content = (if (live.isEmpty()) s["solve.thinking"] else live) + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]",
-                images = emptyList()
+                images = emptyList(),
+                thinking = if (vm.thinkingEnabled) vm.thinkingText else null,
+                thinkingOpen = true,
+                thinkingDone = vm.thinkingDone
             )
-            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = s["solve.thinking"], images = emptyList())
-            else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList(), thinking = vm.thinkingText, thinkingOpen = !vm.thinkingDone)
+            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = s["solve.thinking"], images = emptyList(), thinking = if (vm.thinkingEnabled) vm.thinkingText else null, thinkingOpen = true, thinkingDone = vm.thinkingDone)
+            // 流式全程 thinkingOpen=true：思考结束不再自动收起（否则"正文一出思考块就被吞"）
+            else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList(), thinking = if (vm.thinkingEnabled) vm.thinkingText else null, thinkingOpen = true, thinkingDone = vm.thinkingDone)
         }
     }
 
