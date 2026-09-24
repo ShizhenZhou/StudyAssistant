@@ -234,7 +234,7 @@ private fun AiCropTimeoutSettings() {
             tToMs = ::tToMs
         )
     }
-    // ---- 解题模型：Flash（默认）或 Reasoner ----
+    // ---- 解题模式（快 / 深度思考）：只是 thinking 开关，模型没变 ----
     Spacer(Modifier.height(22.dp))
     Text(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(4.dp))

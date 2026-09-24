@@ -19,7 +19,8 @@ object CapturePrefs {
     fun customPrompt(c: Context): String = prefs(c).getString(KEY_CUSTOM_PROMPT, "") ?: ""
     fun setCustomPrompt(c: Context, v: String) =
         prefs(c).edit().putString(KEY_CUSTOM_PROMPT, v).apply()
-    // ---- 解题模型：flash（快/省，默认）或 reasoner（慢/准，难题用）----
+    // ---- 解题模式（设置里叫「解题模式」，不是换模型）：flash=快速(不思考，默认) / reasoner=深度思考 ----
+    //      两者用的都是 deepseek-flash，只是请求体 thinking 开关不同
     private const val KEY_SOLVE_MODEL = "solve_model"
     fun solveModel(c: Context): String = prefs(c).getString(KEY_SOLVE_MODEL, "flash") ?: "flash"
     fun setSolveModel(c: Context, v: String) = prefs(c).edit().putString(KEY_SOLVE_MODEL, v).apply()

@@ -485,7 +485,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 用于：**从解题页返回主页**、开始新会话时 —— 否则"回到主页后 AI 还在思考"，
      * 再进图文提问会看到上一轮仍在流式。
      */
-    /** 当前是否开启思考模式（设置 → AI 配置 → 解题模型）：Flash=关闭 → 界面不渲染思考块 */
+    /** 当前是否开启思考模式（设置 → AI 配置 → **解题模式**）：快速=关闭 → 界面不渲染思考块 */
     val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
 
     fun stopActiveGeneration() {

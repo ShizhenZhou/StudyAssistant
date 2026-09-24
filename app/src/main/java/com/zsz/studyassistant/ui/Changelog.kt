@@ -5,6 +5,17 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.0
+· 🧠 **AI 思考流**：把模型的思考过程用浅灰小字显示在回答气泡**顶端**；思考时**流式逐字增长并自动跟随思路**（用户上滑即取消跟随），思考结束后**自动跳到「思考结尾 + 正式答案开头」**
+· 💭 折叠入口有两个：气泡顶端「思考过程」与思考块**底端**的蓝色「折叠思考区 / 展开思考区」（思考很长时不用滚回顶部）；覆盖拍题 / 批改 / 图文提问 / 错题本问答
+· ⚙️ AI 配置里的「解题模型」改名为「**解题模式**」（**模型没变**，只是思考开关）：⚡ 快速 = 不思考（也**不渲染思考块**）；🧠 深度思考 = 先推理再作答
+· 🐞 修复「**答案生成完就消失**」：删除了「从『分类：/知识点：』一路截断到文末」的清洗规则 —— 模型没写「解答：」时它会把正文整段删掉
+· 🐞 修复「**答案里又出现题目**」：剔除回显的元信息行时**容忍序号前缀**（如 `① 题目：…`）
+· 🐞 修复解答里「**莫名其妙的④**」：模型会把格式里的 ④ 当段落标签刷在每一段前，现可识别并剔除
+· 🛠 解题 / 文字解题 / 批改的提示词统一为「**序号 + 标签**」协议，去掉自相矛盾的重复要求
+· 🐞 修复追问时**上一轮答案的思考被本轮思考覆盖**
+· 🐞 修复回主页时「停掉在跑的生成 + 清拍摄缓存」因条件写错而静默失效
+
 v0.5.9
 · 📝 题目以文字为主：拍题/图文提问的题干由 AI 忠实转写（公式用 LaTeX、KaTeX 排版），原图默认折叠成「📷 查看原题图片」点击展开；复习仍以原图自测
 · ✍️ 新增「AI 配置」页：框选时限 + 自定义要求（Prompt），自定义要求会附加到解题/批改/同类题的每次请求
@@ -210,6 +221,17 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.0
+· 🧠 **AI thinking stream**: the model's reasoning is shown in small grey text at the **top** of each answer bubble; while thinking it **streams in and follows along automatically** (scroll up to stop following), and when thinking ends the view **jumps to the end of the reasoning / start of the answer**
+· 💭 Two toggle points: the "Thinking" header at the top and the blue "Collapse / Expand thinking" line at the **bottom** of the block (no need to scroll back up when it is long); works for photo solve, grading, ask-with-images and notebook Q&A
+· ⚙️ "Solve model" in AI settings is renamed "**Solve mode**" (**the model is unchanged**, it is only the thinking switch): ⚡ Fast = no thinking (and **no thinking block**); 🧠 Deep thinking = reason first, then answer
+· 🐞 Fixed **answers disappearing after generation**: removed a cleanup rule that cut everything from "Category / Key points" to the end of the text whenever the model omitted the "Solution:" marker
+· 🐞 Fixed **the question being echoed inside the answer**: echoed meta lines are now stripped even when prefixed with a number (e.g. `① 題目：…`)
+· 🐞 Fixed **stray ④ markers** in front of each paragraph (the model copied the format marker into the content)
+· 🛠 Unified the solve / text-solve / grading prompts on one **numbered-label** protocol and removed contradictory duplicated instructions
+· 🐞 Fixed the **previous answer's thinking being overwritten** by the current turn on follow-up questions
+· 🐞 Fixed "stop the running generation + clear the capture cache on returning home" silently doing nothing due to a wrong condition
+
 v0.5.9
 · 📝 Text-first questions: for photo/ask the stem is faithfully transcribed by the AI (LaTeX rendered with KaTeX) and the original photo is collapsed behind a View original photo toggle; review still shows the photo for self-testing
 · ✍️ New AI settings page: crop timeout plus a custom instructions prompt that is appended to every solve / grading / similar-question request
@@ -415,6 +437,17 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.0
+· 🧠 **AI 思考ストリーム**：モデルの思考過程を回答バブルの**上部**に薄いグレーの小さい文字で表示。思考中は**逐次ストリーミングし自動で追従**（上にスワイプで追従解除）、思考が終わると**「思考の末尾＋解答の先頭」へ自動ジャンプ**
+· 💭 折りたたみは2か所：上部の「思考過程」と、ブロック**下部**の青い「思考を折りたたむ／展開する」（長いときも上まで戻らなくてよい）。撮影・添削・画像付き質問・誤答ノートの質疑すべてに対応
+· ⚙️ AI 設定の「解答モデル」を「**解答モード**」に改名（**モデルは変わらず**、思考スイッチのみ）：⚡ 高速＝思考なし（思考ブロックも**非表示**）；🧠 深い思考＝先に推論してから回答
+· 🐞 **「生成完了後に解答が消える」**不具合を修正：「分類：/知識点：」以降を末尾まで切り捨てるクリーニング規則を削除（モデルが「解答：」を書かないと本文が丸ごと消えていた）
+· 🐞 **「解答内に問題文が再表示される」**不具合を修正：番号付きの見出し（例 `① 題目：…`）も除去対象に
+· 🐞 各段落の先頭に付く**不要な ④** を修正（書式の記号をモデルが本文へコピーしていた）
+· 🛠 解答／文字解答／添削のプロンプトを「**番号＋ラベル**」方式に統一し、矛盾した重複指示を削除
+· 🐞 追加質問時に**前の回答の思考が今回の思考で上書きされる**不具合を修正
+· 🐞 ホームに戻る際の「生成停止＋撮影キャッシュ削除」が条件ミスで無効だった不具合を修正
+
 v0.5.9
 · 📝 問題文を文字主体に：撮影/質問では AI が忠実に転写し（LaTeX は KaTeX で描画）、元画像は「元の画像を見る」で折りたたみ。復習は従来どおり画像で自測
 · ✍️ AI 設定ページを追加：枠取り制限時間＋カスタム指示（Prompt）。カスタム指示は解答・添削・類似問題の毎回のリクエストに付加
@@ -620,6 +653,17 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.0
+· 🧠 **AI 사고 과정 스트림**: 모델의 사고 과정을 답변 말풍선 **상단**에 연한 회색 작은 글씨로 표시합니다. 생각하는 동안 **실시간으로 늘어나며 자동으로 따라가고**(위로 스크롤하면 추적 해제), 사고가 끝나면 **「사고 끝 + 답변 시작」으로 자동 이동**합니다
+· 💭 접는 지점이 두 곳: 상단의 「사고 과정」과 블록 **하단**의 파란 「사고 과정 접기/펼치기」(길 때 위로 올라갈 필요 없음). 촬영·첨삭·이미지 질문·오답노트 질의 모두 지원
+· ⚙️ AI 설정의 「풀이 모델」을 「**풀이 모드**」로 변경(**모델은 그대로**, 사고 스위치만): ⚡ 빠름 = 사고 없음(사고 블록도 **표시 안 함**); 🧠 깊은 사고 = 먼저 추론한 뒤 답변
+· 🐞 **「생성 완료 후 답변이 사라지는」** 문제 수정: 「분류:/지식점:」부터 끝까지 잘라내던 정리 규칙 삭제(모델이 「解答:」를 쓰지 않으면 본문이 통째로 지워졌음)
+· 🐞 **「답변에 문제가 다시 나오는」** 문제 수정: 번호가 붙은 메타 줄(예 `① 題目：…`)도 제거
+· 🐞 문단마다 붙던 **불필요한 ④** 수정(모델이 형식 기호를 본문에 복사했음)
+· 🛠 풀이/텍스트 풀이/첨삭 프롬프트를 「**번호 + 라벨**」 방식으로 통일하고 모순된 중복 지시 삭제
+· 🐞 추가 질문 시 **이전 답변의 사고가 이번 사고로 덮어써지던** 문제 수정
+· 🐞 홈으로 돌아갈 때 「생성 중지 + 촬영 캐시 삭제」가 조건 오류로 동작하지 않던 문제 수정
+
 v0.5.9
 · 📝 문제를 텍스트 중심으로: 촬영/질문 시 AI가 충실히 전사하고(LaTeX는 KaTeX로 렌더링) 원본 사진은 원본 이미지 보기로 접어 둡니다. 복습은 기존처럼 사진으로 자체 점검
 · ✍️ AI 설정 페이지 추가: 자르기 제한 시간 + 사용자 지정 지시(Prompt). 사용자 지정 지시는 풀이·첨삭·유사 문제의 모든 요청에 추가됩니다

@@ -251,7 +251,7 @@ object StudyAssistant {
         onDelta: suspend (String) -> Unit,
         /** 思考模式增量回调（官方 reasoning_content；思考模式关闭时不会触发） */
         onReasoning: (suspend (String) -> Unit)? = null,
-        /** 是否开启思考模式（设置 → AI 配置 → 解题模型） */
+        /** 是否开启思考模式（设置 → AI 配置 → **解题模式**） */
         thinkingEnabled: Boolean = true
     ): String {
         requireKey()
