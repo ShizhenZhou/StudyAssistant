@@ -191,7 +191,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             ChatMsg(
                 role = if (c.role == "assistant") "assistant" else "user",
                 content = if (hideAiText) "" else c.content,
-                images = imgs
+                images = imgs,
+                thinking = c.thinking          // 思考块显示在对应气泡顶端
             )
         }
         // 流式：把已生成的部分作为一条「正在生成」的助手气泡实时渲染（末尾光标提示未完成）
@@ -206,7 +207,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 images = emptyList()
             )
             live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = s["solve.thinking"], images = emptyList())
-            else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList())
+            else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList(), thinking = vm.thinkingText, thinkingOpen = !vm.thinkingDone)
         }
     }
 

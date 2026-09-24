@@ -39,7 +39,7 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** 聊天界面显示的一条消息（可序列化，用于保存对话会话） */
 @Serializable
-data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null)
+data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null, val thinking: String? = null)
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -599,8 +599,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun addItem(role: String, content: String, images: List<String>? = null) {
-        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images)
+    private fun addItem(role: String, content: String, images: List<String>? = null, thinking: String? = null) {
+        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, thinking)
     }
 
     private fun resetSession() {
@@ -710,11 +710,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val reply = withContext(Dispatchers.IO) {
                     StudyAssistant.chatStream(model, messages, onDelta = { delta ->
                         sb.append(delta)
-                        // 节流：最多 ~180ms 刷一次界面，避免 WebView 被逐字重渲染拖垮
+                        // ★ 路线 A 分流：<思考>…</思考> 进思考流，其余进正文
+                        val full = sb.toString()
+                        val ts = full.indexOf("<思考>")
+                        val te = full.indexOf("</思考>")
+                        var bodyText = full
+                        if (ts >= 0) {
+                            val think = if (te > ts) full.substring(ts + 4, te) else full.substring(ts + 4)
+                            val nowT = System.currentTimeMillis()
+                            if (nowT - lastThinkEmit >= 120) {
+                                lastThinkEmit = nowT
+                                withContext(Dispatchers.Main) { thinkingText = think }
+                            }
+                            bodyText = if (te > ts) full.substring(te + 5) else ""
+                        }
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
                             lastEmit = now
-                            val snapshot = prefix + sb.toString()
+                            val snapshot = prefix + bodyText
                             withContext(Dispatchers.Main) { streamingText = snapshot }
                         }
                     }, onReasoning = { r ->
@@ -729,7 +742,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 thinkingDone = true
                 recordUsage(app)
-                onDone(prefix + reply)
+                onDone(prefix + reply.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim())
                 // ★ 分类兜底（C）：正文里没给出「分类：/知识点：」时，解答完成即后台补一次，
                 //   这样等用户去点「存错题本」时建议已经就绪（不必在对话框里干等）
                 if (suggestedCategory == null && questionText.isNotBlank()) classifyCurrentQuestion()

@@ -234,6 +234,28 @@ private fun AiCropTimeoutSettings() {
             tToMs = ::tToMs
         )
     }
+    // ---- 解题模型：Flash（默认）或 Reasoner ----
+    Spacer(Modifier.height(22.dp))
+    Text(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(4.dp))
+    Text(s["settings.solveModel.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Spacer(Modifier.height(8.dp))
+    var model by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.solveModel(ctx)) }
+    listOf("flash" to s["settings.solveModel.flash"], "reasoner" to s["settings.solveModel.reasoner"]).forEach { (v, label) ->
+        Row(
+            Modifier.fillMaxWidth().selectable(selected = model == v, onClick = {
+                model = v
+                com.zsz.studyassistant.data.CapturePrefs.setSolveModel(ctx, v)
+            }).padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(selected = model == v, onClick = {
+                model = v
+                com.zsz.studyassistant.data.CapturePrefs.setSolveModel(ctx, v)
+            })
+            Text(label, Modifier.padding(start = 8.dp))
+        }
+    }
     // ---- 自定义要求（Prompt）：会附加到每次 AI 请求 ----
     Spacer(Modifier.height(22.dp))
     Text(s["settings.customPrompt"], style = MaterialTheme.typography.titleMedium)

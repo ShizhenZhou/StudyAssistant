@@ -85,6 +85,7 @@ object StudyAssistant {
         return DeepSeekMessage(
             "user",
             JsonPrimitive(
+                "【重要】先用一行 <思考>…</思考> 写出你的分析思路（30~150字，不要放最终答案），再按下面的格式正式回答。\n" +
                 "请解答下面这道理工科题目并给出详细分步解答。请**严格按固定格式**输出，每项单独一行：\n" +
                     "① 题目：$text（照抄即可）；② 分类：<所属科目>；③ 知识点：<知识点1、知识点2、知识点3>；④ 解答：<详细步骤与结论>（顺序固定）\n" +
                     "先输出一行“解答：<详细步骤与结论>”，再另起一行输出“分类：<所属科目>”。" +
@@ -348,6 +349,8 @@ object StudyAssistant {
 
     /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
     fun parseVisionOutput(output: String): SolveResult {
+        // 路线 A：若正文里混进了 <思考> 块，先剥掉（避免污染题目/解答）
+        val output = output.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim()
         val question = Regex("题目[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
         // 容错：模型可能写成"科目/类别/分类名/所属科目"等
         val category = Regex("(?:分类|科目|类别|分类名|所属科目)[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()

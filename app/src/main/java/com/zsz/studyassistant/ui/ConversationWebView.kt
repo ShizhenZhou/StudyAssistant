@@ -43,7 +43,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
-data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList())
+data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false)
 
 /**
  * 对话正文 WebView：占满给定区域，内部上下滚动，滚动条常驻、手势不被父级拦截。

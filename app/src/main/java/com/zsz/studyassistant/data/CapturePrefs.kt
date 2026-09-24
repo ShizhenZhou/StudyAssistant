@@ -19,6 +19,10 @@ object CapturePrefs {
     fun customPrompt(c: Context): String = prefs(c).getString(KEY_CUSTOM_PROMPT, "") ?: ""
     fun setCustomPrompt(c: Context, v: String) =
         prefs(c).edit().putString(KEY_CUSTOM_PROMPT, v).apply()
+    // ---- 解题模型：flash（快/省，默认）或 reasoner（慢/准，难题用）----
+    private const val KEY_SOLVE_MODEL = "solve_model"
+    fun solveModel(c: Context): String = prefs(c).getString(KEY_SOLVE_MODEL, "flash") ?: "flash"
+    fun setSolveModel(c: Context, v: String) = prefs(c).edit().putString(KEY_SOLVE_MODEL, v).apply()
     fun solveDouble(c: Context): Boolean = prefs(c).getBoolean(KEY_SOLVE_DOUBLE, false)
 
     fun setSolveDouble(c: Context, v: Boolean) =
