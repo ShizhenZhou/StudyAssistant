@@ -83,6 +83,9 @@ fun ConversationWebView(
     dark: Boolean = false
 ) {
     val currentMessages by rememberUpdatedState(messages)
+    // 深色与否同样必须取「最新值」：onPageFinished 是在 factory 里注册的回调，
+    // 只会捕获首次组合时的那份 dark（与上面回调闭包是同一类坑）。
+    val currentDark by rememberUpdatedState(dark)
     // ⚠️ JS 桥接对象只在 AndroidView 的 factory 里创建一次，会永久捕获当时的 lambda。
     // 若直接调用 onXxx()，用的就是**首次组合**时的那份闭包（其中的 selectedIndices/lockedIndices 等值永远是旧的），
     // 曾导致「受保护消息（题干/AI 首条）长按仍被算作可选中 → 已选 1 条」。
@@ -219,8 +222,8 @@ fun ConversationWebView(
                             val json = buildMessagesJson(currentMessages)
                             val sel = selectionJson()
                             val labels = thinkLabelsJson()
-                            lastJson = json + "|" + sel + "|" + labels + "|" + dark
-                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $dark);", null)
+                            lastJson = json + "|" + sel + "|" + labels + "|" + currentDark
+                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark);", null)
                         }
                     }
                     loadUrl("file:///android_asset/conversation_render.html")
@@ -233,10 +236,10 @@ fun ConversationWebView(
                     val json = buildMessagesJson(currentMessages)
                     val sel = selectionJson()
                     val labels = thinkLabelsJson()
-                    val key = json + "|" + sel + "|" + labels + "|" + dark
+                    val key = json + "|" + sel + "|" + labels + "|" + currentDark
                     if (key != lastJson) {
                         lastJson = key
-                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $dark);", null)
+                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark);", null)
                     }
                 }
             },
