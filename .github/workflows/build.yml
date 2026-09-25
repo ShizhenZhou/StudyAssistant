@@ -37,20 +37,30 @@ jobs:
       # ── 发布签名材料（自有证书 + key rotation lineage） ─────────────────────
       # 见 README「发布签名（自有证书 + key rotation）」。仓库 Secrets 里存三样：
       #   RELEASE_KEYSTORE_BASE64 / RELEASE_LINEAGE_BASE64 / RELEASE_STORE_PASSWORD
-      # 没配这些 secret 时（例如 PR、fork）自动跳过 → 退回 debug 签名，构建仍可通过。
-      - name: 解码签名材料并写 secrets.properties
-        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+      # 未配置时（PR / fork / 本地克隆）自动跳过 → 退回 debug 签名，构建仍可通过。
+      # ⚠️ 注意：`secrets` 上下文**不能**出现在 `if:` / `with:` 表达式里（工作流校验会直接判失败，
+      #    表现为 run 在 0 秒内 failure）→ 这里改成"步骤内判断 + 写 $GITHUB_ENV 标记"。
+      - name: 解码签名材料（若配置了 Secrets）
+        env:
+          KS_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          LN_B64: ${{ secrets.RELEASE_LINEAGE_BASE64 }}
+          KS_PW: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
+          if [ -z "$KS_B64" ] || [ -z "$LN_B64" ] || [ -z "$KS_PW" ]; then
+            echo "未配置签名 Secrets → 跳过解码，本次退回 debug 签名"
+            exit 0
+          fi
           mkdir -p keys
-          printf '%s' "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > keys/release.p12
-          printf '%s' "${{ secrets.RELEASE_LINEAGE_BASE64 }}"  | base64 -d > keys/lineage.bin
-          # ⚠️ 路径必须用正斜杠：Java Properties 会把反斜杠当转义符
+          printf '%s' "$KS_B64" | base64 -d > keys/release.p12
+          printf '%s' "$LN_B64" | base64 -d > keys/lineage.bin
+          # ⚠️ 路径必须用正斜杠：Java Properties 会把反斜杠当转义符，路径会失效并**静默回退**到 debug 签名
           cat > secrets.properties <<EOF
           RELEASE_STORE_FILE=$GITHUB_WORKSPACE/keys/release.p12
-          RELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_STORE_PASSWORD=$KS_PW
           RELEASE_KEY_ALIAS=studyassistant
           RELEASE_LINEAGE_FILE=$GITHUB_WORKSPACE/keys/lineage.bin
           EOF
+          echo "SIGNED_READY=1" >> "$GITHUB_ENV"
           echo "OK 签名材料已就绪"
 
       - name: 编译 release APK
@@ -58,7 +68,7 @@ jobs:
 
       # AGP 的 signingConfig 不支持 lineage → 构建后用 apksigner 补上（v3-only）
       - name: 用新证书 + lineage 重签（APK Signature Scheme v3 轮换签名）
-        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+        if: env.SIGNED_READY == '1'
         env:
           KS_PASS: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
@@ -97,7 +107,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' && 'signed/*.apk' || 'app/build/outputs/apk/release/*.apk' }}
+          files: ${{ env.SIGNED_READY == '1' && 'signed/*.apk' || 'app/build/outputs/apk/release/*.apk' }}
           draft: true
           generate_release_notes: false
           fail_on_unmatched_files: false
