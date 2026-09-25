@@ -61,13 +61,23 @@ class L10nTableTest {
         assertTrue(tw["update.redownload"].contains("重新下載"))
         assertTrue(tw["update.notes"].contains("更新內容"))
         assertTrue(tw["update.unskip"].contains("跳過"))
+
+        // B8 自动备份文案
+        assertEquals("🗄 自動備份", tw["data.autoBackup"])
+        assertTrue("文件夹未转成文件夾：${tw["data.autoBackup.pick"]}", tw["data.autoBackup.pick"].contains("文件夾"))
+        assertTrue(tw["data.autoBackup.count"].contains("已保存"))
     }
 
     @Test
     fun `新增的更新页文案四语言都在`() {
         val keys = listOf(
             "update.notes", "update.lastCheck", "update.neverChecked",
-            "update.skip", "update.skipped", "update.unskip", "update.retry", "update.redownload"
+            "update.skip", "update.skipped", "update.unskip", "update.retry", "update.redownload",
+            // B8 自动备份
+            "data.autoBackup", "data.autoBackup.pick", "data.autoBackup.change", "data.autoBackup.noFolder",
+            "data.autoBackup.folder", "data.autoBackup.daily", "data.autoBackup.desc", "data.autoBackup.count",
+            "data.autoBackup.last", "data.autoBackup.never", "data.autoBackup.now", "data.autoBackup.done",
+            "data.autoBackup.pruned", "data.autoBackup.failed"
         )
         for (k in keys) {
             for ((name, table) in others) {

@@ -114,8 +114,8 @@ private fun canInstallApk(context: Context): Boolean = try {
     else true
 } catch (e: Exception) { true }
 
-/** 「上次检查时间」的显示格式：MM-dd HH:mm（当年不显示年份，跨年补上） */
-private fun formatCheckTime(ms: Long): String {
+/** 「上次检查时间」的显示格式：MM-dd HH:mm（当年不显示年份，跨年补上）。数据管理页的「上次备份」也用它 */
+internal fun formatCheckTime(ms: Long): String {
     val now = java.util.Calendar.getInstance()
     val then = java.util.Calendar.getInstance().apply { timeInMillis = ms }
     val pattern = if (now.get(java.util.Calendar.YEAR) == then.get(java.util.Calendar.YEAR)) "MM-dd HH:mm" else "yyyy-MM-dd HH:mm"

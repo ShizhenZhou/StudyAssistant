@@ -115,6 +115,17 @@ class MainActivity : ComponentActivity() {
                     // 查到新版本 → UpdateBadgeState 置位，设置入口与底栏「设置」显示红色气泡①
                     LaunchedEffect(Unit) { silentUpdateCheck(this@MainActivity) }
 
+                    // 自动备份（设置 → 数据管理）：**每天第一次打开应用**时写一份 JSON 到用户选的文件夹，
+                    // 只保留最近 3 份。未设置文件夹/开关关闭/今天已备份过 → 什么都不做；
+                    // 任何失败都静默（自动备份不该在启动时弹提示），要结果就手动点「立即备份」。
+                    LaunchedEffect(Unit) {
+                        runCatching {
+                            com.zsz.studyassistant.data.AutoBackup.runIfDue(applicationContext) {
+                                viewModel.buildBackupJson()
+                            }
+                        }
+                    }
+
                     // 防触摸穿透：每次页面切换后用**状态标志**封锁内容区触摸 NAV_TOUCH_GUARD_MS。
                     // ⚠️ 这里必须由协程定时解锁，**不能**把 `SystemClock.uptimeMillis() < t` 之类的时间比较写进
                     //    组合条件——那只是组合期快照，页面若不再重组就永远不会解除，会变成

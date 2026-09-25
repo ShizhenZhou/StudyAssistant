@@ -1,6 +1,7 @@
 package com.zsz.studyassistant.ui
 
 import android.Manifest
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +49,7 @@ import kotlin.math.pow
 import kotlin.math.ln
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -72,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AiLang
 import com.zsz.studyassistant.data.ApiKeyStore
+import com.zsz.studyassistant.data.AutoBackup
 import com.zsz.studyassistant.data.CrashLogger
 import com.zsz.studyassistant.data.ReminderScheduler
 import com.zsz.studyassistant.data.UpdateChecker
@@ -524,11 +528,12 @@ private fun ApiSettings(vm: MainViewModel) {
     }
 }
 
-/** 💾 数据管理：导出 / 导入 / 清空 */
+/** 💾 数据管理：导出 / 导入 / 自动备份 / 清空 / 崩溃日志 */
 @Composable
 private fun DataSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
+    val scope = rememberCoroutineScope()
     var showClearConfirm by remember { mutableStateOf(false) }
     var showImportConfirm by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
@@ -581,6 +586,110 @@ private fun DataSettings(vm: MainViewModel) {
     }
     Spacer(Modifier.height(4.dp))
     Text(s["data.import.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    Spacer(Modifier.height(24.dp))
+
+    // ── 自动备份（B8）：每天第一次打开应用时写一份 JSON 到用户选的文件夹，只留最近 3 份 ──
+    // 设计取舍：必须由用户选一次文件夹（SAF 持久化授权）才生效 —— 备份要能扛住"卸载/清除数据"；
+    // 不碰该文件夹里除自己写的 study-assistant-auto-*.json 之外的任何文件。
+    var autoFolder by remember { mutableStateOf(AutoBackup.folderName(context)) }
+    var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
+    var autoCount by remember { mutableStateOf(AutoBackup.listBackups(context).size) }
+    var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
+    var autoMessage by remember { mutableStateOf<String?>(null) }
+
+    /** 备份一次（按钮与"刚选完文件夹"共用）：生成 JSON → 写盘 + 裁剪，结果写进 autoMessage */
+    fun backupNow() {
+        autoMessage = null
+        vm.exportBackup(onReady = { json ->
+            // ⚠️ SAF 写盘 + 裁剪是 IO，必须在协程里做，否则阻塞主线程
+            scope.launch {
+                val r = AutoBackup.runBackup(context, json)
+                autoCount = AutoBackup.listBackups(context).size
+                autoLast = AutoBackup.lastBackupAt(context)
+                autoMessage = if (r.ok) {
+                    s.format("data.autoBackup.done", "name" to (r.fileName ?: "")) +
+                        if (r.pruned > 0) "（" + s.format("data.autoBackup.pruned", "n" to "${r.pruned}") + "）" else ""
+                } else {
+                    s.format("data.autoBackup.failed", "msg" to (r.error ?: ""))
+                }
+            }
+        }, onError = { msg -> autoMessage = s.format("data.autoBackup.failed", "msg" to msg) })
+    }
+
+    val folderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            // 持久化授权：否则下次启动就读不到这个文件夹（自动备份会静默失效）
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) { /* 个别 ROM 会抛：仍先记下来，失败时界面会给提示 */ }
+            AutoBackup.setTreeUri(context, uri)
+            autoFolder = AutoBackup.folderName(context) ?: uri.lastPathSegment
+            autoCount = AutoBackup.listBackups(context).size
+            autoMessage = null
+            // 选完文件夹立刻备份一次：既确认权限可用，也让用户马上有一份可用的备份
+            backupNow()
+        }
+    }
+
+    Text(s["data.autoBackup"], style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(6.dp))
+    Text(
+        if (autoFolder == null) s["data.autoBackup.noFolder"]
+        else s.format("data.autoBackup.folder", "name" to autoFolder!!),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (autoFolder == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        s.format("data.autoBackup.count", "n" to "$autoCount") + " · " +
+            if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Spacer(Modifier.height(8.dp))
+
+    OutlinedButton(
+        shape = smoothPill(),
+        onClick = { folderLauncher.launch(null) },
+        modifier = Modifier.fillMaxWidth().height(44.dp)
+    ) { Text(if (autoFolder == null) s["data.autoBackup.pick"] else s["data.autoBackup.change"]) }
+
+    Spacer(Modifier.height(8.dp))
+    // 开关：每天首次启动时自动备份
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(s["data.autoBackup.daily"], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(
+            checked = autoEnabled,
+            onCheckedChange = { on ->
+                AutoBackup.setEnabled(context, on)
+                autoEnabled = on
+                autoMessage = null
+            }
+        )
+    }
+
+    Spacer(Modifier.height(8.dp))
+    Button(
+        shape = smoothPill(),
+        enabled = autoFolder != null && !vm.dataBusy,
+        onClick = { backupNow() },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(s["data.autoBackup.now"]) }
+    Spacer(Modifier.height(4.dp))
+    Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    autoMessage?.let { msg ->
+        Spacer(Modifier.height(8.dp))
+        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    }
+
+    Spacer(Modifier.height(16.dp))
 
     Spacer(Modifier.height(16.dp))
 

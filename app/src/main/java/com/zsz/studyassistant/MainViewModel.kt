@@ -890,6 +890,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearDataMessage() { dataMessage = null }
 
+    /**
+     * 供**自动备份**（设置 → 数据管理）使用：静默生成备份 JSON。
+     * 与 [exportBackup] 的区别：不写 dataMessage、不置 dataBusy（启动时的自动备份不该改界面状态）。
+     */
+    suspend fun buildBackupJson(): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        com.zsz.studyassistant.data.BackupManager.export(dao)
+    }
+
     /** 生成备份 JSON（IO 在后台线程）；ok 回调在拿到结果后触发 */
     fun exportBackup(onReady: (String) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {

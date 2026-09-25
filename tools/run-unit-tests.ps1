@@ -129,6 +129,7 @@ if (-not $java) { Write-Err2 'java.exe not found'; exit 1 }
 $testClasses = @(
     'com.zsz.studyassistant.data.VisionOutputParserTest',
     'com.zsz.studyassistant.data.UpdateCheckerVersionTest',
+    'com.zsz.studyassistant.data.AutoBackupTest',
     'com.zsz.studyassistant.ui.L10nTableTest'
 )
 & $java '-Dfile.encoding=UTF-8' -cp $cp org.junit.runner.JUnitCore @testClasses
