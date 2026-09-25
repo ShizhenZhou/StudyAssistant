@@ -61,10 +61,8 @@ object UpdateBadgeState {
  */
 suspend fun silentUpdateCheck(context: Context) {
     val latest = UpdateChecker.fetchLatest() ?: return          // 失败：静默
-    val installed = UpdateChecker.installedVersion(context)
-    UpdateBadgeState.set(
-        if (UpdateChecker.isNewer(latest.version, installed)) latest.version else null
-    )
+    // 版本更高，或同一版本但发布物是更晚的新构建（替换过同名附件）→ 都算有更新
+    UpdateBadgeState.set(if (UpdateChecker.hasUpdate(context, latest)) latest.version else null)
 }
 
 /** 页面阶段 */
@@ -91,6 +89,7 @@ fun UpdatePage() {
     var message by remember { mutableStateOf<String?>(null) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
     var verifiedSha by remember { mutableStateOf<Boolean?>(null) }
+    var sameVersion by remember { mutableStateOf(false) }   // true = 同一版本的新构建
 
     fun goInstall() {
         val f = apk ?: return
@@ -121,11 +120,13 @@ fun UpdatePage() {
                 return@launch
             }
             latest = rel
-            val newer = UpdateChecker.isNewer(rel.version, installed)
-            if (newer) {
+            // ① 版本更高 或 ② 同一版本但发布物是更晚的新构建（替换过同名附件）
+            if (UpdateChecker.hasUpdate(context, rel)) {
+                sameVersion = !UpdateChecker.isNewer(rel.version, installed)
                 UpdateBadgeState.set(rel.version)
                 phase = Phase.FOUND
             } else {
+                sameVersion = false
                 UpdateBadgeState.set(null)
                 phase = Phase.UP_TO_DATE
             }
@@ -194,7 +195,10 @@ fun UpdatePage() {
                 Phase.UP_TO_DATE -> Text(s["update.upToDate"], style = MaterialTheme.typography.bodyMedium)
                 Phase.FOUND -> {
                     Text(
-                        s.format("update.found", "v" to ("v" + (latest?.version ?: ""))),
+                        if (sameVersion)
+                            s.format("update.sameVersion", "name" to (latest?.assetName ?: ""))
+                        else
+                            s.format("update.found", "v" to ("v" + (latest?.version ?: ""))),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )

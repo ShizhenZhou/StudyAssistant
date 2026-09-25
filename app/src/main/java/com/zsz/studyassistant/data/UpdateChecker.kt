@@ -48,7 +48,9 @@ object UpdateChecker {
         val assetName: String,
         val assetUrl: String,       // browser_download_url
         val assetSha256: String?,   // API 的 digest 字段，形如 sha256:xxxx（可能为空）
-        val assetSize: Long
+        val assetSize: Long,
+        /** 附件上传时间（epoch ms）：用于识别「同一版本被替换成新构建」 */
+        val assetUploadedAt: Long = 0L
     )
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -88,10 +90,54 @@ object UpdateChecker {
         return false
     }
 
+    /** ISO8601（如 2026-09-25T03:11:00Z）→ epoch ms；解析失败返回 0 */
+    private fun parseIsoMillis(iso: String?): Long = try {
+        if (iso.isNullOrBlank()) 0L else java.time.Instant.parse(iso).toEpochMilli()
+    } catch (e: Exception) { 0L }
+
+    /** 本机安装/更新时间（epoch ms）：判断"发布物是否比本机新"用 */
+    fun installedLastUpdateTime(context: Context): Long = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+    } catch (e: Exception) { 0L }
+
+    /** 本机**已安装 APK 自身**的 SHA-256（读 packageCodePath）：用于判断发布物内容是否变了 */
+    fun installedApkSha256(context: Context): String? = try {
+        sha256(File(context.packageCodePath))
+    } catch (e: Exception) {
+        Log.w(TAG, "hash installed apk failed: ${e.message}")
+        null
+    }
+
+    /**
+     * **同一版本的新构建**判定（2026-09-25 用户要求：替换同名附件后也要能被发现）。
+     * 条件（保守，避免误报）：
+     *   ① 发布物上传时间**晚于**本机安装时间（多留 60s 余量，规避时钟误差）；
+     *   ② 若 API 给了 digest 且能算出本机 APK 的 SHA-256，则**内容必须确实不同**；
+     *      两者都拿不到时退化为"仅按时间判断"。
+     * 这样：替换附件后能被发现；而正常安装（APK 内容与发布物一致）不会反复提示更新。
+     */
+    fun sameVersionNewBuild(context: Context, rel: ReleaseInfo): Boolean {
+        val installedAt = installedLastUpdateTime(context)
+        if (installedAt <= 0L) return false
+        if (rel.assetUploadedAt > 0L && rel.assetUploadedAt <= installedAt + 60_000L) return false
+        val mine = installedApkSha256(context)
+        if (mine != null && rel.assetSha256 != null) return !mine.equals(rel.assetSha256, ignoreCase = true)
+        return true
+    }
+
+    /** 是否有更新：**版本更高**，或**同一版本但发布物是更晚的新构建** */
+    fun hasUpdate(context: Context, rel: ReleaseInfo): Boolean {
+        val installed = installedVersion(context)
+        if (isNewer(rel.version, installed)) return true
+        if (normalizeVersion(rel.version) == normalizeVersion(installed)) {
+            return sameVersionNewBuild(context, rel)
+        }
+        return false
+    }
+
     /**
      * 查最新 Release。网络失败/无 Release/解析失败 → 返回 null（调用方按"静默失败"处理）。
-     */
-    suspend fun fetchLatest(): ReleaseInfo? = withContext(Dispatchers.IO) {
+     */    suspend fun fetchLatest(): ReleaseInfo? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
                 .url(API_LATEST)
@@ -119,6 +165,9 @@ object UpdateChecker {
                 val size = asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
                 // digest 形如 "sha256:xxxx"（GitHub 较新才返回；为空时只做签名校验）
                 val digest = asset["digest"]?.jsonPrimitive?.content?.removePrefix("sha256:")?.lowercase()
+                // 附件上传时间（updated_at 优先，退到 created_at）：识别「同版本被替换成新构建」
+                val uploadedAt = parseIsoMillis(asset["updated_at"]?.jsonPrimitive?.content)
+                    .takeIf { it > 0L } ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.content)
                 if (url.isBlank()) return@withContext null
                 ReleaseInfo(
                     tagName = tag,
@@ -127,7 +176,8 @@ object UpdateChecker {
                     assetName = name,
                     assetUrl = url,
                     assetSha256 = digest?.takeIf { it.length == 64 },
-                    assetSize = size
+                    assetSize = size,
+                    assetUploadedAt = uploadedAt
                 )
             }
         } catch (e: Exception) {

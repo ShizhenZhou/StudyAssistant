@@ -11,6 +11,7 @@ v0.6.1
 · ⚙️ **设置结构调整**：「API 管理」并入二级菜单「**AI 管理**」（置于该页**最顶端**），原「AI 配置」随之改名
 · ℹ️ **关于页改版**：只保留「应用信息」（版本 / 说明 / **项目主页链接** / Copyright），下方新增「**功能**」说明栏
 · 🌐 思考块文案与「功能」栏均跟随界面语言（简体 · 繁體 · English · 日本語 · 한국어）
+· 🔁 **同一版本的新构建也能被发现**：即使版本号没变（例如替换了 Release 附件），只要发布物比本机安装更新、且内容确实不同，就会提示更新
 
 v0.6.0
 · 🧠 **AI 思考流**：把模型的思考过程用浅灰小字显示在回答气泡**顶端**；思考时**流式逐字增长并自动跟随思路**（用户上滑即取消跟随），思考结束后**自动跳到「思考结尾 + 正式答案开头」**
@@ -235,6 +236,7 @@ v0.6.1
 · ⚙️ **Settings reorganised**: "API" now lives inside the "**AI management**" sub-page (at the very top), and "AI settings" was renamed accordingly
 · ℹ️ **About page reworked**: only "App info" (version / description / **project link** / copyright) plus a new "**Features**" section
 · 🌐 Thinking-block labels and the Features section follow the UI language (简体 · 繁體 · English · 日本語 · 한국어)
+· 🔁 **New builds of the same version are detected too**: even when the version number is unchanged (e.g. a replaced release asset), an update is offered if the published build is newer than your install and the content really differs
 
 v0.6.0
 · 🧠 **AI thinking stream**: the model's reasoning is shown in small grey text at the **top** of each answer bubble; while thinking it **streams in and follows along automatically** (scroll up to stop following), and when thinking ends the view **jumps to the end of the reasoning / start of the answer**
@@ -459,6 +461,7 @@ v0.6.1
 · ⚙️ **設定の構成変更**：「API 管理」を「**AI 管理**」サブページの**最上部**に移動し、「AI 設定」の名称も変更
 · ℹ️ **「このアプリについて」を刷新**：「アプリ情報」（バージョン／説明／**プロジェクトリンク**／Copyright）と、新設の「**機能**」欄のみ
 · 🌐 思考ブロックの文言と「機能」欄は UI 言語に追従（简体 · 繁體 · English · 日本語 · 한국어）
+· 🔁 **同一バージョンの新しいビルドも検出**：バージョン番号が同じでも（例：Release の添付を差し替えた場合）、公開物がインストール済みより新しく内容が異なれば更新として提示します
 
 v0.6.0
 · 🧠 **AI 思考ストリーム**：モデルの思考過程を回答バブルの**上部**に薄いグレーの小さい文字で表示。思考中は**逐次ストリーミングし自動で追従**（上にスワイプで追従解除）、思考が終わると**「思考の末尾＋解答の先頭」へ自動ジャンプ**
@@ -683,6 +686,7 @@ v0.6.1
 · ⚙️ **설정 구조 변경**: 「API 관리」를 「**AI 관리**」 하위 페이지 **맨 위**로 이동하고 「AI 설정」 이름도 변경
 · ℹ️ **「정보」 페이지 개편**: 「앱 정보」(버전 / 설명 / **프로젝트 링크** / Copyright)와 새로 추가한 「**기능**」 항목만 표시
 · 🌐 사고 과정 문구와 「기능」 항목이 UI 언어를 따릅니다 (简体 · 繁體 · English · 日本語 · 한국어)
+· 🔁 **같은 버전의 새 빌드도 감지**: 버전 번호가 같아도(예: 릴리스 첨부 교체) 게시물이 설치본보다 최신이고 내용이 실제로 다르면 업데이트로 안내합니다
 
 v0.6.0
 · 🧠 **AI 사고 과정 스트림**: 모델의 사고 과정을 답변 말풍선 **상단**에 연한 회색 작은 글씨로 표시합니다. 생각하는 동안 **실시간으로 늘어나며 자동으로 따라가고**(위로 스크롤하면 추적 해제), 사고가 끝나면 **「사고 끝 + 답변 시작」으로 자동 이동**합니다

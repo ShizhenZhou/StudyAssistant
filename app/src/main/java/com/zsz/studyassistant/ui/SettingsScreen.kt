@@ -1053,6 +1053,13 @@ private fun AboutSettings() {
                 modifier = Modifier.clickable { openUrl(context, UpdateChecker.REPO_URL) }
             )
             Spacer(Modifier.height(6.dp))
+            // 许可证（灰色小字，不做链接）
+            Text(
+                "MIT License",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Spacer(Modifier.height(6.dp))
             // 版权
             Text(
                 "Copyright © 2026 ShizhenZhou",
