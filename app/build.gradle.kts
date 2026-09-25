@@ -1,5 +1,6 @@
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -12,6 +13,31 @@ plugins {
 
 // 应用版本（供 versionName 与 APK 命名使用）
 val appVersionName = "0.6.0"
+
+// ── 发布签名材料（自有证书 + key rotation）──────────────────────────────────
+// 从 secrets.properties（已 gitignore）读取；**文件缺失时回退到默认 debug 签名**，
+// 这样在没有密钥的机器/CI 上仍能正常构建（只是签出来的包无法覆盖已装的新证书版本）。
+// 详见 README「发布签名（自有证书 + key rotation）」。
+// ⚠️ 两个必须注意的点（都踩过）：
+//   ① 写全限定名 `java.util.Properties` 会被解析成 `java` 扩展 → 必须用顶部 import
+//   ② 必须用 `load(Reader)` 按 UTF-8 读：`load(InputStream)` 按 ISO-8859-1 解码，
+//      路径里的中文（如「文档」）会被搞坏 → 签名材料判定为"无效"而悄悄回退到 debug 签名
+val signingProps = Properties().apply {
+    val f = rootProject.file("secrets.properties")
+    if (f.exists()) f.reader(Charsets.UTF_8).use { load(it) }
+}
+val releaseStorePath = signingProps.getProperty("RELEASE_STORE_FILE")?.takeIf { it.isNotBlank() }
+val releaseStorePass = signingProps.getProperty("RELEASE_STORE_PASSWORD")?.takeIf { it.isNotBlank() }
+val releaseKeyAlias = signingProps.getProperty("RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() }
+val hasReleaseSigning = releaseStorePath != null && releaseStorePass != null &&
+        releaseKeyAlias != null && file(releaseStorePath).exists()
+// 配置期打一行日志：签名材料没吃到时最容易"悄悄回退"，导致打出来的包装不上去
+if (hasReleaseSigning) {
+    logger.lifecycle("[签名] 使用自有证书 alias=$releaseKeyAlias（${file(releaseStorePath!!).name}）")
+} else {
+    logger.lifecycle("[签名] ⚠️ 未启用自有证书签名（secrets.properties 缺失或路径无效）→ 回退 debug 签名；" +
+            "产出的包无法覆盖已安装的新证书版本。解析到的 RELEASE_STORE_FILE=${releaseStorePath ?: "(空)"}")
+}
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -26,13 +52,32 @@ android {
         versionName = appVersionName
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStorePath!!)
+                storePassword = releaseStorePass
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseStorePass
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            // ★ debug 变体也使用同一份自有证书：这样 debug / release 可以**互相覆盖安装**。
+            //   2026-09-25 起 release 已轮换到自有证书，若 debug 还用 debug 证书就会装不上去
+            //   （`INSTALL_FAILED_UPDATE_INCOMPATIBLE`）。
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
+        }
         release {
             // R8 代码裁剪/混淆 + 资源压缩（仅 release 变体；debug 保持可调试）
             isMinifyEnabled = true
             isShrinkResources = true
-            // 用 debug 签名（与已安装版本同签名，便于覆盖安装）
-            signingConfig = signingConfigs.getByName("debug")
+            // 有自有证书就用它（最终发布还要用 tools/sign-release.ps1 补 lineage）；
+            // 没有则回退到 debug 签名，保证构建不中断
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release")
+                            else signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
