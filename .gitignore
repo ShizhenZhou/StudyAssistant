@@ -32,7 +32,7 @@ local_secret
 api_key*
 .env
 
-# adb 调试私钥（工作区 .adb-keys/ 里那份；万一被拷进仓库也绝不提交）
+# adb 调试私钥（本地保留在仓库之外；万一被拷进仓库也绝不提交）
 .adb-keys/
 adbkey
 adbkey.pub

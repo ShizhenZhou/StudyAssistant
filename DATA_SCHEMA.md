@@ -15,7 +15,7 @@
 | 会话消息（追问历史） | `questions.conversationJson`（TEXT） | 序列化后的 `ChatItem[]` |
 | 应用主题 | `SharedPreferences("settings")` 的 `theme` | system/light/dark |
 | DeepSeek API Key | Android Keystore（AES/GCM） | 运行时经 `KeyManager` 解密；**不存源码** |
-| 本机凭据备份 | 工作区根 `LOCAL_SECRETS.txt`（**在仓库外**） | 用户手动维护，绝不上传 |
+| 本机凭据备份 | 仓库之外的本地文件（**不入库**） | 用户手动维护，绝不上传 |
 
 ---
 
@@ -130,10 +130,11 @@ data class ChatItem(
 
 ---
 
-## 4. 本机凭据文件 `LOCAL_SECRETS.txt`（仓库外，用户自管）
+## 4. 本机凭据文件（仓库之外，不入库，用户自管）
 
-- 位置：**工作区根目录**（与 `StudyAssistant/` 同级，即本 Git 仓库之外）的 `LOCAL_SECRETS.txt`。
-- **在 Git 仓库之外，绝不上传**；项目 `.gitignore` 也忽略了 `local_secrets*`/`LOCAL_SECRETS.txt`/`*.key`/`*.pem` 等。
+- 位置：**Git 仓库之外的本地目录**，由用户手动维护。
+- **绝不上传**；项目 `.gitignore` 也忽略了 `local_secrets*`/`*.key`/`*.pem`/`*.p12` 等模式。
+- 用途示例（仅列出键名，值不入库）：
 
 ```ini
 DEEPSEEK_API_KEY=

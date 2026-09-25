@@ -21,7 +21,7 @@ val appVersionName = "0.6.0"
 // ⚠️ 两个必须注意的点（都踩过）：
 //   ① 写全限定名 `java.util.Properties` 会被解析成 `java` 扩展 → 必须用顶部 import
 //   ② 必须用 `load(Reader)` 按 UTF-8 读：`load(InputStream)` 按 ISO-8859-1 解码，
-//      路径里的中文（如「文档」）会被搞坏 → 签名材料判定为"无效"而悄悄回退到 debug 签名
+//      路径里的非 ASCII 字符（例如中文目录名）会被搞坏 → 签名材料判定为"无效"而悄悄回退到 debug 签名
 val signingProps = Properties().apply {
     val f = rootProject.file("secrets.properties")
     if (f.exists()) f.reader(Charsets.UTF_8).use { load(it) }

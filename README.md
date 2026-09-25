@@ -270,8 +270,8 @@ Kotlin · Jetpack Compose（Material3）· MVVM · Room（v7）· Retrofit/OkHtt
 
 ## 密钥与安全约定
 
-- **仓库里绝不出现任何密钥**（本地钩子 + 人工复核是唯一防线，GitHub 端只有公开仓库才免费提供 secret scanning）。`.gitignore` 已覆盖 `*.key`、`*.jks`、`*.keystore`、`*.pem`、`secrets.properties`、`local.properties`、`.env`、`LOCAL_SECRETS.txt`，以及 adb 调试私钥（`.adb-keys/`、`adbkey`、`adbkey.pub`）。
-- **adb 调试私钥的位置**：本项目所在的**工作区根目录**（即仓库之外的 `..\.adb-keys\`），用于免授权连接调试手机。**不要把它拷进仓库**——`.gitignore` 里那三条是防御性忽略，防的就是这种手滑。
+- **仓库里绝不出现任何密钥**（本地钩子 + 人工复核是唯一防线）。`.gitignore` 已覆盖各类密钥与凭据文件：`*.key`、`*.jks`、`*.keystore`、`*.p12`、`*.pem`、`secrets.properties`、`local.properties`、`.env`，以及 adb 调试私钥与签名 lineage 相关模式。
+- **调试/签名用的私钥一律不入库**：它们保存在**仓库之外的本地目录**里（`.gitignore` 里那几条是防御性忽略，防的是手滑把它们拷进来）。
 - **应用内的 API Key**：运行时由使用者在本 App 设置页填写，用 Android Keystore 加密存于手机；代码与仓库中不含任何真实 Key（`git grep` 全量扫描过 `sk-`/`AKID` 等模式，为空）。
 - **提交前本地扫描（建议一次性开启）**：
 
@@ -330,7 +330,7 @@ gradlew.bat assembleDebug
   （AGP 先用 debug 证书签出来的 `app-release.apk` 会被这一步**替换签名**；别把那个直接发出去。）
 - ⚠️ **三条铁律**：
   1. 以后**每一版都必须带同一条 lineage**（不带的话，还停在旧证书版本的设备就装不上，只能卸载重装）
-  2. `lineage.bin` 与 keystore **必须永久备份**（已随 `LOCAL_SECRETS.txt` 备份：base64 + 口令 + 指纹）
+  2. `lineage.bin` 与 keystore **必须永久备份**（在仓库之外的本地凭据备份里存了 base64 + 口令 + 证书指纹，并另存了一份 CI 用的 GitHub Secrets）
   3. 丢失 keystore = 再也签不出可安装的包；丢失 lineage = 升级链断，**只能卸载重装**
 
 ## 配置 API Key（应用内）
@@ -343,5 +343,20 @@ Key 获取：https://platform.deepseek.com（账号需开通视觉模型权限�
 
 ## 环境要求
 
-- JDK 17+（本机 JDK 21）
-- Android SDK：**compileSdk / targetSdk 37**（本机已装 android-37.0），**minSdk 28**
+- JDK 17+（建议 JDK 21）
+- Android SDK：**compileSdk / targetSdk 37**（需已安装 android-37.0 平台），**minSdk 28**
+
+## 许可证（License）
+
+本项目采用 **[PolyForm Noncommercial License 1.0.0](LICENSE)**：
+
+- ✅ **允许**：任何**非商业目的**的使用、修改、分发（个人学习/研究/实验/爱好项目、
+  慈善机构、教育机构、公共研究机构、公共安全与卫生机构、环保组织、政府机构等）
+- ❌ **不允许**：**商业用途**（任何以营利为目的的使用，包括把它打包进商业产品/服务、公司内部商业项目等）
+- 📌 分发时需**附带本许可证全文**（或上面那个链接）以及 `Required Notice:` 那行版权声明
+
+> ⚠️ 说明：非商业许可证**不是 OSI 定义下的"开源"**（它按使用领域做了限制），
+> 属于 **source-available（源码可见可用）**。如果你更希望别人能自由商用，请把 `LICENSE`
+> 换成 MIT / Apache-2.0（两者都允许商业使用，只需保留版权声明）。
+
+Copyright © 2026 ShizhenZhou
