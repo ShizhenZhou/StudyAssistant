@@ -16,7 +16,7 @@ plugins {
 //   · `0.x.x`   —— 每次都要在 README「版本记录」+ App 内「更新内容」记一次
 //   · `0.x.x.x` —— 同系列小修补（patch），**不需要**改「更新内容」，发 Release 即可
 //   · `versionCode` **每次发版必须 +1**（Android 判定版本高低/能否覆盖安装的权威是 versionCode，不是 versionName）
-val appVersionName = "0.6.1.3"
+val appVersionName = "0.6.1.4"
 
 // ── 发布签名材料（自有证书 + key rotation）──────────────────────────────────
 // 从 secrets.properties（已 gitignore）读取；**文件缺失时回退到默认 debug 签名**，
@@ -52,7 +52,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 39
+        versionCode = 40
         versionName = appVersionName
     }
 
