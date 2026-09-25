@@ -52,8 +52,8 @@ import com.zsz.studyassistant.ui.LocalUiLang
 import com.zsz.studyassistant.ui.NotebookScreen
 import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
+import com.zsz.studyassistant.ui.UpdateBadgeDot
 import com.zsz.studyassistant.ui.UpdateBadgeState
-import com.zsz.studyassistant.ui.BADGE_RED
 import com.zsz.studyassistant.ui.silentUpdateCheck
 import com.zsz.studyassistant.ui.SimilarScreen
 import com.zsz.studyassistant.ui.SolveScreen
@@ -226,25 +226,15 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     icon = {
-                                        // 有可用更新时，在「设置」图标右上角叠一个红色气泡①
+                                        // 有可用更新时，在「设置」图标右上角叠一个红点①（Canvas 精确居中）
                                         Box {
                                             Text("⚙️")
                                             if (UpdateBadgeState.availableVersion != null) {
-                                                Box(
-                                                    Modifier
-                                                        .align(Alignment.TopEnd)
-                                                        .size(14.dp)
-                                                        .clip(CircleShape)
-                                                        .background(BADGE_RED),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        "1",
-                                                        color = Color.White,
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
+                                                UpdateBadgeDot(
+                                                    modifier = Modifier.align(Alignment.TopEnd),
+                                                    size = 15.dp,
+                                                    fontSize = 10.sp
+                                                )
                                             }
                                         }
                                     },

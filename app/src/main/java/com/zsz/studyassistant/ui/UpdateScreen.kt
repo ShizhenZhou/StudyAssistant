@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,9 +31,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -43,6 +50,35 @@ import java.io.File
 /** 红点 / 链接配色：不跟主题走 —— 红点要显眼，仓库链接按要求用**蓝色** */
 internal val BADGE_RED = Color(0xFFE53935)
 internal val LINK_BLUE = Color(0xFF1A73E8)
+
+/**
+ * 红色消息气泡「①」。
+ * ⚠️ 不要用 `Box(背景圆) + Text("1")` 那种写法：Text 的行高与字体留白（ascent/descent padding）
+ * 会让数字**不在圆心**（用户明确反馈"数字 1 不在圆圈正中间"）。
+ * 这里用 Canvas 画圆 + 按数字的**紧致外框（getBoundingBox）**精确居中，两个轴都对齐。
+ */
+@Composable
+internal fun UpdateBadgeDot(
+    modifier: Modifier = Modifier,
+    size: Dp = 18.dp,
+    fontSize: TextUnit = 11.sp
+) {
+    val measurer = rememberTextMeasurer()
+    val layout = remember(measurer, fontSize) {
+        measurer.measure(
+            text = "1",
+            style = TextStyle(color = Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold)
+        )
+    }
+    Canvas(modifier.size(size)) {
+        drawCircle(color = BADGE_RED)
+        // 数字"1"的紧致外框（相对布局左上角），据此把它摆到圆心
+        val ink = layout.getBoundingBox(0)
+        val dx = (this.size.width - ink.width) / 2f - ink.left
+        val dy = (this.size.height - ink.height) / 2f - ink.top
+        drawText(layout, topLeft = Offset(dx, dy))
+    }
+}
 
 /**
  * 「有新版本」全局标记。

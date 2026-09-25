@@ -450,13 +450,8 @@ private fun SettingEntry(title: String, badge: Boolean = false, onClick: () -> U
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (badge) {
-                    // 红色消息气泡「1」：有可用更新时显示
-                    Box(
-                        Modifier.size(18.dp).clip(CircleShape).background(BADGE_RED),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("1", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
+                    // 红色消息气泡「1」：有可用更新时显示（Canvas 精确居中，见 UpdateBadgeDot）
+                    UpdateBadgeDot()
                     Spacer(Modifier.size(6.dp))
                 }
                 Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
