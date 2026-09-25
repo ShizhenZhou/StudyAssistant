@@ -1,5 +1,11 @@
 # Study Assistant 📚
 
+![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
+![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
+![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
+![CI](https://github.com/ShizhenZhou/StudyAssistant/actions/workflows/build.yml/badge.svg)
+![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2028)-3DDC84?logo=android&logoColor=white)
+
 个人自用安卓应用：**拍照搜题 → AI 解答 → 错题整理 → 艾宾浩斯复习**（面向理工科大学题目）。
 所有数据只存在本机（Room + Android Keystore），不上传任何服务器，仅调用你自己填写的 DeepSeek API。
 
