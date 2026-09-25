@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- 应用内更新：下载完 APK 后唤起系统安装器（Android 8+ 需要；仍需用户在系统页允许「安装未知应用」） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -46,5 +48,17 @@
             android:name=".data.AnswerForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- 应用内更新：把 cacheDir/updates 里的 APK 以 content:// 交给系统安装器
+             （Android 7+ 禁止直接传 file://，必须用 FileProvider） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

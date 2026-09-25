@@ -7,11 +7,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,9 +28,15 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.NavHost
@@ -43,6 +52,9 @@ import com.zsz.studyassistant.ui.LocalUiLang
 import com.zsz.studyassistant.ui.NotebookScreen
 import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
+import com.zsz.studyassistant.ui.UpdateBadgeState
+import com.zsz.studyassistant.ui.BADGE_RED
+import com.zsz.studyassistant.ui.silentUpdateCheck
 import com.zsz.studyassistant.ui.SimilarScreen
 import com.zsz.studyassistant.ui.SolveScreen
 import com.zsz.studyassistant.ui.StatsScreen
@@ -98,6 +110,10 @@ class MainActivity : ComponentActivity() {
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
                     val showBottomBar = current == "home" || current == "stats" || current == "settings"
+
+                    // 启动时**静默**查一次更新：网络失败或已是最新 → 什么都不做；
+                    // 查到新版本 → UpdateBadgeState 置位，设置入口与底栏「设置」显示红色气泡①
+                    LaunchedEffect(Unit) { silentUpdateCheck(this@MainActivity) }
 
                     // 防触摸穿透：每次页面切换后用**状态标志**封锁内容区触摸 NAV_TOUCH_GUARD_MS。
                     // ⚠️ 这里必须由协程定时解锁，**不能**把 `SystemClock.uptimeMillis() < t` 之类的时间比较写进
@@ -209,7 +225,29 @@ class MainActivity : ComponentActivity() {
                                             launchSingleTop = true
                                         }
                                     },
-                                    icon = { Text("⚙️") },
+                                    icon = {
+                                        // 有可用更新时，在「设置」图标右上角叠一个红色气泡①
+                                        Box {
+                                            Text("⚙️")
+                                            if (UpdateBadgeState.availableVersion != null) {
+                                                Box(
+                                                    Modifier
+                                                        .align(Alignment.TopEnd)
+                                                        .size(14.dp)
+                                                        .clip(CircleShape)
+                                                        .background(BADGE_RED),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        "1",
+                                                        color = Color.White,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
                                     label = { Text(strings["nav.settings"]) }
                                 )
                             }

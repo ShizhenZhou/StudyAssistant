@@ -65,6 +65,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,7 @@ import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AiLang
 import com.zsz.studyassistant.data.ApiKeyStore
 import com.zsz.studyassistant.data.ReminderScheduler
+import com.zsz.studyassistant.data.UpdateChecker
 
 /** 设置：主页面为入口列表，点进去到二级页面进行具体设置 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,18 +84,25 @@ fun SettingsTab(vm: MainViewModel) {
     val s = LocalStrings.current
 
     when (page) {
-        "api" -> SettingsSubPage(s["settings.api"], { page = "main" }) { ApiSettings(vm) }
-        "aicrop" -> SettingsSubPage(s["settings.aiCrop"], { page = "main" }) { AiCropTimeoutSettings() }
+        // 「AI 管理」= API 管理（置顶）+ 原 AI 配置（框选时限 / 解题模式 / 自定义要求）
+        "ai" -> SettingsSubPage(s["settings.aiManage"], { page = "main" }) {
+            Text(s["settings.api"], style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            ApiSettings(vm)
+            Spacer(Modifier.height(26.dp))
+            AiCropTimeoutSettings()
+        }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) { page = it } }
         "notify" -> SettingsSubPage(s["settings.group.notifyBackground"], { page = "main" }) { NotifyBackgroundSettings() }
         "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataSettings(vm) }
+        "update" -> SettingsSubPage(s["settings.update"], { page = "main" }) { UpdatePage() }
         "about" -> SettingsSubPage(s["settings.about"], { page = "main" }) { AboutPage() }
         else -> SettingsMain { page = it }
     }
 }
 
-/** ℹ️ 关于：上面应用信息，下面更新内容 */
+/** ℹ️ 关于：上面「应用信息」，下面「功能」说明（更新历史移到「应用更新」页） */
 @Composable
 private fun AboutPage() {
     val s = LocalStrings.current
@@ -101,16 +110,22 @@ private fun AboutPage() {
     Spacer(Modifier.height(8.dp))
     AboutSettings()
     Spacer(Modifier.height(20.dp))
-    Text(s["about.changelog"], style = MaterialTheme.typography.titleMedium)
+    Text(s["about.features"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
-    Text(changelogAnnotated(changelogText(LocalUiLang.current)), style = MaterialTheme.typography.bodySmall)
+    Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(
+            s["about.features.body"],
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(12.dp)
+        )
+    }
 }
 
 /**
  * 更新内容里的 `**加粗**` 标记 → 真正的粗体。
  * 这一页是纯 Text 渲染（不像答案走 WebView 的 Markdown），不处理就会把星号直接显示出来。
  */
-private fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedString {
+internal fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedString {
     var i = 0
     while (i < text.length) {
         val start = text.indexOf("**", i)
@@ -150,8 +165,8 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
 
         // ── 通用 ──
         SettingGroupTitle(s["settings.group.general"])
-        SettingEntry(s["settings.api"]) { onOpen("api") }
-        SettingEntry(s["settings.aiCrop"]) { onOpen("aicrop") }
+        // API 管理已并入「AI 管理」二级菜单（放在该页最顶端）
+        SettingEntry(s["settings.aiManage"]) { onOpen("ai") }
         // 通知与后台：已合并为一个二级菜单，归入「通用」大类
         SettingEntry(s["settings.group.notifyBackground"]) { onOpen("notify") }
 
@@ -162,8 +177,10 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         SettingEntry(s["settings.lang"]) { onOpen("lang") }
 
         Spacer(Modifier.height(26.dp))
-        // ── 数据管理 / 关于（分立，不归入大类；上方多留一行） ──
+        // ── 数据管理 / 应用更新 / 关于（分立，不归入大类；上方多留一行） ──
         SettingEntry(s["settings.data"]) { onOpen("data") }
+        // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
+        SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen("update") }
         SettingEntry(s["settings.about"]) { onOpen("about") }
     }
 }
@@ -423,7 +440,7 @@ private fun SliderTicks(fmt: (Float) -> String, msToT: (Float) -> Float, values:
 }
 
 @Composable
-private fun SettingEntry(title: String, onClick: () -> Unit) {
+private fun SettingEntry(title: String, badge: Boolean = false, onClick: () -> Unit) {
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick)) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
@@ -431,7 +448,19 @@ private fun SettingEntry(title: String, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (badge) {
+                    // 红色消息气泡「1」：有可用更新时显示
+                    Box(
+                        Modifier.size(18.dp).clip(CircleShape).background(BADGE_RED),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("1", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.size(6.dp))
+                }
+                Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+            }
         }
     }
 }
@@ -992,7 +1021,7 @@ private fun BackgroundSettings() {
     }
 }
 
-/** ℹ️ 关于 */
+/** ℹ️ 关于 → 应用信息卡片：应用名/版本 → 说明 → 仓库网址（蓝色超链接） → Copyright */
 @Composable
 private fun AboutSettings() {
     val context = LocalContext.current
@@ -1008,10 +1037,38 @@ private fun AboutSettings() {
             Spacer(Modifier.height(6.dp))
             Text(s.format("about.version", "v" to "$appVersion"), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(6.dp))
+            // 说明
             Text(
                 s["about.author"] + "\n" + s["about.desc"],
                 style = MaterialTheme.typography.bodySmall
             )
+            Spacer(Modifier.height(8.dp))
+            // 仓库网址：蓝色可点（用系统浏览器打开）
+            Text(
+                s["about.repoLabel"] + UpdateChecker.REPO_URL,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = LINK_BLUE,
+                    textDecoration = TextDecoration.Underline
+                ),
+                modifier = Modifier.clickable { openUrl(context, UpdateChecker.REPO_URL) }
+            )
+            Spacer(Modifier.height(6.dp))
+            // 版权
+            Text(
+                "Copyright © 2026 ShizhenZhou",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
     }
+}
+
+/** 用系统浏览器打开链接（失败静默忽略，页面上另有「在浏览器打开发布页」兜底） */
+internal fun openUrl(context: android.content.Context, url: String) {
+    try {
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    } catch (e: Exception) { /* 没有浏览器等情况：忽略 */ }
 }

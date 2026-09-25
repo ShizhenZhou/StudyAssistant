@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.1
+· ⬆️ **新增「应用更新」页**（设置里，位于「数据管理」与「关于」之间）：显示当前版本、一键**检查更新**、下载并在安装前做**双重校验**（SHA-256 + 签名证书），校验不通过会删除下载的文件
+· 🔴 **有新版本时**：「设置」图标与「应用更新」入口显示**红色气泡①**；App 启动时**静默检查**一次，网络失败或已是最新都不打扰你
+· ⚙️ **设置结构调整**：「API 管理」并入二级菜单「**AI 管理**」（置于该页**最顶端**），原「AI 配置」随之改名
+· ℹ️ **关于页改版**：只保留「应用信息」（版本 / 说明 / **项目主页链接** / Copyright），下方新增「**功能**」说明栏
+· 🌐 思考块文案与「功能」栏均跟随界面语言（简体 · 繁體 · English · 日本語 · 한국어）
+
 v0.6.0
 · 🧠 **AI 思考流**：把模型的思考过程用浅灰小字显示在回答气泡**顶端**；思考时**流式逐字增长并自动跟随思路**（用户上滑即取消跟随），思考结束后**自动跳到「思考结尾 + 正式答案开头」**
 · 💭 折叠入口有两个：气泡顶端「思考过程」与思考块**底端**的蓝色「折叠思考区 / 展开思考区」（思考很长时不用滚回顶部）；覆盖拍题 / 批改 / 图文提问 / 错题本问答
@@ -222,6 +229,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.1
+· ⬆️ **New "App update" page** (in Settings, between Data and About): shows the current version, checks for updates, downloads, and **verifies twice before installing** (SHA-256 + signing certificate); a failed check deletes the file
+· 🔴 **When an update is available**: a **red badge ①** appears on the Settings icon and on the App update entry; the app also does one **silent check** at startup and stays quiet on failure or when up to date
+· ⚙️ **Settings reorganised**: "API" now lives inside the "**AI management**" sub-page (at the very top), and "AI settings" was renamed accordingly
+· ℹ️ **About page reworked**: only "App info" (version / description / **project link** / copyright) plus a new "**Features**" section
+· 🌐 Thinking-block labels and the Features section follow the UI language (简体 · 繁體 · English · 日本語 · 한국어)
+
 v0.6.0
 · 🧠 **AI thinking stream**: the model's reasoning is shown in small grey text at the **top** of each answer bubble; while thinking it **streams in and follows along automatically** (scroll up to stop following), and when thinking ends the view **jumps to the end of the reasoning / start of the answer**
 · 💭 Two toggle points: the "Thinking" header at the top and the blue "Collapse / Expand thinking" line at the **bottom** of the block (no need to scroll back up when it is long); works for photo solve, grading, ask-with-images and notebook Q&A
@@ -439,6 +453,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.1
+· ⬆️ **「アプリ更新」ページを追加**（設定内、「データ管理」と「このアプリについて」の間）：現在のバージョン表示・更新の確認・ダウンロード・インストール前の**二重検証**（SHA-256＋署名証明書）。検証に失敗したファイルは削除します
+· 🔴 **新しいバージョンがあるとき**：「設定」アイコンと「アプリ更新」項目に**赤いバッジ①**を表示。起動時に**静かに1回確認**し、失敗時や最新時は何も通知しません
+· ⚙️ **設定の構成変更**：「API 管理」を「**AI 管理**」サブページの**最上部**に移動し、「AI 設定」の名称も変更
+· ℹ️ **「このアプリについて」を刷新**：「アプリ情報」（バージョン／説明／**プロジェクトリンク**／Copyright）と、新設の「**機能**」欄のみ
+· 🌐 思考ブロックの文言と「機能」欄は UI 言語に追従（简体 · 繁體 · English · 日本語 · 한국어）
+
 v0.6.0
 · 🧠 **AI 思考ストリーム**：モデルの思考過程を回答バブルの**上部**に薄いグレーの小さい文字で表示。思考中は**逐次ストリーミングし自動で追従**（上にスワイプで追従解除）、思考が終わると**「思考の末尾＋解答の先頭」へ自動ジャンプ**
 · 💭 折りたたみは2か所：上部の「思考過程」と、ブロック**下部**の青い「思考を折りたたむ／展開する」（長いときも上まで戻らなくてよい）。撮影・添削・画像付き質問・誤答ノートの質疑すべてに対応
@@ -656,6 +677,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.1
+· ⬆️ **「앱 업데이트」 페이지 추가**(설정에서 「데이터 관리」와 「정보」 사이): 현재 버전 표시·업데이트 확인·다운로드·설치 전 **이중 검증**(SHA-256 + 서명 인증서). 검증 실패 시 파일을 삭제합니다
+· 🔴 **새 버전이 있을 때**: 「설정」 아이콘과 「앱 업데이트」 항목에 **빨간 배지①** 표시. 앱 시작 시 **조용히 한 번 확인**하며 실패하거나 최신이면 아무 알림도 하지 않습니다
+· ⚙️ **설정 구조 변경**: 「API 관리」를 「**AI 관리**」 하위 페이지 **맨 위**로 이동하고 「AI 설정」 이름도 변경
+· ℹ️ **「정보」 페이지 개편**: 「앱 정보」(버전 / 설명 / **프로젝트 링크** / Copyright)와 새로 추가한 「**기능**」 항목만 표시
+· 🌐 사고 과정 문구와 「기능」 항목이 UI 언어를 따릅니다 (简体 · 繁體 · English · 日本語 · 한국어)
+
 v0.6.0
 · 🧠 **AI 사고 과정 스트림**: 모델의 사고 과정을 답변 말풍선 **상단**에 연한 회색 작은 글씨로 표시합니다. 생각하는 동안 **실시간으로 늘어나며 자동으로 따라가고**(위로 스크롤하면 추적 해제), 사고가 끝나면 **「사고 끝 + 답변 시작」으로 자동 이동**합니다
 · 💭 접는 지점이 두 곳: 상단의 「사고 과정」과 블록 **하단**의 파란 「사고 과정 접기/펼치기」(길 때 위로 올라갈 필요 없음). 촬영·첨삭·이미지 질문·오답노트 질의 모두 지원

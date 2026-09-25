@@ -1319,9 +1319,188 @@ private val B9_KO = mapOf(
 )
 
 // ===========================================================================
+// B10：设置结构调整（AI 管理 / 应用更新）+ 关于页功能栏 + 应用更新页（0.6.1）
+// ===========================================================================
+private val B10_ZH = mapOf(
+    "settings.aiManage" to "🤖 AI 管理",
+    "settings.update" to "⬆️ 应用更新",
+    "about.features" to "📋 功能",
+    "about.repoLabel" to "项目主页：",
+    "about.features.body" to (
+        "· 📷 拍照搜题：自动预框选 + 手动框选，AI 识别并分步解答\n" +
+        "· ✏️ 图文提问：文字 + 最多 3 张图直接提问\n" +
+        "· ✍️ 批改题目：拍题目 + 手写作答，AI 判断正误并针对性讲解\n" +
+        "· 🧠 AI 思考流：浅灰小字展示思考过程，可折叠、流式跟随\n" +
+        "· 📐 KaTeX 公式排版：积分 / 分式 / 矩阵等正确渲染\n" +
+        "· 💬 多轮追问：可带图追问，支持中止与继续生成\n" +
+        "· 🎯 练同类题：AI 出题并给出答案\n" +
+        "· 📚 错题本：两列瀑布流、全文搜索、科目分类 + 知识点标签\n" +
+        "· 🗂 自动归类：AI 判定科目与知识点，打开旧题自动补齐\n" +
+        "· 📖 艾宾浩斯复习：0/1/2/4/7/15/30 天排期，熟悉 / 模糊 / 忘记\n" +
+        "· 📊 学习统计：复习量、连续天数、掌握度、科目分布\n" +
+        "· 🔔 复习提醒：每日定时通知，点击直达复习\n" +
+        "· 🎨 应用主题：浅色 / 深色 / 跟随系统 + 8 套配色与自定义取色\n" +
+        "· 🌐 多语言界面：简体 / 繁體 / English / 日本語 / 한국어\n" +
+        "· 🔑 API Key 应用内填写：Android Keystore 加密，仅存本机\n" +
+        "· 💾 数据管理：导出 / 导入 JSON 备份、清空数据\n" +
+        "· ⬆️ 应用更新：应用内检查、下载并校验（SHA-256 + 签名）\n" +
+        "· 🔒 隐私：所有数据只存本机，不上传服务器"
+        ),
+    "update.current" to "当前版本",
+    "update.check" to "检查更新",
+    "update.checking" to "正在检查…",
+    "update.upToDate" to "已是最新版本",
+    "update.found" to "发现新版本 {v}",
+    "update.download" to "下载更新",
+    "update.downloading" to "下载中 {p}%",
+    "update.verifying" to "校验中…",
+    "update.verified" to "校验通过（SHA-256 与签名均匹配）",
+    "update.verifiedSigner" to "校验通过（签名证书匹配）",
+    "update.verifyFailed" to "校验失败，已删除下载的文件",
+    "update.install" to "安装更新",
+    "update.needPermission" to "需要先允许本应用「安装未知应用」",
+    "update.grant" to "去允许",
+    "update.hint" to "更新包取自 GitHub 仓库，有时网络可能不稳定。",
+    "update.openBrowser" to "在浏览器打开发布页",
+    "update.netError" to "检查失败：网络不可用或无法访问 GitHub"
+)
+
+private val B10_EN = mapOf(
+    "settings.aiManage" to "🤖 AI management",
+    "settings.update" to "⬆️ App update",
+    "about.features" to "📋 Features",
+    "about.repoLabel" to "Project: ",
+    "about.features.body" to (
+        "· 📷 Photo search: automatic + manual crop, AI recognises and solves step by step\n" +
+        "· ✏️ Ask with images: text plus up to 3 photos\n" +
+        "· ✍️ Grading: photo of the question + your handwritten answer, AI marks and explains\n" +
+        "· 🧠 Thinking stream: shows the model's reasoning in small grey text, collapsible and streaming\n" +
+        "· 📐 KaTeX rendering: integrals, fractions, matrices and more\n" +
+        "· 💬 Follow-up questions with images; stop and continue generation\n" +
+        "· 🎯 Similar-question practice: the AI generates a question and its answer\n" +
+        "· 📚 Mistake notebook: two-column grid, full-text search, subjects + knowledge tags\n" +
+        "· 🗂 Auto categorising: the AI assigns subject and tags; older entries are filled in on open\n" +
+        "· 📖 Spaced repetition: 0/1/2/4/7/15/30-day schedule with familiar / vague / forgot\n" +
+        "· 📊 Study stats: review counts, streaks, mastery, subject breakdown\n" +
+        "· 🔔 Review reminders: a daily notification that opens review directly\n" +
+        "· 🎨 Themes: light / dark / system, 8 palettes and a custom colour picker\n" +
+        "· 🌐 Multi-language UI: 简体 / 繁體 / English / 日本語 / 한국어\n" +
+        "· 🔑 API key entered in-app, encrypted with Android Keystore, never uploaded\n" +
+        "· 💾 Data management: export / import JSON backup, wipe data\n" +
+        "· ⬆️ App update: check, download and verify in-app (SHA-256 + signature)\n" +
+        "· 🔒 Privacy: all data stays on your device"
+        ),
+    "update.current" to "Current version",
+    "update.check" to "Check for updates",
+    "update.checking" to "Checking…",
+    "update.upToDate" to "You're up to date",
+    "update.found" to "New version {v} is available",
+    "update.download" to "Download update",
+    "update.downloading" to "Downloading {p}%",
+    "update.verifying" to "Verifying…",
+    "update.verified" to "Verified (SHA-256 and signature match)",
+    "update.verifiedSigner" to "Verified (signing certificate matches)",
+    "update.verifyFailed" to "Verification failed; the downloaded file was deleted",
+    "update.install" to "Install update",
+    "update.needPermission" to "Please allow this app to install unknown apps first",
+    "update.grant" to "Allow",
+    "update.hint" to "Update packages come from the GitHub repository; the network may be unstable at times.",
+    "update.openBrowser" to "Open the releases page in a browser",
+    "update.netError" to "Check failed: network unavailable or GitHub unreachable"
+)
+
+private val B10_JA = mapOf(
+    "settings.aiManage" to "🤖 AI 管理",
+    "settings.update" to "⬆️ アプリ更新",
+    "about.features" to "📋 機能",
+    "about.repoLabel" to "プロジェクト：",
+    "about.features.body" to (
+        "· 📷 撮影検索：自動＋手動の枠取り、AI が認識して段階的に解答\n" +
+        "· ✏️ 画像付き質問：テキスト＋最大 3 枚の写真\n" +
+        "· ✍️ 添削：問題＋手書き解答の写真から正誤と解説\n" +
+        "· 🧠 思考ストリーム：薄いグレーの小文字で思考過程を表示（折りたたみ可・逐次表示）\n" +
+        "· 📐 KaTeX による数式組版：積分・分数・行列など\n" +
+        "· 💬 画像付きの追加質問／生成の中止と再開\n" +
+        "· 🎯 類似問題演習：AI が出題し解答も提示\n" +
+        "· 📚 誤答ノート：2 列レイアウト・全文検索・科目＋知識タグ\n" +
+        "· 🗂 自動分類：AI が科目とタグを判定し、古い問題は開いた時に補完\n" +
+        "· 📖 間隔反復：0/1/2/4/7/15/30 日のスケジュール（熟悉 / 模糊 / 忘记）\n" +
+        "· 📊 学習統計：復習数・連続日数・習熟度・科目分布\n" +
+        "· 🔔 復習リマインダー：毎日通知、タップで復習へ\n" +
+        "· 🎨 テーマ：ライト / ダーク / システム＋8 色とカスタムカラー\n" +
+        "· 🌐 多言語 UI：简体 / 繁體 / English / 日本語 / 한국어\n" +
+        "· 🔑 API キーはアプリ内で入力し Android Keystore に暗号化保存\n" +
+        "· 💾 データ管理：JSON のエクスポート / インポート、全消去\n" +
+        "· ⬆️ アプリ更新：アプリ内で確認・ダウンロード・検証（SHA-256＋署名）\n" +
+        "· 🔒 プライバシー：データは端末内のみ"
+        ),
+    "update.current" to "現在のバージョン",
+    "update.check" to "更新を確認",
+    "update.checking" to "確認中…",
+    "update.upToDate" to "最新版です",
+    "update.found" to "新しいバージョン {v} があります",
+    "update.download" to "更新をダウンロード",
+    "update.downloading" to "ダウンロード中 {p}%",
+    "update.verifying" to "検証中…",
+    "update.verified" to "検証済み（SHA-256 と署名が一致）",
+    "update.verifiedSigner" to "検証済み（署名証明書が一致）",
+    "update.verifyFailed" to "検証に失敗しました。ダウンロードしたファイルは削除しました",
+    "update.install" to "更新をインストール",
+    "update.needPermission" to "先に「提供元不明のアプリ」のインストールを許可してください",
+    "update.grant" to "許可する",
+    "update.hint" to "更新パッケージは GitHub リポジトリから取得します。ネットワークが不安定なことがあります。",
+    "update.openBrowser" to "リリースページをブラウザで開く",
+    "update.netError" to "確認に失敗しました：ネットワーク不可、または GitHub に接続できません"
+)
+
+private val B10_KO = mapOf(
+    "settings.aiManage" to "🤖 AI 관리",
+    "settings.update" to "⬆️ 앱 업데이트",
+    "about.features" to "📋 기능",
+    "about.repoLabel" to "프로젝트: ",
+    "about.features.body" to (
+        "· 📷 사진 검색: 자동·수동 자르기 후 AI가 인식해 단계별 풀이\n" +
+        "· ✏️ 이미지 질문: 텍스트 + 최대 3장의 사진\n" +
+        "· ✍️ 첨삭: 문제 + 손글씨 답안 사진으로 정오 판단과 설명\n" +
+        "· 🧠 사고 과정: 연한 회색 작은 글씨로 추론 과정 표시(접기 가능, 실시간)\n" +
+        "· 📐 KaTeX 수식 조판: 적분·분수·행렬 등\n" +
+        "· 💬 이미지 첨부 추가 질문 / 생성 중지와 재개\n" +
+        "· 🎯 유사 문제 연습: AI가 출제하고 해답 제시\n" +
+        "· 📚 오답노트: 2열 배치·전체 검색·과목 + 지식 태그\n" +
+        "· 🗂 자동 분류: AI가 과목과 태그를 판정, 오래된 문제는 열 때 보완\n" +
+        "· 📖 간격 반복: 0/1/2/4/7/15/30일 일정(익숙 / 애매 / 모름)\n" +
+        "· 📊 학습 통계: 복습 수·연속 일수·숙련도·과목 분포\n" +
+        "· 🔔 복습 알림: 매일 알림, 탭하면 복습으로 이동\n" +
+        "· 🎨 테마: 라이트 / 다크 / 시스템 + 8가지 색상과 사용자 지정 색\n" +
+        "· 🌐 다국어 UI: 简体 / 繁體 / English / 日本語 / 한국어\n" +
+        "· 🔑 API 키는 앱 내 입력, Android Keystore로 암호화 저장\n" +
+        "· 💾 데이터 관리: JSON 내보내기 / 가져오기, 전체 삭제\n" +
+        "· ⬆️ 앱 업데이트: 앱 내 확인·다운로드·검증(SHA-256 + 서명)\n" +
+        "· 🔒 개인정보: 모든 데이터는 기기 안에만"
+        ),
+    "update.current" to "현재 버전",
+    "update.check" to "업데이트 확인",
+    "update.checking" to "확인 중…",
+    "update.upToDate" to "최신 버전입니다",
+    "update.found" to "새 버전 {v}이(가) 있습니다",
+    "update.download" to "업데이트 다운로드",
+    "update.downloading" to "다운로드 중 {p}%",
+    "update.verifying" to "검증 중…",
+    "update.verified" to "검증됨(SHA-256 및 서명 일치)",
+    "update.verifiedSigner" to "검증됨(서명 인증서 일치)",
+    "update.verifyFailed" to "검증 실패: 내려받은 파일을 삭제했습니다",
+    "update.install" to "업데이트 설치",
+    "update.needPermission" to "먼저 이 앱의 '알 수 없는 앱 설치'를 허용해 주세요",
+    "update.grant" to "허용",
+    "update.hint" to "업데이트 패키지는 GitHub 저장소에서 받습니다. 네트워크가 불안정할 수 있습니다.",
+    "update.openBrowser" to "브라우저에서 릴리스 페이지 열기",
+    "update.netError" to "확인 실패: 네트워크 불가 또는 GitHub 접속 실패"
+)
+
+// ===========================================================================
 // 合并（每批新增后在这里追加对应的 Bn_xx）
 // ===========================================================================
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO

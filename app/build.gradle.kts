@@ -12,7 +12,7 @@ plugins {
 }
 
 // 应用版本（供 versionName 与 APK 命名使用）
-val appVersionName = "0.6.0"
+val appVersionName = "0.6.1"
 
 // ── 发布签名材料（自有证书 + key rotation）──────────────────────────────────
 // 从 secrets.properties（已 gitignore）读取；**文件缺失时回退到默认 debug 签名**，
@@ -48,7 +48,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 35
+        versionCode = 36
         versionName = appVersionName
     }
 
