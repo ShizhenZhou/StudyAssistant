@@ -312,6 +312,27 @@ gradlew.bat assembleDebug
 # 产物: app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## 发布签名（自有证书 + key rotation）
+
+> 2026-09-25 起：release 签名从 **Android debug 证书**轮换到**自有证书**。
+
+- 轮换靠 **APK Signature Scheme v3 的 SigningCertificateLineage**（`lineage.bin`）实现：
+  由**旧（debug）私钥签名授权**新证书 → 已经装了旧证书版本的设备（含朋友的手机）**可以直接覆盖升级，不需要卸载**，错题本数据保留。
+- keystore（`studyassistant-release.p12`）与 `lineage.bin` **都放在仓库之外**（工作区 `keys\`），
+  `.gitignore` 另有一层兜底（`*.p12` / `*.keystore` / `*.jks` / `lineage*.bin` / `keys/`）；口令走 `secrets.properties`（已被忽略）。
+- ⚠️ **签名不是 `assembleRelease` 的产物**：AGP 的 `signingConfig` 不支持 lineage，必须再补一步：
+
+  ```powershell
+  .\gradlew.bat assembleRelease
+  .\tools\sign-release.ps1     # 输出 StudyAssistant-<版本>-<时间>.apk ← 这个才是要发布的包
+  ```
+
+  （AGP 先用 debug 证书签出来的 `app-release.apk` 会被这一步**替换签名**；别把那个直接发出去。）
+- ⚠️ **三条铁律**：
+  1. 以后**每一版都必须带同一条 lineage**（不带的话，还停在旧证书版本的设备就装不上，只能卸载重装）
+  2. `lineage.bin` 与 keystore **必须永久备份**（已随 `LOCAL_SECRETS.txt` 备份：base64 + 口令 + 指纹）
+  3. 丢失 keystore = 再也签不出可安装的包；丢失 lineage = 升级链断，**只能卸载重装**
+
 ## 配置 API Key（应用内）
 
 1. 打开 App → 右上角 **⚙️ 设置**

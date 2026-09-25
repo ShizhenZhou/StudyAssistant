@@ -15,6 +15,13 @@ captures/
 secrets.properties
 *.keystore
 *.jks
+# 发布签名（2026-09-25 起改用「自有证书 + key rotation lineage」签发）
+# 真正的 keystore 与 lineage.bin 都放在**仓库外**（工作区 keys\），这里再兜一层防手滑拷进来
+*.p12
+*.pfx
+lineage*.bin
+keys/
+.keys/
 local_secrets*
 LOCAL_SECRETS.txt
 local_secrets.txt
