@@ -78,7 +78,9 @@ fun ConversationWebView(
     /** 多选时**不可选中/不可删除**的下标（题干与 AI 首条回复：答案 / 批改结果） */
     lockedIndices: Set<Int> = emptySet(),
     /** 多选态下点击某条气泡 → 切换选中 */
-    onToggleSelect: (Int) -> Unit = {}
+    onToggleSelect: (Int) -> Unit = {},
+    /** 当前是否深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换（见 conversation_render.html） */
+    dark: Boolean = false
 ) {
     val currentMessages by rememberUpdatedState(messages)
     // ⚠️ JS 桥接对象只在 AndroidView 的 factory 里创建一次，会永久捕获当时的 lambda。
@@ -217,8 +219,8 @@ fun ConversationWebView(
                             val json = buildMessagesJson(currentMessages)
                             val sel = selectionJson()
                             val labels = thinkLabelsJson()
-                            lastJson = json + "|" + sel + "|" + labels
-                            view?.evaluateJavascript("renderMessages($json, $sel, $labels);", null)
+                            lastJson = json + "|" + sel + "|" + labels + "|" + dark
+                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $dark);", null)
                         }
                     }
                     loadUrl("file:///android_asset/conversation_render.html")
@@ -231,10 +233,10 @@ fun ConversationWebView(
                     val json = buildMessagesJson(currentMessages)
                     val sel = selectionJson()
                     val labels = thinkLabelsJson()
-                    val key = json + "|" + sel + "|" + labels
+                    val key = json + "|" + sel + "|" + labels + "|" + dark
                     if (key != lastJson) {
                         lastJson = key
-                        v.evaluateJavascript("renderMessages($json, $sel, $labels);", null)
+                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $dark);", null)
                     }
                 }
             },

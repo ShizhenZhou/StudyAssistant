@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AiLang
 import com.zsz.studyassistant.data.ApiKeyStore
+import com.zsz.studyassistant.data.CrashLogger
 import com.zsz.studyassistant.data.ReminderScheduler
 import com.zsz.studyassistant.data.UpdateChecker
 
@@ -591,6 +592,78 @@ private fun DataSettings(vm: MainViewModel) {
     ) { Text(s["data.clear"]) }
     Spacer(Modifier.height(4.dp))
     Text(s["data.clear.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    Spacer(Modifier.height(24.dp))
+
+    // ── 崩溃日志：崩溃时自动记到本机（data/CrashLogger.kt），这里只做「导出 / 清空」 ──
+    // 设计取舍：不做自动上传（隐私 + 自用无服务端），导出走系统「保存到文件」，用户自己决定发给谁。
+    var crashCount by remember { mutableStateOf(CrashLogger.count(context)) }
+    var crashMessage by remember { mutableStateOf<String?>(null) }
+    var showCrashClearConfirm by remember { mutableStateOf(false) }
+
+    Text(s["data.crash"], style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(6.dp))
+    Text(
+        if (crashCount == 0) s["data.crash.none"] else s.format("data.crash.count", "n" to "$crashCount"),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Spacer(Modifier.height(8.dp))
+
+    val crashExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            crashMessage = try {
+                val text = CrashLogger.dumpText(context)
+                context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                    ?: throw IllegalStateException("无法写入所选位置")
+                s["data.crash.exportDone"]
+            } catch (e: Exception) {
+                s.format("data.crash.failed", "msg" to (e.message ?: "?"))
+            }
+        }
+    }
+    Button(
+        shape = smoothPill(),
+        enabled = crashCount > 0,
+        onClick = { crashExportLauncher.launch(CrashLogger.exportFileName()) },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(s["data.crash.export"]) }
+    Spacer(Modifier.height(4.dp))
+    Text(s["data.crash.export.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    Spacer(Modifier.height(12.dp))
+
+    OutlinedButton(
+        shape = smoothPill(),
+        enabled = crashCount > 0,
+        onClick = { showCrashClearConfirm = true },
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+    ) { Text(s["data.crash.clear"]) }
+
+    crashMessage?.let { msg ->
+        Spacer(Modifier.height(8.dp))
+        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    }
+
+    if (showCrashClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCrashClearConfirm = false },
+            title = { Text(s["data.crash.clear.title"]) },
+            text = { Text(s["data.crash.clear.text"]) },
+            confirmButton = {
+                TextButton(shape = smoothPill(), onClick = {
+                    CrashLogger.clear(context)
+                    crashCount = 0
+                    crashMessage = s["data.crash.clearDone"]
+                    showCrashClearConfirm = false
+                }) { Text(s["common.ok"]) }
+            },
+            dismissButton = { TextButton(shape = smoothPill(), onClick = { showCrashClearConfirm = false }) { Text(s["common.cancel"]) } }
+        )
+    }
 
     if (vm.dataBusy) {
         Spacer(Modifier.height(12.dp))

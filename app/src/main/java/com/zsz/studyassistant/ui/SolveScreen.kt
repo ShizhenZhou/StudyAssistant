@@ -594,7 +594,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         onScrollableChange = { scrollable = it },
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 4.dp)
+                            .padding(horizontal = 4.dp),
+                        // 深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换
+                        dark = rememberDarkTheme(vm.theme)
                     )
                     // 快速跳转按钮：仅在**内容超过一屏**时出现；在顶部显示 ↓（一按滚到最底），否则 ↑（一按回到顶部）
                     if (!editMode && scrollable) {

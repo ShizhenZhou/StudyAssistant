@@ -5,12 +5,30 @@
 <link rel="stylesheet" href="katex/katex.min.css">
 <script src="katex/katex.min.js"></script>
 <style>
-  html,body{margin:0;padding:0;background:transparent;color:#111;}
+  /* ── 主题变量：浅色为默认，body.dark 覆盖（深色主题由原生侧注入，见 renderMessages 的 dark 参数） ──
+     此前颜色全是写死的浅色 → 深色主题下气泡仍是浅灰、思考块灰字在深底上对比度极低（用户反馈） */
+  :root{
+    --fg:#111;
+    --bubble-ai:#E9E9E9;  --bubble-ai-border:#ddd;
+    --bubble-user:#D8F2D8; --bubble-user-border:#bfe6bf;
+    --msg-border:#ddd;
+    --think-fg:#8f8f8f; --think-body-fg:#9a9a9a; --think-body-border:#cfcfcf;
+    --pick-border:#9E9E9E;
+  }
+  body.dark{
+    --fg:#E6E6E6;
+    --bubble-ai:#2B2B30;  --bubble-ai-border:#3C3C43;
+    --bubble-user:#1E3A24; --bubble-user-border:#2F5A38;
+    --msg-border:#3C3C43;
+    --think-fg:#A6A6A6; --think-body-fg:#B6B6B6; --think-body-border:#4A4A52;
+    --pick-border:#8A8A8A;
+  }
+  html,body{margin:0;padding:0;background:transparent;color:var(--fg);}
   body{padding:10px 8px;font-size:16px;line-height:1.6;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;overflow-x:hidden;}
   .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:15px;line-height:1.6;}
-  .bubble.assistant{background:#E9E9E9;color:#111;align-self:flex-start;border:1px solid #ddd;}
-  .bubble.user{background:#D8F2D8;color:#111;align-self:flex-end;border:1px solid #bfe6bf;}
-  .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid #ddd;}
+  .bubble.assistant{background:var(--bubble-ai);color:var(--fg);align-self:flex-start;border:1px solid var(--bubble-ai-border);}
+  .bubble.user{background:var(--bubble-user);color:var(--fg);align-self:flex-end;border:1px solid var(--bubble-user-border);}
+  .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}
   .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:6px 0;}
   /* 生成中断后的蓝色「继续生成」一行 */
@@ -19,7 +37,7 @@
   .bubble{position:relative;}
   .bubble.selmode{padding-right:36px;}
   .pick{display:none;position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;
-        box-sizing:border-box;border:2px solid #9E9E9E;color:#fff;font-size:13px;line-height:18px;
+        box-sizing:border-box;border:2px solid var(--pick-border);color:#fff;font-size:13px;line-height:18px;
         text-align:center;background:transparent;}
   .bubble.selmode .pick{display:block;}
   .bubble.selected .pick{background:#F44336;border-color:#F44336;}
@@ -39,9 +57,9 @@
      <details> 的原生折叠既依赖"按下/抬起落在同一节点"、又依赖 ontoggle 落库，
      两者在重建中都不可靠 → 改为 JS 自管展开态 + document 级事件委托 */
   .think{margin-bottom:6px}
-  .thinkhead{cursor:pointer;font-size:12px;color:#8f8f8f;opacity:.9;padding:3px 0;
+  .thinkhead{cursor:pointer;font-size:12px;color:var(--think-fg);opacity:.9;padding:3px 0;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-  .thinkbody{font-size:12px;line-height:1.5;color:#9a9a9a;white-space:pre-wrap;border-left:2px solid #cfcfcf;padding:4px 0 4px 8px;margin-top:4px}
+  .thinkbody{font-size:12px;line-height:1.5;color:var(--think-body-fg);white-space:pre-wrap;border-left:2px solid var(--think-body-border);padding:4px 0 4px 8px;margin-top:4px}
   /* 思考块底端的蓝色「折叠思考区」：思考很长时不必再滚回顶部去收起（蓝色与「继续生成」一致） */
   .thinkfold{color:#2196F3;font-size:12px;font-weight:600;padding:6px 0 2px 8px;cursor:pointer;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
@@ -455,7 +473,9 @@ document.addEventListener('click', function(e){
 }, true);
 
 // labels（可选）：思考块的多语言文案，由原生按界面语言注入；缺省时用简体兜底
-function renderMessages(arr, sel, labels){
+// dark（可选）：是否深色主题，由原生注入 → 给 body 加 .dark，CSS 变量随之切换（见文件顶部变量表）
+function renderMessages(arr, sel, labels, dark){
+  if(dark !== undefined) document.body.classList.toggle('dark', !!dark);
   if(labels && typeof labels === 'object'){
     // 文案变化（切换界面语言）→ 清掉增量渲染缓存，强制整段重建（否则已渲染的气泡不会换文案）
     var lk = JSON.stringify(labels);

@@ -1,10 +1,26 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+
+/**
+ * 主题模式（设置 → 应用主题）→ 当前是否深色。
+ *
+ * 与 MainActivity 里构造 MaterialTheme 的判定**必须是同一套规则**，
+ * 否则「原生界面深色、WebView 正文浅色」会不一致。
+ * 供需要把配色传给 WebView / 原生绘制的地方复用。
+ */
+@Composable
+internal fun rememberDarkTheme(mode: String): Boolean = when (mode) {
+    "light" -> false
+    "dark" -> true
+    else -> isSystemInDarkTheme()
+}
 
 /**
  * 应用主题配色预设（预设色板：一键切换主色）。

@@ -229,7 +229,9 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                                 selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                             }
                         },
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                        // 深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换
+                        dark = rememberDarkTheme(vm.theme)
                     )
                     // 左下角椭圆按钮：查看答案 / 收起答案（答案未生成好时置灰）
                     if (!editMode && (question != null || vm.similarStreamingText != null || revealed)) {

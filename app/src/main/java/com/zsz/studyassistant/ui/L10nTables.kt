@@ -1042,6 +1042,19 @@ private val B7_ZH = mapOf(
     "data.failed" to "操作失败：{msg}",
     "data.clearDone" to "已清空所有数据",
 
+    // 崩溃日志（v0.6.1.2）：只存本机 + 用户主动导出/清空
+    "data.crash" to "🐞 崩溃日志",
+    "data.crash.count" to "本机已记录 {n} 份崩溃日志（最多保留 10 份）",
+    "data.crash.none" to "暂无崩溃记录",
+    "data.crash.export" to "导出崩溃日志",
+    "data.crash.export.desc" to "只在崩溃时自动记到本机、不会上传；导出成 txt 后可自行发送以便定位问题",
+    "data.crash.exportDone" to "已导出崩溃日志",
+    "data.crash.clear" to "清空崩溃日志",
+    "data.crash.clearDone" to "已清空崩溃日志",
+    "data.crash.failed" to "操作失败：{msg}",
+    "data.crash.clear.title" to "确认清空崩溃日志",
+    "data.crash.clear.text" to "将删除本机记录的全部崩溃日志，不影响错题等其他数据。",
+
     "review.progress" to "第 {i}/{n} 题",
     "review.showAnswer" to "👁 看解答",
     "review.hideAnswer" to "🙈 收起解答",
@@ -1080,6 +1093,19 @@ private val B7_EN = mapOf(
     "data.importDone" to "Import done: {q} problems, {c} categories, {t} tags added; {s} duplicates skipped",
     "data.failed" to "Failed: {msg}",
     "data.clearDone" to "All data erased",
+
+    // Crash logs (v0.6.1.2): stored locally only, exported/cleared by the user
+    "data.crash" to "🐞 Crash logs",
+    "data.crash.count" to "{n} crash log(s) on this device (last 10 kept)",
+    "data.crash.none" to "No crash recorded",
+    "data.crash.export" to "Export crash logs",
+    "data.crash.export.desc" to "Recorded locally on crash only — never uploaded; export as txt and send it yourself to help diagnose",
+    "data.crash.exportDone" to "Crash logs exported",
+    "data.crash.clear" to "Clear crash logs",
+    "data.crash.clearDone" to "Crash logs cleared",
+    "data.crash.failed" to "Failed: {msg}",
+    "data.crash.clear.title" to "Clear crash logs?",
+    "data.crash.clear.text" to "Deletes all crash logs stored on this device. Other data (problems, etc.) is untouched.",
 
     "review.progress" to "{i} / {n}",
     "review.showAnswer" to "👁 Show answer",
@@ -1120,6 +1146,19 @@ private val B7_JA = mapOf(
     "data.failed" to "失敗しました：{msg}",
     "data.clearDone" to "すべてのデータを削除しました",
 
+    // クラッシュログ（v0.6.1.2）：端末内のみ保存・ユーザー操作で書き出し/削除
+    "data.crash" to "🐞 クラッシュログ",
+    "data.crash.count" to "この端末に {n} 件のクラッシュログがあります（最新 10 件まで保持）",
+    "data.crash.none" to "クラッシュの記録はありません",
+    "data.crash.export" to "クラッシュログを書き出す",
+    "data.crash.export.desc" to "クラッシュ時に端末内へ記録するだけで、送信はしません。txt で書き出してご自身で送付いただけます",
+    "data.crash.exportDone" to "クラッシュログを書き出しました",
+    "data.crash.clear" to "クラッシュログを削除",
+    "data.crash.clearDone" to "クラッシュログを削除しました",
+    "data.crash.failed" to "失敗しました：{msg}",
+    "data.crash.clear.title" to "クラッシュログの削除",
+    "data.crash.clear.text" to "端末内のクラッシュログをすべて削除します。問題などの他のデータには影響しません。",
+
     "review.progress" to "{i} / {n} 問目",
     "review.showAnswer" to "👁 解答を見る",
     "review.hideAnswer" to "🙈 解答を隠す",
@@ -1158,6 +1197,19 @@ private val B7_KO = mapOf(
     "data.importDone" to "완료: 오답 {q}개, 분류 {c}개, 태그 {t}개 추가, 중복 {s}개 건너뜀",
     "data.failed" to "실패: {msg}",
     "data.clearDone" to "모든 데이터를 삭제했습니다",
+
+    // 크래시 로그(v0.6.1.2): 기기 내에만 저장, 사용자가 직접 내보내기/삭제
+    "data.crash" to "🐞 크래시 로그",
+    "data.crash.count" to "이 기기에 크래시 로그 {n}개가 있습니다(최근 10개 보관)",
+    "data.crash.none" to "크래시 기록이 없습니다",
+    "data.crash.export" to "크래시 로그 내보내기",
+    "data.crash.export.desc" to "크래시 시 기기에만 기록하며 전송하지 않습니다. txt로 내보내 직접 보내주시면 문제 파악에 도움이 됩니다",
+    "data.crash.exportDone" to "크래시 로그를 내보냈습니다",
+    "data.crash.clear" to "크래시 로그 삭제",
+    "data.crash.clearDone" to "크래시 로그를 삭제했습니다",
+    "data.crash.failed" to "실패: {msg}",
+    "data.crash.clear.title" to "크래시 로그 삭제",
+    "data.crash.clear.text" to "기기에 기록된 모든 크래시 로그를 삭제합니다. 오답 등 다른 데이터에는 영향이 없습니다.",
 
     "review.progress" to "{i} / {n}",
     "review.showAnswer" to "👁 정답 보기",
