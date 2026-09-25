@@ -1415,7 +1415,16 @@ private val B10_ZH = mapOf(
     "update.grant" to "去允许",
     "update.hint" to "更新包取自 GitHub 仓库，有时网络可能不稳定。",
     "update.openBrowser" to "在浏览器打开发布页",
-    "update.netError" to "检查失败：网络不可用或无法访问 GitHub"
+    "update.netError" to "检查失败：网络不可用或无法访问 GitHub",
+    // v0.6.1.3 更新页增强：新版本说明 / 跳过此版本 / 上次检查时间 / 失败重试
+    "update.notes" to "本次更新内容",
+    "update.lastCheck" to "上次检查：{t}",
+    "update.neverChecked" to "尚未检查过更新",
+    "update.skip" to "跳过此版本",
+    "update.skipped" to "已跳过 v{v}（仍可手动下载）",
+    "update.unskip" to "取消跳过",
+    "update.retry" to "重试",
+    "update.redownload" to "重新下载"
 )
 
 private val B10_EN = mapOf(
@@ -1460,7 +1469,16 @@ private val B10_EN = mapOf(
     "update.grant" to "Allow",
     "update.hint" to "Update packages come from the GitHub repository; the network may be unstable at times.",
     "update.openBrowser" to "Open the releases page in a browser",
-    "update.netError" to "Check failed: network unavailable or GitHub unreachable"
+    "update.netError" to "Check failed: network unavailable or GitHub unreachable",
+    // v0.6.1.3 update page: release notes / skip this version / last check / retry
+    "update.notes" to "What's new in this version",
+    "update.lastCheck" to "Last checked: {t}",
+    "update.neverChecked" to "Never checked for updates",
+    "update.skip" to "Skip this version",
+    "update.skipped" to "v{v} skipped (you can still download it manually)",
+    "update.unskip" to "Don't skip",
+    "update.retry" to "Retry",
+    "update.redownload" to "Download again"
 )
 
 private val B10_JA = mapOf(
@@ -1505,7 +1523,16 @@ private val B10_JA = mapOf(
     "update.grant" to "許可する",
     "update.hint" to "更新パッケージは GitHub リポジトリから取得します。ネットワークが不安定なことがあります。",
     "update.openBrowser" to "リリースページをブラウザで開く",
-    "update.netError" to "確認に失敗しました：ネットワーク不可、または GitHub に接続できません"
+    "update.netError" to "確認に失敗しました：ネットワーク不可、または GitHub に接続できません",
+    // v0.6.1.3 更新ページ拡張：更新内容 / このバージョンをスキップ / 前回確認 / 再試行
+    "update.notes" to "今回の更新内容",
+    "update.lastCheck" to "前回の確認：{t}",
+    "update.neverChecked" to "まだ更新を確認していません",
+    "update.skip" to "このバージョンをスキップ",
+    "update.skipped" to "v{v} をスキップしました（手動でのダウンロードは可能）",
+    "update.unskip" to "スキップを解除",
+    "update.retry" to "再試行",
+    "update.redownload" to "再ダウンロード"
 )
 
 private val B10_KO = mapOf(
@@ -1550,7 +1577,16 @@ private val B10_KO = mapOf(
     "update.grant" to "허용",
     "update.hint" to "업데이트 패키지는 GitHub 저장소에서 받습니다. 네트워크가 불안정할 수 있습니다.",
     "update.openBrowser" to "브라우저에서 릴리스 페이지 열기",
-    "update.netError" to "확인 실패: 네트워크 불가 또는 GitHub 접속 실패"
+    "update.netError" to "확인 실패: 네트워크 불가 또는 GitHub 접속 실패",
+    // v0.6.1.3 업데이트 페이지 확장: 업데이트 내용 / 이 버전 건너뛰기 / 마지막 확인 / 다시 시도
+    "update.notes" to "이번 업데이트 내용",
+    "update.lastCheck" to "마지막 확인: {t}",
+    "update.neverChecked" to "아직 업데이트를 확인하지 않았습니다",
+    "update.skip" to "이 버전 건너뛰기",
+    "update.skipped" to "v{v} 건너뜀(수동 다운로드는 가능)",
+    "update.unskip" to "건너뛰기 해제",
+    "update.retry" to "다시 시도",
+    "update.redownload" to "다시 다운로드"
 )
 
 // ===========================================================================

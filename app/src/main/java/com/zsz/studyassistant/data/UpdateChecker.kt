@@ -135,6 +135,74 @@ object UpdateChecker {
         return false
     }
 
+    // ── 「跳过此版本」与「上次检查时间」的本地持久化 ──────────────────────────
+    // 与主题/界面语言共用 settings 这个 SharedPreferences（自用场景，不必另开文件）
+    private const val PREFS = "settings"
+    private const val KEY_SKIPPED = "update_skipped_version"
+    private const val KEY_LAST_CHECK = "update_last_check_at"
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** 用户「跳过此版本」记下的版本号（已规范化）；null = 没有跳过任何版本 */
+    fun skippedVersion(context: Context): String? =
+        prefs(context).getString(KEY_SKIPPED, null)?.takeIf { it.isNotBlank() }
+
+    /** 这个发布物是否正是用户跳过的那一版 */
+    fun isSkipped(context: Context, rel: ReleaseInfo): Boolean =
+        normalizeVersion(rel.version) == skippedVersion(context)
+
+    fun skipVersion(context: Context, version: String) {
+        prefs(context).edit().putString(KEY_SKIPPED, normalizeVersion(version)).apply()
+    }
+
+    fun clearSkippedVersion(context: Context) {
+        prefs(context).edit().remove(KEY_SKIPPED).apply()
+    }
+
+    /** 上次**成功**检查的时间（epoch ms；0 = 从未成功检查过） */
+    fun lastCheckAt(context: Context): Long = prefs(context).getLong(KEY_LAST_CHECK, 0L)
+
+    fun markChecked(context: Context, at: Long = System.currentTimeMillis()) {
+        prefs(context).edit().putLong(KEY_LAST_CHECK, at).apply()
+    }
+
+    /**
+     * 是否该提示用户更新 = [hasUpdate] **且**不是用户已跳过的版本。
+     * 跳过只影响"提示"，不影响手动检查时看到的最新版本信息。
+     */
+    fun shouldNotify(context: Context, rel: ReleaseInfo): Boolean =
+        hasUpdate(context, rel) && !isSkipped(context, rel)
+
+    /**
+     * Release 说明（Markdown）→ 适合直接显示的纯文本。
+     * GitHub 的说明是 `### 标题` / `- 列表` / `**加粗**` 这种 Markdown，
+     * 直接塞进 Text 会看到一堆 `#`、`*`；这里做**最小化**清洗（不引 Markdown 渲染依赖）：
+     *   · 行首 `#` 去掉；`**粗体**`/`__粗体__` 去掉标记；行首 `-`/`*` 换成 `·`；
+     *   · 行内 ` 反引号 ` 去掉；连续空行压成一个；首尾空白去掉。
+     */
+    fun prettyReleaseNotes(markdown: String): String {
+        if (markdown.isBlank()) return ""
+        val out = StringBuilder()
+        var blank = false
+        for (raw in markdown.lines()) {
+            var line = raw.trimEnd()
+            line = line.replace(Regex("^\\s{0,3}#{1,6}\\s*"), "")   // ### 标题
+            line = line.replace(Regex("^\\s*[-*+]\\s+"), "· ")      // - 列表
+            line = line.replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")   // **粗体**
+            line = line.replace(Regex("__(.+?)__"), "$1")
+            line = line.replace("`", "")
+            if (line.isBlank()) {
+                if (out.isEmpty() || blank) continue
+                blank = true
+            } else {
+                blank = false
+            }
+            out.append(line).append('\n')
+        }
+        return out.toString().trim()
+    }
+
     /**
      * 查最新 Release。网络失败/无 Release/解析失败 → 返回 null（调用方按"静默失败"处理）。
      */    suspend fun fetchLatest(): ReleaseInfo? = withContext(Dispatchers.IO) {

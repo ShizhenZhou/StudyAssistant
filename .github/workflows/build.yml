@@ -63,6 +63,9 @@ jobs:
           echo "SIGNED_READY=1" >> "$GITHUB_ENV"
           echo "OK 签名材料已就绪"
 
+      - name: 单元测试（纯 JVM：答案解析 / 版本比较 / 文案表）
+        run: ./gradlew testDebugUnitTest --console=plain
+
       - name: 编译 release APK
         run: ./gradlew assembleRelease --console=plain
 

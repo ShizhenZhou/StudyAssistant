@@ -94,11 +94,15 @@ object UpdateBadgeState {
 /**
  * 启动时的静默检查：**网络失败或没有新版本 → 什么都不做**（不弹提示）；
  * 查到更新 → 置上标记，让设置入口/底栏显示红点①。
+ *
+ * 注意：用户在更新页点过「跳过此版本」的版本**不再提示**（仍可手动检查/下载）；
+ * 只有**成功**查到（含"已是最新"）才记录"上次检查时间"，失败不记。
  */
 suspend fun silentUpdateCheck(context: Context) {
     val latest = UpdateChecker.fetchLatest() ?: return          // 失败：静默
+    UpdateChecker.markChecked(context)
     // 版本更高，或同一版本但发布物是更晚的新构建（替换过同名附件）→ 都算有更新
-    UpdateBadgeState.set(if (UpdateChecker.hasUpdate(context, latest)) latest.version else null)
+    UpdateBadgeState.set(if (UpdateChecker.shouldNotify(context, latest)) latest.version else null)
 }
 
 /** 页面阶段 */
@@ -109,6 +113,14 @@ private fun canInstallApk(context: Context): Boolean = try {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls()
     else true
 } catch (e: Exception) { true }
+
+/** 「上次检查时间」的显示格式：MM-dd HH:mm（当年不显示年份，跨年补上） */
+private fun formatCheckTime(ms: Long): String {
+    val now = java.util.Calendar.getInstance()
+    val then = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+    val pattern = if (now.get(java.util.Calendar.YEAR) == then.get(java.util.Calendar.YEAR)) "MM-dd HH:mm" else "yyyy-MM-dd HH:mm"
+    return java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(java.util.Date(ms))
+}
 
 /** ⬆️ 应用更新：当前版本 + 检查更新按钮 + 灰字提示 + 下载/校验/安装 + 更新历史 */
 @Composable
@@ -126,6 +138,9 @@ fun UpdatePage() {
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
     var verifiedSha by remember { mutableStateOf<Boolean?>(null) }
     var sameVersion by remember { mutableStateOf(false) }   // true = 同一版本的新构建
+    // 「跳过此版本」记在本地（UpdateChecker 里持久化）；skipped 只影响**提示**，不影响手动下载
+    var skipped by remember { mutableStateOf(UpdateChecker.skippedVersion(context)) }
+    var lastCheck by remember { mutableStateOf(UpdateChecker.lastCheckAt(context)) }
 
     fun goInstall() {
         val f = apk ?: return
@@ -155,11 +170,16 @@ fun UpdatePage() {
                 message = s["update.netError"]
                 return@launch
             }
+            // 成功查到（含"已是最新"）才记「上次检查时间」；失败不记
+            UpdateChecker.markChecked(context)
+            lastCheck = UpdateChecker.lastCheckAt(context)
             latest = rel
+            skipped = UpdateChecker.skippedVersion(context)
             // ① 版本更高 或 ② 同一版本但发布物是更晚的新构建（替换过同名附件）
             if (UpdateChecker.hasUpdate(context, rel)) {
                 sameVersion = !UpdateChecker.isNewer(rel.version, installed)
-                UpdateBadgeState.set(rel.version)
+                // 被跳过的版本不再顶红点（页面上仍显示，可手动下载/取消跳过）
+                UpdateBadgeState.set(if (UpdateChecker.isSkipped(context, rel)) null else rel.version)
                 phase = Phase.FOUND
             } else {
                 sameVersion = false
@@ -218,8 +238,14 @@ fun UpdatePage() {
         )
     }
     Spacer(Modifier.height(8.dp))
-    // ── 灰色小字提示 ──
+    // ── 灰色小字提示 + 上次检查时间 ──
     Text(s["update.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Spacer(Modifier.height(2.dp))
+    Text(
+        if (lastCheck > 0L) s.format("update.lastCheck", "t" to formatCheckTime(lastCheck)) else s["update.neverChecked"],
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
     Spacer(Modifier.height(16.dp))
 
     // ── 状态 / 下载 / 安装 ──
@@ -247,10 +273,42 @@ fun UpdatePage() {
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
+                        // 新版本的更新说明（GitHub Release 说明，Markdown 已做最小化清洗）
+                        val notes = UpdateChecker.prettyReleaseNotes(rel.notes)
+                        if (notes.isNotBlank()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(s["update.notes"], style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(4.dp))
+                            Text(notes, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    if (skipped != null && latest?.version == skipped) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            s.format("update.skipped", "v" to skipped!!),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
                     }
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = { startDownload() }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                         Text(s["update.download"])
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    // 跳过此版本 / 取消跳过（跳过后启动静默检查不再顶红点）
+                    val relVer = latest?.version
+                    OutlinedButton(
+                        shape = smoothPill(),
+                        onClick = {
+                            val v = relVer ?: return@OutlinedButton
+                            val nowSkipped = skipped != v
+                            if (nowSkipped) { UpdateChecker.skipVersion(context, v); skipped = v }
+                            else { UpdateChecker.clearSkippedVersion(context); skipped = null }
+                            UpdateBadgeState.set(if (nowSkipped) null else v)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(44.dp)
+                    ) {
+                        Text(if (skipped != null && skipped == relVer) s["update.unskip"] else s["update.skip"])
                     }
                 }
                 Phase.DOWNLOADING -> {
@@ -287,8 +345,15 @@ fun UpdatePage() {
                 Phase.FAILED -> {
                     Text(message ?: s["update.netError"], style = MaterialTheme.typography.bodyMedium, color = BADGE_RED)
                     Spacer(Modifier.height(12.dp))
-                    Button(onClick = { startDownload() }, shape = smoothPill(), enabled = latest != null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                        Text(s["update.download"])
+                    // 检查就失败（latest 还是空）→ 重试「检查」；下载/校验失败 → 重新「下载」
+                    if (latest == null) {
+                        Button(onClick = { startCheck() }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                            Text(s["update.retry"])
+                        }
+                    } else {
+                        Button(onClick = { startDownload() }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                            Text(s["update.redownload"])
+                        }
                     }
                 }
             }
