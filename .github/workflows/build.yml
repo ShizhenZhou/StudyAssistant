@@ -92,9 +92,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: |
-            signed/*.apk
-            app/build/outputs/apk/release/*.apk
+          # 有轮换签名包时**只传它**：AGP 那一份（无 lineage）与它同名，同传会让构件里出现
+          # 两个同名但签名不同的 APK，容易拿错
+          path: ${{ env.SIGNED_READY == '1' && 'signed/*.apk' || 'app/build/outputs/apk/release/*.apk' }}
           retention-days: 30
           if-no-files-found: warn
 
