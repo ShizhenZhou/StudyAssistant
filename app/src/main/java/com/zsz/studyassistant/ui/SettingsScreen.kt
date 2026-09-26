@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -150,8 +152,14 @@ internal fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedS
 private fun SettingsSubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(shape = smoothPill(), onClick = onBack) { Text("←") }
-            Text(title, style = MaterialTheme.typography.titleLarge)
+            // ← 按钮收紧内边距 → 与标题之间的空隙变小（原来 TextButton 默认左右各 8dp）
+            TextButton(
+                shape = smoothPill(),
+                onClick = onBack,
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { Text("←") }
+            // 二级页标题：比 Material3 titleLarge 默认小 1sp
+            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = SUBPAGE_TITLE))
         }
         Spacer(Modifier.height(8.dp))
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) { content() }
@@ -961,6 +969,26 @@ private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
     Spacer(Modifier.height(12.dp))
     // 自定义颜色按钮 → 打开取色盘
     SettingEntry(s["settings.theme.custom"]) { showPicker = true }
+
+    // ③ 字号（C14）：只缩放 App 内文字（界面 + 对话区），不动系统设置
+    Spacer(Modifier.height(18.dp))
+    Text(s["settings.fontSize"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FontScale.menuOrder.forEach { f ->
+            FilterChip(
+                selected = vm.fontScale == f,
+                onClick = { vm.updateFontScale(f) },
+                label = { Text(s["settings.fontSize.${f.id}"]) }
+            )
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(s["settings.fontSize.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 
     if (showPicker) {
         ThemeColorPickerDialog(

@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.3
+· 📤 **新增「导出这道题」**：解题页顶栏最右侧的 📤 → 弹窗里**先选格式（PNG 长图 / PDF）**，再**选保存位置**（系统「保存到文件」）。导出内容 = 原题图 + 题干 + 解答 + 分类 / 知识点，公式用 KaTeX 正常排版；PDF 按 A4 自动分页
+· 🔠 **新增「字号」设置**（设置 → 应用主题）：小 / 标准 / 大 / 特大 —— 只调整 App 内的文字大小，**界面与对话区同步**，不动系统设置
+· 🔤 **整体字号收敛**：按钮字号统一**小 1~2 个字号**；内部页面（错题本 / 复习 / 解题 / 同类题 / 设置二级页）的左上角标题**小 1 个字号**，并且标题离「←」更近一点
+· 📚 **错题本**：标题不再带题数（只写「错题本」），题数挪到「按标签搜索」那一行右侧，显示**当前筛选后的条数**「当前列表共 N 题」
+· 🩹 修复：打开旧错题时的「按需补分类/标签」偶尔被丢弃（正好有另一个分类请求在跑）→ 补完这次会**自动再补一次**，旧题的科目与标签更可靠
+
 v0.6.2
 · ✏️ **复习可「手写重做」**：复习题目时点「✏️ 手写重做」→ 拍下你在纸上写的解答 → AI 批改并**按批改结果自动更新掌握度**（不用再手点熟悉/模糊/忘记）；批改完可直接「下一题」，纯文字题也能重做
 · 📚 **错题本排序**：右上角新增「⇅ 排序」——最近添加 / 最早添加 / 下次复习时间 / 复习次数 / **最不熟优先**（选择会记住）
@@ -243,6 +250,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.3
+· 📤 **New "Export this problem"**: the 📤 button at the far right of the solve-page top bar opens a dialog where you **pick the format (PNG long image / PDF)** and then **choose where to save it** (system "Save to file"). The export contains the original photo, question, answer and subject / key points, with formulas typeset by KaTeX; PDF is paginated to A4 automatically
+· 🔠 **New "Text size" setting** (Settings → App theme): Small / Default / Large / Extra large — changes text inside the app only, **UI and conversation together**, system settings untouched
+· 🔤 **Overall type scale tightened**: button labels are **1–2 steps smaller**; sub-page titles (notebook / review / solve / similar / settings sub-pages) are **1 step smaller** and sit a little closer to the "←" arrow
+· 📚 **Notebook**: the title no longer carries the count (just "Notebook"); the count moved next to the "Search by tag" button and shows the **filtered** number — "N problem(s) in the current list"
+· 🩹 Fixed: the on-demand backfill of subject/tags when opening an old problem was occasionally dropped (another classification request was in flight) — it now **retries once automatically**, so old problems get their subject and tags more reliably
+
 v0.6.2
 · ✏️ **Redo a review problem by hand**: while reviewing, tap "✏️ Redo by hand" → photograph the solution you wrote on paper → the AI grades it and **updates your mastery from the result** (no need to tap Familiar / Vague / Forgot); jump straight to the next problem, and text-only problems can be redone too
 · 📚 **Notebook sorting**: a new "⇅ Sort" menu — recently added / oldest first / next review time / most reviewed / **least mastered first** (your choice is remembered)
@@ -481,6 +495,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.3
+· 📤 **「この問題を書き出す」を追加**：解答ページ右上の 📤 → ダイアログで**まず形式（PNG 長い画像／PDF）**、次に**保存先**を選択（システムの「ファイルに保存」）。内容は原題の画像＋問題文＋解答＋分類／知識点で、数式は KaTeX で組版。PDF は A4 で自動分割
+· 🔠 **「文字サイズ」設定を追加**（設定 → アプリのテーマ）：小／標準／大／特大 —— アプリ内の文字だけを変更し、**画面と会話欄が連動**、端末の設定は変更しません
+· 🔤 **全体の文字サイズを調整**：ボタンの文字を**1〜2 段階小さく**、内部ページ（誤答ノート／復習／解答／類似問題／設定の下位ページ）の左上タイトルを**1 段階小さく**し、「←」との間隔も少し詰めました
+· 📚 **誤答ノート**：タイトルの件数を外し（「誤答ノート」のみ）、「タグで検索」の行の右側に**絞り込み後の件数**「現在のリストは N 件」を表示
+· 🩹 修正：古い問題を開いたときの「分類／タグの追加取得」が、別の分類リクエストと重なると破棄されることがあった → **自動で一度だけ再取得**するようにし、科目とタグがより確実に入るようになりました
+
 v0.6.2
 · ✏️ **復習問題を手書きでやり直し**：復習中に「✏️ 手書きでやり直す」→ 紙に書いた解答を撮影 → AI が添削し、**その結果で習熟度を自動更新**（熟悉／模糊／忘記を手で押す必要なし）。そのまま「次の問題」へ進め、文字だけの問題にも対応
 · 📚 **誤答ノートの並べ替え**：右上に「⇅ 並べ替え」を追加 —— 新しい順／古い順／次回復習が近い順／復習回数の多い順／**苦手な順**（選択は記憶されます）
@@ -719,6 +740,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.3
+· 📤 **「이 문제 내보내기」 추가**: 풀이 화면 오른쪽 위 📤 → 대화상자에서 **먼저 형식(PNG 긴 이미지 / PDF)** 을 고르고, 그다음 **저장 위치**를 선택합니다(시스템 "파일로 저장"). 내용은 원본 사진 + 문제 + 풀이 + 분류 / 지식 태그이며 수식은 KaTeX로 조판됩니다. PDF는 A4로 자동 분할
+· 🔠 **「글자 크기」 설정 추가**(설정 → 앱 테마): 작게 / 기본 / 크게 / 아주 크게 — 앱 안의 글자만 바꾸고 **화면과 대화 영역이 함께** 바뀝니다. 기기 설정은 건드리지 않습니다
+· 🔤 **전체 글자 크기 정리**: 버튼 글자를 **1~2단계 작게**, 내부 페이지(오답노트 / 복습 / 풀이 / 유사 문제 / 설정 하위 페이지)의 왼쪽 위 제목을 **1단계 작게** 하고 "←"와의 간격도 조금 줄였습니다
+· 📚 **오답노트**: 제목에서 개수를 빼고("오답노트"만), "태그로 검색" 줄 오른쪽에 **필터된 개수** "현재 목록 N개"를 표시합니다
+· 🩹 수정: 예전 문제를 열 때의 "분류/태그 추가 채우기"가 다른 분류 요청과 겹치면 버려지던 문제 → **자동으로 한 번 더 시도**하도록 해서 과목과 태그가 더 안정적으로 채워집니다
+
 v0.6.2
 · ✏️ **복습 문제를 손으로 다시 풀기**：복습 중 「✏️ 손으로 다시 풀기」→ 종이에 쓴 풀이를 촬영 → AI가 채점하고 **그 결과로 숙련도를 자동 갱신**(익숙/애매/모름을 직접 누를 필요 없음). 바로 「다음 문제」로 넘어갈 수 있고, 텍스트만 있는 문제도 가능
 · 📚 **오답노트 정렬**：오른쪽 위에 「⇅ 정렬」 추가 —— 최근 추가순 / 오래된 순 / 다음 복습이 빠른 순 / 복습 횟수 많은 순 / **취약한 순**(선택은 기억됩니다)

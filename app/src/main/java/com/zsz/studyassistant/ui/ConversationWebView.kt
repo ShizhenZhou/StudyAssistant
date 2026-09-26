@@ -80,12 +80,15 @@ fun ConversationWebView(
     /** 多选态下点击某条气泡 → 切换选中 */
     onToggleSelect: (Int) -> Unit = {},
     /** 当前是否深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换（见 conversation_render.html） */
-    dark: Boolean = false
+    dark: Boolean = false,
+    /** 界面字号档位（C14）：只缩放网页里的文字（1 = 标准），与 App 字号设置保持一致 */
+    fontScale: Float = 1f
 ) {
     val currentMessages by rememberUpdatedState(messages)
     // 深色与否同样必须取「最新值」：onPageFinished 是在 factory 里注册的回调，
     // 只会捕获首次组合时的那份 dark（与上面回调闭包是同一类坑）。
     val currentDark by rememberUpdatedState(dark)
+    val currentScale by rememberUpdatedState(fontScale)
     // ⚠️ JS 桥接对象只在 AndroidView 的 factory 里创建一次，会永久捕获当时的 lambda。
     // 若直接调用 onXxx()，用的就是**首次组合**时的那份闭包（其中的 selectedIndices/lockedIndices 等值永远是旧的），
     // 曾导致「受保护消息（题干/AI 首条）长按仍被算作可选中 → 已选 1 条」。
@@ -222,8 +225,8 @@ fun ConversationWebView(
                             val json = buildMessagesJson(currentMessages)
                             val sel = selectionJson()
                             val labels = thinkLabelsJson()
-                            lastJson = json + "|" + sel + "|" + labels + "|" + currentDark
-                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark);", null)
+                            lastJson = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale
+                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale);", null)
                         }
                     }
                     loadUrl("file:///android_asset/conversation_render.html")
@@ -236,10 +239,10 @@ fun ConversationWebView(
                     val json = buildMessagesJson(currentMessages)
                     val sel = selectionJson()
                     val labels = thinkLabelsJson()
-                    val key = json + "|" + sel + "|" + labels + "|" + currentDark
+                    val key = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale
                     if (key != lastJson) {
                         lastJson = key
-                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark);", null)
+                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale);", null)
                     }
                 }
             },

@@ -233,7 +233,7 @@ fun UpdatePage() {
     ) {
         Text(
             if (phase == Phase.CHECKING) s["update.checking"] else s["update.check"],
-            fontSize = 16.sp,
+            fontSize = BTN_LABEL_BIG,
             fontWeight = FontWeight.SemiBold
         )
     }

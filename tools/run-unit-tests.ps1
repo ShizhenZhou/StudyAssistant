@@ -106,27 +106,35 @@ foreach ($w in $wanted) {
     Copy-Item $hit.FullName (Join-Path $lib $w.Name) -Force
 }
 
-# Compose runtime is packaged as an AAR: take the classes.jar produced by Gradle's transforms
-# (the transform output lives under caches\<gradle-version>\transforms\..., hence the scan)
-$compose = $null
+# Compose classes live inside AARs: take the classes.jar that Gradle's transforms produced.
+# (transform output is under caches\<gradle-version>\transforms\..., hence the scan)
+# NOTE: if a test starts touching a new Compose class, add it here (a missing class shows up as
+# NoClassDefFoundError from a <clinit> in the app code, which looks like a test failure).
+$wantCompose = @(
+    @{ Class = 'androidx/compose/runtime/CompositionLocalKt.class'; Out = 'compose-runtime.jar';   Hint = '\\transformed\\runtime' },
+    @{ Class = 'androidx/compose/ui/unit/TextUnitKt.class';         Out = 'compose-ui-unit.jar';   Hint = '\\transformed\\ui-unit' }
+)
 $transformDirs = @(Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
     ForEach-Object { Join-Path $_.FullName 'transforms' } |
     Where-Object { Test-Path $_ })
-foreach ($td in $transformDirs) {
-    foreach ($cj in (Get-ChildItem $td -Recurse -Filter 'classes.jar' -ErrorAction SilentlyContinue |
-                     Where-Object { $_.FullName -match '\\transformed\\runtime' })) {
-        try {
-            Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
-            $zip = [System.IO.Compression.ZipFile]::OpenRead($cj.FullName)
-            $has = $zip.Entries | Where-Object { $_.FullName -eq 'androidx/compose/runtime/CompositionLocalKt.class' }
-            $zip.Dispose()
-            if ($has) { $compose = $cj.FullName; break }
-        } catch { }
+Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+foreach ($w in $wantCompose) {
+    $found = $null
+    foreach ($td in $transformDirs) {
+        foreach ($cj in (Get-ChildItem $td -Recurse -Filter 'classes.jar' -ErrorAction SilentlyContinue |
+                         Where-Object { $_.FullName -match $w.Hint })) {
+            try {
+                $zip = [System.IO.Compression.ZipFile]::OpenRead($cj.FullName)
+                $has = $zip.Entries | Where-Object { $_.FullName -eq $w.Class }
+                $zip.Dispose()
+                if ($has) { $found = $cj.FullName; break }
+            } catch { }
+        }
+        if ($found) { break }
     }
-    if ($compose) { break }
+    if (-not $found) { Write-Err2 "classes.jar containing $($w.Class) not found in transforms cache"; exit 1 }
+    Copy-Item $found (Join-Path $lib $w.Out) -Force
 }
-if (-not $compose) { Write-Err2 'compose runtime classes.jar not found in transforms cache'; exit 1 }
-Copy-Item $compose (Join-Path $lib 'compose-runtime.jar') -Force
 
 # 3. Run JUnitCore
 Write-Step 'run unit tests (JUnitCore)'
@@ -143,7 +151,8 @@ $testClasses = @(
     'com.zsz.studyassistant.data.AutoBackupTest',
     'com.zsz.studyassistant.data.NotebookSortingTest',
     'com.zsz.studyassistant.data.DuplicateCheckTest',
-    'com.zsz.studyassistant.ui.L10nTableTest'
+    'com.zsz.studyassistant.ui.L10nTableTest',
+    'com.zsz.studyassistant.ui.QuestionExporterTest'
 )
 & $java '-Dfile.encoding=UTF-8' -cp $cp org.junit.runner.JUnitCore @testClasses
 if ($LASTEXITCODE -ne 0) { Write-Err2 'unit tests FAILED'; exit 1 }

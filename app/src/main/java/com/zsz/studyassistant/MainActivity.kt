@@ -91,11 +91,21 @@ class MainActivity : ComponentActivity() {
                 if (viewModel.uiLang == com.zsz.studyassistant.ui.UiLang.SYSTEM) com.zsz.studyassistant.ui.systemUiLang() else viewModel.uiLang
             }
             CompositionLocalProvider(LocalStrings provides strings, LocalUiLang provides uiLangResolved) {
+            // C14 界面字号：只放大/缩小**文字**（dp 布局不变），所以用 Density(density, fontScale×档位)
+            // 覆写 LocalDensity —— fontScale 只影响 sp→px 的换算，不影响 dp。
+            val baseDensity = androidx.compose.ui.platform.LocalDensity.current
+            val scaleFactor = viewModel.fontScale.factor
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides
+                    androidx.compose.ui.unit.Density(baseDensity.density, baseDensity.fontScale * scaleFactor)
+            ) {
             MaterialTheme(
                 // 配色：深色/浅色 + 用户选择的预设色板或自定义色（设置 → 应用主题）
                 colorScheme = com.zsz.studyassistant.ui.appColorScheme(
                     dark, viewModel.themeColor, viewModel.customColor
-                )
+                ),
+                // 字体：按钮/标签统一比 Material3 默认小 2sp（用户要求"所有按钮字号缩小 1~2 个字号"）
+                typography = com.zsz.studyassistant.ui.appTypography()
             ) {
                 // 状态栏透明 + 图标颜色跟随主题（浅色=深色图标，深色=浅色图标）
                 val view = LocalView.current
@@ -256,6 +266,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            }   // CompositionLocalProvider(LocalDensity)
             }
         }
     }

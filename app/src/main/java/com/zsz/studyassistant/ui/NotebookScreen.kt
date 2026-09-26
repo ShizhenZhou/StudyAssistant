@@ -162,7 +162,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             ) {
                                 Text(
                                     if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"],
-                                    fontSize = 13.sp,
+                                    fontSize = BTN_LABEL,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -176,9 +176,10 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             )
                         }
                     } else {
-                        // 页标题：与「解题」「错题」统一用大字号（TopAppBar 默认）
+                        // 页标题：只写「错题本」（题数已挪到「按标签搜索」那一行右侧 → 「当前列表共 N 题」）
                         Text(
-                            if (page == "manage") s["catManage.title"] else s.format("notebook.title", "n" to "${questions.size}"),
+                            if (page == "manage") s["catManage.title"] else s["notebook.titlePlain"],
+                            fontSize = SUBPAGE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -191,12 +192,15 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             onClick = { exitSelection() },
                             contentPadding = PaddingValues(horizontal = 6.dp)
                         ) { Text("✕", fontSize = 18.sp) }
-                        page == "manage" -> IconButton(onClick = { page = "list"; searchOpen = false }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
-                        }
-                        else -> IconButton(onClick = { nav.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
-                        }
+                        // 返回箭头也用紧凑 TextButton：宽度只有"箭头 + 4dp"，标题因此更靠近 ←（用户要求）
+                        page == "manage" -> TextButton(
+                            onClick = { page = "list"; searchOpen = false },
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) { Text("←", fontSize = SUBPAGE_TITLE) }
+                        else -> TextButton(
+                            onClick = { nav.popBackStack() },
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) { Text("←", fontSize = SUBPAGE_TITLE) }
                     }
                 },
                 actions = {
@@ -304,27 +308,41 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         )
                     }
                 }
-                // 标签筛选：选择框「按标签搜索」，点开后才出现下拉选择（纵向可滑动，可多选）
-                if (tags.isNotEmpty()) {
-                    var tagMenu by remember { mutableStateOf(false) }
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                        Button(onClick = { tagMenu = true }) {
-                            Text(
-                                if (filterTagIds.isEmpty()) s["notebook.filter.tags"] else s.format("notebook.filter.tagsSelected", "n" to "${filterTagIds.size}")
-                            )
-                        }
-                        DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
-                            tags.forEach { tag ->
-                                DropdownMenuItem(
-                                    text = { Text(tag.name) },
-                                    onClick = {
-                                        filterTagIds = if (filterTagIds.contains(tag.id)) filterTagIds - tag.id else filterTagIds + tag.id
-                                    },
-                                    trailingIcon = { if (filterTagIds.contains(tag.id)) Text("✓") }
+                // 标签筛选：「按标签搜索」按钮（有标签才显示）+ **当前列表条数**（始终显示在右侧）
+                // 题数从标题挪到这里：它是"筛选后的结果数"，跟筛选控件放一起更直观
+                var tagMenu by remember { mutableStateOf(false) }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (tags.isNotEmpty()) {
+                        Box {
+                            Button(onClick = { tagMenu = true }, contentPadding = PaddingValues(horizontal = 14.dp)) {
+                                Text(
+                                    if (filterTagIds.isEmpty()) s["notebook.filter.tags"] else s.format("notebook.filter.tagsSelected", "n" to "${filterTagIds.size}")
                                 )
+                            }
+                            DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
+                                tags.forEach { tag ->
+                                    DropdownMenuItem(
+                                        text = { Text(tag.name) },
+                                        onClick = {
+                                            filterTagIds = if (filterTagIds.contains(tag.id)) filterTagIds - tag.id else filterTagIds + tag.id
+                                        },
+                                        trailingIcon = { if (filterTagIds.contains(tag.id)) Text("✓") }
+                                    )
+                                }
                             }
                         }
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        s.format("notebook.listCount", "n" to "${filtered.size}"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
 

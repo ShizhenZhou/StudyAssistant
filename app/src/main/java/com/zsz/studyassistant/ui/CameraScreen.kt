@@ -314,7 +314,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         ) {
             Text(
                 s["camera.gradeToggle"],
-                fontSize = 13.sp,
+                fontSize = BTN_LABEL,
                 color = if (gradeMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.width(6.dp))

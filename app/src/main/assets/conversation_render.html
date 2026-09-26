@@ -8,6 +8,8 @@
   /* ── 主题变量：浅色为默认，body.dark 覆盖（深色主题由原生侧注入，见 renderMessages 的 dark 参数） ──
      此前颜色全是写死的浅色 → 深色主题下气泡仍是浅灰、思考块灰字在深底上对比度极低（用户反馈） */
   :root{
+    /* 界面字号档位（C14）：1 = 标准；原生侧随「设置 → 应用主题 → 字号」注入 */
+    --k:1;
     --fg:#111;
     --bubble-ai:#E9E9E9;  --bubble-ai-border:#ddd;
     --bubble-user:#D8F2D8; --bubble-user-border:#bfe6bf;
@@ -24,8 +26,9 @@
     --pick-border:#8A8A8A;
   }
   html,body{margin:0;padding:0;background:transparent;color:var(--fg);}
-  body{padding:10px 8px;font-size:16px;line-height:1.6;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;overflow-x:hidden;}
-  .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:15px;line-height:1.6;}
+  /* --k = 界面字号档位（C14）：原生侧按"设置 → 应用主题 → 字号"注入，1 = 标准；只缩放文字，不缩放图片 */
+  body{padding:10px 8px;font-size:calc(16px * var(--k));line-height:1.6;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;overflow-x:hidden;}
+  .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:calc(15px * var(--k));line-height:1.6;}
   .bubble.assistant{background:var(--bubble-ai);color:var(--fg);align-self:flex-start;border:1px solid var(--bubble-ai-border);}
   .bubble.user{background:var(--bubble-user);color:var(--fg);align-self:flex-end;border:1px solid var(--bubble-user-border);}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
@@ -474,8 +477,10 @@ document.addEventListener('click', function(e){
 
 // labels（可选）：思考块的多语言文案，由原生按界面语言注入；缺省时用简体兜底
 // dark（可选）：是否深色主题，由原生注入 → 给 body 加 .dark，CSS 变量随之切换（见文件顶部变量表）
-function renderMessages(arr, sel, labels, dark){
+// scale（可选）：界面字号档位（C14），1 = 标准；只缩放文字
+function renderMessages(arr, sel, labels, dark, scale){
   if(dark !== undefined) document.body.classList.toggle('dark', !!dark);
+  if(scale !== undefined && scale !== null) document.documentElement.style.setProperty('--k', String(scale));
   if(labels && typeof labels === 'object'){
     // 文案变化（切换界面语言）→ 清掉增量渲染缓存，强制整段重建（否则已渲染的气泡不会换文案）
     var lk = JSON.stringify(labels);

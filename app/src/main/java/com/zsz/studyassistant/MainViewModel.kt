@@ -119,6 +119,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         com.zsz.studyassistant.data.NotebookSortStore.save(getApplication(), mode)
     }
 
+    /** 界面字号档位（C14）：MainActivity 用它覆写 LocalDensity，对话区 WebView 也同步缩放 */
+    var fontScale by mutableStateOf(com.zsz.studyassistant.ui.FontScaleStore.load(getApplication()))
+        private set
+
+    fun updateFontScale(scale: com.zsz.studyassistant.ui.FontScale) {
+        fontScale = scale
+        com.zsz.studyassistant.ui.FontScaleStore.save(getApplication(), scale)
+    }
+
     /** 错题本数据流（A5：按用户选的排序方式排好；排序变化 → 立即重新发射） */
     val notebook: StateFlow<List<Question>> =
         kotlinx.coroutines.flow.combine(
@@ -291,6 +300,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     /** 正在做兜底分类请求（C）：防止重复发起 */
     private var classifying = false
+    /** 分类请求进行中又被请求了一次（5b 加固）→ 本次跑完自动再补一次 */
+    private var classifyPending = false
 
     /** 供界面显示的"题目图"（base64）：原题/我的提问附图，统一作为浅绿用户气泡显示。
      *  只用于显示，不写入会话 JSON（避免数据库膨胀），旧题由 loadQuestion 从 imageBytes 注入。 */
@@ -473,7 +484,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun classifyCurrentQuestion(needCategory: Boolean = true, needTags: Boolean = true) {
-        if (classifying) return
+        if (classifying) {
+            // ★ 5b 加固：已经有一次分类请求在跑时，**不能把这次静默丢掉** ——
+            //   否则"打开旧题 → 按需补"正好撞上另一个请求（保存对话框的兜底分类）时，
+            //   这题就永远不会被补上（用户看到分类一直空着）。记一个标记，跑完自动再补一次。
+            classifyPending = true
+            return
+        }
         val q = questionText
         val imgs = when {
             directImages.isNotEmpty() -> directImages
@@ -496,6 +513,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 // ★ 必须放 finally：请求异常/被取消时也要复位，否则标志卡死 → 之后所有分类都被跳过
                 classifying = false
+                // 期间被跳过的那次"按需补"在这里补上（ensureClassification 会自己判断还缺什么，
+                // 什么都不缺就直接返回；失败也只补这一次，不会无限重试）
+                if (classifyPending) {
+                    classifyPending = false
+                    ensureClassification()
+                }
             }
         }
     }
@@ -1153,9 +1176,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .getOrNull()?.trim().orEmpty()
     }
 
+    // ---- B7 导出：只读访问当前这道题的三个部分（界面拿去渲染长图/PDF，不改任何状态）----
+    /** 题干（与落库时同一取法） */
+    val exportQuestion: String get() = pendingQuestionText()
+    /** 解答：取最后一条助手消息（含"核心知识点"提示行） */
+    val exportAnswer: String get() = chatItems.lastOrNull { it.role == "assistant" }?.content.orEmpty()
+    /** 原题图（没有则 null） */
+    val exportImageBytes: ByteArray? get() = imageBytes
+
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
-    fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {
-        if (saving) {
+    fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {        if (saving) {
             cancelPending = true
             return
         }

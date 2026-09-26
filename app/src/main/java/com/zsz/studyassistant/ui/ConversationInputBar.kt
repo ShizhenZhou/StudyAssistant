@@ -116,7 +116,7 @@ fun ConversationInputBar(
                 enabled = (value.isNotBlank() || images.isNotEmpty()) && !busy,
                 shape = RoundedCornerShape(22.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-            ) { Text(sendLabel, fontSize = 14.sp) }
+            ) { Text(sendLabel, fontSize = BTN_LABEL) }
         }
     }
 }

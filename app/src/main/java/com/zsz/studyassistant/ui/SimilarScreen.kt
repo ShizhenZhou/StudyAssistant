@@ -132,7 +132,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                                 onClick = { selectedIndices = if (allSelected) emptySet() else messages.indices.filter { it !in lockedIndices }.toSet() },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
-                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = 13.sp)
+                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = BTN_LABEL)
                             }
                             Text(
                                 s.format("solve.selectedCount", "n" to "${selectedIndices.size}"),
@@ -143,33 +143,35 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             )
                         }
                     } else {
-                        Text(s["similar.title"], maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(s["similar.title"], fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
                 navigationIcon = {
+                    // 内边距收紧 → 标题离 ← 更近（内部页面统一处理）
+                    val pad = PaddingValues(horizontal = 4.dp)
                     if (editMode) {
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕") }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = pad) { Text("✕") }
                     } else {
-                        TextButton(onClick = { nav.popBackStack() }) { Text("←") }
+                        TextButton(onClick = { nav.popBackStack() }, contentPadding = pad) { Text("←", fontSize = SUBPAGE_TITLE) }
                     }
                 },
                 actions = {
                     // 紧凑右对齐：只放「重新生成 / 中止生成」+「存错题本」（查看答案已移到左下角椭圆按钮）
                     val smallPad = PaddingValues(horizontal = 4.dp)
                     if (editMode) {
-                        TextButton(onClick = { showDeleteConfirm = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
+                        TextButton(onClick = { showDeleteConfirm = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL) }
                     } else {
                         // 生成中：⏸ 中止生成；空闲：🔄 重新生成（清空会话并重出一道题）
                         val questionShown = vm.similarQuestion != null || vm.similarStreamingText != null
                         if (vm.similarBusy) {
                             TextButton(onClick = { vm.abortSimilar() }, contentPadding = smallPad) {
-                                Text(s["solve.abort"], fontSize = 13.sp, maxLines = 1, softWrap = false)
+                                Text(s["solve.abort"], fontSize = BTN_LABEL, maxLines = 1, softWrap = false)
                             }
                         } else if (questionShown || vm.similarInterrupted) {
                             // 出题完成、或被中止 → 都可「重新生成」（清空会话重出一题）
                             TextButton(onClick = { vm.startSimilar() }, contentPadding = smallPad) {
-                                Text(s["solve.regen"], fontSize = 13.sp, maxLines = 1, softWrap = false)
+                                Text(s["solve.regen"], fontSize = BTN_LABEL, maxLines = 1, softWrap = false)
                             }
                         }
                         // 存错题本（逻辑同解题页：选分类/标签后保存；已存再点 = 取消保存）
@@ -182,8 +184,8 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             contentPadding = smallPad
                         ) {
                             val label = if (saved) s["solve.savedToNotebook"] else s["solve.saveToNotebook"]
-                            if (saved) Text(label, color = Color(0xFF4CAF50), fontSize = 13.sp, maxLines = 1, softWrap = false)
-                            else Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
+                            if (saved) Text(label, color = Color(0xFF4CAF50), fontSize = BTN_LABEL, maxLines = 1, softWrap = false)
+                            else Text(label, fontSize = BTN_LABEL, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -232,7 +234,9 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         },
                         modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
                         // 深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换
-                        dark = rememberDarkTheme(vm.theme)
+                        dark = rememberDarkTheme(vm.theme),
+                        // C14 字号档位：网页内文字同步缩放
+                        fontScale = vm.fontScale.factor
                     )
                     // 左下角椭圆按钮：查看答案 / 收起答案（答案未生成好时置灰）
                     if (!editMode && (question != null || vm.similarStreamingText != null || revealed)) {
@@ -258,7 +262,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         ) {
                             Text(
                                 if (revealed) s["review.hideAnswer"] else s["similar.showAnswer"],
-                                fontSize = 13.sp,
+                                fontSize = BTN_LABEL,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 maxLines = 1,
                                 softWrap = false,

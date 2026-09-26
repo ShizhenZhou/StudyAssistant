@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="katex/katex.min.css">
+<script src="katex/katex.min.js"></script>
+<style>
+  /* ── 导出页（B7）：把「一道题」渲染成一张长图/PDF 的内容 ──
+     复用对话区的 KaTeX 与主题变量，但版式是"试卷式"的：
+       · 顶部：原题图（若有）
+       · 题目：题干正文
+       · 解答：完整解答
+       · 底部：分类 / 知识点 + 一行小字来源
+     颜色用 CSS 变量，body.dark 覆盖；字号用 --k（与 App 的字号设置一致）。 */
+  :root{
+    --k:1;
+    --fg:#111;
+    --muted:#6b6b6b;
+    --card:#ffffff;
+    --border:#e2e2e2;
+    --title:#111;
+    --accent:#1A73E8;
+  }
+  body.dark{
+    --fg:#E6E6E6;
+    --muted:#A6A6A6;
+    --card:#1E1E22;
+    --border:#3C3C43;
+    --title:#F2F2F2;
+    --accent:#7FB2FF;
+  }
+  html,body{margin:0;padding:0;}
+  body{
+    background:#ffffff;
+    color:var(--fg);
+    font-size:calc(15px * var(--k));
+    line-height:1.7;
+    font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+    padding:18px 16px 14px 16px;
+    overflow-x:hidden;
+  }
+  body.dark{background:#141417;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px;
+  }
+  .qimg{display:block;max-width:100%;border-radius:10px;border:1px solid var(--border);margin-bottom:12px;}
+  .sec{font-size:calc(13px * var(--k));font-weight:700;color:var(--accent);margin:0 0 4px 0;}
+  .sec+.body{margin-bottom:14px;}
+  .body{white-space:pre-wrap;word-break:break-word;}
+  .meta{font-size:calc(12px * var(--k));color:var(--muted);margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);}
+  .katex{font-size:1.1em;}
+  .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:8px 0;}
+  .footer{font-size:calc(11px * var(--k));color:var(--muted);text-align:center;margin-top:14px;}
+</style>
+</head><body>
+<div id="out" class="card"></div>
+<script>
+// 极简转义（题干/解答是纯文本，先转义再交给 KaTeX 处理 $...$）
+function esc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// 把 $...$ / $$...$$ 交给 KaTeX 渲染；失败则原样保留（不吞内容）
+function mathify(text){
+  var out = esc(text);
+  try {
+    out = out.replace(/\$\$([\s\S]+?)\$\$/g, function(m, expr){
+      try { return katex.renderToString(expr, {displayMode:true, throwOnError:false}); } catch(e){ return m; }
+    });
+    out = out.replace(/\$([^$\n]+?)\$/g, function(m, expr){
+      try { return katex.renderToString(expr, {displayMode:false, throwOnError:false}); } catch(e){ return m; }
+    });
+  } catch(e) {}
+  return out;
+}
+/**
+ * 渲染一道题。
+ * payload: { question, answer, imageBase64, category, tags:[], footer }
+ * dark: 是否深色； scale: 字号档位（--k）
+ */
+function renderExport(payload, dark, scale){
+  document.body.classList.toggle('dark', !!dark);
+  if(scale !== undefined && scale !== null) document.documentElement.style.setProperty('--k', String(scale));
+  var p = payload || {};
+  var h = '';
+  if(p.imageBase64){ h += '<img class="qimg" src="data:image/jpeg;base64,' + p.imageBase64 + '">'; }
+  var q = String(p.question || '').trim() || '（无题干）';
+  h += '<div class="sec">' + (p.labelQuestion || '题目') + '</div><div class="body">' + mathify(q) + '</div>';
+  var a = String(p.answer || '').trim();
+  if(a){ h += '<div class="sec">' + (p.labelAnswer || '解答') + '</div><div class="body">' + mathify(a) + '</div>'; }
+  var meta = [];
+  if(p.category) meta.push((p.labelCategory || '分类') + '：' + esc(p.category));
+  if(p.tags && p.tags.length) meta.push((p.labelTags || '知识点') + '：' + esc(p.tags.join('、')));
+  if(meta.length) h += '<div class="meta">' + meta.join('　') + '</div>';
+  document.getElementById('out').innerHTML = h;
+  if(p.footer) {
+    var f = document.createElement('div');
+    f.className = 'footer';
+    f.textContent = p.footer;
+    document.body.appendChild(f);
+  }
+  // KaTeX 完成后把内容高度回报给原生（截图尺寸要用它）
+  requestAnimationFrame(function(){
+    var hh = Math.ceil(document.body.scrollHeight);
+    if(window.AndroidExport && AndroidExport.onReady) AndroidExport.onReady(hh);
+  });
+}
+</script>
+</body></html>

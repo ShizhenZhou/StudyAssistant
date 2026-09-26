@@ -65,6 +65,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
@@ -107,6 +109,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
+    // 深色 + 字号：对话区（C14）与导出（B7）共用同一份值
+    val darkTheme = rememberDarkTheme(vm.theme)
+    val fontScaleFactor = vm.fontScale.factor
     val categories by vm.categories.collectAsState()
     val tags by vm.tags.collectAsState()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
@@ -126,6 +131,69 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             selectedImages = (selectedImages + newOnes).take(3)
         }
     }
+
+    // B7 导出：对话框（先选 PNG/PDF → 再选保存位置）
+    var showExport by remember { mutableStateOf(false) }
+    var exportFormat by remember { mutableStateOf(QuestionExporter.Format.DEFAULT) }
+    var exportBusy by remember { mutableStateOf(false) }
+    var exportMessage by remember { mutableStateOf<String?>(null) }
+    var exportFailed by remember { mutableStateOf(false) }
+    val exportScope = rememberCoroutineScope()
+
+    /** 真正的导出：渲染长图 → 按所选格式写进 SAF 给的 Uri */
+    fun runExport(uri: android.net.Uri) {
+        exportBusy = true
+        exportMessage = null
+        exportFailed = false
+        exportScope.launch {
+            try {
+                val q = vm.exportQuestion
+                val payload = QuestionExporter.Payload(
+                    question = q,
+                    answer = vm.exportAnswer,
+                    imageBase64 = QuestionExporter.imageBase64(vm.exportImageBytes),
+                    category = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }?.name,
+                    tags = vm.currentQuestionTags.mapNotNull { tid -> tags.firstOrNull { it.id == tid }?.name },
+                    dark = darkTheme,
+                    fontScale = fontScaleFactor,
+                    labelQuestion = s["grade.label.question"],
+                    labelAnswer = "解答",
+                    labelCategory = s["solve.cat.name"],
+                    labelTags = s["solve.tags"],
+                    footer = "Study Assistant v" + com.zsz.studyassistant.data.UpdateChecker.installedVersion(context)
+                )
+                val width = context.resources.displayMetrics.widthPixels
+                val bmp = QuestionExporter.capture(context, payload, width)
+                if (bmp == null) {
+                    exportFailed = true
+                    exportMessage = s["export.failed"]
+                } else {
+                    val name = QuestionExporter.fileName(exportFormat, q)
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        if (exportFormat == QuestionExporter.Format.PNG) {
+                            QuestionExporter.writePng(bmp, out)
+                        } else {
+                            QuestionExporter.writePdf(bmp, out)
+                        }
+                    }
+                    bmp.recycle()
+                    exportMessage = s.format("export.done", "name" to name)
+                }
+            } catch (e: Exception) {
+                exportFailed = true
+                exportMessage = s["export.failed"]
+            } finally {
+                exportBusy = false
+            }
+        }
+    }
+
+    val exportPngLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri -> if (uri != null) runExport(uri) }
+    val exportPdfLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri -> if (uri != null) runExport(uri) }
 
     // 退出本页时：若已加入错题本，把当前完整对话更新保存
     DisposableEffect(Unit) {
@@ -244,7 +312,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
-                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = 13.sp)
+                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = BTN_LABEL)
                             }
                             Text(
                                 s.format("solve.selectedCount", "n" to "${selectedIndices.size}"),
@@ -258,6 +326,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         // 批改模式：全屏复用解题界面，标题「批改」
                         Text(
                             s["solve.gradeTitle"],
+                            fontSize = SUBPAGE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -269,13 +338,15 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 "i" to "${vm.reviewDone + 1}",
                                 "n" to "${vm.reviewTotal}"
                             ),
+                            fontSize = SUBPAGE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     } else if (sessionMode == SessionMode.NOTEBOOK) {
-                        // 错题页标题：与「解题」「错题本」统一用大字号（TopAppBar 默认）
+                        // 错题页标题（内部页面统一比默认小 1sp）
                         Text(
                             s["solve.mistakeTitle"],
+                            fontSize = SUBPAGE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -283,6 +354,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         Text(
                             // 空会话=图文提问入口，标题显示「图文提问」；有内容后回到「解题」
                             if (vm.askMode) s["ask.pageTitle"] else s["solve.title"],
+                            fontSize = SUBPAGE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(min = 40.dp)
@@ -291,9 +363,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 navigationIcon = {
                     if (editMode) {
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }) { Text("✕", fontSize = 18.sp) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("✕", fontSize = 18.sp) }
                     } else {
-                        TextButton(onClick = {
+                        TextButton(
+                            // 内边距收紧 → 标题离 ← 更近（内部页面统一处理）
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            onClick = {
                             // 只有"拍照搜题"这条流程返回时回拍题界面（方便再拍一张）；
                             // 复习 / 错题本 / 批改 / 图文提问（含空态、纯文字提问）一律返回来处
                             if (sessionMode == SessionMode.REVIEW ||
@@ -306,23 +381,23 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 vm.startNewQuestion()
                                 nav.navigate("camera") { popUpTo("home") }
                             }
-                        }) { Text("←") }
+                        }) { Text("←", fontSize = SUBPAGE_TITLE) }
                     }
                 },
                 actions = {
                     val smallPad = PaddingValues(horizontal = 6.dp)
                     if (cfg.showPracticeSimilar) {
-                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = 13.sp) }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL) }
                     } else if (editMode) {
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = 13.sp) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = 13.sp) }
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
                         //   右侧 = [⏸ 中止 或 🔄 重新生成] 紧挨 [📚 存错题本 或 📁 分类]
                         //   （不再区分「中止批改 / 重新批改」，也不再单独放删除按钮）
                         if (vm.busy) {
                             TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                Text(s["solve.abort"], fontSize = 13.sp)
+                                Text(s["solve.abort"], fontSize = BTN_LABEL)
                             }
                         } else {
                             TextButton(
@@ -332,12 +407,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 enabled = vm.chatItems.isNotEmpty() ||
                                     vm.streamInterrupted || vm.streamingText != null,
                                 contentPadding = smallPad
-                            ) { Text(s["solve.regen"], fontSize = 13.sp) }
+                            ) { Text(s["solve.regen"], fontSize = BTN_LABEL) }
                         }
                         if (vm.isDeleted) {
                             // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
                             TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
-                                Text(s["solve.restore"], fontSize = 13.sp)
+                                Text(s["solve.restore"], fontSize = BTN_LABEL)
                             }
                         } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
                             // 已存入错题本 → 与错题本界面同一个「分类」按钮
@@ -360,13 +435,38 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 onClick = { vm.ensureClassification(); categoryDialogFor = "save" },
                                 enabled = vm.chatItems.isNotEmpty() && !vm.busy,
                                 contentPadding = smallPad
-                            ) { Text(s["solve.saveToNotebook"], fontSize = 13.sp) }
+                            ) { Text(s["solve.saveToNotebook"], fontSize = BTN_LABEL) }
+                        }
+                        // B7 导出：方案 A —— 顶栏右侧、紧挨「分类 / 存错题本」的图标按钮
+                        // 用图标而不是文字：顶栏右侧元素多，且字号档位调大后文字按钮会更挤
+                        if (!editMode) {
+                            TextButton(
+                                onClick = { showExport = true; exportMessage = null; exportFailed = false },
+                                enabled = vm.chatItems.isNotEmpty(),
+                                contentPadding = smallPad
+                            ) { Text("📤", fontSize = 16.sp) }
                         }
                     }
                 }
             )
         }
     ) { padding ->
+        // B7 导出对话框：选格式（PNG/PDF）→ 底部「选择保存位置…」
+        if (showExport) {
+            ExportDialog(
+                format = exportFormat,
+                onFormatChange = { exportFormat = it },
+                busy = exportBusy,
+                message = exportMessage,
+                failed = exportFailed,
+                onSave = {
+                    val name = QuestionExporter.fileName(exportFormat, vm.exportQuestion)
+                    if (exportFormat == QuestionExporter.Format.PNG) exportPngLauncher.launch(name)
+                    else exportPdfLauncher.launch(name)
+                },
+                onDismiss = { showExport = false }
+            )
+        }
         // 删除确认
         if (showDeleteConfirm) {
             AlertDialog(
@@ -605,7 +705,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             .fillMaxSize()
                             .padding(horizontal = 4.dp),
                         // 深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换
-                        dark = rememberDarkTheme(vm.theme)
+                        dark = darkTheme,
+                        // C14 字号档位：网页内文字同步缩放
+                        fontScale = fontScaleFactor
                     )
                     // 快速跳转按钮：仅在**内容超过一屏**时出现；在顶部显示 ↓（一按滚到最底），否则 ↑（一按回到顶部）
                     if (!editMode && scrollable) {

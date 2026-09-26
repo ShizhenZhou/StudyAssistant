@@ -122,10 +122,11 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(s["review.title"], maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(s["review.title"], fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s["common.back"])
+                    // 紧凑返回箭头：标题离 ← 更近（内部页面统一处理）
+                    TextButton(onClick = { nav.popBackStack() }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Text("←", fontSize = SUBPAGE_TITLE)
                     }
                 }
             )
