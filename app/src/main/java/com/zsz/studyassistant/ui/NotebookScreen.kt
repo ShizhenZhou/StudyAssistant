@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,6 +101,12 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     var searchOpen by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     val sortMode by vm.notebookSort.collectAsState()
+    // 列表滚动状态：切换排序后**主动回到顶部**。
+    // 不这样做的话，LazyVerticalStaggeredGrid 会按"第一个可见项的 key"锚定滚动位置：
+    // 你在顶部时第一个可见项是"最近添加"的那道题，切换成"最早添加"后它跑到列表末尾 →
+    // 视图跟着它跳到**底部**（用户实测反馈的 bug）。
+    val gridState = rememberLazyStaggeredGridState()
+    LaunchedEffect(sortMode) { runCatching { gridState.scrollToItem(0) } }
     var page by remember { mutableStateOf("list") }   // list / manage（科目管理）
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -335,6 +342,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
             } else {
                 LazyVerticalStaggeredGrid(
                     columns = StaggeredGridCells.Fixed(2),
+                    state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(12.dp),
                     verticalItemSpacing = 8.dp

@@ -411,10 +411,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     vm.ensureClassification()
                 }
-                // B9 查重：打开对话框时先查一次"是否已存过同题干的错题"（挂起操作，不能放在保存回调里）
+                // B9 查重：打开对话框时先查一次"是否已存过同一道题"（挂起操作，不能放在保存回调里）
+                // ⚠️ 用 pendingQuestionText()：**与落库时取的是同一个串**（questionText 为空时会回退到
+                //    AI 识别出的题干），否则存的串和查的串不一致 → 永远查不出重复
                 var dupOf by remember { mutableStateOf<String?>(null) }
                 androidx.compose.runtime.LaunchedEffect(vm.questionTextForUi) {
-                    dupOf = vm.findDuplicateQuestion(vm.questionTextForUi)?.text
+                    dupOf = vm.findDuplicateQuestion(vm.pendingQuestionText())?.text
                 }
                 // 注意：这里**不能**用 key(suggestedCategory/suggestedTags) 包住对话框——
                 // AI 建议稍后到达会让 key 变化 → 对话框被重建 → 用户刚取消的标签会"复活"

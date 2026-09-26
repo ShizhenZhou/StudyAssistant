@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -37,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -89,6 +91,11 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
     val filterActive = filterCat != null || onlyWeak
+
+    // 换 tab / 改筛选后回到顶部：否则瀑布流会按"第一个可见项的 key"锚定滚动位置，
+    // 列表重排后视图跟着那道题跑到中间或底部（错题本排序踩过同一个坑）
+    val gridState = rememberLazyStaggeredGridState()
+    LaunchedEffect(tab, filterCat, onlyWeak) { runCatching { gridState.scrollToItem(0) } }
 
     val categories by vm.categories.collectAsState()
     val tags by vm.tags.collectAsState()
@@ -189,6 +196,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
             } else {
                 LazyVerticalStaggeredGrid(
                     columns = StaggeredGridCells.Fixed(1),   // 单列：整行宽度，图更大
+                    state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(12.dp),
                     verticalItemSpacing = 8.dp

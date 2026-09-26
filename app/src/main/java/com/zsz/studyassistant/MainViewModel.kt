@@ -1143,6 +1143,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun lastAnswer(): String =
         chatItems.lastOrNull { it.role == "assistant" }?.content ?: ""
 
+    /**
+     * B9 查重用：**将要落库的题干**（与 [saveToNotebook] 完全一样的取法）。
+     * ⚠️ 必须共用同一套取法：之前界面拿的是 `questionText`，而落库时可能在它为空的情况下
+     * 回退到"AI 识别出的题干" —— 存的串和查的串不一致，就会永远查不出重复。
+     */
+    fun pendingQuestionText(): String = questionText.ifBlank {
+        runCatching { StudyAssistant.parseVisionOutput(lastAnswer() ?: "").question }
+            .getOrNull()?.trim().orEmpty()
+    }
+
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
     fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {
         if (saving) {

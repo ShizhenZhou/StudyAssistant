@@ -1087,7 +1087,7 @@ private val B7_ZH = mapOf(
     "redo.next" to "下一题",
     "redo.updated" to "已按批改结果更新掌握度：{level}（下次 {days} 天后）",
     "dup.title" to "⚠️ 可能已存过",
-    "dup.text" to "错题本中已有一道题干相同的题：",
+    "dup.text" to "错题本中可能已有同一道题（题干相同或高度相似）：",
     "dup.saveAnyway" to "仍然保存",
 
     "review.progress" to "第 {i}/{n} 题",
@@ -1174,7 +1174,7 @@ private val B7_EN = mapOf(
     "redo.next" to "Next problem",
     "redo.updated" to "Mastery updated from the grading: {level} (next in {days} day(s))",
     "dup.title" to "⚠️ Maybe already saved",
-    "dup.text" to "A problem with the same text is already in your notebook:",
+    "dup.text" to "Your notebook may already contain this problem (same or very similar text):",
     "dup.saveAnyway" to "Save anyway",
 
     "review.progress" to "{i} / {n}",
@@ -1261,7 +1261,7 @@ private val B7_JA = mapOf(
     "redo.next" to "次の問題",
     "redo.updated" to "添削結果で習熟度を更新しました：{level}（次回は {days} 日後）",
     "dup.title" to "⚠️ 既に保存済みかも",
-    "dup.text" to "同じ問題文の項目が既にあります：",
+    "dup.text" to "同じ問題が既にある可能性があります（問題文が同一または酷似）：",
     "dup.saveAnyway" to "それでも保存",
 
     "review.progress" to "{i} / {n} 問目",
@@ -1348,7 +1348,7 @@ private val B7_KO = mapOf(
     "redo.next" to "다음 문제",
     "redo.updated" to "채점 결과로 숙련도를 갱신했습니다: {level} (다음은 {days}일 후)",
     "dup.title" to "⚠️ 이미 저장했을 수 있습니다",
-    "dup.text" to "같은 문제 지문이 이미 있습니다:",
+    "dup.text" to "같은 문제가 이미 있을 수 있습니다(지문이 같거나 매우 유사):",
     "dup.saveAnyway" to "그래도 저장",
 
     "review.progress" to "{i} / {n}",
