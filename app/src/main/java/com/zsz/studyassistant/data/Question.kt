@@ -175,6 +175,10 @@ interface QuestionDao {
     @Query("SELECT * FROM questions ORDER BY id ASC")
     suspend fun allQuestionsOnce(): List<Question>
 
+    /** 轻查询（不含图片 BLOB / 会话 JSON）：查重（B9）等只要题干的场景用，避免大字段进出 */
+    @Query("SELECT id, text, answer, createdAt, deleted, categoryId FROM questions WHERE deleted = 0")
+    suspend fun allLightOnce(): List<Question>
+
     @Query("SELECT * FROM categories ORDER BY id ASC")
     suspend fun allCategoriesOnce(): List<Category>
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,7 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,11 +34,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,7 +74,21 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     val weekFlow = remember { vm.dueQuestionsWeek() }
     val dueToday by todayFlow.collectAsState(emptyList())
     val dueWeek by weekFlow.collectAsState(emptyList())
-    val questions = if (tab == 0) dueToday else dueWeek
+    val dueAll = if (tab == 0) dueToday else dueWeek
+
+    // ── A5 复习筛选：按科目 + 只看"不熟"（掌握档位 ≤1，含未开始）──
+    var filterCat by remember { mutableStateOf<Long?>(null) }
+    var onlyWeak by remember { mutableStateOf(false) }
+    var catMenu by remember { mutableStateOf(false) }
+    val reviewRecords by vm.reviewRecords.collectAsState()
+    val stepById = remember(reviewRecords) { reviewRecords.associate { it.questionId to it.intervalStep } }
+    val questions = remember(dueAll, stepById, filterCat, onlyWeak) {
+        dueAll.filter { q ->
+            (filterCat == null || q.categoryId == filterCat) &&
+                (!onlyWeak || (stepById[q.id] ?: 0) <= 1)
+        }
+    }
+    val filterActive = filterCat != null || onlyWeak
 
     val categories by vm.categories.collectAsState()
     val tags by vm.tags.collectAsState()
@@ -109,9 +129,62 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(s["review.tab.today"]) })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(s["review.tab.week"]) })
             }
+            // ── A5 筛选行：科目 + 只看不熟（只在确实有待复习题时出现，避免空页还挂一排筛选）──
+            if (dueAll.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box {
+                        FilterChip(
+                            selected = filterCat != null,
+                            onClick = { catMenu = true },
+                            label = {
+                                Text(
+                                    filterCat?.let { catById[it]?.name } ?: s["review.filter.allSubjects"],
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        )
+                        DropdownMenu(expanded = catMenu, onDismissRequest = { catMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(s["review.filter.allSubjects"]) },
+                                onClick = { filterCat = null; catMenu = false },
+                                trailingIcon = { if (filterCat == null) Text("✓") }
+                            )
+                            categories.forEach { c ->
+                                DropdownMenuItem(
+                                    text = { Text(c.name) },
+                                    onClick = { filterCat = c.id; catMenu = false },
+                                    trailingIcon = { if (filterCat == c.id) Text("✓") }
+                                )
+                            }
+                        }
+                    }
+                    FilterChip(
+                        selected = onlyWeak,
+                        onClick = { onlyWeak = !onlyWeak },
+                        label = { Text(s["review.filter.onlyWeak"], maxLines = 1, softWrap = false) }
+                    )
+                    if (filterActive) {
+                        TextButton(onClick = { filterCat = null; onlyWeak = false }) {
+                            Text(s["review.filter.clear"], maxLines = 1, softWrap = false)
+                        }
+                    }
+                }
+            }
             if (questions.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (tab == 0) s["review.empty.today"] else s["review.empty.week"])
+                    Text(
+                        when {
+                            // 有题但被筛选滤空 → 明确说是筛选导致的（否则用户以为题库空了）
+                            filterActive && dueAll.isNotEmpty() -> s["review.empty.filtered"]
+                            tab == 0 -> s["review.empty.today"]
+                            else -> s["review.empty.week"]
+                        }
+                    )
                 }
             } else {
                 LazyVerticalStaggeredGrid(

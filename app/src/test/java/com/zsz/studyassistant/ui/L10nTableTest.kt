@@ -66,6 +66,13 @@ class L10nTableTest {
         assertEquals("🗄 自動備份", tw["data.autoBackup"])
         assertTrue("文件夹未转成文件夾：${tw["data.autoBackup.pick"]}", tw["data.autoBackup.pick"].contains("文件夾"))
         assertTrue(tw["data.autoBackup.count"].contains("已保存"))
+
+        // A5 / B6 / B9 文案
+        assertEquals("⇅ 排序", tw["notebook.sort"])
+        assertTrue("错题本未转繁体：${tw["dup.text"]}", tw["dup.text"].contains("錯題本"))
+        assertTrue("纸上未转紙上：${tw["redo.hint.shoot"]}", tw["redo.hint.shoot"].contains("紙上"))
+        assertTrue("手写未转手寫：${tw["redo.entry"]}", tw["redo.entry"].contains("手寫"))
+        assertTrue("筛选未转篩選：${tw["review.filter.clear"]}", tw["review.filter.clear"].contains("篩選"))
     }
 
     @Test
@@ -77,7 +84,13 @@ class L10nTableTest {
             "data.autoBackup", "data.autoBackup.pick", "data.autoBackup.change", "data.autoBackup.noFolder",
             "data.autoBackup.folder", "data.autoBackup.daily", "data.autoBackup.desc", "data.autoBackup.count",
             "data.autoBackup.last", "data.autoBackup.never", "data.autoBackup.now", "data.autoBackup.done",
-            "data.autoBackup.pruned", "data.autoBackup.failed"
+            "data.autoBackup.pruned", "data.autoBackup.failed",
+            // A5 排序 + 复习筛选 / B6 重做 / B9 查重
+            "notebook.sort", "notebook.sort.newest", "notebook.sort.oldest", "notebook.sort.next",
+            "notebook.sort.most", "notebook.sort.weak",
+            "review.filter.allSubjects", "review.filter.onlyWeak", "review.filter.clear", "review.empty.filtered",
+            "redo.entry", "redo.hint.shoot", "redo.next", "redo.updated",
+            "dup.title", "dup.text", "dup.saveAnyway"
         )
         for (k in keys) {
             for ((name, table) in others) {

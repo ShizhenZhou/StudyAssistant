@@ -108,9 +108,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         com.zsz.studyassistant.data.ReminderScheduler.ensureChannel(getApplication())
     }
 
-    /** 错题本数据流 */
+    /** 错题本排序方式（A5）：持久化在 settings，默认"最近添加"（= 历史行为） */
+    private val _notebookSort = kotlinx.coroutines.flow.MutableStateFlow(
+        com.zsz.studyassistant.data.NotebookSortStore.load(getApplication())
+    )
+    val notebookSort: StateFlow<com.zsz.studyassistant.data.NotebookSortMode> = _notebookSort
+
+    fun setNotebookSort(mode: com.zsz.studyassistant.data.NotebookSortMode) {
+        _notebookSort.value = mode
+        com.zsz.studyassistant.data.NotebookSortStore.save(getApplication(), mode)
+    }
+
+    /** 错题本数据流（A5：按用户选的排序方式排好；排序变化 → 立即重新发射） */
     val notebook: StateFlow<List<Question>> =
-        dao.getAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        kotlinx.coroutines.flow.combine(
+            dao.getAll(), dao.allReviews(), notebookSort
+        ) { qs, rs, mode ->
+            com.zsz.studyassistant.data.NotebookSorting.sort(qs, rs.associateBy { it.questionId }, mode)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 复习记录流（A5 复习筛选用：掌握档位 / 下次复习时间） */
+    val reviewRecords: StateFlow<List<Review>> =
+        dao.allReviews().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * B9 查重：题干（归一化后）相同的已有错题。
+     * 只查未删除的题、只取轻字段（不含图片 BLOB），太短的题干不比（见 DuplicateCheck）。
+     */
+    suspend fun findDuplicateQuestion(text: String, excludeId: Long? = null): Question? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                com.zsz.studyassistant.data.DuplicateCheck.find(dao.allLightOnce(), text, excludeId)
+            }.getOrNull()
+        }
 
     /** 用户自定义分类列表 */
     val categories: StateFlow<List<Category>> =
@@ -235,6 +265,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 供界面判断：当前会话是否来自"拍照搜题"（返回时决定回拍题页还是返回来处） */
     val isPhotoSession: Boolean get() = isPhoto
     private var questionText = ""
+    /** 只读访问当前题干（B9 查重等界面逻辑用；questionText 本身保持私有以免被误改） */
+    val questionTextForUi: String get() = questionText
     /** 直接提问携带的附图（文字 + 多图） */
     private var directImages: List<ByteArray> = emptyList()
     /** 拍照搜题（多张）携带的图，作为题目一起识别 */
@@ -1273,19 +1305,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun reviewQuestion(questionId: Long, level: Int) {
         viewModelScope.launch {
             val r = dao.reviewFor(questionId) ?: Review(questionId)
-            val base = startOfToday()
-            val step = when (level) {
-                2 -> (r.intervalStep + 1).coerceIn(0, INTERVAL_DAYS.size - 1) // 熟悉：+1 档
-                1 -> r.intervalStep                                            // 模糊：保持档位
-                else -> 0                                                      // 忘记：重置第 0 档
-            }
-            // ★ 最短复习周期为 **1 天**：第 0 档原本是 0 天 → nextReviewAt 落回"今天零点"，
-            //   于是今天点过之后它依然算"今天到期"，同一道题会在本轮反复出现（第1=第2…）。
-            //   这里把天数下限设为 1 天：今天点过一次，今天就不再出现，最早明天。
-            val days = INTERVAL_DAYS[step].coerceAtLeast(1)
-            val next = base + days * DAY_MS
-            dao.updateReview(questionId, step, next, System.currentTimeMillis())
+            val (step, days) = scheduleFor(level, r.intervalStep)
+            dao.updateReview(questionId, step, startOfToday() + days * DAY_MS, System.currentTimeMillis())
         }
+    }
+
+    /**
+     * 档位调度：返回 (新档位, 间隔天数)。
+     * ★ 最短复习周期为 **1 天**：第 0 档原本是 0 天 → nextReviewAt 落回"今天零点"，
+     *   于是今天点过之后它依然算"今天到期"，同一道题会在本轮反复出现（第1=第2…）。
+     *   这里把天数下限设为 1 天：今天点过一次，今天就不再出现，最早明天。
+     */
+    private fun scheduleFor(level: Int, currentStep: Int): Pair<Int, Int> {
+        val step = when (level) {
+            2 -> (currentStep + 1).coerceIn(0, INTERVAL_DAYS.size - 1) // 熟悉：+1 档
+            1 -> currentStep                                            // 模糊：保持档位
+            else -> 0                                                   // 忘记：重置第 0 档
+        }
+        return step to INTERVAL_DAYS[step].coerceAtLeast(1)
     }
 
     /** 复习模式：点进错题查看；详情页底部为 熟悉/模糊/忘记 三按钮 */
@@ -1307,6 +1344,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadForReview(q: Question) {
+        redoMessage = null              // 换到新的一题：上一题的"已更新掌握度"提示不再显示
         // 复习队列来自"轻查询"（不含图片 BLOB 与会话 JSON，避免 CursorWindow 溢出崩溃），
         // 这里按 id 补全重字段，保证进入题目时原图与续答上下文都在。
         viewModelScope.launch {
@@ -1327,14 +1365,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun reviewNext(level: Int, onNoMore: () -> Unit) {
         val qid = savedQuestionId ?: return
         reviewQuestion(qid, level)
+        reviewAdvance(onNoMore)
+    }
+
+    /**
+     * 只"跳到下一题"，**不改变本题档位**。
+     * B6 重做模式用：批改完已经按结论自动更新了掌握度，这里点「下一题」时不该再按按钮档位覆盖一次。
+     */
+    fun reviewAdvance(onNoMore: () -> Unit) {
         viewModelScope.launch {
+            val qid = savedQuestionId
             val due = dao.dueQuestions(endOfToday()).first()
             val cat = currentQuestionCategoryId
-            // ★ 必须排除"刚答过的这道题"：艾宾浩斯第一档间隔是 0 天，
-            //   答完后 nextReviewAt 仍是今天 → 它依然在"今天到期"里排第一
+            // ★ 必须排除"刚答过的这道题"：艾宾浩斯第一档间隔原为 0 天，答完后 nextReviewAt 可能仍是今天
             //   → 不排除的话，同一道题会连续出现两次（第1=第2、第3=第4…）
-            val rest = due.filter { it.id != qid }
+            val rest = if (qid != null) due.filter { it.id != qid } else due
             val next = rest.firstOrNull { it.categoryId == cat } ?: rest.firstOrNull()
+            redoMessage = null
             if (next != null) {
                 reviewQueue = rest
                 reviewDone += 1
@@ -1353,34 +1400,81 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------------------------------------------------------------------
-    // 重做模式（接口预留，暂未接入界面）
+    // 重做模式（B6，已接入界面）
     //
-    // 目标闭环：复习时只给题目图 → 用拍照/相册提交自己重写的解答 →
-    // 复用 gradeWithImages() 批改 → 用批改结果自动更新掌握度（代替人工点熟悉/模糊）。
-    // 待办：
-    //   1) UI：复习页加「✏️ 重做」入口与答案提交（拍照/相册）
-    //   2) submitRedoAnswer() 内调用 StudyAssistant.gradeWithImages(imageBytes, answerBytes, aiLang)
-    //   3) 依批改结果（正确/错误）映射到 reviewQuestion(level) 的档位
+    // 闭环：复习页/复习中的题目 → 点「✏️ 手写重做」→ 在纸上写解答 → 拍一张 → 复用批改链路
+    //      （题目图有则用题目图，纯文字题走 gradeTextUserMessage）→ 按批改结论**自动**更新掌握档位
+    //      → 回到解题页看批改结果，点「下一题」继续本轮复习。
+    // 与人工点「熟悉/模糊/忘记」并行存在：自动更新只是省一步，用户仍可手动覆盖。
     // ---------------------------------------------------------------------
 
-    /** 是否处于重做模式 */
+    /** 是否处于重做模式（GradeScreen 据此切成"只拍我的作答"） */
     var redoMode by mutableStateOf(false)
         private set
 
-    /** 进入重做模式（预留）。接入界面时由复习页调用。 */
+    /** 重做批改完成后给界面的提示（非空 = 解题页显示「已更新掌握度 …」+「下一题」） */
+    var redoMessage by mutableStateOf<String?>(null)
+        private set
+
+    /** 当前重做的题目 id */
+    var redoQuestionId by mutableStateOf<Long?>(null)
+        private set
+
+    private var redoQuestionText: String = ""
+    private var redoQuestionImage: ByteArray? = null
+
+    /** 本次批改是否属于"重做"（一次性）：批改结束时据此自动更新掌握度 */
+    private var pendingRedoFor: Long? = null
+
+    /** 复习时点「✏️ 手写重做」：记住当前题，等用户拍/选作答照片 */
     fun startRedo() {
-        // TODO(重做模式)：初始化重做状态（清空已提交答案、记录当前题）
+        val q = currentReviewQuestion ?: return
+        redoQuestionId = q.id
+        redoQuestionText = q.text
+        redoQuestionImage = q.imageBytes
+        redoMessage = null
         redoMode = true
     }
 
-    /** 提交重做答案（预留）。answerBytes = 手写作答照片。 */
+    /** 提交手写作答照片 → 走批改链路（批改结束会自动更新掌握度） */
     fun submitRedoAnswer(answerBytes: ByteArray) {
-        // TODO(重做模式)：批改 + 依结果更新复习档位
+        val qid = redoQuestionId ?: return
+        val img = redoQuestionImage
+        if (img != null) startGrade(img, answerBytes, redoFor = qid)
+        else startGradeText(redoQuestionText, answerBytes, redoFor = qid)
     }
 
+    /** 批改结束（重做）→ 按结论映射档位、写回复习计划，并给界面一句提示 */
+    private fun applyRedoResult(qid: Long, reply: String) {
+        val level = com.zsz.studyassistant.data.GradeVerdict.level(reply)
+        viewModelScope.launch {
+            val r = runCatching { dao.reviewFor(qid) }.getOrNull() ?: Review(qid)
+            val (step, days) = scheduleFor(level, r.intervalStep)
+            runCatching { dao.updateReview(qid, step, startOfToday() + days * DAY_MS, System.currentTimeMillis()) }
+            val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
+            val levelName = when (level) {
+                2 -> str["solve.familiar"]
+                1 -> str["solve.vague"]
+                else -> str["solve.forgot"]
+            }
+            redoMessage = str.format("redo.updated", "level" to levelName, "days" to "$days")
+        }
+    }
+
+    /** 退出重做（离开复习/换会话时清干净，避免下一次普通批改被误判成重做） */
     fun exitRedo() {
         redoMode = false
+        redoMessage = null
+        redoQuestionId = null
+        pendingRedoFor = null
     }
+
+    /**
+     * 离开「拍作答」页时调用：**只**关掉重做模式的界面标志。
+     * ⚠️ 不能顺手清 [pendingRedoFor]：批改是异步的，用户拍完就跳到批改页了，
+     * 这时清掉会让"按批改结果自动更新掌握度"静默失效。
+     */
+    fun leaveRedoCamera() { redoMode = false }
 
     // ---- 练同类题 ----
     var similarQuestion by mutableStateOf<String?>(null)
@@ -1805,9 +1899,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 开始批改（流式、全屏复用解题页）：把「题目图 [+ 我的作答图]」作为一条提问，
      * 批改结果流式追加；之后可继续带图追问。
      */
-    fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?) {
+    fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?, redoFor: Long? = null) {
         prepareSession(grade = true)
         gradeMode = true
+        pendingRedoFor = redoFor
+        gradeTextQuestion = null
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
         val imgs = buildList {
             add(questionBytes)
@@ -1826,12 +1922,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         gradeCall()
     }
 
-    /** 当前这次流式请求是否为「批改」（决定按钮显示「⏸ 中止批改」还是「⏸ 中止生成」） */
-    var busyIsGrade by mutableStateOf(false)
-        private set
+    /**
+     * 批改（**纯文字题干** + 手写作答图）：B6 重做时，复习的题可能本来就没有原图。
+     * 与 [startGrade] 的区别只有首轮消息的构造方式（文字题干 + 作答图）。
+     */
+    fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: Long? = null) {
+        prepareSession(grade = true)
+        gradeMode = true
+        pendingRedoFor = redoFor
+        gradeTextQuestion = questionText
+        val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
+        directImages = listOf(answerBytes)
+        questionFromPhoto = false
+        this.questionText = questionText
+        val encoded = listOf(Base64.encodeToString(answerBytes, Base64.NO_WRAP))
+        questionImages = encoded
+        // 气泡：题干文字 + 我的作答图（与批改页的"题目 + 作答"语义一致）
+        addItem("question", questionText + "\n" + str["grade.label.answer"], encoded)
+        gradeTextCall(questionText)
+    }
 
-    /** 流式请求序号：用于识别"已被新请求取代的旧请求"，避免旧请求收尾时覆盖新请求的界面状态 */
-    private var callSeq = 0L
+    /** 当前批改是否为"纯文字题干"（重新批改时据此选对构造方式） */
+    private var gradeTextQuestion: String? = null
+
+    /** 批改完成的公共收尾：解析分类/知识点 + 落一条助手消息 + 重做时自动更新掌握度 */
+    private fun onGradeReply(reply: String) {
+        // ★ 批改同样要解析分类/知识点（与拍题/直接提问一致），否则批改后存错题本无法预选
+        val r = StudyAssistant.parseVisionOutput(reply)
+        suggestedCategory = r.category
+        suggestedTags = r.tags
+        addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+        // B6：重做的批改 → 按结论自动更新掌握度（一次性，取完即清）
+        val redoFor = pendingRedoFor
+        if (redoFor != null) {
+            pendingRedoFor = null
+            applyRedoResult(redoFor, reply)
+        }
+    }
 
     /** 批改请求（流式）；repeat 用于网络失败重试 */
     private fun gradeCall() {
@@ -1844,20 +1971,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         busyIsGrade = true
         streamCall(
             StudyAssistant.MODEL_VISION, msgs, prefix = "",
-            onDone = { reply ->
-                // ★ 批改同样要解析分类/知识点（与拍题/直接提问一致），否则批改后存错题本无法预选
-                val r = StudyAssistant.parseVisionOutput(reply)
-                suggestedCategory = r.category
-                suggestedTags = r.tags
-                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            },
+            onDone = { onGradeReply(it) },
             repeat = { gradeCall() }
         )
     }
 
-    /** 重新批改（用当前会话的题目/作答图再跑一次） */
-    fun regrade() { gradeCall() }
+    /** 文字题干版批改请求（B6 重做：题目没有原图） */
+    private fun gradeTextCall(qText: String) {
+        val ans = directImages.firstOrNull() ?: return
+        val msgs = listOf(
+            StudyAssistant.languageSystemMessage(aiLang),
+            StudyAssistant.gradeTextUserMessage(qText, ans, aiLang)
+        )
+        busyIsGrade = true
+        streamCall(
+            StudyAssistant.MODEL_VISION, msgs, prefix = "",
+            onDone = { onGradeReply(it) },
+            repeat = { gradeTextCall(qText) }
+        )
+    }
 
+    /** 重新批改（用当前会话的题目/作答图再跑一次） */
+    fun regrade() {
+        val text = gradeTextQuestion
+        if (text != null) gradeTextCall(text) else gradeCall()
+    }
+
+    /** 当前这次流式请求是否为「批改」（决定按钮显示「⏸ 中止批改」还是「⏸ 中止生成」） */
+    var busyIsGrade by mutableStateOf(false)
+        private set
+
+    /** 流式请求序号：用于识别"已被新请求取代的旧请求"，避免旧请求收尾时覆盖新请求的界面状态 */
+    private var callSeq = 0L
 
     /** 加载某条错题的完整对话会话（用于续答） */
     fun loadQuestion(q: Question) {
@@ -1886,6 +2031,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         networkError = false
         retryAction = null
         gradeMode = false
+        exitRedo()                      // 换题/打开错题：重做状态（含"已更新掌握度"提示）一律清掉
         reviewMode = false              // loadForReview() 会在其后置 true
         directImages = emptyList()
         chatItems = try {

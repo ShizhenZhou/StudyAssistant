@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +70,9 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPermission = it }
+
+    // 离开本页就退出"重做模式"（否则下次从首页进批改页会仍按"只拍作答"处理）
+    DisposableEffect(Unit) { onDispose { vm.leaveRedoCamera() } }
 
     if (!hasPermission) {
         Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -129,10 +133,16 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         }
         focusPoint?.let { fp -> FocusRing(center = fp, focused = focusDone) }
 
-        // 统一处理一张图片：单张→直接批改；两张→先存题目，再拍/选答案后批改
+        // 统一处理一张图片：
+        //  · 重做模式（B6）：这一张就是"我的手写作答" → 交给 vm 批改（题目来自刚才复习的那道题）
+        //  · 单张：直接批改；两张：先存题目，再拍/选答案后批改
         // 拍完即进入**全屏批改页**（复用解题界面，流式输出批改结果，可继续带图追问）
+        val redo = vm.redoMode
         val processImage: (ByteArray) -> Unit = { bytes ->
-            if (doubleMode && questionBytes == null) {
+            if (redo) {
+                vm.submitRedoAnswer(bytes)
+                nav.navigate("solve") { popUpTo("home") }
+            } else if (doubleMode && questionBytes == null) {
                 questionBytes = bytes
                 awaitingAnswer = true
             } else {
@@ -166,7 +176,12 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         }
 
         Text(
-            if (awaitingAnswer) s["grade.hint.answer"] else (if (doubleMode) s["grade.hint.twoFirst"] else s["grade.hint.one"]),
+            when {
+                redo -> s["redo.hint.shoot"]
+                awaitingAnswer -> s["grade.hint.answer"]
+                doubleMode -> s["grade.hint.twoFirst"]
+                else -> s["grade.hint.one"]
+            },
             modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),
             style = MaterialTheme.typography.bodyMedium
         )
@@ -174,7 +189,9 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         // 图库按钮（左下，与拍题模式一致）
         Surface(
             onClick = {
-                if (doubleMode) galleryMulti.launch(imagePickRequest(maxItems = 2))
+                // 重做模式只取一张（= 我的作答）
+                if (redo) gallerySingle.launch(imagePickRequest())
+                else if (doubleMode) galleryMulti.launch(imagePickRequest(maxItems = 2))
                 else gallerySingle.launch(imagePickRequest())
             },
             enabled = !vm.gradeBusy,
@@ -206,20 +223,22 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ShutterIcon(size = 40.dp, color = Color.White) }
         }
 
-        // 单张/两张切换（右下，正常大小）
-        Surface(
-            onClick = {
-                doubleMode = !doubleMode
-                com.zsz.studyassistant.data.CapturePrefs.setGradeDouble(context, doubleMode)
-                questionBytes = null; awaitingAnswer = false
-            },
-            shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
-            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 36.dp).height(44.dp)
-        ) {
-            // 宽度随文字自适应（fillMaxSize 会撑满整屏，勿用）
-            Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                Text(if (doubleMode) s["camera.mode.two"] else s["camera.mode.one"], style = MaterialTheme.typography.labelLarge)
+        // 单张/两张切换（右下，正常大小）；重做模式下这一张固定是"我的作答"，不显示切换
+        if (!redo) {
+            Surface(
+                onClick = {
+                    doubleMode = !doubleMode
+                    com.zsz.studyassistant.data.CapturePrefs.setGradeDouble(context, doubleMode)
+                    questionBytes = null; awaitingAnswer = false
+                },
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 36.dp).height(44.dp)
+            ) {
+                // 宽度随文字自适应（fillMaxSize 会撑满整屏，勿用）
+                Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+                    Text(if (doubleMode) s["camera.mode.two"] else s["camera.mode.one"], style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
 

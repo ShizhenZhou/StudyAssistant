@@ -50,6 +50,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -410,6 +411,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     vm.ensureClassification()
                 }
+                // B9 查重：打开对话框时先查一次"是否已存过同题干的错题"（挂起操作，不能放在保存回调里）
+                var dupOf by remember { mutableStateOf<String?>(null) }
+                androidx.compose.runtime.LaunchedEffect(vm.questionTextForUi) {
+                    dupOf = vm.findDuplicateQuestion(vm.questionTextForUi)?.text
+                }
                 // 注意：这里**不能**用 key(suggestedCategory/suggestedTags) 包住对话框——
                 // AI 建议稍后到达会让 key 变化 → 对话框被重建 → 用户刚取消的标签会"复活"
                 SaveDialog(
@@ -423,6 +429,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         vm.suggestedTags.any { it.trim() == tg.name.trim() }
                     }.map { it.id },
                     suggestedTagNames = vm.suggestedTags,
+                    duplicateOf = dupOf,
                     onConfirm = { name, cid, tagNames, tagIds ->
                         vm.saveToNotebook(name, cid, tagNames, tagIds)
                         categoryDialogFor = null
@@ -630,6 +637,40 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
+            // 复习结束（手动点按钮走到头、或重做后「下一题」走到头）：
+            // ★ **显式回主页**。原来只 popBackStack()：当复习是从底部页签/通知进入、栈里没有可退页面时
+            //   会直接把 Activity 退掉 → 表现为"点熟悉后回到桌面"。
+            val onReviewFinished: () -> Unit = {
+                vm.exitReviewMode()
+                nav.navigate("home") {
+                    popUpTo("home") { inclusive = true }
+                    launchSingleTop = true
+                }
+                android.widget.Toast.makeText(context, s["solve.reviewDone"], android.widget.Toast.LENGTH_SHORT).show()
+            }
+
+            // B6 重做：批改完成 → 显示"已按批改结果更新掌握度"，并可继续下一题
+            vm.redoMessage?.let { msg ->
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = smoothShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { vm.reviewAdvance(onReviewFinished) }) { Text(s["redo.next"]) }
+                    }
+                }
+            }
+
             // 复习模式：进度 + 折叠解答；底部为 熟悉/模糊/忘记 三按钮
             if (sessionMode == SessionMode.REVIEW) {
                 Row(
@@ -665,34 +706,32 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         Text(if (answerRevealed) s["review.hideAnswer"] else s["review.showAnswer"])
                     }
                 }
-                val onNoMore: () -> Unit = {
-                    vm.exitReviewMode()
-                    // ★ 复习结束：**显式回主页**。原来只 popBackStack()：
-                    //   当复习是从底部页签/通知进入、栈里没有可退页面时会直接把 Activity 退掉
-                    //   → 表现为"点熟悉后回到桌面"。
-                    nav.navigate("home") {
-                        popUpTo("home") { inclusive = true }
-                        launchSingleTop = true
-                    }
-                    android.widget.Toast.makeText(context, s["solve.reviewDone"], android.widget.Toast.LENGTH_SHORT).show()
-                }
+                // B6 重做：先在纸上自己写一遍 → 拍一张 → AI 批改并**自动**更新掌握度
+                OutlinedButton(
+                    onClick = {
+                        vm.startRedo()
+                        nav.navigate("grade")
+                    },
+                    shape = smoothPill(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(46.dp)
+                ) { Text(s["redo.entry"]) }
                 Row(
                     Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
-                        onClick = { vm.reviewNext(2, onNoMore) },
+                        onClick = { vm.reviewNext(2, onReviewFinished) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) { Text(s["solve.familiar"]) }
                     Button(
-                        onClick = { vm.reviewNext(1, onNoMore) },
+                        onClick = { vm.reviewNext(1, onReviewFinished) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
                     ) { Text(s["solve.vague"]) }
                     Button(
-                        onClick = { vm.reviewNext(0, onNoMore) },
+                        onClick = { vm.reviewNext(0, onReviewFinished) },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
                     ) { Text(s["solve.forgot"]) }
@@ -847,6 +886,11 @@ internal fun SaveDialog(
     suggestedTagNames: List<String>,
     onConfirm: (name: String?, categoryId: Long?, tagNames: List<String>, tagIds: List<Long>) -> Unit,
     onDismiss: () -> Unit,
+    /**
+     * B9 查重：非空 = 已存在题干相同（归一化后）的错题，保存前先弹一句确认。
+     * 由调用方**预先算好**（查库是挂起操作，不适合放在按钮回调里）。
+     */
+    duplicateOf: String? = null,
     /** 非空时在对话框左下角显示红色「🗑 删除」（分类场景用） */
     onDelete: (() -> Unit)? = null
 ) {
@@ -866,6 +910,10 @@ internal fun SaveDialog(
     }
     var selectedNames by remember { mutableStateOf(initNames) }
     var newTag by remember { mutableStateOf("") }
+
+    // B9：查重提示（非空 = 正在弹"可能已存过"确认框）+ 待确认的保存参数
+    var dupWarn by remember { mutableStateOf(false) }
+    var pendingSave by remember { mutableStateOf<SaveArgs?>(null) }
 
     fun toggleTagName(name: String) {
         if (selectedNames.contains(name)) {
@@ -971,7 +1019,13 @@ internal fun SaveDialog(
                     val t = tags.firstOrNull { it.name == name }
                     if (t != null) tagIds += t.id else newNames += name
                 }
-                onConfirm(cname, selCatId, newNames, tagIds)
+                // B9：题干重复 → 先确认（只提示，不阻止；用户可"仍然保存"）
+                if (duplicateOf != null) {
+                    pendingSave = SaveArgs(cname, selCatId, newNames, tagIds)
+                    dupWarn = true
+                } else {
+                    onConfirm(cname, selCatId, newNames, tagIds)
+                }
             }
             if (onDelete == null) {
                 // 首次保存：**不要**用 Row/Spacer（weight 会把整行撑满，导致 dismissButton 的「取消」被挤到下一行）
@@ -997,7 +1051,44 @@ internal fun SaveDialog(
             }
         }
     )
+
+    // B9：可能已存过 —— 叠在保存对话框之上（保留下面已选好的分类/标签，取消即可回去改）
+    if (dupWarn && duplicateOf != null) {
+        AlertDialog(
+            onDismissRequest = { dupWarn = false },
+            title = { Text(s["dup.title"]) },
+            text = {
+                Column {
+                    Text(s["dup.text"])
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        TextPretty.oneLine(duplicateOf, 90),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingSave?.let { a -> onConfirm(a.name, a.cid, a.tagNames, a.tagIds) }
+                    pendingSave = null
+                    dupWarn = false
+                }) { Text(s["dup.saveAnyway"]) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingSave = null; dupWarn = false }) { Text(s["common.cancel"]) }
+            }
+        )
+    }
 }
+
+/** SaveDialog 待确认的保存参数（B9 查重确认用） */
+private data class SaveArgs(
+    val name: String?,
+    val cid: Long?,
+    val tagNames: List<String>,
+    val tagIds: List<Long>
+)
 
 
 /** 在已有分类里找最相近的：完全相等 → 包含关系 → 共有 2 个以上相同字（优先已有科目，避免重复新建） */

@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -308,6 +309,11 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 存错题本：选分类/标签（与解题页同一对话框，保存的是这道同类题）
         if (showSaveDialog) {
+            // B9 查重：同类题也可能与已存的题重复（打开对话框时先查一次）
+            var dupOf by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(vm.similarQuestion) {
+                dupOf = vm.similarQuestion?.let { vm.findDuplicateQuestion(it)?.text }
+            }
             SaveDialog(
                 title = s["solve.catPicker.select"],
                 categories = categories,
@@ -316,6 +322,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                 initialNewName = null,
                 initialSelectedTagIds = emptyList(),
                 suggestedTagNames = emptyList(),
+                duplicateOf = dupOf,
                 onConfirm = { name, cid, tagNames, tagIds ->
                     vm.saveSimilarToNotebook(name, cid, tagNames, tagIds)
                     showSaveDialog = false

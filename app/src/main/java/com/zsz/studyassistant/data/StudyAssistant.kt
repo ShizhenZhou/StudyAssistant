@@ -365,6 +365,37 @@ object StudyAssistant {
         return DeepSeekMessage("user", parts)
     }
 
+    /**
+     * 批改的 user 消息（**纯文字题干** + 手写作答图）。
+     * B6 重做模式用：复习的题可能没有原图（直接提问/图文提问存的题），
+     * 这时把题干当文字给出，图片只放"我的作答"。
+     */
+    fun gradeTextUserMessage(
+        questionText: String,
+        answerBytes: ByteArray,
+        lang: AiLang = AiLang.DEFAULT,
+        categories: List<String> = emptyList(),
+        tags: List<String> = emptyList()
+    ): DeepSeekMessage {
+        val catHint = if (categories.isEmpty()) "（无）" else categories.joinToString("、")
+        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
+        val parts = buildJsonArray {
+            addJsonObject {
+                put("type", "text")
+                put(
+                    "text",
+                    "题目：$questionText\n\n图片中是**学生的手写作答**。\n" +
+                        gradePrompt(answerBytes, lang, catHint, tagHint)
+                )
+            }
+            addJsonObject {
+                put("type", "image_url")
+                putJsonObject("image_url") { put("url", "data:image/jpeg;base64," + Base64.encodeToString(answerBytes, Base64.NO_WRAP)) }
+            }
+        }
+        return DeepSeekMessage("user", parts)
+    }
+
     /** 批改：单张(仅题目)或两张(题目+手写答案)，AI 判断正误、指出错误步骤、针对性讲解 */
     suspend fun gradeWithImages(questionBytes: ByteArray, answerBytes: ByteArray?, lang: AiLang = AiLang.DEFAULT): String {
         requireKey()

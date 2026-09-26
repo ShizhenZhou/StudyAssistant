@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
+import com.zsz.studyassistant.data.NotebookSortMode
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
 import com.zsz.studyassistant.data.Tag
@@ -97,6 +98,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     var filterTagIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
+    val sortMode by vm.notebookSort.collectAsState()
     var page by remember { mutableStateOf("list") }   // list / manage（科目管理）
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -204,6 +207,21 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             IconButton(onClick = {
                                 if (searchOpen) closeSearch() else searchOpen = true
                             }) { Text("🔍", fontSize = 18.sp) }
+                            // ⇅ 排序（A5）：最近添加 / 最早添加 / 下次复习 / 复习次数 / 最不熟
+                            Box {
+                                TextButton(onClick = { sortMenu = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                                    Text(s["notebook.sort"], maxLines = 1, softWrap = false)
+                                }
+                                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                    NotebookSortMode.menuOrder.forEach { m ->
+                                        DropdownMenuItem(
+                                            text = { Text(s["notebook.sort.${m.id}"]) },
+                                            onClick = { vm.setNotebookSort(m); sortMenu = false },
+                                            trailingIcon = { if (m == sortMode) Text("✓") }
+                                        )
+                                    }
+                                }
+                            }
                             // 管理：科目（分类）管理
                             TextButton(onClick = { page = "manage"; searchOpen = false }) { Text(s["notebook.manage"]) }
                         }

@@ -56,11 +56,22 @@ if (-not $GradleUserHome)  { $GradleUserHome  = if ($env:GRADLE_USER_HOME)  { $e
 if (-not $AndroidUserHome) { $AndroidUserHome = if ($env:ANDROID_USER_HOME) { $env:ANDROID_USER_HOME } else { Join-Path $workspace '.android-home' } }
 
 # 1. Compile the unit tests through Gradle (in-process, unaffected by the argfile issue)
+#    -Pkotlin.compiler.execution.strategy=in-process: the Kotlin compile daemon needs to create
+#    marker files under %LOCALAPPDATA%\kotlin\daemon, which the DSH file sandbox denies
+#    ("AccessDeniedException ... kotlin-daemon-client-tsmarker*.tmp"). Compiling in-process
+#    avoids the daemon entirely and is plenty fast for this project size.
 Write-Step 'compile debug unit tests (gradle)'
 $env:GRADLE_USER_HOME = $GradleUserHome
 $env:ANDROID_USER_HOME = $AndroidUserHome
-& .\gradlew.bat compileDebugUnitTestKotlin --console=plain
-if ($LASTEXITCODE -ne 0) { Write-Err2 'compile failed'; exit 1 }
+# Gradle 会往 stderr 打 SDK 警告（"SDK XML versions"），在 $ErrorActionPreference='Stop' 下
+# 会被 PowerShell 当成 NativeCommandError 直接中断脚本 —— 这里只保留字符串行并忽略错误记录。
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+$gradleOut = & .\gradlew.bat compileDebugUnitTestKotlin --console=plain '-Pkotlin.compiler.execution.strategy=in-process' 2>&1
+$gradleCode = $LASTEXITCODE
+$ErrorActionPreference = $prevEap
+$gradleOut | Where-Object { $_ -is [string] } | Select-Object -Last 8 | ForEach-Object { Write-Host "   $_" }
+if ($gradleCode -ne 0) { Write-Err2 'compile failed'; exit 1 }
 
 $appBuild = Join-Path $repo 'app\build'
 $classes = @(
@@ -130,6 +141,8 @@ $testClasses = @(
     'com.zsz.studyassistant.data.VisionOutputParserTest',
     'com.zsz.studyassistant.data.UpdateCheckerVersionTest',
     'com.zsz.studyassistant.data.AutoBackupTest',
+    'com.zsz.studyassistant.data.NotebookSortingTest',
+    'com.zsz.studyassistant.data.DuplicateCheckTest',
     'com.zsz.studyassistant.ui.L10nTableTest'
 )
 & $java '-Dfile.encoding=UTF-8' -cp $cp org.junit.runner.JUnitCore @testClasses
