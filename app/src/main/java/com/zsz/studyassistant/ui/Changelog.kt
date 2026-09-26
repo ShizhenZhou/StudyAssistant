@@ -5,6 +5,17 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.2
+· ✏️ **复习可「手写重做」**：复习题目时点「✏️ 手写重做」→ 拍下你在纸上写的解答 → AI 批改并**按批改结果自动更新掌握度**（不用再手点熟悉/模糊/忘记）；批改完可直接「下一题」，纯文字题也能重做
+· 📚 **错题本排序**：右上角新增「⇅ 排序」——最近添加 / 最早添加 / 下次复习时间 / 复习次数 / **最不熟优先**（选择会记住）
+· 🔎 **复习筛选**：复习页可按**科目**筛选，也可「**只看不熟**」；进度按筛选后的题数算，筛空时会明确提示
+· ⚠️ **存题查重**：题干相同的题在保存前会提示「**可能已存过**」并给出已有题干，可「仍然保存」（只提示、不阻止）
+· 🗄 **自动备份**：设置 → 数据管理 → 「自动备份」，选一个文件夹后**每天第一次打开应用**自动把错题本备份成 JSON，**只保留最近 3 份**（只存本机、不联网、不上传）
+· 🌙 **深色主题适配对话区**：深色下气泡 / 正文 / 思考块配色跟随主题；此前深色下气泡仍是浅灰、思考块灰字几乎看不清
+· 🐞 **崩溃日志（只存本机）**：闪退时自动记录版本 / 机型 / 完整堆栈（最多留 10 份），设置 → 数据管理里可一键**导出 txt** 或清空
+· ⬆️ **更新页增强**：查到新版本时**直接显示该版本的更新说明**、可「**跳过此版本**」（之后不再顶红点）、显示**上次检查时间**、检查/下载失败可「重试 / 重新下载」
+· 🔍 **内部质量**：新增 47 个单元测试（答案解析 / 版本比较 / 备份裁剪 / 排序 / 查重 / 文案表），每次推送自动运行
+
 v0.6.1
 · ⬆️ **新增「应用更新」页**（设置里，位于「数据管理」与「关于」之间）：显示当前版本、一键**检查更新**、下载并在安装前做**双重校验**（SHA-256 + 签名证书），校验不通过会删除下载的文件
 · 🔴 **有新版本时**：「设置」图标与「应用更新」入口显示**红色气泡①**；App 启动时**静默检查**一次，网络失败或已是最新都不打扰你
@@ -230,6 +241,17 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.2
+· ✏️ **Redo a review problem by hand**: while reviewing, tap "✏️ Redo by hand" → photograph the solution you wrote on paper → the AI grades it and **updates your mastery from the result** (no need to tap Familiar / Vague / Forgot); jump straight to the next problem, and text-only problems can be redone too
+· 📚 **Notebook sorting**: a new "⇅ Sort" menu — recently added / oldest first / next review time / most reviewed / **least mastered first** (your choice is remembered)
+· 🔎 **Review filters**: filter by **subject** or show "**weak ones only**"; progress counts the filtered list, and an empty result says so explicitly
+· ⚠️ **Duplicate check when saving**: if a problem with the same text already exists you get a "**maybe already saved**" warning showing the existing text, and you can still save it (a hint, never a block)
+· 🗄 **Automatic backup**: Settings → Data → "Auto backup"; pick a folder and the notebook is backed up to JSON on the **first launch of each day**, keeping only the **last 3** (local only — no network, no upload)
+· 🌙 **Dark theme for the conversation area**: bubbles, body text and the thinking block now follow the theme; previously bubbles stayed light grey and the grey thinking text was nearly unreadable in dark mode
+· 🐞 **Crash logs (local only)**: crashes are recorded with version / device / full stack trace (last 10 kept) and can be **exported as txt** or cleared from Settings → Data
+· ⬆️ **Update page improvements**: the **release notes of the new version are shown in-app**, you can "**skip this version**" (no more red badge for it), the **last check time** is displayed, and failed checks/downloads offer retry
+· 🔍 **Engineering**: 47 unit tests added (answer parsing / version comparison / backup pruning / sorting / duplicate check / string tables), run automatically on every push
+
 v0.6.1
 · ⬆️ **New "App update" page** (in Settings, between Data and About): shows the current version, checks for updates, downloads, and **verifies twice before installing** (SHA-256 + signing certificate); a failed check deletes the file
 · 🔴 **When an update is available**: a **red badge ①** appears on the Settings icon and on the App update entry; the app also does one **silent check** at startup and stays quiet on failure or when up to date
@@ -455,6 +477,17 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.2
+· ✏️ **復習問題を手書きでやり直し**：復習中に「✏️ 手書きでやり直す」→ 紙に書いた解答を撮影 → AI が添削し、**その結果で習熟度を自動更新**（熟悉／模糊／忘記を手で押す必要なし）。そのまま「次の問題」へ進め、文字だけの問題にも対応
+· 📚 **誤答ノートの並べ替え**：右上に「⇅ 並べ替え」を追加 —— 新しい順／古い順／次回復習が近い順／復習回数の多い順／**苦手な順**（選択は記憶されます）
+· 🔎 **復習のフィルタ**：**科目**で絞り込み、「**苦手だけ**」の表示も可能。進捗は絞り込み後の件数で計算し、該当なしのときはその旨を明示
+· ⚠️ **保存時の重複チェック**：同じ問題文が既にある場合は「**既に保存済みかも**」と既存の問題文を表示し、そのまま保存することもできます（あくまで通知）
+· 🗄 **自動バックアップ**：設定 → データ管理 → 「自動バックアップ」。フォルダを選ぶと**毎日最初の起動時**に誤答ノートを JSON へバックアップし、**最新 3 件だけ**保持（端末内のみ・通信なし・送信なし）
+· 🌙 **ダークテーマの会話エリア対応**：バブル・本文・思考ブロックの配色がテーマに追従。以前はダークでもバブルが薄いグレーのままで、思考ブロックの灰色文字がほぼ読めませんでした
+· 🐞 **クラッシュログ（端末内のみ）**：クラッシュ時にバージョン／機種／スタックトレースを記録（最新 10 件）。設定 → データ管理から **txt 書き出し**や削除ができます
+· ⬆️ **更新ページの強化**：新しいバージョンの**更新内容をアプリ内に表示**、「**このバージョンをスキップ**」（以後バッジを出さない）、**前回の確認時刻**の表示、失敗時の再試行
+· 🔍 **内部品質**：単体テストを 47 件追加（解答解析／バージョン比較／バックアップ整理／並べ替え／重複判定／文言テーブル）。プッシュのたびに自動実行
+
 v0.6.1
 · ⬆️ **「アプリ更新」ページを追加**（設定内、「データ管理」と「このアプリについて」の間）：現在のバージョン表示・更新の確認・ダウンロード・インストール前の**二重検証**（SHA-256＋署名証明書）。検証に失敗したファイルは削除します
 · 🔴 **新しいバージョンがあるとき**：「設定」アイコンと「アプリ更新」項目に**赤いバッジ①**を表示。起動時に**静かに1回確認**し、失敗時や最新時は何も通知しません
@@ -680,6 +713,17 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.2
+· ✏️ **복습 문제를 손으로 다시 풀기**：복습 중 「✏️ 손으로 다시 풀기」→ 종이에 쓴 풀이를 촬영 → AI가 채점하고 **그 결과로 숙련도를 자동 갱신**(익숙/애매/모름을 직접 누를 필요 없음). 바로 「다음 문제」로 넘어갈 수 있고, 텍스트만 있는 문제도 가능
+· 📚 **오답노트 정렬**：오른쪽 위에 「⇅ 정렬」 추가 —— 최근 추가순 / 오래된 순 / 다음 복습이 빠른 순 / 복습 횟수 많은 순 / **취약한 순**(선택은 기억됩니다)
+· 🔎 **복습 필터**：**과목**으로 거르거나 「**취약한 것만**」 표시 가능. 진행률은 필터된 개수로 계산하고, 결과가 없으면 그렇게 알려줍니다
+· ⚠️ **저장 시 중복 확인**：같은 문제 지문이 이미 있으면 「**이미 저장했을 수 있습니다**」와 기존 지문을 보여주고, 그래도 저장할 수 있습니다(알림일 뿐 차단하지 않음)
+· 🗄 **자동 백업**：설정 → 데이터 관리 → 「자동 백업」. 폴더를 선택하면 **매일 처음 실행할 때** 오답노트를 JSON으로 백업하고 **최근 3개만** 보관(기기 내에만 저장·네트워크 없음·업로드 없음)
+· 🌙 **다크 테마 대화 영역 지원**：말풍선·본문·사고 블록 색상이 테마를 따릅니다. 이전에는 다크에서도 말풍선이 밝은 회색이고 사고 블록의 회색 글씨가 거의 보이지 않았습니다
+· 🐞 **크래시 로그(기기 내에만)**：크래시 시 버전/기기/전체 스택을 기록(최근 10개). 설정 → 데이터 관리에서 **txt로 내보내기** 또는 삭제 가능
+· ⬆️ **업데이트 페이지 개선**：새 버전의 **업데이트 내용을 앱에서 바로 표시**, 「**이 버전 건너뛰기**」(이후 배지 표시 안 함), **마지막 확인 시간** 표시, 실패 시 다시 시도
+· 🔍 **내부 품질**：단위 테스트 47개 추가(답안 파싱/버전 비교/백업 정리/정렬/중복 판정/문구 테이블). 푸시할 때마다 자동 실행
+
 v0.6.1
 · ⬆️ **「앱 업데이트」 페이지 추가**(설정에서 「데이터 관리」와 「정보」 사이): 현재 버전 표시·업데이트 확인·다운로드·설치 전 **이중 검증**(SHA-256 + 서명 인증서). 검증 실패 시 파일을 삭제합니다
 · 🔴 **새 버전이 있을 때**: 「설정」 아이콘과 「앱 업데이트」 항목에 **빨간 배지①** 표시. 앱 시작 시 **조용히 한 번 확인**하며 실패하거나 최신이면 아무 알림도 하지 않습니다
