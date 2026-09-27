@@ -317,9 +317,9 @@ object QuestionExporter {
             val canvas = Canvas(full)
             val loc = IntArray(2)
             var y = 0
+            var tailInk = true
             while (y < contentHeight) {
-                web.scrollTo(0, y)
-                delay(70)                       // 等这一帧画上去
+                scrollWeb(web, y)               // 等这一帧真的画上去（View 滚动 + 页面 JS 滚动都发一次）
                 web.getLocationInWindow(loc)
                 val bandH = minOf(viewport, contentHeight - y)
                 val bandBmp = Bitmap.createBitmap(width, bandH, Bitmap.Config.ARGB_8888)
@@ -329,11 +329,13 @@ object QuestionExporter {
                     bandBmp
                 )
                 if (copied) canvas.drawBitmap(bandBmp, 0f, y.toFloat(), null)
+                tailInk = copied && hasInk(bandBmp)   // 最后一带也要有内容，防"只截到第一屏"
                 bandBmp.recycle()
                 if (!copied) break
                 y += bandH
             }
-            if (hasInk(full)) full else { full.recycle(); null }
+            scrollWeb(web, 0)
+            if (hasInk(full) && tailInk) full else { full.recycle(); null }
         } catch (e: Exception) {
             null
         } finally {
@@ -363,6 +365,16 @@ object QuestionExporter {
     }
 
     /**
+     * 把网页滚到 [y]：**View 级滚动 + 页面级 JS 滚动都做一遍**。
+     * WebView 有时只认其中一种（尤其刚改过 layout/渲染方式之后），两个都发一次最省心。
+     */
+    private suspend fun scrollWeb(web: WebView, y: Int) {
+        runCatching { web.scrollTo(0, y) }
+        runCatching { web.evaluateJavascript("window.scrollTo(0, $y);", null) }
+        delay(120)   // 等这一帧真正画上去（滚动后重绘是异步的）
+    }
+
+    /**
      * 把整页画进 Bitmap；每画完一种策略都检查"有没有墨迹"，全空白返回 null。
      *
      * 策略顺序（按成功率）：
@@ -382,6 +394,10 @@ object QuestionExporter {
         web.layout(0, 0, width, h)
 
         // ① 分带绘制
+        // ⚠️ 关键教训（用户实测"只导出第一屏、下面全空白"）：软件图层下 `web.draw(canvas)` 是把
+        //    **图层位图贴在画布原点**、**不理会我在画布上做的 translate** —— 所以不能"translate 后一次画进整图"
+        //    （只有第一带会落在图上，其余全空）。正确做法：每带**单独画进一张带高的位图**，再由我把它
+        //    `drawBitmap(band, 0, y)` 摆到整图的对应位置。
         run {
             val band = bandHeight.coerceIn(400, h)
             web.measure(
@@ -392,17 +408,28 @@ object QuestionExporter {
             val full = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(full)
             var y = 0
+            var tailInk = true
+            var firstFp = 0L
+            var duplicated = false
+            var idx = 0
             while (y < h) {
-                web.scrollTo(0, y)
-                delay(70)   // 等这一带重绘完成（软件渲染是同步的，留一点余量更保险）
-                canvas.save()
-                canvas.translate(0f, y.toFloat())
-                runCatching { web.draw(canvas) }
-                canvas.restore()
-                y += band
+                val bandH = minOf(band, h - y)
+                scrollWeb(web, y)
+                val bandBmp = Bitmap.createBitmap(width, bandH, Bitmap.Config.ARGB_8888)
+                runCatching { web.draw(Canvas(bandBmp)) }
+                canvas.drawBitmap(bandBmp, 0f, y.toFloat(), null)
+                tailInk = hasInk(bandBmp)          // 最后一带也要有内容（页面底部有一行来源小字）
+                val fp = fingerprint(bandBmp)
+                if (idx == 0) firstFp = fp
+                // 第 2 带与第 1 带**逐像素指纹相同** → 滚动没生效（会导出"第一屏重复/后面空白"）→ 判失败
+                else if (idx == 1 && fp == firstFp) duplicated = true
+                bandBmp.recycle()
+                idx++
+                y += bandH
             }
-            web.scrollTo(0, 0)
-            if (hasInk(full)) return full
+            scrollWeb(web, 0)
+            // 只有"整图有墨迹 **且** 最后一带也有墨迹 **且** 没出现"滚动无效"才算成功
+            if (hasInk(full) && tailInk && !duplicated) return full
             full.recycle()
         }
 
@@ -431,6 +458,27 @@ object QuestionExporter {
             }
         }
         return null
+    }
+
+    /**
+     * 一带位图的"指纹"：稀疏采样 ~64 个像素合成一个长整数。
+     * 用途：判断"滚动了但画面没变"（两带指纹完全相同）—— 那说明滚动/重绘没生效，
+     * 直接判这次截图失败，免得导出"第一屏重复 + 后面空白"的错图。
+     */
+    private fun fingerprint(b: Bitmap): Long {
+        var acc = 1125899906842597L
+        val stepX = (b.width / 8).coerceAtLeast(1)
+        val stepY = (b.height / 8).coerceAtLeast(1)
+        var x = 0
+        while (x < b.width) {
+            var y = 0
+            while (y < b.height) {
+                acc = acc * 31 + b.getPixel(x, y)
+                y += stepY
+            }
+            x += stepX
+        }
+        return acc
     }
 
     /**
