@@ -9,10 +9,16 @@ import android.graphics.pdf.PdfDocument
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -81,6 +87,8 @@ object QuestionExporter {
         val labelAnswer: String = "解答",
         val labelCategory: String = "分类",
         val labelTags: String = "知识点",
+        /** 导出过程中短暂显示在页面下方的一行字（例如"正在导出…"），跟随界面语言 */
+        val progress: String = "",
         val footer: String = ""
     )
 
@@ -185,8 +193,14 @@ object QuestionExporter {
             if (height > (width * MAX_HEIGHT_RATIO).toInt()) return@withContext Result(false, "页面布局异常")
 
             // ③ 截图 → 写文件（PNG 直接压；PDF 按 A4 切片贴页）
-            val bmp = captureBitmap(web, width, height)
-                ?: return@withContext Result(false, "内容为空")
+            //    先试"离屏绘制"（快、不闪屏）；画不出来（用户实测的"内容为空"）就退到
+            //    "把导出页真的显示出来 + PixelCopy 从窗口拷贝"——那是屏幕上真实画出来的像素，最可靠。
+            val band = screenBandHeight(context)
+            var bmp = captureBitmap(web, width, height, band)
+            if (bmp == null && activity != null) {
+                bmp = captureWithPixelCopy(activity, web, width, height, band, payload.progress)
+            }
+            if (bmp == null) return@withContext Result(false, "内容为空")
             val done = withContext(Dispatchers.IO) {
                 runCatching {
                     if (format == Format.PNG) {
@@ -251,41 +265,171 @@ object QuestionExporter {
     }
 
     /**
-     * 整页画进 Bitmap；画完检查"有没有墨迹"，空白返回 null。
-     * 两条绘制路径都试：① `view.draw(canvas)`；②（空白时）`capturePicture()` —— 软件渲染的 WebView
-     * 用它能把整页画进 Picture，作为兜底能显著提高成功率。
+     * **兜底截屏**：把导出页真的显示出来（铺一层临时 overlay），用 `PixelCopy` 从窗口逐带拷贝。
+     *
+     * 为什么需要它：`view.draw(Canvas)` 在某些机型/WebView 版本上就是画不出东西（用户实测"内容为空"），
+     * 而 PixelCopy 拷的是**屏幕上真实呈现的像素**，只要它看得见就一定拷得到。
+     * overlay 里只放 WebView + 底部一行提示（提示在 WebView 之外，因此不会被截进图里）。
      */
-    private fun captureBitmap(web: WebView, width: Int, height: Int): Bitmap? {
+    private suspend fun captureWithPixelCopy(
+        activity: Activity,
+        web: WebView,
+        width: Int,
+        contentHeight: Int,
+        bandHeight: Int,
+        progress: String
+    ): Bitmap? {
+        val root = activity.window?.decorView as? ViewGroup ?: return null
+        val overlay = FrameLayout(activity)
+        return try {
+            // ① 铺满全屏的临时 overlay：上面是导出页，下面一行提示
+            root.addView(overlay, ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            overlay.addView(column, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            val webWrap = FrameLayout(activity)
+            column.addView(webWrap, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            val tip = TextView(activity).apply {
+                text = progress
+                gravity = Gravity.CENTER
+                setPadding(0, 12, 0, 12)
+            }
+            column.addView(tip, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            // ② 把 WebView 挪进 overlay（可见、无位移），按"可见视口"布局
+            (web.parent as? ViewGroup)?.removeView(web)
+            web.translationY = 0f
+            web.alpha = 1f
+            // ★ 这里必须**恢复成正常（硬件）渲染**：PixelCopy 拷的是屏幕上真实的呈现，
+            //   而"软件图层"路径本身就是刚才画不出东西的那条路（见 captureBitmap 的注释）。
+            //   屏上正常渲染是 App 里已经验证过没问题的（对话区 WebView 就是这么显示的）。
+            web.setLayerType(View.LAYER_TYPE_NONE, null)
+            webWrap.addView(web, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            delay(300)   // 等 overlay 完成一次布局 + 网页按新渲染方式重绘（拿到真实视口高度）
+            val viewport = webWrap.height.takeIf { it > 200 } ?: bandHeight
+            web.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(viewport, View.MeasureSpec.EXACTLY)
+            )
+            web.layout(0, 0, width, viewport)
+            delay(60)
+
+            // ③ 逐带滚动 + PixelCopy，拼成整图
+            val full = Bitmap.createBitmap(width, contentHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(full)
+            val loc = IntArray(2)
+            var y = 0
+            while (y < contentHeight) {
+                web.scrollTo(0, y)
+                delay(70)                       // 等这一帧画上去
+                web.getLocationInWindow(loc)
+                val bandH = minOf(viewport, contentHeight - y)
+                val bandBmp = Bitmap.createBitmap(width, bandH, Bitmap.Config.ARGB_8888)
+                val copied = pixelCopy(
+                    activity,
+                    android.graphics.Rect(loc[0], loc[1], loc[0] + width, loc[1] + bandH),
+                    bandBmp
+                )
+                if (copied) canvas.drawBitmap(bandBmp, 0f, y.toFloat(), null)
+                bandBmp.recycle()
+                if (!copied) break
+                y += bandH
+            }
+            if (hasInk(full)) full else { full.recycle(); null }
+        } catch (e: Exception) {
+            null
+        } finally {
+            runCatching { (web.parent as? ViewGroup)?.removeView(web) }
+            runCatching { (overlay.parent as? ViewGroup)?.removeView(overlay) }
+        }
+    }
+
+    /** PixelCopy（API 26+）：把窗口里某块矩形区域拷进 Bitmap */
+    private suspend fun pixelCopy(activity: Activity, src: android.graphics.Rect, dest: Bitmap): Boolean =
+        suspendCancellableCoroutine { cont ->
+            try {
+                android.view.PixelCopy.request(
+                    activity.window, src, dest,
+                    { result -> if (cont.isActive) cont.resume(result == android.view.PixelCopy.SUCCESS) },
+                    Handler(Looper.getMainLooper())
+                )
+            } catch (e: Exception) {
+                if (cont.isActive) cont.resume(false)
+            }
+        }
+
+    /** 分带截图的带高：不超过屏幕高度，也不超过 1600px（图层小、内存稳） */
+    private fun screenBandHeight(context: Context): Int {
+        val screenH = context.resources.displayMetrics.heightPixels
+        return screenH.coerceIn(800, 1600)
+    }
+
+    /**
+     * 把整页画进 Bitmap；每画完一种策略都检查"有没有墨迹"，全空白返回 null。
+     *
+     * 策略顺序（按成功率）：
+     *  ① **分带绘制**：把视口缩到一个"带高"（≤1600px），逐带 `scrollTo` + `draw` 拼进整图。
+     *     这样软件图层只需"屏宽 × 带高"（几 MB），不会像整页图层那样（20MB+）分配失败 → 什么都不画。
+     *     ⚠️ 用户实测"内容为空"就是整页图层画不出来的表现（网页高度正常，但 draw 出来全空）。
+     *  ② 整页高度直接 `draw`（老写法，保留作为兼容）。
+     *  ③ `capturePicture()`（软件渲染的 WebView 把整页画进 Picture）。
+     */
+    private suspend fun captureBitmap(web: WebView, width: Int, height: Int, bandHeight: Int): Bitmap? {
         val h = height.coerceIn(1, 30000)
+        // 先按整页高度布局一次：内容完整、可滚动（后面再按需要缩小视口）
         web.measure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)
         )
         web.layout(0, 0, width, h)
-        // ① 直接 draw
-        var bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
-        try {
-            web.draw(Canvas(bmp))
-        } catch (e: Exception) {
-            runCatching { bmp.recycle() }
-            bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
+
+        // ① 分带绘制
+        run {
+            val band = bandHeight.coerceIn(400, h)
+            web.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(band, View.MeasureSpec.EXACTLY)
+            )
+            web.layout(0, 0, width, band)
+            val full = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(full)
+            var y = 0
+            while (y < h) {
+                web.scrollTo(0, y)
+                delay(70)   // 等这一带重绘完成（软件渲染是同步的，留一点余量更保险）
+                canvas.save()
+                canvas.translate(0f, y.toFloat())
+                runCatching { web.draw(canvas) }
+                canvas.restore()
+                y += band
+            }
+            web.scrollTo(0, 0)
+            if (hasInk(full)) return full
+            full.recycle()
         }
-        if (hasInk(bmp)) return bmp
-        // ② 兜底：capturePicture（对软件渲染的 WebView 有效）
+
+        // ② 整页高度直接 draw
+        run {
+            web.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)
+            )
+            web.layout(0, 0, width, h)
+            val bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
+            runCatching { web.draw(Canvas(bmp)) }
+            if (hasInk(bmp)) return bmp
+            bmp.recycle()
+        }
+
+        // ③ capturePicture 兜底
         runCatching {
             @Suppress("DEPRECATION")
             val pic = web.capturePicture()
             if (pic != null && pic.width > 0 && pic.height > 0) {
                 val b2 = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
                 pic.draw(Canvas(b2))
-                if (hasInk(b2)) {
-                    bmp.recycle()
-                    return b2
-                }
+                if (hasInk(b2)) return b2
                 b2.recycle()
             }
         }
-        bmp.recycle()
         return null
     }
 

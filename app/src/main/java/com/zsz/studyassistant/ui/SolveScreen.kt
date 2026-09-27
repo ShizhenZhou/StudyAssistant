@@ -160,6 +160,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 labelAnswer = s["export.label.answer"],
                 labelCategory = s["export.label.category"],
                 labelTags = s["export.label.tags"],
+                progress = s["export.exporting"],
                 footer = "Study Assistant v" + com.zsz.studyassistant.data.UpdateChecker.installedVersion(context)
             )
             // 渲染宽度：PNG 用屏幕宽度（与屏幕所见一致）；PDF 用 A4 内容宽度（1168px @150dpi），
