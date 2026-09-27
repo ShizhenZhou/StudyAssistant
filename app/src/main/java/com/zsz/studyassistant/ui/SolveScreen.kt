@@ -177,7 +177,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 exportMessage = s.format("export.done", "name" to QuestionExporter.fileName(exportFormat, q))
             } else {
                 exportFailed = true
-                exportMessage = s["export.failed"]
+                // 带上具体原因（页面渲染失败 / 内容为空 / 写入失败…）：出问题时一眼能看出卡在哪一步
+                exportMessage = s.format("export.failed", "msg" to (res.error ?: "?"))
             }
             exportBusy = false
         }

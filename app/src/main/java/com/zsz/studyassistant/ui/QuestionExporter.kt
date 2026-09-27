@@ -120,7 +120,7 @@ object QuestionExporter {
 
     /**
      * 渲染并写出：PNG = 离屏 WebView 截图；PDF = 同一张长图按 A4 切片。
-     * 空白/布局异常会**自动重试一次**（渲染偶发未完成），仍失败才回报失败 —— 绝不存一张空白图给用户。
+     * 空白/布局异常会**自动重试一次**（换一种挂载方式），仍失败才回报失败 —— 绝不存一张空白图给用户。
      */
     suspend fun export(
         context: Context,
@@ -131,9 +131,9 @@ object QuestionExporter {
     ): Result {
         var last = Result(false, null)
         repeat(2) { attempt ->
-            last = exportOnce(context, payload, widthPx, format, out)
+            last = exportOnce(context, payload, widthPx, format, out, attach = attempt == 0)
             if (last.ok) return last
-            // 只有"渲染类"失败值得重试；写文件失败重试也没用
+            // 只有"渲染类"失败值得重试（换挂载方式再试一次）；写文件失败重试也没用
             val retryable = last.error == "内容为空" || last.error == "页面渲染失败" || last.error == "页面布局异常"
             if (!retryable || attempt == 1) return last
             delay(250)
@@ -147,7 +147,9 @@ object QuestionExporter {
         payload: Payload,
         widthPx: Int,
         format: Format,
-        out: OutputStream
+        out: OutputStream,
+        /** true = 挂到窗口上（拿 window token，最稳）；false = 完全离屏（换一种可能性） */
+        attach: Boolean
     ): Result = withContext(Dispatchers.Main) {
         val activity = context as? Activity
         val host = activity?.window?.decorView as? ViewGroup
@@ -158,10 +160,10 @@ object QuestionExporter {
             // ① 建一个"按正确宽度布局"的离屏 WebView
             //    ⚠️ 挂上去时必须给**真实宽度**：1×1 会让网页按 1px 排版（白 PNG / 11 页 PDF 的根因）
             web = newWebView(context)
-            if (host != null) {
+            if (attach && host != null) {
                 web.layoutParams = ViewGroup.LayoutParams(width, 1)
-                // 视觉上藏起来：透明 + 移出屏幕。直接 draw(Canvas) 不受这两个属性影响，所以不影响截图内容
-                web.alpha = 0f
+                // ⚠️ 隐身**只能靠移出屏幕，绝不能设 alpha=0**：软件图层（截图必需）的绘制会带上 alpha，
+                //    alpha=0 → 截出来整张全透明 → 被"墨迹检查"判成空白 → 每次都提示导出失败（踩过）。
                 web.translationY = -10000f
                 host.addView(web)
                 attached = true
@@ -248,7 +250,11 @@ object QuestionExporter {
         web.loadUrl("file:///android_asset/export_render.html")
     }
 
-    /** 整页画进 Bitmap；画完检查"有没有墨迹"，空白返回 null */
+    /**
+     * 整页画进 Bitmap；画完检查"有没有墨迹"，空白返回 null。
+     * 两条绘制路径都试：① `view.draw(canvas)`；②（空白时）`capturePicture()` —— 软件渲染的 WebView
+     * 用它能把整页画进 Picture，作为兜底能显著提高成功率。
+     */
     private fun captureBitmap(web: WebView, width: Int, height: Int): Bitmap? {
         val h = height.coerceIn(1, 30000)
         web.measure(
@@ -256,14 +262,31 @@ object QuestionExporter {
             View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)
         )
         web.layout(0, 0, width, h)
-        val bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
+        // ① 直接 draw
+        var bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
         try {
             web.draw(Canvas(bmp))
         } catch (e: Exception) {
-            bmp.recycle()
-            return null
+            runCatching { bmp.recycle() }
+            bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
         }
-        return if (hasInk(bmp)) bmp else { bmp.recycle(); null }
+        if (hasInk(bmp)) return bmp
+        // ② 兜底：capturePicture（对软件渲染的 WebView 有效）
+        runCatching {
+            @Suppress("DEPRECATION")
+            val pic = web.capturePicture()
+            if (pic != null && pic.width > 0 && pic.height > 0) {
+                val b2 = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
+                pic.draw(Canvas(b2))
+                if (hasInk(b2)) {
+                    bmp.recycle()
+                    return b2
+                }
+                b2.recycle()
+            }
+        }
+        bmp.recycle()
+        return null
     }
 
     /**
