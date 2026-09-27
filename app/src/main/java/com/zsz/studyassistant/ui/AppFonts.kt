@@ -31,6 +31,9 @@ internal val BTN_LABEL_BIG = 14.sp
  */
 internal val SUBPAGE_TITLE = 21.sp
 
+/** 解题页（SolveScreen）的标题：用户要求比其它内部页**再小 2sp** */
+internal val SOLVE_TITLE = 19.sp
+
 /** 界面字号档位（C14）：[factor] 直接乘在 Compose 的 fontScale 与 WebView 的 CSS 变量上 */
 enum class FontScale(val id: String, val factor: Float) {
     SMALL("small", 0.85f),

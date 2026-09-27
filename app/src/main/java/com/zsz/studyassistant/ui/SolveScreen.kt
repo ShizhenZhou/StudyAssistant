@@ -140,51 +140,46 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var exportFailed by remember { mutableStateOf(false) }
     val exportScope = rememberCoroutineScope()
 
-    /** 真正的导出：渲染长图 → 按所选格式写进 SAF 给的 Uri */
+    /** 真正的导出：PNG 走离屏截图、PDF 走 Chromium 打印，结果写进 SAF 给的 Uri */
     fun runExport(uri: android.net.Uri) {
         exportBusy = true
         exportMessage = null
         exportFailed = false
         exportScope.launch {
-            try {
-                val q = vm.exportQuestion
-                val payload = QuestionExporter.Payload(
-                    question = q,
-                    answer = vm.exportAnswer,
-                    imageBase64 = QuestionExporter.imageBase64(vm.exportImageBytes),
-                    category = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }?.name,
-                    tags = vm.currentQuestionTags.mapNotNull { tid -> tags.firstOrNull { it.id == tid }?.name },
-                    dark = darkTheme,
-                    fontScale = fontScaleFactor,
-                    labelQuestion = s["grade.label.question"],
-                    labelAnswer = "解答",
-                    labelCategory = s["solve.cat.name"],
-                    labelTags = s["solve.tags"],
-                    footer = "Study Assistant v" + com.zsz.studyassistant.data.UpdateChecker.installedVersion(context)
-                )
-                val width = context.resources.displayMetrics.widthPixels
-                val bmp = QuestionExporter.capture(context, payload, width)
-                if (bmp == null) {
-                    exportFailed = true
-                    exportMessage = s["export.failed"]
-                } else {
-                    val name = QuestionExporter.fileName(exportFormat, q)
-                    context.contentResolver.openOutputStream(uri)?.use { out ->
-                        if (exportFormat == QuestionExporter.Format.PNG) {
-                            QuestionExporter.writePng(bmp, out)
-                        } else {
-                            QuestionExporter.writePdf(bmp, out)
-                        }
-                    }
-                    bmp.recycle()
-                    exportMessage = s.format("export.done", "name" to name)
-                }
+            val q = vm.exportQuestion
+            val payload = QuestionExporter.Payload(
+                question = q,
+                answer = vm.exportAnswer,
+                imageBase64 = QuestionExporter.imageBase64(vm.exportImageBytes),
+                category = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }?.name,
+                tags = vm.currentQuestionTags.mapNotNull { tid -> tags.firstOrNull { it.id == tid }?.name },
+                // 导出固定用浅色（长图/PDF 是要发人或打印的，与 App 主题无关）
+                dark = false,
+                fontScale = fontScaleFactor,
+                labelQuestion = s["export.label.question"],
+                labelAnswer = s["export.label.answer"],
+                labelCategory = s["export.label.category"],
+                labelTags = s["export.label.tags"],
+                footer = "Study Assistant v" + com.zsz.studyassistant.data.UpdateChecker.installedVersion(context)
+            )
+            // 渲染宽度：PNG 用屏幕宽度（与屏幕所见一致）；PDF 用 A4 内容宽度（1168px @150dpi），
+            // 这样文字≈1:1 落纸、分页自然，不会因为"屏宽比 A4 窄"把内容放大糊掉
+            val width = if (exportFormat == QuestionExporter.Format.PDF) 1168
+                        else context.resources.displayMetrics.widthPixels
+            val res = try {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    QuestionExporter.export(context, payload, width, exportFormat, out)
+                } ?: QuestionExporter.Result(false, "无法写入所选位置")
             } catch (e: Exception) {
+                QuestionExporter.Result(false, e.message)
+            }
+            if (res.ok) {
+                exportMessage = s.format("export.done", "name" to QuestionExporter.fileName(exportFormat, q))
+            } else {
                 exportFailed = true
                 exportMessage = s["export.failed"]
-            } finally {
-                exportBusy = false
             }
+            exportBusy = false
         }
     }
 
@@ -326,7 +321,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         // 批改模式：全屏复用解题界面，标题「批改」
                         Text(
                             s["solve.gradeTitle"],
-                            fontSize = SUBPAGE_TITLE,
+                            fontSize = SOLVE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -338,7 +333,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 "i" to "${vm.reviewDone + 1}",
                                 "n" to "${vm.reviewTotal}"
                             ),
-                            fontSize = SUBPAGE_TITLE,
+                            fontSize = SOLVE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -346,7 +341,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         // 错题页标题（内部页面统一比默认小 1sp）
                         Text(
                             s["solve.mistakeTitle"],
-                            fontSize = SUBPAGE_TITLE,
+                            fontSize = SOLVE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -354,7 +349,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         Text(
                             // 空会话=图文提问入口，标题显示「图文提问」；有内容后回到「解题」
                             if (vm.askMode) s["ask.pageTitle"] else s["solve.title"],
-                            fontSize = SUBPAGE_TITLE,
+                            fontSize = SOLVE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(min = 40.dp)
@@ -393,8 +388,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
-                        //   右侧 = [⏸ 中止 或 🔄 重新生成] 紧挨 [📚 存错题本 或 📁 分类]
+                        //   右侧 = [📤 导出] [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
                         //   （不再区分「中止批改 / 重新批改」，也不再单独放删除按钮）
+                        // B7 导出：按用户要求放在「重新生成」**左边**
+                        TextButton(
+                            onClick = { showExport = true; exportMessage = null; exportFailed = false },
+                            enabled = vm.chatItems.isNotEmpty(),
+                            contentPadding = smallPad
+                        ) { Text("📤", fontSize = 16.sp) }
                         if (vm.busy) {
                             TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
                                 Text(s["solve.abort"], fontSize = BTN_LABEL)
@@ -436,15 +437,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 enabled = vm.chatItems.isNotEmpty() && !vm.busy,
                                 contentPadding = smallPad
                             ) { Text(s["solve.saveToNotebook"], fontSize = BTN_LABEL) }
-                        }
-                        // B7 导出：方案 A —— 顶栏右侧、紧挨「分类 / 存错题本」的图标按钮
-                        // 用图标而不是文字：顶栏右侧元素多，且字号档位调大后文字按钮会更挤
-                        if (!editMode) {
-                            TextButton(
-                                onClick = { showExport = true; exportMessage = null; exportFailed = false },
-                                enabled = vm.chatItems.isNotEmpty(),
-                                contentPadding = smallPad
-                            ) { Text("📤", fontSize = 16.sp) }
                         }
                     }
                 }

@@ -102,11 +102,20 @@ function renderExport(payload, dark, scale){
     f.textContent = p.footer;
     document.body.appendChild(f);
   }
-  // KaTeX 完成后把内容高度回报给原生（截图尺寸要用它）
-  requestAnimationFrame(function(){
-    var hh = Math.ceil(document.body.scrollHeight);
-    if(window.AndroidExport && AndroidExport.onReady) AndroidExport.onReady(hh);
-  });
+  // 等 KaTeX 与字体都就绪后再把内容高度回报给原生（截图尺寸要用它）。
+  // ⚠️ 只在 requestAnimationFrame 里量高度不够：Web 字体落位后行高会变，可能截到"半成品"。
+  function reportHeight(){
+    requestAnimationFrame(function(){
+      var hh = Math.ceil(document.body.scrollHeight);
+      if(window.AndroidExport && AndroidExport.onReady) AndroidExport.onReady(hh);
+    });
+  }
+  if(document.fonts && document.fonts.ready && document.fonts.ready.then){
+    document.fonts.ready.then(function(){ setTimeout(reportHeight, 60); });
+    setTimeout(reportHeight, 1200);   // 兜底：字体 API 卡住也要给原生一个高度
+  } else {
+    setTimeout(reportHeight, 200);
+  }
 }
 </script>
 </body></html>
