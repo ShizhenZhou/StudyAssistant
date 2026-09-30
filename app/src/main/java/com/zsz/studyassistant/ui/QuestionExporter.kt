@@ -224,10 +224,14 @@ object QuestionExporter {
 
             // 渲染页面并拿到内容高度
             val json = payloadJson(payload)
-            val contentHeight = withTimeoutOrNull(12000) {
+            val h1 = withTimeoutOrNull(12000) {
                 awaitContentHeight(web, json, payload.fontScale)
             } ?: return null
-            if (contentHeight <= 0) return null
+            if (h1 <= 0) return null
+            // ★ 图/字体是异步落位的（尤其是 base64 原题图）：**截图前再量一次、取最大值**，
+            //   否则位图比真实内容矮 → 导出的图底部被切掉（真机反馈的截断就是这么来的）
+            delay(250)
+            val contentHeight = maxOf(h1, measureContentHeight(web) ?: h1)
             if (contentHeight > (width * MAX_HEIGHT_RATIO).toInt()) return null
             delay(120)
 
@@ -305,8 +309,12 @@ object QuestionExporter {
             delay(60)
             val json = payloadJson(payload)
             val h = withTimeoutOrNull(12000) { awaitContentHeight(web, json, payload.fontScale) } ?: return null
-            if (h <= 0 || h > (width * MAX_HEIGHT_RATIO).toInt()) return null
-            val height = h.coerceAtMost(30000)
+            if (h <= 0) return null
+            // 复核一次（图片/字体可能刚落地，高度会变大）→ 取最大值，避免截断
+            delay(250)
+            val hFinal = maxOf(h, measureContentHeight(web) ?: h)
+            if (hFinal > (width * MAX_HEIGHT_RATIO).toInt()) return null
+            val height = hFinal.coerceAtMost(30000)
             web.measure(
                 View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY)
@@ -353,7 +361,23 @@ object QuestionExporter {
         isHorizontalScrollBarEnabled = false
     }
 
-    /** 加载 → 注入 payload → 等 JS 回调内容高度（页面里会等 KaTeX 与字体就绪） */
+    /**
+     * 立刻向页面要一次"当前内容高度"（页面的 `dshContentHeight()` 会把页脚也算进去）。
+     * 用于截图前复核 —— 图片/字体异步落位后高度会变大，取最大值才不会截断。
+     */
+    private suspend fun measureContentHeight(web: WebView): Int? =
+        withTimeoutOrNull(1500) {
+            suspendCancellableCoroutine { cont ->
+                runCatching {
+                    web.evaluateJavascript("(window.dshContentHeight ? dshContentHeight() : 0)") { v ->
+                        val n = v?.trim()?.trim('"')?.toFloatOrNull()?.toInt()
+                        if (cont.isActive) cont.resume(n)
+                    }
+                }.onFailure { if (cont.isActive) cont.resume(null) }
+            }
+        }
+
+    /** 加载 → 注入 payload → 等 JS 回调内容高度（页面里会等图片、KaTeX 与字体就绪） */
     private suspend fun awaitContentHeight(
         web: WebView,
         json: String,

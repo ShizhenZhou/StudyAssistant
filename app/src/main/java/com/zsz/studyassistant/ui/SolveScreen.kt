@@ -398,16 +398,22 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
                         //   右侧 = [📤 导出] [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
-                        // B7 导出：按用户要求放在「重新生成」**左边**
+                        // 用户要求：📤 与 ⏸/🔄 **往右靠、更紧凑** —— TextButton 默认有 58dp 最小宽度
+                        // 与左右内边距，只放一个 emoji 时会显得很"散"，所以显式收紧宽度 44dp、内边距 2dp。
+                        val iconPad = PaddingValues(horizontal = 2.dp)
+                        val iconW = Modifier.width(44.dp)
                         TextButton(
                             onClick = { showExport = true; exportMessage = null; exportFailed = false },
                             enabled = vm.chatItems.isNotEmpty(),
-                            contentPadding = smallPad
+                            contentPadding = iconPad,
+                            modifier = iconW
                         ) { Text(ICON_EXPORT, fontSize = BTN_LABEL_BIG) }
                         if (vm.busy) {
-                            TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                Text(ICON_ABORT, fontSize = BTN_LABEL_BIG)
-                            }
+                            TextButton(
+                                onClick = { vm.abortGeneration() },
+                                contentPadding = iconPad,
+                                modifier = iconW
+                            ) { Text(ICON_ABORT, fontSize = BTN_LABEL_BIG) }
                         } else {
                             TextButton(
                                 onClick = { if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
@@ -415,7 +421,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 //   但仍有流式气泡/已中断状态 → 「重新生成」必须可用
                                 enabled = vm.chatItems.isNotEmpty() ||
                                     vm.streamInterrupted || vm.streamingText != null,
-                                contentPadding = smallPad
+                                contentPadding = iconPad,
+                                modifier = iconW
                             ) { Text(ICON_REGEN, fontSize = BTN_LABEL_BIG) }
                         }
                         if (vm.isDeleted) {

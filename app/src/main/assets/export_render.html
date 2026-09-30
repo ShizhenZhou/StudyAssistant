@@ -102,20 +102,50 @@ function renderExport(payload, dark, scale){
     f.textContent = p.footer;
     document.body.appendChild(f);
   }
-  // 等 KaTeX 与字体都就绪后再把内容高度回报给原生（截图尺寸要用它）。
-  // ⚠️ 只在 requestAnimationFrame 里量高度不够：Web 字体落位后行高会变，可能截到"半成品"。
+  // ── 内容高度：必须把**页脚**也算进来 ──
+  // ⚠️ 真机教训：原题图是 base64 的 <img>，**加载完成前后高度差一大截**；
+  //    早期版本在图片加载前就量高度 → 位图比真实内容矮 → 导出的图**底部被切掉**（用户反馈）。
+  window.dshContentHeight = function(){
+    var h = Math.max(
+      document.body ? document.body.scrollHeight : 0,
+      document.documentElement ? document.documentElement.scrollHeight : 0
+    );
+    var f = document.querySelector('.footer');
+    if(f){
+      var r = f.getBoundingClientRect();
+      h = Math.max(h, Math.ceil(r.bottom + (window.scrollY || 0) + 16));
+    }
+    return h;
+  };
+
+  // 所有 <img> 就绪（已加载或失败）后 resolve
+  function imagesReady(){
+    var imgs = Array.prototype.slice.call(document.images || []);
+    if(!imgs.length) return Promise.resolve();
+    return Promise.all(imgs.map(function(im){
+      if(im.complete) return Promise.resolve();
+      return new Promise(function(res){ im.onload = res; im.onerror = res; });
+    }));
+  }
+
+  function fontsReady(){
+    if(document.fonts && document.fonts.ready && document.fonts.ready.then) return document.fonts.ready;
+    return Promise.resolve();
+  }
+
   function reportHeight(){
     requestAnimationFrame(function(){
-      var hh = Math.ceil(document.body.scrollHeight);
+      var hh = window.dshContentHeight();
       if(window.AndroidExport && AndroidExport.onReady) AndroidExport.onReady(hh);
     });
   }
-  if(document.fonts && document.fonts.ready && document.fonts.ready.then){
-    document.fonts.ready.then(function(){ setTimeout(reportHeight, 60); });
-    setTimeout(reportHeight, 1200);   // 兜底：字体 API 卡住也要给原生一个高度
-  } else {
-    setTimeout(reportHeight, 200);
-  }
+
+  // 顺序：图片 → 字体 → 再等两帧 → 上报（缺一都可能量到偏小的高度）
+  Promise.all([imagesReady(), fontsReady()]).then(function(){
+    setTimeout(reportHeight, 120);
+  });
+  // 兜底：任一环节卡住也要给原生一个高度（后面原生还会再量一次取最大值）
+  setTimeout(reportHeight, 1500);
 }
 </script>
 </body></html>
