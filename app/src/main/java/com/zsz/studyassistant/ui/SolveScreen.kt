@@ -92,6 +92,11 @@ import com.zsz.studyassistant.data.StudyAssistant
 import com.zsz.studyassistant.data.Tag
 import java.io.File
 
+/** 解题页顶栏右侧按钮的图标（用户要求「中止 / 重新生成」只留 emoji；导出也只有图标） */
+private const val ICON_EXPORT = "📤"
+private const val ICON_ABORT = "⏸"
+private const val ICON_REGEN = "🔄"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
@@ -383,24 +388,25 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 actions = {
                     val smallPad = PaddingValues(horizontal = 6.dp)
+                    // 顶栏右侧这几个按钮**字号统一**（用户要求）：📤 / ⏸·🔄 / 📚 存错题本 都用 BTN_LABEL_BIG；
+                    // 「中止 / 重新生成」按用户要求**只留 emoji**（文字去掉），所以直接用图标常量。
                     if (cfg.showPracticeSimilar) {
-                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL) }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_BIG) }
                     } else if (editMode) {
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL) }
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL_BIG) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL_BIG) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
                         //   右侧 = [📤 导出] [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
-                        //   （不再区分「中止批改 / 重新批改」，也不再单独放删除按钮）
                         // B7 导出：按用户要求放在「重新生成」**左边**
                         TextButton(
                             onClick = { showExport = true; exportMessage = null; exportFailed = false },
                             enabled = vm.chatItems.isNotEmpty(),
                             contentPadding = smallPad
-                        ) { Text("📤", fontSize = 16.sp) }
+                        ) { Text(ICON_EXPORT, fontSize = BTN_LABEL_BIG) }
                         if (vm.busy) {
                             TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                Text(s["solve.abort"], fontSize = BTN_LABEL)
+                                Text(ICON_ABORT, fontSize = BTN_LABEL_BIG)
                             }
                         } else {
                             TextButton(
@@ -410,15 +416,16 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 enabled = vm.chatItems.isNotEmpty() ||
                                     vm.streamInterrupted || vm.streamingText != null,
                                 contentPadding = smallPad
-                            ) { Text(s["solve.regen"], fontSize = BTN_LABEL) }
+                            ) { Text(ICON_REGEN, fontSize = BTN_LABEL_BIG) }
                         }
                         if (vm.isDeleted) {
                             // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
                             TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
-                                Text(s["solve.restore"], fontSize = BTN_LABEL)
+                                Text(s["solve.restore"], fontSize = BTN_LABEL_BIG)
                             }
                         } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
                             // 已存入错题本 → 与错题本界面同一个「分类」按钮
+                            // ★ 这个按钮**保留自动缩放**（用户明确要求）：分类名越长字号越小，避免把标题挤掉
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
                             TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
                                 val catName = curCat?.name ?: s["solve.noCategory"]
@@ -438,7 +445,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 onClick = { vm.ensureClassification(); categoryDialogFor = "save" },
                                 enabled = vm.chatItems.isNotEmpty() && !vm.busy,
                                 contentPadding = smallPad
-                            ) { Text(s["solve.saveToNotebook"], fontSize = BTN_LABEL) }
+                            ) { Text(s["solve.saveToNotebook"], fontSize = BTN_LABEL_BIG) }
                         }
                     }
                 }
