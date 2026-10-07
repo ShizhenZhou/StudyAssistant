@@ -323,8 +323,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 actions = {
                     val smallPad = PaddingValues(horizontal = 6.dp)
-                    // 顶栏右侧这几个按钮**字号统一**（用户要求）：📤 / ⏸·🔄 / 📚 存错题本 都用 BTN_LABEL_BIG；
-                    // 「中止 / 重新生成」按用户要求**只留 emoji**（文字去掉），所以直接用图标常量。
+                    // 顶栏右侧这几个按钮**字号统一**（用户要求）：⏸/🔄 与 📚 存错题本 都用 BTN_LABEL_BIG。
+                    // 导出（📤）功能已于 v0.6.4 取消。
                     if (cfg.showPracticeSimilar) {
                         TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_BIG) }
                     } else if (editMode) {
