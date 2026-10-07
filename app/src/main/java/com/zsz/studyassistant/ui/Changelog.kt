@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.4
+· ⛔ **取消「导出这道题」功能**：长图 / PDF 导出**始终无法保证内容完整**（多次修复后仍会在底部截断），决定不再做这个功能 —— 解题页顶栏的 📤 按钮、导出弹窗、相关代码与文案**全部删除**。需要留档时可用系统截图，或长按复制题干与解答
+· 🔤 **「中止 / 重新生成」恢复文字**：顶栏显示「⏸ 中止生成」「🔄 重新生成」（不再只有图标），字号与「存错题本」等按钮一致
+· 🔍 **错题本搜索按钮字号**：标题栏的 🔍 与右侧「排序 / 管理」等按钮**字号统一**
+
 v0.6.3
 · 📤 **新增「导出这道题」**：解题页顶栏最右侧的 📤 → 弹窗里**先选格式（PNG 长图 / PDF）**，再**选保存位置**（系统「保存到文件」）。导出内容 = 原题图 + 题干 + 解答 + 分类 / 知识点，公式用 KaTeX 正常排版；PDF 按 A4 自动分页
 · 🔠 **新增「字号」设置**（设置 → 应用主题）：小 / 标准 / 大 / 特大 —— 只调整 App 内的文字大小，**界面与对话区同步**，不动系统设置
@@ -250,6 +255,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.4
+· ⛔ **"Export this problem" has been dropped**: the long-image / PDF export **never managed to include everything** (it still cut off at the bottom after several fixes), so the feature is gone for good — the 📤 button in the solve-page top bar, the export dialog and all related code and strings were **deleted**. To keep a copy, use a system screenshot or copy the question and answer
+· 🔤 **"Stop / Regenerate" show their labels again**: the top bar now reads "⏸ Stop generation" and "🔄 Regenerate" instead of icons only, with the same text size as the other buttons such as "Save to notebook"
+· 🔍 **Notebook search button size**: the 🔍 in the title bar now **matches the text size** of "Sort / Manage" next to it
+
 v0.6.3
 · 📤 **New "Export this problem"**: the 📤 button at the far right of the solve-page top bar opens a dialog where you **pick the format (PNG long image / PDF)** and then **choose where to save it** (system "Save to file"). The export contains the original photo, question, answer and subject / key points, with formulas typeset by KaTeX; PDF is paginated to A4 automatically
 · 🔠 **New "Text size" setting** (Settings → App theme): Small / Default / Large / Extra large — changes text inside the app only, **UI and conversation together**, system settings untouched
@@ -495,6 +505,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.4
+· ⛔ **「この問題を書き出す」機能を廃止**：長い画像 / PDF の書き出しは**どうしても内容が欠けずに収まらない**（何度直しても下部が切れる）ため、この機能は作らないことにしました —— 解答ページ上部の 📤 ボタン、書き出しダイアログ、関連するコードと文言を**すべて削除**しました。保存したい場合は端末のスクリーンショットを使うか、問題文と解答をコピーしてください
+· 🔤 **「中止 / 再生成」に文字が戻りました**：上部バーは「⏸ 生成を中止」「🔄 再生成」と表示（アイコンのみではなくなりました）。文字サイズは「誤答ノートに保存」などと同じです
+· 🔍 **誤答ノートの検索ボタンのサイズ**：タイトルバーの 🔍 を、右側の「並べ替え / 管理」などと**同じ文字サイズ**に統一
+
 v0.6.3
 · 📤 **「この問題を書き出す」を追加**：解答ページ右上の 📤 → ダイアログで**まず形式（PNG 長い画像／PDF）**、次に**保存先**を選択（システムの「ファイルに保存」）。内容は原題の画像＋問題文＋解答＋分類／知識点で、数式は KaTeX で組版。PDF は A4 で自動分割
 · 🔠 **「文字サイズ」設定を追加**（設定 → アプリのテーマ）：小／標準／大／特大 —— アプリ内の文字だけを変更し、**画面と会話欄が連動**、端末の設定は変更しません
@@ -740,6 +755,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.4
+· ⛔ **'이 문제 내보내기' 기능을 없앴습니다**: 긴 이미지 / PDF 내보내기는 **아무리 고쳐도 내용이 잘리지 않게 담을 수 없어서** 이 기능은 만들지 않기로 했습니다 — 문제 풀이 화면 상단의 📤 버튼, 내보내기 대화상자, 관련 코드와 문구를 **모두 삭제**했습니다. 보관이 필요하면 시스템 스크린샷을 쓰거나 문제와 풀이를 복사하세요
+· 🔤 **'중단 / 다시 생성'에 글자가 돌아왔습니다**: 상단에 '⏸ 생성 중단', '🔄 다시 생성'으로 표시됩니다(아이콘만 표시하지 않음). 글자 크기는 '오답노트에 저장' 등과 같습니다
+· 🔍 **오답노트 검색 버튼 크기**: 제목 표시줄의 🔍 를 오른쪽 '정렬 / 관리' 등과 **같은 글자 크기**로 통일
+
 v0.6.3
 · 📤 **「이 문제 내보내기」 추가**: 풀이 화면 오른쪽 위 📤 → 대화상자에서 **먼저 형식(PNG 긴 이미지 / PDF)** 을 고르고, 그다음 **저장 위치**를 선택합니다(시스템 "파일로 저장"). 내용은 원본 사진 + 문제 + 풀이 + 분류 / 지식 태그이며 수식은 KaTeX로 조판됩니다. PDF는 A4로 자동 분할
 · 🔠 **「글자 크기」 설정 추가**(설정 → 앱 테마): 작게 / 기본 / 크게 / 아주 크게 — 앱 안의 글자만 바꾸고 **화면과 대화 영역이 함께** 바뀝니다. 기기 설정은 건드리지 않습니다

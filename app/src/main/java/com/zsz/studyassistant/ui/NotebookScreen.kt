@@ -46,7 +46,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -215,9 +214,12 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         }
                         else -> {
                             // 🔍 搜索：点开才出现搜索框，再点别处关闭
-                            IconButton(onClick = {
-                                if (searchOpen) closeSearch() else searchOpen = true
-                            }) { Text("🔍", fontSize = 18.sp) }
+                            // ★ 字号与右侧「排序 / 管理」等按钮**一致**（用户要求）：用紧凑 TextButton + BTN_LABEL，
+                            //   不再用 IconButton（它固定 48dp，且 emoji 用的 18sp 会显得比旁边按钮大一圈）
+                            TextButton(
+                                onClick = { if (searchOpen) closeSearch() else searchOpen = true },
+                                contentPadding = PaddingValues(horizontal = 6.dp)
+                            ) { Text("🔍", fontSize = BTN_LABEL) }
                             // ⇅ 排序（A5）：最近添加 / 最早添加 / 下次复习 / 复习次数 / 最不熟
                             Box {
                                 TextButton(onClick = { sortMenu = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {

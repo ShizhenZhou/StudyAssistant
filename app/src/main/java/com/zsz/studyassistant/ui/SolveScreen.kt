@@ -65,7 +65,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,18 +83,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.StudyAssistant
 import com.zsz.studyassistant.data.Tag
 import java.io.File
-
-/** 解题页顶栏右侧按钮的图标（用户要求「中止 / 重新生成」只留 emoji；导出也只有图标） */
-private const val ICON_EXPORT = "📤"
-private const val ICON_ABORT = "⏸"
-private const val ICON_REGEN = "🔄"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,7 +107,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
-    // 深色 + 字号：对话区（C14）与导出（B7）共用同一份值
+    // 深色 + 字号：对话区（C14）用（导出 B7 已于 v0.6.4 取消）
     val darkTheme = rememberDarkTheme(vm.theme)
     val fontScaleFactor = vm.fontScale.factor
     val categories by vm.categories.collectAsState()
@@ -137,65 +130,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
 
-    // B7 导出：对话框（先选 PNG/PDF → 再选保存位置）
-    var showExport by remember { mutableStateOf(false) }
-    var exportFormat by remember { mutableStateOf(QuestionExporter.Format.DEFAULT) }
-    var exportBusy by remember { mutableStateOf(false) }
-    var exportMessage by remember { mutableStateOf<String?>(null) }
-    var exportFailed by remember { mutableStateOf(false) }
-    val exportScope = rememberCoroutineScope()
-
-    /** 真正的导出：PNG 走离屏截图、PDF 走 Chromium 打印，结果写进 SAF 给的 Uri */
-    fun runExport(uri: android.net.Uri) {
-        exportBusy = true
-        exportMessage = null
-        exportFailed = false
-        exportScope.launch {
-            val q = vm.exportQuestion
-            val payload = QuestionExporter.Payload(
-                question = q,
-                answer = vm.exportAnswer,
-                imageBase64 = QuestionExporter.imageBase64(vm.exportImageBytes),
-                category = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }?.name,
-                tags = vm.currentQuestionTags.mapNotNull { tid -> tags.firstOrNull { it.id == tid }?.name },
-                // 导出固定用浅色（长图/PDF 是要发人或打印的，与 App 主题无关）
-                dark = false,
-                fontScale = fontScaleFactor,
-                labelQuestion = s["export.label.question"],
-                labelAnswer = s["export.label.answer"],
-                labelCategory = s["export.label.category"],
-                labelTags = s["export.label.tags"],
-                progress = s["export.exporting"],
-                footer = "Study Assistant v" + com.zsz.studyassistant.data.UpdateChecker.installedVersion(context)
-            )
-            // 渲染宽度：PNG 用屏幕宽度（与屏幕所见一致）；PDF 用 A4 内容宽度（1168px @150dpi），
-            // 这样文字≈1:1 落纸、分页自然，不会因为"屏宽比 A4 窄"把内容放大糊掉
-            val width = if (exportFormat == QuestionExporter.Format.PDF) 1168
-                        else context.resources.displayMetrics.widthPixels
-            val res = try {
-                context.contentResolver.openOutputStream(uri)?.use { out ->
-                    QuestionExporter.export(context, payload, width, exportFormat, out)
-                } ?: QuestionExporter.Result(false, "无法写入所选位置")
-            } catch (e: Exception) {
-                QuestionExporter.Result(false, e.message)
-            }
-            if (res.ok) {
-                exportMessage = s.format("export.done", "name" to QuestionExporter.fileName(exportFormat, q))
-            } else {
-                exportFailed = true
-                // 带上具体原因（页面渲染失败 / 内容为空 / 写入失败…）：出问题时一眼能看出卡在哪一步
-                exportMessage = s.format("export.failed", "msg" to (res.error ?: "?"))
-            }
-            exportBusy = false
-        }
-    }
-
-    val exportPngLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("image/png")
-    ) { uri -> if (uri != null) runExport(uri) }
-    val exportPdfLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/pdf")
-    ) { uri -> if (uri != null) runExport(uri) }
+    // B7 导出功能已在 v0.6.4 **取消并移除**（长图/PDF 无法保证完整，用户决定不做）
 
     // 退出本页时：若已加入错题本，把当前完整对话更新保存
     DisposableEffect(Unit) {
@@ -397,23 +332,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL_BIG) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
-                        //   右侧 = [📤 导出] [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
-                        // 用户要求：📤 与 ⏸/🔄 **往右靠、更紧凑** —— TextButton 默认有 58dp 最小宽度
-                        // 与左右内边距，只放一个 emoji 时会显得很"散"，所以显式收紧宽度 44dp、内边距 2dp。
-                        val iconPad = PaddingValues(horizontal = 2.dp)
-                        val iconW = Modifier.width(44.dp)
-                        TextButton(
-                            onClick = { showExport = true; exportMessage = null; exportFailed = false },
-                            enabled = vm.chatItems.isNotEmpty(),
-                            contentPadding = iconPad,
-                            modifier = iconW
-                        ) { Text(ICON_EXPORT, fontSize = BTN_LABEL_BIG) }
+                        //   右侧 = [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
+                        // 「中止 / 重新生成」按用户要求**带文字**（不要只有图标），字号与「存错题本」一致。
                         if (vm.busy) {
-                            TextButton(
-                                onClick = { vm.abortGeneration() },
-                                contentPadding = iconPad,
-                                modifier = iconW
-                            ) { Text(ICON_ABORT, fontSize = BTN_LABEL_BIG) }
+                            TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
+                                Text(s["solve.abort"], fontSize = BTN_LABEL_BIG)
+                            }
                         } else {
                             TextButton(
                                 onClick = { if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
@@ -421,9 +345,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 //   但仍有流式气泡/已中断状态 → 「重新生成」必须可用
                                 enabled = vm.chatItems.isNotEmpty() ||
                                     vm.streamInterrupted || vm.streamingText != null,
-                                contentPadding = iconPad,
-                                modifier = iconW
-                            ) { Text(ICON_REGEN, fontSize = BTN_LABEL_BIG) }
+                                contentPadding = smallPad
+                            ) { Text(s["solve.regen"], fontSize = BTN_LABEL_BIG) }
                         }
                         if (vm.isDeleted) {
                             // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
@@ -459,22 +382,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             )
         }
     ) { padding ->
-        // B7 导出对话框：选格式（PNG/PDF）→ 底部「选择保存位置…」
-        if (showExport) {
-            ExportDialog(
-                format = exportFormat,
-                onFormatChange = { exportFormat = it },
-                busy = exportBusy,
-                message = exportMessage,
-                failed = exportFailed,
-                onSave = {
-                    val name = QuestionExporter.fileName(exportFormat, vm.exportQuestion)
-                    if (exportFormat == QuestionExporter.Format.PNG) exportPngLauncher.launch(name)
-                    else exportPdfLauncher.launch(name)
-                },
-                onDismiss = { showExport = false }
-            )
-        }
         // 删除确认
         if (showDeleteConfirm) {
             AlertDialog(

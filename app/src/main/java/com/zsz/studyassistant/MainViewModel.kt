@@ -1176,13 +1176,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .getOrNull()?.trim().orEmpty()
     }
 
-    // ---- B7 导出：只读访问当前这道题的三个部分（界面拿去渲染长图/PDF，不改任何状态）----
-    /** 题干（与落库时同一取法） */
-    val exportQuestion: String get() = pendingQuestionText()
-    /** 解答：取最后一条助手消息（含"核心知识点"提示行） */
-    val exportAnswer: String get() = chatItems.lastOrNull { it.role == "assistant" }?.content.orEmpty()
-    /** 原题图（没有则 null） */
-    val exportImageBytes: ByteArray? get() = imageBytes
+    // ---- B7 导出（长图/PDF）已在 v0.6.4 **取消并移除**：相关只读访问器（exportQuestion /
+    //      exportAnswer / exportImageBytes）与 ui/QuestionExporter.kt、ui/ExportDialog.kt、
+    //      assets/export_render.html 一并删除，不要再往回加。----
 
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
     fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {        if (saving) {

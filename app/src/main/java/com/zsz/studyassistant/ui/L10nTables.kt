@@ -1090,20 +1090,8 @@ private val B7_ZH = mapOf(
     "dup.text" to "错题本中可能已有同一道题（题干相同或高度相似）：",
     "dup.saveAnyway" to "仍然保存",
 
-    // B7 导出（PNG/PDF） + C14 字号 + 错题本计数
-    "export.title" to "导出这道题",
-    "export.format" to "导出格式",
-    "export.png" to "PNG 长图",
-    "export.pdf" to "PDF（A4 分页）",
-    "export.hint" to "导出内容：原题图 + 题干 + 解答 + 分类 / 知识点",
-    "export.label.question" to "题目",
-    "export.label.answer" to "解答",
-    "export.label.category" to "分类",
-    "export.label.tags" to "知识点",
-    "export.save" to "选择保存位置…",
-    "export.exporting" to "正在导出…",
-    "export.done" to "已保存：{name}",
-    "export.failed" to "导出失败：{msg}",
+    // C14 字号 + 错题本计数
+    // （B7 导出 PNG/PDF 的相关文案已在 v0.6.4 随功能取消一并删除）
     "settings.fontSize" to "字号",
     "settings.fontSize.desc" to "只影响 App 内的文字大小（界面与对话区同步），不动系统设置",
     "settings.fontSize.small" to "小",
@@ -1200,20 +1188,8 @@ private val B7_EN = mapOf(
     "dup.text" to "Your notebook may already contain this problem (same or very similar text):",
     "dup.saveAnyway" to "Save anyway",
 
-    // B7 export (PNG/PDF) + C14 font size + notebook count
-    "export.title" to "Export this problem",
-    "export.format" to "Format",
-    "export.png" to "PNG (long image)",
-    "export.pdf" to "PDF (A4 pages)",
-    "export.hint" to "Includes: original photo + question + answer + subject / key points",
-    "export.label.question" to "Question",
-    "export.label.answer" to "Answer",
-    "export.label.category" to "Subject",
-    "export.label.tags" to "Key points",
-    "export.save" to "Choose where to save…",
-    "export.exporting" to "Exporting…",
-    "export.done" to "Saved: {name}",
-    "export.failed" to "Export failed: {msg}",
+    // C14 font size + notebook count
+    // (B7 export strings were removed in v0.6.4 along with the feature)
     "settings.fontSize" to "Text size",
     "settings.fontSize.desc" to "Affects text inside the app only (UI and conversation together); system settings are untouched",
     "settings.fontSize.small" to "Small",
@@ -1310,20 +1286,7 @@ private val B7_JA = mapOf(
     "dup.text" to "同じ問題が既にある可能性があります（問題文が同一または酷似）：",
     "dup.saveAnyway" to "それでも保存",
 
-    // B7 書き出し（PNG/PDF）+ C14 文字サイズ + 誤答ノートの件数
-    "export.title" to "この問題を書き出す",
-    "export.format" to "形式",
-    "export.png" to "PNG（長い画像）",
-    "export.pdf" to "PDF（A4 分割）",
-    "export.hint" to "書き出す内容：原題の画像＋問題文＋解答＋分類／知識点",
-    "export.label.question" to "問題",
-    "export.label.answer" to "解答",
-    "export.label.category" to "分類",
-    "export.label.tags" to "知識点",
-    "export.save" to "保存先を選ぶ…",
-    "export.exporting" to "書き出し中…",
-    "export.done" to "保存しました：{name}",
-    "export.failed" to "書き出しに失敗：{msg}",
+    // C14 文字サイズ + 誤答ノートの件数（B7 書き出しの文言は v0.6.4 で機能ごと削除）
     "settings.fontSize" to "文字サイズ",
     "settings.fontSize.desc" to "アプリ内の文字だけを変更します（画面と会話欄が連動）。端末の設定は変更しません",
     "settings.fontSize.small" to "小",
@@ -1420,20 +1383,7 @@ private val B7_KO = mapOf(
     "dup.text" to "같은 문제가 이미 있을 수 있습니다(지문이 같거나 매우 유사):",
     "dup.saveAnyway" to "그래도 저장",
 
-    // B7 내보내기(PNG/PDF) + C14 글자 크기 + 오답노트 개수
-    "export.title" to "이 문제 내보내기",
-    "export.format" to "형식",
-    "export.png" to "PNG(긴 이미지)",
-    "export.pdf" to "PDF(A4 분할)",
-    "export.hint" to "포함 내용: 원본 사진 + 문제 + 정답/풀이 + 분류 / 지식 태그",
-    "export.label.question" to "문제",
-    "export.label.answer" to "풀이",
-    "export.label.category" to "분류",
-    "export.label.tags" to "지식 태그",
-    "export.save" to "저장 위치 선택…",
-    "export.exporting" to "내보내는 중…",
-    "export.done" to "저장했습니다: {name}",
-    "export.failed" to "내보내기 실패: {msg}",
+    // C14 글자 크기 + 오답노트 개수 (B7 내보내기 문구는 v0.6.4에서 기능과 함께 삭제)
     "settings.fontSize" to "글자 크기",
     "settings.fontSize.desc" to "앱 안의 글자 크기만 바꿉니다(화면과 대화 영역이 함께). 기기 설정은 건드리지 않습니다",
     "settings.fontSize.small" to "작게",
