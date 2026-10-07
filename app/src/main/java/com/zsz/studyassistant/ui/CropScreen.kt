@@ -73,6 +73,8 @@ private val BORDER = Color(0xFFFF5252)
 fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // 「AI 管理 → AI 切图」开关：**关掉就完全不跑 AI**（自动预框选不请求、手动「AI 识别」按钮也不显示）
+    val aiCropOn = com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)
     // 「通用 → AI 框选时限」：AI 自动框选的等待上限
     val aiCropMs = com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx)
     val path = vm.currentCropPath
@@ -205,6 +207,7 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                     //   · 本地结果（约 100ms）先应用，页面立刻有框
                     //   · AI 若在 500ms 内返回且合法 → 覆盖本地结果
                     //   · 两者都不可靠 → 保持默认框
+                    //   · 「AI 切图」关掉时**不请求 AI**，只用本地算法
                     val p = path ?: return@LaunchedEffect
                     if (autoTried) return@LaunchedEffect
                     autoTried = true
@@ -214,7 +217,7 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                     // ★ AI 请求挂到 composable 作用域的 scope 上（**不在这里 await**）：
                     //   本 effect 的键含 disp，而 disp 在页面布局稳定时会变 → effect 重启；
                     //   若在 effect 内 await，请求会被取消，AI 预框选等于白等（曾长期拿不到结果）。
-                    if (bytes != null && !aiLaunched) {
+                    if (aiCropOn && bytes != null && !aiLaunched) {
                         aiLaunched = true
                         scope.launch {
                             val ai = runCatching {
@@ -500,54 +503,57 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 // AI 自动框选：等待「AI 框选时限 + 1s」；AI 不行就用本地算法；都不行恢复默认框
-                TextButton(
-                    enabled = !aiBusy,
-                    onClick = {
-                        aiBusy = true
-                        scope.launch {
-                            val p2 = vm.currentCropPath
-                            // ★ 先复位缩放/平移：把图片重新填回原位，自动框选的结果才可见可调
-                            zoom = 1f
-                            panX = 0f
-                            panY = 0f
-                            if (dispBase.width > 1f) dispRect = dispBase
-                            val fallbackDefault = {
-                                val w = dispRect.width * 0.7f
-                                val h = dispRect.height * 0.7f
-                                sel = Rect(dispRect.center.x - w / 2, dispRect.center.y - h / 2,
-                                    dispRect.center.x + w / 2, dispRect.center.y + h / 2)
-                            }
-                            var done = false
-                            if (p2 != null) {
-                                val bytes = runCatching {
-                                    withContext(Dispatchers.IO) { java.io.File(p2).readBytes() }
-                                }.getOrNull()
-                                if (bytes != null) {
-                                    val boxes = runCatching {
-                                        StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs + 1000L)   // 手动按钮：设置值 + 1s
-                                    }.getOrNull()
-                                    val best = boxes?.maxByOrNull { it.area }
-                                    if (best != null) {
-                                        sel = toDisp(best, dispRect); autoHint = true; done = true
-                                    }
+                // ★ 「AI 切图」关掉时不显示这个按钮（它本质就是手动跑一次 AI），只留「返回」
+                if (aiCropOn) {
+                    TextButton(
+                        enabled = !aiBusy,
+                        onClick = {
+                            aiBusy = true
+                            scope.launch {
+                                val p2 = vm.currentCropPath
+                                // ★ 先复位缩放/平移：把图片重新填回原位，自动框选的结果才可见可调
+                                zoom = 1f
+                                panX = 0f
+                                panY = 0f
+                                if (dispBase.width > 1f) dispRect = dispBase
+                                val fallbackDefault = {
+                                    val w = dispRect.width * 0.7f
+                                    val h = dispRect.height * 0.7f
+                                    sel = Rect(dispRect.center.x - w / 2, dispRect.center.y - h / 2,
+                                        dispRect.center.x + w / 2, dispRect.center.y + h / 2)
                                 }
-                                if (!done) {
-                                    val local = runCatching {
-                                        withContext(Dispatchers.Default) {
-                                            com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p2)
+                                var done = false
+                                if (p2 != null) {
+                                    val bytes = runCatching {
+                                        withContext(Dispatchers.IO) { java.io.File(p2).readBytes() }
+                                    }.getOrNull()
+                                    if (bytes != null) {
+                                        val boxes = runCatching {
+                                            StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs + 1000L)   // 手动按钮：设置值 + 1s
+                                        }.getOrNull()
+                                        val best = boxes?.maxByOrNull { it.area }
+                                        if (best != null) {
+                                            sel = toDisp(best, dispRect); autoHint = true; done = true
                                         }
-                                    }.getOrNull()
-                                    if (local != null && !local.looksUnreliable()) {
-                                        sel = toDisp(local, dispRect); autoHint = true; done = true
+                                    }
+                                    if (!done) {
+                                        val local = runCatching {
+                                            withContext(Dispatchers.Default) {
+                                                com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p2)
+                                            }
+                                        }.getOrNull()
+                                        if (local != null && !local.looksUnreliable()) {
+                                            sel = toDisp(local, dispRect); autoHint = true; done = true
+                                        }
                                     }
                                 }
+                                if (!done) fallbackDefault()
+                                userTouched = true
+                                aiBusy = false
                             }
-                            if (!done) fallbackDefault()
-                            userTouched = true
-                            aiBusy = false
                         }
-                    }
-                ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"]) }
+                    ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"]) }
+                }
                 // 返回 = 回到拍摄界面（不换行）
                 TextButton(onClick = { handleBack() }) {
                     Text(if (vm.cropIndex > 0) s["crop.prevImage"] else s["crop.backToCamera"], maxLines = 1, softWrap = false)

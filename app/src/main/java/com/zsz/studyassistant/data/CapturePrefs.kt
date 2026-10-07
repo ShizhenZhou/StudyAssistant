@@ -38,6 +38,13 @@ object CapturePrefs {
         prefs(c).edit().putBoolean(KEY_GRADE_TOGGLE, v).apply()
 
 private const val KEY_AI_CROP_MS = "ai_crop_timeout_ms"   // AI 框选时限（毫秒）
+private const val KEY_AI_CROP_ENABLED = "ai_crop_enabled" // AI 切图总开关
+
+    /** 「AI 管理 → AI 切图」开关：**关闭＝完全不跑 AI**，只用本地投影算法框选（默认开） */
+    fun aiCropEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_AI_CROP_ENABLED, true)
+
+    fun setAiCropEnabled(c: Context, v: Boolean) =
+        prefs(c).edit().putBoolean(KEY_AI_CROP_ENABLED, v).apply()
 
     /** 「通用 → AI 框选时限」：AI 自动框选的等待上限，默认 500ms，范围 100~5000ms */
     fun aiCropTimeoutMs(c: Context): Long =

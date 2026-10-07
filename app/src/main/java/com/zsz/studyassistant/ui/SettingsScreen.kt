@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -91,13 +92,31 @@ fun SettingsTab(vm: MainViewModel) {
     val s = LocalStrings.current
 
     when (page) {
-        // 「AI 管理」= API 管理（置顶）+ 原 AI 配置（框选时限 / 解题模式 / 自定义要求）
+        // 「AI 管理」= API 管理（置顶）+ 原 AI 配置（AI 切图开关 / 框选时限 / 解题模式 / 自定义要求）
         "ai" -> SettingsSubPage(s["settings.aiManage"], { page = "main" }) {
+            val ctx = LocalContext.current
+            // AI 切图总开关的界面状态（关掉后**整个时限设置项都不显示**）
+            var aiCropOn by remember {
+                mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx))
+            }
             Text(s["settings.api"], style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             ApiSettings(vm)
             Spacer(Modifier.height(26.dp))
-            AiCropTimeoutSettings()
+            AiCropSwitchSettings(
+                checked = aiCropOn,
+                onChecked = {
+                    aiCropOn = it
+                    com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
+                }
+            )
+            // 只有开了 AI 切图，才显示「AI 框选时限」（用户要求）
+            if (aiCropOn) {
+                Spacer(Modifier.height(20.dp))
+                AiCropTimeoutSettings()
+            }
+            AiSolveModelSettings()
+            AiCustomPromptSettings()
         }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) { page = it } }
@@ -210,8 +229,39 @@ private fun SettingGroupTitle(text: String) {
 }
 
 /**
+ * ✂️ **AI 切图总开关**（用户 2026-09-17 提出，2026-10-07 实现）。
+ * 开：进框选页时本地算法**与 AI 视觉并行**，AI 先回来就用 AI 的框（见 `ui/CropScreen.kt`）。
+ * 关：**完全不跑 AI**，只用本地投影算法框选，进度快也更省额度；下面的「AI 框选时限」也随之隐藏。
+ */
+@Composable
+private fun AiCropSwitchSettings(checked: Boolean, onChecked: (Boolean) -> Unit) {
+    val s = LocalStrings.current
+    Row(
+        // 整行可点（点文字也能切换）——Switch 自己的命中区域只有它那一小块
+        Modifier.fillMaxWidth().clickable { onChecked(!checked) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(s["settings.aiCrop.enable"], style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                s["settings.aiCrop.enable.desc"],
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChecked
+        )
+    }
+}
+
+/**
  * ✂️ AI 框选时限：100ms ~ 5s 的**对数**滑条，500ms / 1s / 3s 三个磁吸点。
  * 含义：进框选页后等 AI 自动框选的上限；超时就用本地算法框选。
+ * 只在「AI 切图」开着时显示（关掉 AI 就没人用这个时限了）。
  */
 @Composable
 private fun AiCropTimeoutSettings() {
@@ -264,7 +314,13 @@ private fun AiCropTimeoutSettings() {
             tToMs = ::tToMs
         )
     }
-    // ---- 解题模式（快 / 深度思考）：只是 thinking 开关，模型没变 ----
+}
+
+/** ---- 解题模式（快 / 深度思考）：只是 thinking 开关，模型没变 ---- */
+@Composable
+private fun AiSolveModelSettings() {
+    val s = LocalStrings.current
+    val ctx = LocalContext.current
     Spacer(Modifier.height(22.dp))
     Text(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(4.dp))
@@ -286,7 +342,13 @@ private fun AiCropTimeoutSettings() {
             Text(label, Modifier.padding(start = 8.dp))
         }
     }
-    // ---- 自定义要求（Prompt）：会附加到每次 AI 请求 ----
+}
+
+/** ---- 自定义要求（Prompt）：会附加到每次 AI 请求 ---- */
+@Composable
+private fun AiCustomPromptSettings() {
+    val s = LocalStrings.current
+    val ctx = LocalContext.current
     Spacer(Modifier.height(22.dp))
     Text(s["settings.customPrompt"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(4.dp))

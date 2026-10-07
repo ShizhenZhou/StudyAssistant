@@ -7,6 +7,7 @@ package com.zsz.studyassistant.ui
 internal val CHANGELOG_ZH: String = """
 v0.6.4
 · ⛔ **取消「导出这道题」功能**：长图 / PDF 导出**始终无法保证内容完整**（多次修复后仍会在底部截断），决定不再做这个功能 —— 解题页顶栏的 📤 按钮、导出弹窗、相关代码与文案**全部删除**。需要留档时可用系统截图，或长按复制题干与解答
+· ✂️ **新增「AI 切图」开关**（设置 → AI 管理，位于「API 用量统计」下方）：**关掉后完全不调用 AI**，框选只用本地算法（更快、也不消耗额度），下面的「AI 框选时限」设置项随之隐藏；框选页的手动「AI 识别」按钮也不再显示
 · 🔤 **「中止 / 重新生成」恢复文字**：顶栏显示「⏸ 中止生成」「🔄 重新生成」（不再只有图标），字号与「存错题本」等按钮一致
 · 🔍 **错题本搜索按钮字号**：标题栏的 🔍 与右侧「排序 / 管理」等按钮**字号统一**
 
@@ -257,6 +258,7 @@ v0.1（项目建立）
 internal val CHANGELOG_EN: String = """
 v0.6.4
 · ⛔ **"Export this problem" has been dropped**: the long-image / PDF export **never managed to include everything** (it still cut off at the bottom after several fixes), so the feature is gone for good — the 📤 button in the solve-page top bar, the export dialog and all related code and strings were **deleted**. To keep a copy, use a system screenshot or copy the question and answer
+· ✂️ **New "AI cropping" switch** (Settings → AI management, right below the API usage stats): when it is off, **no AI is called at all** — boxing uses the local algorithm only (faster and no tokens spent), the "AI crop timeout" setting below is hidden, and the manual "AI detect" button on the crop screen is hidden too
 · 🔤 **"Stop / Regenerate" show their labels again**: the top bar now reads "⏸ Stop generation" and "🔄 Regenerate" instead of icons only, with the same text size as the other buttons such as "Save to notebook"
 · 🔍 **Notebook search button size**: the 🔍 in the title bar now **matches the text size** of "Sort / Manage" next to it
 
@@ -507,6 +509,7 @@ v0.1 (project start)
 internal val CHANGELOG_JA: String = """
 v0.6.4
 · ⛔ **「この問題を書き出す」機能を廃止**：長い画像 / PDF の書き出しは**どうしても内容が欠けずに収まらない**（何度直しても下部が切れる）ため、この機能は作らないことにしました —— 解答ページ上部の 📤 ボタン、書き出しダイアログ、関連するコードと文言を**すべて削除**しました。保存したい場合は端末のスクリーンショットを使うか、問題文と解答をコピーしてください
+· ✂️ **「AI 切り抜き」スイッチを追加**（設定 → AI 管理、「API 使用量」のすぐ下）：オフにすると **AI を一切呼び出さず**、枠取りはローカルアルゴリズムのみ（より速く、トークンも消費しません）。下の「AI 枠取りの制限時間」も非表示になり、切り抜き画面の手動「AI 認識」ボタンも表示されません
 · 🔤 **「中止 / 再生成」に文字が戻りました**：上部バーは「⏸ 生成を中止」「🔄 再生成」と表示（アイコンのみではなくなりました）。文字サイズは「誤答ノートに保存」などと同じです
 · 🔍 **誤答ノートの検索ボタンのサイズ**：タイトルバーの 🔍 を、右側の「並べ替え / 管理」などと**同じ文字サイズ**に統一
 
@@ -757,6 +760,7 @@ v0.1（プロジェクト開始）
 internal val CHANGELOG_KO: String = """
 v0.6.4
 · ⛔ **'이 문제 내보내기' 기능을 없앴습니다**: 긴 이미지 / PDF 내보내기는 **아무리 고쳐도 내용이 잘리지 않게 담을 수 없어서** 이 기능은 만들지 않기로 했습니다 — 문제 풀이 화면 상단의 📤 버튼, 내보내기 대화상자, 관련 코드와 문구를 **모두 삭제**했습니다. 보관이 필요하면 시스템 스크린샷을 쓰거나 문제와 풀이를 복사하세요
+· ✂️ **'AI 자르기' 스위치 추가**(설정 → AI 관리, 'API 사용량' 바로 아래): 끄면 **AI를 전혀 호출하지 않고** 자르기는 로컬 알고리즘만 사용합니다(더 빠르고 토큰도 소모하지 않음). 아래 'AI 자르기 제한 시간'도 숨겨지고, 자르기 화면의 수동 'AI 인식' 버튼도 표시되지 않습니다
 · 🔤 **'중단 / 다시 생성'에 글자가 돌아왔습니다**: 상단에 '⏸ 생성 중단', '🔄 다시 생성'으로 표시됩니다(아이콘만 표시하지 않음). 글자 크기는 '오답노트에 저장' 등과 같습니다
 · 🔍 **오답노트 검색 버튼 크기**: 제목 표시줄의 🔍 를 오른쪽 '정렬 / 관리' 등과 **같은 글자 크기**로 통일
 
