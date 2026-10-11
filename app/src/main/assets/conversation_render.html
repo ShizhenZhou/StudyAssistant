@@ -198,14 +198,21 @@ function reportPos(){
   }
 }
 // 长按消息气泡 → 进入原生多选（编辑）界面
-var lpTimer = null, lpMoved = false, lpIdx = -1;
+var lpTimer = null, lpMoved = false, lpIdx = -1, lpT0 = 0;
 document.addEventListener('touchstart', function(e){
   var el = e.target, bubble = (el && el.closest) ? el.closest('.bubble') : null;
   if(!bubble) return;
   lpIdx = parseInt(bubble.getAttribute('data-idx'));
   lpMoved = false;
+  lpT0 = Date.now();
   if(lpTimer) clearTimeout(lpTimer);
   lpTimer = setTimeout(function(){
+    lpTimer = null;
+    // ★ 超时守卫（2026-10-07，荣耀「灵动胶囊」误触发多选的真凶）：
+    //   系统悬浮胶囊会抢走一次触摸，WebView 只收到 DOWN、收不到 UP/CANCEL，
+    //   于是这个 450ms 的定时器会**悬着**，等窗口回来才执行 —— 那时用户已经在下一次轻点了，
+    //   结果一次普通轻点被当成"长按"直接进多选。这里规定：只有确实是在 450~800ms 内正常触发的才算长按。
+    if(Date.now() - lpT0 > 800) return;
     if(!lpMoved && !isNaN(lpIdx)){
       // 已在多选态：长按不再有任何作用（多选内只允许单次点击选择），避免歧义与误操作
       if(selectionMode) return;
@@ -221,6 +228,26 @@ document.addEventListener('touchmove', function(){
 document.addEventListener('touchend', function(){
   if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
 }, {passive:true});
+/** 手势被系统打断（电话/悬浮窗/多任务）时浏览器会派发 touchcancel —— 必须清掉悬着的长按定时器 */
+document.addEventListener('touchcancel', function(){
+  if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
+  lpIdx = -1; lpMoved = true; thinkTouch = null; touching = false;
+}, {passive:true});
+/**
+ * 复位所有"手指仍按着"的手势状态（原生在窗口重新聚焦时调用，见 ConversationWebView.ResetOnFocusWebView）。
+ * 覆盖三处：① 长按进多选的定时器 ② 思考块点击候选 ③ 自动跟随的 touching 标记。
+ */
+window.dshResetGestures = function(){
+  if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
+  lpIdx = -1; lpMoved = true; lpT0 = 0;
+  try{ thinkTouch = null; }catch(e){}
+  touching = false;
+};
+// 窗口失焦/切到后台（含点系统悬浮胶囊）→ 立刻复位，避免定时器悬着
+window.addEventListener('blur', function(){ if(window.dshResetGestures) window.dshResetGestures(); });
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden && window.dshResetGestures) window.dshResetGestures();
+});
 function followTick(ts){
   var max = bottomY();
   var dtms = 16;   // 首帧兜底，避免 NaN
@@ -310,7 +337,11 @@ function bubbleHtml(m, idx){
   if (m.thinking && m.thinking.length && cls === 'assistant') {
     // 展开态「闭锁」：流式期间原生一直传 thinkingOpen=true，一旦展开过就记住，
     // 之后重渲染（正文到达 / 思考结束）不会再自己收起 —— 否则观感就是"正文一出思考块被吞"。
-    var tOpen = !window.thinkUserClosed[idx] && (!!window.thinkUserOpen[idx] || !!m.thinkingOpen);
+    // ★ 全局记忆优先（用户 2026-10-07 要求）：只要用户手动切过，**所有题目、所有气泡**都按最后一次操作显示。
+    var tOpen;
+    if (window.thinkForced === 'open') tOpen = true;
+    else if (window.thinkForced === 'closed') tOpen = false;
+    else tOpen = !window.thinkUserClosed[idx] && (!!window.thinkUserOpen[idx] || !!m.thinkingOpen);
     if (tOpen) window.thinkUserOpen[idx] = 1;
     // 标题文案的"是否仍在思考"：只有**原生正在流式的那条**才看 thinkingDone，
     // 已保存进 chatItems 的气泡（thinkingOpen=false）一律算思考结束 → 否则生成完标题永远停在"思考中…"
@@ -426,11 +457,19 @@ function applyThinkOpen(idx, open){
   // 用 textContent 而非 innerHTML：文案是纯文本（含 emoji），不给注入留口子
   if(head) head.textContent = L.title + thinkLabel(open, !!window.thinkDone[idx]);
 }
-/** 切换某个气泡的思考块展开态，并把用户意图记进 thinkUserOpen/thinkUserClosed */
+/** 当前某个气泡的思考块是不是展开的 */
+function thinkOpenNow(idx){
+  if(window.thinkForced === 'open') return true;
+  if(window.thinkForced === 'closed') return false;
+  return !!window.thinkUserOpen[idx] && !window.thinkUserClosed[idx];
+}
+/** 切换某个气泡的思考块展开态；并把**全局偏好**设成同一个状态（所有题目共用，见 CapturePrefs.thinkExpandPref） */
 function toggleThink(idx){
   if(isNaN(idx)) return;
-  var nowOpen = !!window.thinkUserOpen[idx] && !window.thinkUserClosed[idx];
-  var next = !nowOpen;
+  var next = !thinkOpenNow(idx);
+  // 1) 全局记忆：先记下来（原生写 SharedPreferences），后续所有题目都按它渲染
+  window.thinkForced = next ? 'open' : 'closed';
+  // 2) 逐条兼容旧状态：保留 thinkUserOpen/Closed，切回 'auto' 时行为不变
   if(next){
     window.thinkUserOpen[idx] = 1; delete window.thinkUserClosed[idx];
   } else {
@@ -438,7 +477,16 @@ function toggleThink(idx){
     following = false; touching = false;   // 折叠后不要还被"跟随思路滚动"往下拉
     if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
   }
-  applyThinkOpen(idx, next);
+  // 3) 立刻把**当前屏幕上所有**思考块切到同一状态（不等原生重渲染，点了就见到效果）
+  var all = document.querySelectorAll('.think[data-box]');
+  for(var i=0;i<all.length;i++){
+    var bi = parseInt(all[i].getAttribute('data-box'));
+    if(isNaN(bi)) continue;
+    if(next) window.thinkUserOpen[bi] = 1; else { delete window.thinkUserOpen[bi]; window.thinkUserClosed[bi] = 1; }
+    applyThinkOpen(bi, next);
+  }
+  // 4) 通知原生持久化（换题、下次启动都保持一致）
+  try{ if(window.Android && Android.thinkToggled){ Android.thinkToggled(!!next); } }catch(e){}
 }
 var thinkTouch = null;          // 手指按下时记的候选 {idx,x,y,t}
 var thinkClickGuard = 0;        // 刚用 touchend 处理过 → 忽略随后合成的 click，避免切两次
@@ -478,9 +526,16 @@ document.addEventListener('click', function(e){
 // labels（可选）：思考块的多语言文案，由原生按界面语言注入；缺省时用简体兜底
 // dark（可选）：是否深色主题，由原生注入 → 给 body 加 .dark，CSS 变量随之切换（见文件顶部变量表）
 // scale（可选）：界面字号档位（C14），1 = 标准；只缩放文字
-function renderMessages(arr, sel, labels, dark, scale){
+// thinkPref（可选）：思考区展开/折叠的**全局记忆** —— 'open' / 'closed' / 'auto'（原生存在 SharedPreferences 里）
+function renderMessages(arr, sel, labels, dark, scale, thinkPref){
   if(dark !== undefined) document.body.classList.toggle('dark', !!dark);
   if(scale !== undefined && scale !== null) document.documentElement.style.setProperty('--k', String(scale));
+  // 全局展开/折叠偏好变化 → 清掉增量渲染缓存，强制整段按新状态重建（否则已渲染的气泡不会变）
+  var tp = (thinkPref === 'open' || thinkPref === 'closed') ? thinkPref : 'auto';
+  if(tp !== window.thinkForced){
+    window.thinkForced = tp;
+    renderedKeys = [];
+  }
   if(labels && typeof labels === 'object'){
     // 文案变化（切换界面语言）→ 清掉增量渲染缓存，强制整段重建（否则已渲染的气泡不会换文案）
     var lk = JSON.stringify(labels);

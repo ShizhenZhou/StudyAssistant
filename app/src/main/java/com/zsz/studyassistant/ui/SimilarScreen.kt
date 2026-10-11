@@ -56,6 +56,10 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
+    // 思考区展开/折叠的全局记忆（与解题页共用同一份偏好，跨题目一致）
+    var thinkPref by remember {
+        mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.thinkExpandPref(context))
+    }
     // 追问附图（与解题页一致，最多 3 张）
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     val categories by vm.categories.collectAsState()
@@ -236,7 +240,13 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         // 深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换
                         dark = rememberDarkTheme(vm.theme),
                         // C14 字号档位：网页内文字同步缩放
-                        fontScale = vm.fontScale.factor
+                        fontScale = vm.fontScale.factor,
+                        // 思考区展开/折叠的全局记忆（与解题页共用同一份偏好）
+                        thinkPref = thinkPref,
+                        onThinkToggled = { open ->
+                            thinkPref = if (open) "open" else "closed"
+                            com.zsz.studyassistant.data.CapturePrefs.setThinkExpandPref(context, thinkPref)
+                        }
                     )
                     // 左下角椭圆按钮：查看答案 / 收起答案（答案未生成好时置灰）
                     if (!editMode && (question != null || vm.similarStreamingText != null || revealed)) {

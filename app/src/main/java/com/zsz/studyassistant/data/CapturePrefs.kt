@@ -39,12 +39,24 @@ object CapturePrefs {
 
 private const val KEY_AI_CROP_MS = "ai_crop_timeout_ms"   // AI 框选时限（毫秒）
 private const val KEY_AI_CROP_ENABLED = "ai_crop_enabled" // AI 切图总开关
+private const val KEY_THINK_EXPAND = "think_expand_pref"  // 思考区展开/折叠的全局记忆
 
     /** 「AI 管理 → AI 切图」开关：**关闭＝完全不跑 AI**，只用本地投影算法框选（默认开） */
     fun aiCropEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_AI_CROP_ENABLED, true)
 
     fun setAiCropEnabled(c: Context, v: Boolean) =
         prefs(c).edit().putBoolean(KEY_AI_CROP_ENABLED, v).apply()
+
+    /**
+     * 思考区的**全局展开 / 折叠记忆**（2026-10-07 用户要求：记住最后一次操作，且**跨题目**一致）。
+     * `"auto"` = 用户还没手动切过 → 保持原来的默认观感（生成中展开、历史折叠）；
+     * `"open"` / `"closed"` = 用户最后一次点的是「展开思考区」/「折叠思考区」——之后**所有题目的所有气泡**都按它显示。
+     */
+    fun thinkExpandPref(c: Context): String =
+        prefs(c).getString(KEY_THINK_EXPAND, null)?.takeIf { it == "open" || it == "closed" } ?: "auto"
+
+    fun setThinkExpandPref(c: Context, v: String) =
+        prefs(c).edit().putString(KEY_THINK_EXPAND, if (v == "open" || v == "closed") v else "auto").apply()
 
     /** 「通用 → AI 框选时限」：AI 自动框选的等待上限，默认 500ms，范围 100~5000ms */
     fun aiCropTimeoutMs(c: Context): Long =

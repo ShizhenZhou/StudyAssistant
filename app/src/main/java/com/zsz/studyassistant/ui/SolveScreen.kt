@@ -110,6 +110,10 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     // 深色 + 字号：对话区（C14）用（导出 B7 已于 v0.6.4 取消）
     val darkTheme = rememberDarkTheme(vm.theme)
     val fontScaleFactor = vm.fontScale.factor
+    // 思考区展开/折叠的全局记忆（"auto" = 还没手动切过）：用户点一次之后，所有题目都按最后一次操作显示
+    var thinkPref by remember {
+        mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.thinkExpandPref(context))
+    }
     val categories by vm.categories.collectAsState()
     val tags by vm.tags.collectAsState()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
@@ -323,20 +327,20 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 actions = {
                     val smallPad = PaddingValues(horizontal = 6.dp)
-                    // 顶栏右侧这几个按钮**字号统一**（用户要求）：⏸/🔄 与 📚 存错题本 都用 BTN_LABEL_BIG。
-                    // 导出（📤）功能已于 v0.6.4 取消。
+                    // 顶栏右侧这几个按钮**字号统一**（用户要求）：一律用 BTN_LABEL_SOLVE（13sp）。
+                    // 2026-10-07 用户要求「默认字号再缩小一些」（14 → 13），同栏里的按钮一起改，避免大小不一。
                     if (cfg.showPracticeSimilar) {
-                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_BIG) }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL_BIG) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL_BIG) }
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL_SOLVE) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
                         //   右侧 = [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
                         // 「中止 / 重新生成」按用户要求**带文字**（不要只有图标），字号与「存错题本」一致。
                         if (vm.busy) {
                             TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                Text(s["solve.abort"], fontSize = BTN_LABEL_BIG)
+                                Text(s["solve.abort"], fontSize = BTN_LABEL_SOLVE)
                             }
                         } else {
                             TextButton(
@@ -346,25 +350,26 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 enabled = vm.chatItems.isNotEmpty() ||
                                     vm.streamInterrupted || vm.streamingText != null,
                                 contentPadding = smallPad
-                            ) { Text(s["solve.regen"], fontSize = BTN_LABEL_BIG) }
+                            ) { Text(s["solve.regen"], fontSize = BTN_LABEL_SOLVE) }
                         }
                         if (vm.isDeleted) {
                             // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
                             TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
-                                Text(s["solve.restore"], fontSize = BTN_LABEL_BIG)
+                                Text(s["solve.restore"], fontSize = BTN_LABEL_SOLVE)
                             }
                         } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
                             // 已存入错题本 → 与错题本界面同一个「分类」按钮
-                            // ★ 这个按钮**保留自动缩放**（用户明确要求）：分类名越长字号越小，避免把标题挤掉
+                            // ★ 这个按钮**保留自动缩放**（用户明确要求）：分类名越长字号越小，避免把标题挤掉。
+                            //   2026-10-07 整体下调 1sp（12/11/10 → 11/10/9），与顶栏其它按钮一起变小。
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
                             TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
                                 val catName = curCat?.name ?: s["solve.noCategory"]
                                 Text(
                                     if (curCat != null) s.format("solve.category", "name" to catName) else s["solve.category.none"],
                                     fontSize = when {
-                                        catName.length <= 3 -> 12.sp
-                                        catName.length <= 5 -> 11.sp
-                                        else -> 10.sp
+                                        catName.length <= 3 -> 11.sp
+                                        catName.length <= 5 -> 10.sp
+                                        else -> 9.sp
                                     },
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -375,7 +380,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 onClick = { vm.ensureClassification(); categoryDialogFor = "save" },
                                 enabled = vm.chatItems.isNotEmpty() && !vm.busy,
                                 contentPadding = smallPad
-                            ) { Text(s["solve.saveToNotebook"], fontSize = BTN_LABEL_BIG) }
+                            ) { Text(s["solve.saveToNotebook"], fontSize = BTN_LABEL_SOLVE) }
                         }
                     }
                 }
@@ -622,7 +627,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         // 深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换
                         dark = darkTheme,
                         // C14 字号档位：网页内文字同步缩放
-                        fontScale = fontScaleFactor
+                        fontScale = fontScaleFactor,
+                        // 思考区展开/折叠的**全局记忆**（记住最后一次操作，换题也一致）
+                        thinkPref = thinkPref,
+                        onThinkToggled = { open ->
+                            thinkPref = if (open) "open" else "closed"
+                            com.zsz.studyassistant.data.CapturePrefs.setThinkExpandPref(context, thinkPref)
+                        }
                     )
                     // 快速跳转按钮：仅在**内容超过一屏**时出现；在顶部显示 ↓（一按滚到最底），否则 ↑（一按回到顶部）
                     if (!editMode && scrollable) {

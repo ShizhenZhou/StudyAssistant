@@ -25,6 +25,13 @@ internal val BTN_LABEL_SMALL = 11.sp
 internal val BTN_LABEL_BIG = 14.sp
 
 /**
+ * **解题页顶栏**动作按钮（⏸ 中止生成 / 🔄 重新生成 / 📚 存错题本 / 📁 分类 …）：
+ * 用户 2026-10-07 要求「默认字号再缩小一些」→ 在 [BTN_LABEL_BIG] 基础上再小 1sp。
+ * 同一根顶栏里的按钮都用它，避免出现"有的 14、有的 13"这种不一致。
+ */
+internal val BTN_LABEL_SOLVE = 13.sp
+
+/**
  * **内部页面**（学习/统计/设置三个主页之外的页面）左上角标题的字号：
  * Material3 的 titleLarge 默认 22sp，这里统一 **小 1sp**（用户要求），配合把返回箭头按钮的
  * 内边距收紧，标题会离 ← 更近一点。

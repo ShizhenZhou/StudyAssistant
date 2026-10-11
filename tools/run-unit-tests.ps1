@@ -36,7 +36,12 @@ param(
     # NOTE: keep this file ASCII-only - a .ps1 with non-ASCII bytes needs a UTF-8 BOM, and a
     # hardcoded non-ASCII default here would be read as mojibake by Windows PowerShell.
     [string]$GradleUserHome = '',
-    [string]$AndroidUserHome = ''
+    [string]$AndroidUserHome = '',
+    # 跳过「用 Gradle 编译测试」这一步，直接跑 JUnitCore。
+    # 用途：DSH 沙箱下 gradlew 无法运行（见 DEV_ENV_NOTES「.gradle-home 不可写」），
+    # 改用不受沙箱限制的 MCP 构建工具编译测试类，然后：
+    #     .\tools\run-unit-tests.ps1 -SkipCompile
+    [switch]$SkipCompile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,10 +72,15 @@ $env:ANDROID_USER_HOME = $AndroidUserHome
 # 会被 PowerShell 当成 NativeCommandError 直接中断脚本 —— 这里只保留字符串行并忽略错误记录。
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
-$gradleOut = & .\gradlew.bat compileDebugUnitTestKotlin --console=plain '-Pkotlin.compiler.execution.strategy=in-process' 2>&1
-$gradleCode = $LASTEXITCODE
+if ($SkipCompile) {
+    Write-Host '   (skipped: -SkipCompile，要求 app\build 里已有本次编译的 test 类)'
+    $gradleCode = 0
+} else {
+    $gradleOut = & .\gradlew.bat compileDebugUnitTestKotlin --console=plain '-Pkotlin.compiler.execution.strategy=in-process' 2>&1
+    $gradleCode = $LASTEXITCODE
+    $gradleOut | Where-Object { $_ -is [string] } | Select-Object -Last 8 | ForEach-Object { Write-Host "   $_" }
+}
 $ErrorActionPreference = $prevEap
-$gradleOut | Where-Object { $_ -is [string] } | Select-Object -Last 8 | ForEach-Object { Write-Host "   $_" }
 if ($gradleCode -ne 0) { Write-Err2 'compile failed'; exit 1 }
 
 $appBuild = Join-Path $repo 'app\build'

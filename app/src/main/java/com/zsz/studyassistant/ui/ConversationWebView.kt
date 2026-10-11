@@ -82,13 +82,23 @@ fun ConversationWebView(
     /** 当前是否深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换（见 conversation_render.html） */
     dark: Boolean = false,
     /** 界面字号档位（C14）：只缩放网页里的文字（1 = 标准），与 App 字号设置保持一致 */
-    fontScale: Float = 1f
+    fontScale: Float = 1f,
+    /**
+     * 思考区展开/折叠的**全局记忆**（用户 2026-10-07 要求）：
+     * `"auto"` = 没手动切过（生成中展开、历史折叠，保持原观感）；`"open"` / `"closed"` = 按用户最后一次操作显示，
+     * **跨题目生效**（见 `data/CapturePrefs.thinkExpandPref`）。
+     */
+    thinkPref: String = "auto",
+    /** 用户在网页里点了「展开 / 折叠思考区」→ 回调最新状态（true = 展开），由界面写进偏好 */
+    onThinkToggled: (Boolean) -> Unit = {}
 ) {
     val currentMessages by rememberUpdatedState(messages)
     // 深色与否同样必须取「最新值」：onPageFinished 是在 factory 里注册的回调，
     // 只会捕获首次组合时的那份 dark（与上面回调闭包是同一类坑）。
     val currentDark by rememberUpdatedState(dark)
     val currentScale by rememberUpdatedState(fontScale)
+    val currentThinkPref by rememberUpdatedState(thinkPref)
+    val currentOnThinkToggled by rememberUpdatedState(onThinkToggled)
     // ⚠️ JS 桥接对象只在 AndroidView 的 factory 里创建一次，会永久捕获当时的 lambda。
     // 若直接调用 onXxx()，用的就是**首次组合**时的那份闭包（其中的 selectedIndices/lockedIndices 等值永远是旧的），
     // 曾导致「受保护消息（题干/AI 首条）长按仍被算作可选中 → 已选 1 条」。
@@ -158,7 +168,7 @@ fun ConversationWebView(
     Box(modifier) {
         AndroidView(
             factory = { ctx ->
-                WebView(ctx).apply {
+                ResetOnFocusWebView(ctx).apply {
                     webRef = this
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
@@ -202,6 +212,12 @@ fun ConversationWebView(
                             Handler(Looper.getMainLooper()).post { currentOnToggleSelect(idx) }
                         }
 
+                        /** 用户点了「展开 / 折叠思考区」→ 记进全局偏好（所有题目共用） */
+                        @JavascriptInterface
+                        fun thinkToggled(open: Boolean) {
+                            Handler(Looper.getMainLooper()).post { currentOnThinkToggled(open) }
+                        }
+
                         /** 网页上报「是否已滚动到顶部」→ 按钮在 ↑ / ↓ 之间切换 */
                         @JavascriptInterface
                         fun onAtTop(atTop: Boolean) {
@@ -225,8 +241,8 @@ fun ConversationWebView(
                             val json = buildMessagesJson(currentMessages)
                             val sel = selectionJson()
                             val labels = thinkLabelsJson()
-                            lastJson = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale
-                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale);", null)
+                            lastJson = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale + "|" + currentThinkPref
+                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale, \"$currentThinkPref\");", null)
                         }
                     }
                     loadUrl("file:///android_asset/conversation_render.html")
@@ -234,15 +250,15 @@ fun ConversationWebView(
             },
             update = { v ->
                 // 内容未变化时跳过重渲染，减少 WebView 开销（多选状态也进 key：圆圈/红框要即时刷新；
-                // 思考块文案（界面语言）同样进 key：切语言要立刻换掉文案）
+                // 思考块文案（界面语言）与展开/折叠偏好同样进 key：切语言 / 点折叠要立刻生效）
                 if (loaded) {
                     val json = buildMessagesJson(currentMessages)
                     val sel = selectionJson()
                     val labels = thinkLabelsJson()
-                    val key = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale
+                    val key = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale + "|" + currentThinkPref
                     if (key != lastJson) {
                         lastJson = key
-                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale);", null)
+                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale, \"$currentThinkPref\");", null)
                     }
                 }
             },
@@ -316,6 +332,33 @@ private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
                     .padding(24.dp)
             )
         }
+    }
+}
+
+/**
+ * 对话区专用 WebView：**窗口重新拿到焦点时复位手势状态**。
+ *
+ * 为什么需要（2026-10-07 用户反馈，荣耀 Magic7 / MagicOS）：
+ *   点手机的「灵动胶囊」（系统悬浮胶囊）之后，再轻点屏幕，**偶发**被当成"长按气泡"→ 直接进入多选/选中态。
+ *   成因是这类系统悬浮窗会**抢走一次触摸**：WebView 只收到了 ACTION_DOWN，随后的 UP/CANCEL 被系统吃掉，
+ *   于是 ① Chromium 内部把那根"悬着的手指"still-down 状态留着（下一次轻点的 downTime 一算就超长按时限）；
+ *   ② 网页里 450ms 的长按定时器也悬着，恢复后一触发就派发 longPressMessage。
+ *   这里在窗口重新聚焦时补一个 ACTION_CANCEL 并通知网页复位（`window.dshResetGestures()`），两头一起清干净。
+ */
+private class ResetOnFocusWebView(context: android.content.Context) : WebView(context) {
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (!hasWindowFocus) return
+        val now = android.os.SystemClock.uptimeMillis()
+        runCatching {
+            // 补一个「取消」事件：没有前面那根手指的 UP，Chromium 会一直认为它在按着
+            val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+            dispatchTouchEvent(cancel)
+            cancel.recycle()
+        }
+        // 网页侧也要清：长按定时器 / 「手指按住」标记 / 思考块点击候选
+        runCatching { evaluateJavascript("window.dshResetGestures && window.dshResetGestures();", null) }
     }
 }
 
