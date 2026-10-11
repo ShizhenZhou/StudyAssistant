@@ -9,8 +9,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -39,10 +41,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +58,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,10 +66,19 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
+import com.zsz.studyassistant.data.FrameLuma
 import com.zsz.studyassistant.data.StudyAssistant
+import com.zsz.studyassistant.data.autoExposureDeltaEv
+import com.zsz.studyassistant.data.clampAutoEv
+import com.zsz.studyassistant.data.lumaStats
 import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 @Composable
@@ -102,16 +116,34 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
         var camera by remember { mutableStateOf<Camera?>(null) }
+        val scope = rememberCoroutineScope()
+        // 预览帧亮度统计（单击对焦后用它自动调曝光）：分析在单线程 executor 上跑，避免占用主线程
+        val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+        // 最新一帧的亮度（分析线程写、主线程读）
+        val latestLuma = remember { AtomicReference(FrameLuma(128.0, 0.0)) }
+        var autoEvJob by remember { mutableStateOf<Job?>(null) }
+        DisposableEffect(Unit) {
+            onDispose {
+                autoEvJob?.cancel()
+                analysisExecutor.shutdown()
+            }
+        }
 
         LaunchedEffect(lifecycleOwner) {
             val provider = awaitCameraProvider(context)
             provider.unbindAll()
-            camera = provider.bindToLifecycle(
-                lifecycleOwner,
-                CameraSelector.DEFAULT_BACK_CAMERA,
-                Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) },
-                imageCapture
-            )
+            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+            // ★ 亮度分析用例：只为「单击后自动调曝光」服务（每帧只扫 Y 平面的稀疏采样，开销很小）
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+                .also { it.setAnalyzer(analysisExecutor) { proxy -> analyzeLuma(proxy, latestLuma) } }
+            camera = runCatching {
+                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture, analysis)
+            }.getOrElse {
+                // 某些设备不支持"预览 + 拍照 + 分析"三路同时 → 回退到原来的两路（只是没有自动曝光）
+                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+            }
         }
 
         // 点击对焦：tap 位置显示对焦框并触发 AF
@@ -151,12 +183,25 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
+                        val cam = camera ?: return@detectTapGestures
                         val pt = previewView.meteringPointFactory.createPoint(offset.x, offset.y)
-                        camera?.cameraControl?.startFocusAndMetering(
-                            FocusMeteringAction.Builder(pt).build()
-                        )
+                        // ★ 单击 = 对焦 + **曝光**（用户 2026-10-11 要求）。
+                        //   显式带上 AE（测光/曝光）与 AWB（白平衡），测光区域就是点击点 ——
+                        //   拍电脑屏幕时点一下亮屏区域，相机就按那里测光，不容易把白底拍成一片死白。
+                        //   （默认 Builder(point) 虽然也含 3A，但显式写出来更明确，也不受 CameraX 版本默认值影响）
+                        runCatching {
+                            cam.cameraControl.startFocusAndMetering(
+                                FocusMeteringAction.Builder(
+                                    pt,
+                                    FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE or FocusMeteringAction.FLAG_AWB
+                                ).build()
+                            )
+                        }
                         focusPoint = offset
                         focusDone = false
+                        // ★ 再按预览帧的实际亮度微调**曝光补偿**（过曝往下压、太暗往上抬），约 1.2 秒收敛
+                        autoEvJob?.cancel()
+                        autoEvJob = scope.launch { autoTuneExposure(cam, latestLuma) }
                     }
                 }
         )
@@ -340,16 +385,74 @@ private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider
         )
     }
 
-/** 点击对焦框：出现 → 转绿(对焦完成) → 淡出 */
+/**
+ * 一帧 YUV 图 → 亮度统计（只扫 Y 平面，稀疏采样；算完**立刻 close**，不能堵住相机管线）。
+ * 统计失败就保持上一帧的值 —— 自动曝光只是锦上添花，绝不能影响拍照。
+ */
+private fun analyzeLuma(proxy: ImageProxy, out: AtomicReference<FrameLuma>) {
+    try {
+        val plane = proxy.planes.firstOrNull() ?: return
+        val buf = plane.buffer
+        val bytes = ByteArray(buf.remaining())
+        buf.get(bytes)
+        out.set(
+            lumaStats(
+                y = bytes,
+                width = proxy.width,
+                height = proxy.height,
+                rowStride = plane.rowStride,
+                step = 8
+            )
+        )
+    } catch (_: Exception) {
+        // 忽略：保留上一帧统计值
+    } finally {
+        proxy.close()
+    }
+}
+
+/**
+ * 单击对焦之后，用预览帧亮度把**曝光补偿**收敛到合适区间（最多 ~1.2 秒）。
+ *
+ * 规则见 `data/AutoExposure.kt`：近白像素多/整体偏亮 → 往下压 EV；太暗 → 往上抬；已在合适区间就不动。
+ * 每一步都夹在设备支持范围与自动调整范围（-2EV ~ +2EV）内，避免越调越偏。
+ */
+private suspend fun autoTuneExposure(camera: Camera, latest: AtomicReference<FrameLuma>) {
+    val state = camera.cameraInfo.exposureState
+    if (!state.isExposureCompensationSupported) return
+    val stepEv = state.exposureCompensationStep.toDouble()
+    if (stepEv <= 0.0) return
+    val minEv = state.exposureCompensationRange.lower * stepEv
+    val maxEv = state.exposureCompensationRange.upper * stepEv
+    var currentEv = state.exposureCompensationIndex * stepEv
+    repeat(6) {
+        delay(200)   // 给 AE 一点收敛时间，同时等一帧新画面
+        val luma = latest.get()
+        val delta = autoExposureDeltaEv(luma.mean, luma.clipRatio)
+        if (delta == 0.0) return           // 已经在合适区间 → 收工，避免来回抖
+        val nextEv = clampAutoEv(currentEv, delta, minEv, maxEv)
+        if (nextEv == currentEv) return    // 已经到限位（设备范围或 ±2EV）→ 收工
+        currentEv = nextEv
+        val idx = (currentEv / stepEv).roundToInt()
+            .coerceIn(state.exposureCompensationRange.lower, state.exposureCompensationRange.upper)
+        runCatching { camera.cameraControl.setExposureCompensationIndex(idx) }
+    }
+}
+
+/** 点击对焦框：出现 → 转绿(对焦完成) → 淡出
+ *  ★ 尺寸用 **dp** 换算（2026-10-11 用户反馈"对焦框太小"）：原来直接写 42f 像素，
+ *    在 3x 屏上只有 14dp，显得很小；现在整框 ~64dp、角长 16dp、线宽 3dp。 */
 @Composable
 internal fun FocusRing(center: Offset, focused: Boolean) {
     val scale by animateFloatAsState(targetValue = if (focused) 1f else 0.7f, label = "focusScale")
     val alpha by animateFloatAsState(targetValue = if (focused) 1f else 0.55f, label = "focusAlpha")
+    val density = LocalDensity.current
     Canvas(Modifier.fillMaxSize()) {
         val c = center
-        val half = 42f * scale
-        val le = 22f * scale   // 角长
-        val th = 5f            // 线宽
+        val half = with(density) { 32.dp.toPx() } * scale   // 半边长 → 整框 ≈ 64dp
+        val le = with(density) { 16.dp.toPx() } * scale     // 角长
+        val th = with(density) { 3.dp.toPx() }              // 线宽
+        val dot = with(density) { 3.dp.toPx() }
         val color = if (focused) Color(0xFF4CAF50) else Color.White
         // 四个 L 形角
         drawLine(color, Offset(c.x - half, c.y - half), Offset(c.x - half + le, c.y - half), th)
@@ -361,7 +464,7 @@ internal fun FocusRing(center: Offset, focused: Boolean) {
         drawLine(color, Offset(c.x + half, c.y + half), Offset(c.x + half - le, c.y + half), th)
         drawLine(color, Offset(c.x + half, c.y + half), Offset(c.x + half, c.y + half - le), th)
         // 中心小点
-        drawCircle(color.copy(alpha = alpha * 0.8f), radius = 3f, center = c)
+        drawCircle(color.copy(alpha = alpha * 0.8f), radius = dot, center = c)
     }
 }
 

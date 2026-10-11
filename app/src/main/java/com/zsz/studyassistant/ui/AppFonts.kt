@@ -32,6 +32,28 @@ internal val BTN_LABEL_BIG = 14.sp
 internal val BTN_LABEL_SOLVE = 13.sp
 
 /**
+ * 「📁 分类」按钮的字号档位（用户 2026-10-11 要求）。
+ *
+ * 背景：这个按钮显示**当前分类名**，而分类名长短差别很大。用户要求：
+ *   · 按钮的**整体占位**始终与「⏸ 中止生成 / 🔄 重新生成」按钮一致（宽高都不变）；
+ *   · 名字不足 4 个字时**不许**把 emoji 居中/挪位，宁可右边留白（emoji 位置固定）；
+ *   · 名字超过 4 个字时逐档**缩小字号**；再长就允许折成两行（见 [categoryLabelMaxLines]）。
+ *
+ * 返回 sp 数值（不是 TextUnit），这样纯逻辑可以直接单测，不需要 Compose 运行时。
+ * @param nameLen 分类名的字符数（**不含** 📁 前缀）
+ */
+internal fun categoryLabelSp(nameLen: Int): Int = when {
+    nameLen <= 4 -> 13      // 与顶栏其它按钮同字号；不足 4 字靠右侧留白补齐占位
+    nameLen <= 6 -> 12
+    nameLen <= 8 -> 11
+    nameLen <= 11 -> 10
+    else -> 9
+}
+
+/** 分类名很长时允许两行（占位不变；顶栏按钮最小高度 40dp ≫ 两行 10sp，放得下） */
+internal fun categoryLabelMaxLines(nameLen: Int): Int = if (nameLen >= 9) 2 else 1
+
+/**
  * **内部页面**（学习/统计/设置三个主页之外的页面）左上角标题的字号：
  * Material3 的 titleLarge 默认 22sp，这里统一 **小 1sp**（用户要求），配合把返回箭头按钮的
  * 内边距收紧，标题会离 ← 更近一点。

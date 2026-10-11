@@ -161,6 +161,8 @@ $testClasses = @(
     'com.zsz.studyassistant.data.AutoBackupTest',
     'com.zsz.studyassistant.data.NotebookSortingTest',
     'com.zsz.studyassistant.data.DuplicateCheckTest',
+    'com.zsz.studyassistant.data.AutoExposureTest',
+    'com.zsz.studyassistant.ui.CategoryLabelStyleTest',
     'com.zsz.studyassistant.ui.L10nTableTest'
 )
 & $java '-Dfile.encoding=UTF-8' -cp $cp org.junit.runner.JUnitCore @testClasses

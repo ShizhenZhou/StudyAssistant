@@ -71,6 +71,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
@@ -78,6 +79,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -329,6 +331,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     val smallPad = PaddingValues(horizontal = 6.dp)
                     // 顶栏右侧这几个按钮**字号统一**（用户要求）：一律用 BTN_LABEL_SOLVE（13sp）。
                     // 2026-10-07 用户要求「默认字号再缩小一些」（14 → 13），同栏里的按钮一起改，避免大小不一。
+                    // 「中止 / 重新生成」的实测尺寸：用来把「📁 分类」按钮撑到**完全一样大**（见下面 refBtnSize）。
+                    var refBtnSize by remember { mutableStateOf<IntSize?>(null) }
+                    val measureRef = Modifier.onGloballyPositioned { refBtnSize = it.size }
                     if (cfg.showPracticeSimilar) {
                         TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
@@ -339,9 +344,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         //   右侧 = [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
                         // 「中止 / 重新生成」按用户要求**带文字**（不要只有图标），字号与「存错题本」一致。
                         if (vm.busy) {
-                            TextButton(onClick = { vm.abortGeneration() }, contentPadding = smallPad) {
-                                Text(s["solve.abort"], fontSize = BTN_LABEL_SOLVE)
-                            }
+                            TextButton(
+                                onClick = { vm.abortGeneration() },
+                                contentPadding = smallPad,
+                                modifier = measureRef
+                            ) { Text(s["solve.abort"], fontSize = BTN_LABEL_SOLVE) }
                         } else {
                             TextButton(
                                 onClick = { if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
@@ -349,7 +356,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 //   但仍有流式气泡/已中断状态 → 「重新生成」必须可用
                                 enabled = vm.chatItems.isNotEmpty() ||
                                     vm.streamInterrupted || vm.streamingText != null,
-                                contentPadding = smallPad
+                                contentPadding = smallPad,
+                                modifier = measureRef
                             ) { Text(s["solve.regen"], fontSize = BTN_LABEL_SOLVE) }
                         }
                         if (vm.isDeleted) {
@@ -358,21 +366,34 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 Text(s["solve.restore"], fontSize = BTN_LABEL_SOLVE)
                             }
                         } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
-                            // 已存入错题本 → 与错题本界面同一个「分类」按钮
-                            // ★ 这个按钮**保留自动缩放**（用户明确要求）：分类名越长字号越小，避免把标题挤掉。
-                            //   2026-10-07 整体下调 1sp（12/11/10 → 11/10/9），与顶栏其它按钮一起变小。
+                            // ★ 「📁 分类」按钮（用户 2026-10-11 要求）：
+                            //   ① **整体大小（宽 × 高）始终等于「⏸ 中止 / 🔄 重新生成」按钮**（实测尺寸，见 refBtnSize）；
+                            //   ② 名字不足 4 字时 **emoji 位置不动**，多余空间留在**右边**（所以文字左对齐 + 撑满宽度）；
+                            //   ③ 名字越长逐档缩小字号（`categoryLabelSp`），再长折成两行（`categoryLabelMaxLines`）。
+                            //   这样无论分类名多长多短，顶栏这组按钮的占位都不跳动。
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
-                            TextButton(onClick = { categoryDialogFor = "change" }, contentPadding = smallPad) {
-                                val catName = curCat?.name ?: s["solve.noCategory"]
+                            val catName = curCat?.name ?: s["solve.noCategory"]
+                            val label = if (curCat != null) s.format("solve.category", "name" to catName) else s["solve.category.none"]
+                            val density = LocalDensity.current
+                            val refSize = refBtnSize
+                            TextButton(
+                                onClick = { categoryDialogFor = "change" },
+                                contentPadding = smallPad,
+                                modifier = if (refSize != null) {
+                                    with(density) {
+                                        Modifier.width(refSize.width.toDp()).height(refSize.height.toDp())
+                                    }
+                                } else Modifier
+                            ) {
                                 Text(
-                                    if (curCat != null) s.format("solve.category", "name" to catName) else s["solve.category.none"],
-                                    fontSize = when {
-                                        catName.length <= 3 -> 11.sp
-                                        catName.length <= 5 -> 10.sp
-                                        else -> 9.sp
-                                    },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    label,
+                                    fontSize = categoryLabelSp(catName.length).sp,
+                                    maxLines = categoryLabelMaxLines(catName.length),
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Start,
+                                    softWrap = true,
+                                    // 撑满按钮内容区 + 左对齐：emoji 永远贴在同一个位置，剩余宽度留白在右侧
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                         } else {
