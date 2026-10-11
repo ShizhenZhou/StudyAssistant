@@ -84,9 +84,13 @@ if ((Test-DirWritable $gradleHome) -eq 'WRITABLE') {
     $env:GRADLE_USER_HOME = $gradleHome
     if (-not $env:ANDROID_USER_HOME) { $env:ANDROID_USER_HOME = Join-Path $WorkspaceRoot '.android-home' }
     Push-Location $repo
-    & .\gradlew.bat --version --console=plain 2>&1 | Select-Object -First 4 | ForEach-Object { Write-Host "  $_" }
+    # NOTE: capture the output first and print it afterwards. Piping gradlew straight into
+    # `Select-Object -First` closes the pipe early and leaves $LASTEXITCODE = -1, which would
+    # look like a failure even though Gradle printed its version banner fine.
+    $out = & .\gradlew.bat --version --console=plain 2>&1
     $code = $LASTEXITCODE
     Pop-Location
+    $out | Where-Object { $_ -is [string] } | Select-Object -First 4 | ForEach-Object { Write-Host "  $_" }
     if ($code -eq 0) { Write-Host '  gradlew: OK' } else { Write-Host "  gradlew: FAILED (exit $code)" }
 } else {
     Write-Host '  skipped: GRADLE_USER_HOME is not writable, so gradlew cannot run (use the MCP build tool)'
