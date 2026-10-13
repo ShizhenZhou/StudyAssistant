@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.4.5
+· 📚 **「📚 存错题本」与「📁 分类」占位完全对齐**：「存错题本」按钮也按「📁 + 5 个汉字」的宽度给、文字左对齐、多余宽度留白在右侧 —— 两种状态切换时右侧按钮组**一动不动**
+· ⌨️ **修复「自定义要求（Prompt）」输入到底部被键盘挡住**：设置二级页补上键盘避让（键盘弹出时整页内容上移），输入框加了高度上限、超出改为**框内滚动**，光标始终可见
+
 v0.6.4.4
 · 🐞 **修复「自定义要求」从未生效**：设置 → AI 管理里的自定义 Prompt **从上线起就没被发出去过**（代码写了却从未接线）→ 现在解题 / 批改 / 同类题 / 追问都会带上它
 · 🐞 **修复「AI 看不到已有分类」**：发给模型的提示词**一直写着「已知分类：（当前没有任何分类）」**，于是模型自己造科目 —— 错题本里出现「大学物理」和「物理」这种重复分类。根因是取分类名的那个 Flow 从来没人订阅、值恒为空表，已改为常驻读取
@@ -312,6 +316,10 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.4.5
+· 📚 **"Save to notebook" now occupies exactly the same slot as "📁 Category"**: it uses the same "📁 + 5 CJK characters" width with left-aligned text and the spare width left blank on the right, so the button group no longer shifts when the two states switch
+· ⌨️ **Fixed the custom instructions field being covered by the keyboard**: settings sub-pages now avoid the keyboard (the page moves up when it opens), and the input box has a maximum height with internal scrolling so the caret stays visible
+
 v0.6.4.4
 · 🐞 **Fixed "custom instructions never applied"**: the custom prompt in Settings → AI management had **never actually been sent** (the code existed but was never wired up). It is now included when solving, grading, asking for similar questions and following up
 · 🐞 **Fixed "the AI could not see your existing categories"**: the prompt sent to the model **always said "known categories: (none)"**, so it invented subjects — which is how duplicates like "大学物理" and "物理" appeared. The cause was a Flow that nobody subscribed to, so it always returned an empty list
@@ -619,6 +627,10 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.4.5
+· 📚 **「📚 間違いノートに保存」と「📁 分類」の占有幅を完全に一致**：同じく「📁 + 漢字 5 文字」の幅で左揃え、右側は余白 —— 2 つの状態を切り替えても右側のボタン群が動きません
+· ⌨️ **カスタム指示の入力欄がキーボードに隠れる問題を修正**：設定の下位ページでキーボードを避けるようにし（開くと内容が上に移動）、入力欄に高さ上限を設けて内部スクロールにしたため、カーソルが常に見えます
+
 v0.6.4.4
 · 🐞 **「カスタム指示が効いていなかった」を修正**: 設定 → AI 管理のカスタムプロンプトは**これまで一度も送信されていませんでした**（コードはあるが接続されていなかった）。現在は解答・添削・類似問題・追加質問のすべてで送信されます
 · 🐞 **「AI が既存の分類を見られない」を修正**: モデルへ送る文面が**常に「既知の分類：（現在分類なし）」**になっていたため、モデルが科目を勝手に作り、同じ分類が重複していました。原因は誰も購読していない Flow で、値が常に空だったことです
@@ -926,6 +938,10 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.4.5
+· 📚 **「📚 오답노트에 저장」과 「📁 분류」의 자리를 완전히 일치**: 같은 「📁 + 한자 5자」 너비에 왼쪽 정렬, 오른쪽은 여백 —— 두 상태를 전환해도 오른쪽 버튼 그룹이 움직이지 않습니다
+· ⌨️ **사용자 지정 지시 입력란이 키보드에 가려지던 문제 수정**: 설정 하위 페이지가 키보드를 피하도록 했고(키보드가 열리면 내용이 위로 이동), 입력란에 높이 상한을 두어 내부 스크롤되므로 커서가 항상 보입니다
+
 v0.6.4.4
 · 🐞 **「사용자 지정 지시가 적용되지 않던 문제」수정**: 설정 → AI 관리의 사용자 지정 프롬프트가 **지금까지 한 번도 전송되지 않았습니다**(코드만 있고 연결되어 있지 않았음). 이제 풀이·채점·유사 문제·추가 질문 모두에 포함됩니다
 · 🐞 **「AI가 기존 분류를 보지 못하던 문제」수정**: 모델에 보내는 문구가 **항상 「알려진 분류: (현재 분류 없음)」**이어서 모델이 과목을 지어냈고, 같은 분류가 중복 생성되었습니다. 원인은 아무도 구독하지 않는 Flow라 값이 늘 빈 목록이었던 것입니다

@@ -384,6 +384,38 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 modifier = measureRef
                             ) { Text(s["solve.regen"], fontSize = BTN_LABEL_SOLVE) }
                         }
+                        // ★ 2026-10-13（用户要求）：「📚 存错题本」与「📁 分类」是同一个位置的两种状态，
+                        //   **占位必须完全一致** —— 所以两者共用同一份宽度：都按「📁 + 空格 + 5 个汉字」的实测宽，
+                        //   高度都取「⏸ 中止 / 🔄 重新生成」的实测高；文字**左对齐**、多余宽度留白在右侧。
+                        //   这样「存错题本 → 分类」切换时右侧按钮组一动不动。
+                        val density = LocalDensity.current
+                        val refSize = refBtnSize
+                        val measurer = rememberTextMeasurer()
+                        // 必须用**按钮内容真正渲染用的样式**（M3 的 TextButton 内容样式 = labelLarge）来测：
+                        // 曾用裸 `TextStyle(fontSize = 13.sp)` 测（字距 0），与渲染不一致 → 实测偏窄 →
+                        // 5 个汉字被 Clip 掉最后一个字（用户实测「信号与系统」只显示「信号与系」）。
+                        val baseTextStyle = MaterialTheme.typography.labelLarge.copy(fontSize = BTN_LABEL_SOLVE)
+                        // 样本要**带上 emoji 后面那个空格**（标签形如「📁 名字」，少算空格会短一个字宽）
+                        val sampleWidthPx = remember(measurer, density, vm.fontScale.factor) {
+                            measurer.measure(
+                                buildAnnotatedString {
+                                    withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("📁 ") }
+                                    append("汉".repeat(CATEGORY_FULL_CHARS))
+                                },
+                                baseTextStyle
+                            ).size.width
+                        }
+                        val horizontalPadPx = with(density) { 6.dp.roundToPx() }   // = smallPad 的左右各 6dp
+                        val slackPx = with(density) { 1.dp.roundToPx() }           // 测量与排版之间 1px 级差异的余量
+                        // 最后一个按钮的固定占位（宽度 = 5 个汉字 + emoji + 两侧内边距）
+                        val lastSlotModifier = if (refSize != null) {
+                            with(density) {
+                                Modifier
+                                    .width((sampleWidthPx + 2 * horizontalPadPx + slackPx).toDp())
+                                    .height(refSize.height.toDp())
+                            }
+                        } else Modifier
+
                         if (vm.isDeleted) {
                             // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
                             TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
@@ -400,24 +432,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
                             val catName = curCat?.name ?: noneLabel.substringAfter(" ", noneLabel)
                             val emoji = if (curCat != null) "📁" else noneLabel.substringBefore(" ", "📁")
-                            val density = LocalDensity.current
-                            val refSize = refBtnSize
-                            val measurer = rememberTextMeasurer()
-                            val baseTextStyle = MaterialTheme.typography.labelLarge.copy(fontSize = BTN_LABEL_SOLVE)
-                            // 「📁 + 空格 + 5 个汉字」占多宽（emoji 固定 13sp，不参与缩放）
-                            // ★ 样本必须**带上 emoji 后面那个空格**：标签是「📁 名字」，少了空格会短 1 个字宽。
-                            // ★★ 测量必须用**按钮内容真正渲染用的样式**（M3 的 TextButton 内容样式 = labelLarge）：
-                            //   2026-10-13 之前用裸 `TextStyle(fontSize = 13.sp)` 测（字距 0），而渲染带 labelLarge 的字距 →
-                            //   实测偏窄，5 个汉字正好把最后一个字 Clip 掉（用户实测「信号与系统」只显示「信号与系」）。
-                            val sampleWidthPx = remember(measurer, density, vm.fontScale.factor) {
-                                measurer.measure(
-                                    buildAnnotatedString {
-                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
-                                        append("汉".repeat(CATEGORY_FULL_CHARS))
-                                    },
-                                    baseTextStyle
-                                ).size.width
-                            }
                             // **实际标签**（📁 + 空格 + 真名字）在基准字号下的宽度
                             val realLabelWidthPx = remember(catName, emoji, measurer, density, vm.fontScale.factor) {
                                 measurer.measure(
@@ -433,9 +447,6 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             val contentWidthPx =
                                 if (catName.length <= CATEGORY_FULL_CHARS) maxOf(sampleWidthPx, realLabelWidthPx)
                                 else sampleWidthPx
-                            val horizontalPadPx = with(density) { 6.dp.roundToPx() }   // = smallPad 的左右各 6dp
-                            // 极小的安全余量（测量与最终排版之间可能有的 1px 级差异）
-                            val slackPx = with(density) { 1.dp.roundToPx() }
                             // 自适应：挑一个能完整放下的字号（>5 字先在单行里缩字号，仍不行才两行）
                             val (labelSp, labelMaxLines) = remember(catName, contentWidthPx, density, vm.fontScale.factor) {
                                 categoryLabelStyle(catName.length) { sp, lines ->
@@ -478,11 +489,22 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 )
                             }
                         } else {
+                            // ★ 与「📁 分类」**完全同占位**（见上面 lastSlotModifier）：宽度按「5 个汉字」给，
+                            //   文字左对齐 → emoji 与「分类」状态时落在同一个 x，多余宽度留白在右侧（用户 2026-10-13 要求）。
                             TextButton(
                                 onClick = { vm.ensureClassification(); categoryDialogFor = "save" },
                                 enabled = vm.chatItems.isNotEmpty() && !vm.busy,
-                                contentPadding = smallPad
-                            ) { Text(s["solve.saveToNotebook"], fontSize = BTN_LABEL_SOLVE) }
+                                contentPadding = smallPad,
+                                modifier = lastSlotModifier
+                            ) {
+                                Text(
+                                    s["solve.saveToNotebook"],
+                                    fontSize = BTN_LABEL_SOLVE,
+                                    maxLines = 1,
+                                    textAlign = TextAlign.Start,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }

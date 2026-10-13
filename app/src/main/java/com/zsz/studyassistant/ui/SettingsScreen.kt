@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -171,7 +173,11 @@ internal fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedS
 private fun SettingsSubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     // ★ 2026-10-13（用户要求）：头部行**不再吃外层 16dp 内边距**（原来箭头因此又小又靠右），
     //   并统一改用 SubPageBackArrow（21sp 的「←」）→ 与解题页/错题本等子页面完全一致。
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    // ★ 2026-10-13 修复（用户报「自定义 prompt 输入到底部时被键盘挡住」）：
+    //   二级页容器补上 imePadding() —— 键盘弹出时整页内容上移/收窄，不再被输入法遮住。
+    //   （Manifest 是 adjustResize，且应用是 edge-to-edge，所以必须自己消费 IME inset；
+    //    解题页/同类题页早就是这么做的：`Modifier.fillMaxSize().imePadding().padding(padding)`）
+    Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SubPageBackArrow(onClick = onBack)
             // 二级页标题：比 Material3 titleLarge 默认小 1sp
@@ -360,8 +366,12 @@ private fun AiCustomPromptSettings() {
             cpText = it
             cpDirty = true
         },
-        modifier = Modifier.fillMaxWidth(),
+        // ★ 2026-10-13 修复「输入到底部被键盘挡住」：
+        //   给高度上限 → 内容超出时**输入框内部滚动**，光标始终留在可见区（原来只有 minLines=6、
+        //   字一多输入框就无限长高，光标会被顶到键盘下面）；配合 SettingsSubPage 的 imePadding() 整页避让。
+        modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp, max = 260.dp),
         minLines = 6,
+        maxLines = 14,
     )
     Spacer(Modifier.height(8.dp))
     Row(
