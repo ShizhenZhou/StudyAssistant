@@ -245,6 +245,43 @@ interface QuestionDao {
 
     @Query("DELETE FROM categories WHERE id IN (:ids)")
     suspend fun deleteCategories(ids: List<Long>)
+
+    // ---- 搜题记录（solve_sessions，方案 B：与 questions 完全隔离）----
+
+    @Insert
+    suspend fun insertSolveSession(s: SolveSession): Long
+
+    /** 按 id 更新整条记录（追问/继续生成时把最新 text/answer/conversationJson 写回同一条） */
+    @Update
+    suspend fun updateSolveSession(s: SolveSession)
+
+    /**
+     * ★ 列表用的**轻查询**：**绝不能 `SELECT *`** —— 本表同样有 `imageBytes`(BLOB)
+     *   与 `conversationJson`（`ChatItem.images` 是 base64），条数一多结果集就会超过
+     *   CursorWindow 的 2MB 上限并崩：IllegalStateException: Couldn't read row N, col 0 from CursorWindow
+     *   （与 `dueQuestions` / `allLightOnce` 同一个坑）。
+     *   重字段（原图 / 会话 JSON）在真正进入某条记录时用 `solveSessionOnce(id)` 单独取。
+     */
+    @Query("SELECT id, createdAt, updatedAt, source, text, answer, savedQuestionId FROM solve_sessions ORDER BY createdAt DESC")
+    fun solveSessionsLight(): Flow<List<SolveSession>>
+
+    /** 按 id 取**重字段**（含原图 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
+    @Query("SELECT * FROM solve_sessions WHERE id = :id")
+    suspend fun solveSessionOnce(id: Long): SolveSession?
+
+    @Query("SELECT COUNT(*) FROM solve_sessions")
+    suspend fun countSolveSessions(): Int
+
+    /** 全部记录的轻字段（裁剪策略用：只判 id 与 createdAt） */
+    @Query("SELECT id, createdAt, updatedAt, source, text, answer, savedQuestionId FROM solve_sessions")
+    suspend fun solveSessionsLightOnce(): List<SolveSession>
+
+    @Query("DELETE FROM solve_sessions WHERE id IN (:ids)")
+    suspend fun deleteSolveSessionsByIds(ids: List<Long>)
+
+    /** 删除某时间点之前（不含）的记录，返回删除条数 */
+    @Query("DELETE FROM solve_sessions WHERE createdAt < :ts")
+    suspend fun deleteSolveSessionsBefore(ts: Long): Int
 }
 
 /** 数据库 1 -> 2：给 questions 表加 imageBytes 列，保留现有错题 */
@@ -291,7 +328,26 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
-@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class], version = 7, exportSchema = false)
+/** 数据库 7 -> 8：加 solve_sessions 表（搜题记录；与 questions 完全隔离，现有查询一律不动） */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS solve_sessions (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "createdAt INTEGER NOT NULL, " +
+                "updatedAt INTEGER NOT NULL, " +
+                "source TEXT NOT NULL, " +
+                "text TEXT NOT NULL, " +
+                "answer TEXT NOT NULL, " +
+                "conversationJson TEXT, " +
+                "imageBytes BLOB, " +
+                "imagesJson TEXT, " +
+                "savedQuestionId INTEGER)"
+        )
+    }
+}
+
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class], version = 8, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
@@ -305,7 +361,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "study_assistant.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build().also { INSTANCE = it }
             }
     }
 }

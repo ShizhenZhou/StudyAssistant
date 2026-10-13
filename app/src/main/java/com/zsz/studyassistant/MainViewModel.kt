@@ -16,8 +16,12 @@ import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
 import com.zsz.studyassistant.data.Review
+import com.zsz.studyassistant.data.SOLVE_SESSION_KEEP
+import com.zsz.studyassistant.data.SOLVE_SESSION_KEEP_DAYS
+import com.zsz.studyassistant.data.SolveSession
 import com.zsz.studyassistant.data.StudyAssistant
 import com.zsz.studyassistant.data.Tag
+import com.zsz.studyassistant.data.solveSessionsToDelete
 import java.util.Calendar
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -292,6 +296,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 拍照搜题（多张）携带的图，作为题目一起识别 */
     private var multiImages: List<ByteArray> = emptyList()
 
+    /**
+     * 当前会话对应的**搜题记录** id（`solve_sessions.id`）——用于"一次会话只落一条"。
+     * null = 本会话还没落库（或刚开始）；非 null = 后续追问/继续生成一律 UPDATE 这条。
+     * 在 [resetSession] / [prepareSession] 里清空（换了新会话）。
+     */
+    private var currentSessionId: Long? = null
+
+    /** 当前记录的原始时间戳（UPDATE 时原样带回，避免"追问一次就把创建时间刷新成现在"） */
+    private var solveSessionCreatedAt: Long = 0L
+
 
     /** 启动时定期清理：软删除的题 + 孤儿复习记录/标签关联（不影响当前会话的「恢复」） */
     fun purgeDeletedData() {
@@ -302,6 +316,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 dao.purgeOrphanQuestionTags()
             }
         }
+        // 搜题记录同样在启动时裁剪一次（保留最近 200 条 / 最近 30 天）
+        pruneSolveSessions()
     }
     /** 推理模型的思考流（浅灰小字展示；非推理模型为 null） */
     var thinkingText by mutableStateOf<String?>(null)
@@ -411,6 +427,133 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (cropResults.size < cropExpect) cropNeedsMore = true else finishCropFlow()
     }
 
+    // ───────── 搜题记录（solve_sessions，方案 B）─────────
+    // 动机：**未点「存错题本」就退出 → 整个会话彻底丢失**；本仓库没有 onCleared/SavedStateHandle，
+    // 只靠"离开页面时落库"挡不住进程被杀 → 在 4 个生成入口的 onDone 尾部**尽早 insert**。
+    // 与错题本完全隔离：这里只碰新表，现有 错题本/复习/统计/查重/备份 的查询一律不改。
+
+    /**
+     * 生成入口（[solveWithImage] / [solveWithImages] / [solveText] / [solveDirect] / [regenerate]）
+     * 的 `onDone` 尾部调用：**落库**（首次 insert，之后 UPDATE 同一条，靠 [currentSessionId] 防重复）。
+     * 传给 DAO 的字段就是界面要显示的轻字段 + 进详情才取的重字段，两个落点共用一套取值，
+     * 不会出现"列表显示的和点进去看到的不一样"。
+     */
+    private fun recordSolveSession(source: String) {
+        val imgs = when {
+            multiImages.isNotEmpty() -> multiImages
+            directImages.isNotEmpty() -> directImages
+            imageBytes != null -> listOf(imageBytes!!)
+            else -> emptyList()
+        }
+        val q = questionText.ifBlank {
+            if (imgs.isEmpty()) return          // 没题干也没图：不值得留一条空记录
+            runCatching { StudyAssistant.parseVisionOutput(lastAnswer()).question }
+                .getOrNull()?.trim().orEmpty().ifBlank { "（图片题）" }
+        }
+        val a = lastAnswer()
+        val conv = json.encodeToString(chatItems)
+        val single = if (imgs.size == 1) imgs[0] else null
+        val multi = if (imgs.size > 1) json.encodeToString(imgs.map { Base64.encodeToString(it, Base64.NO_WRAP) }) else null
+        val now = System.currentTimeMillis()
+        val sid = currentSessionId
+        viewModelScope.launch {
+            runCatching {
+                if (sid == null) {
+                    currentSessionId = dao.insertSolveSession(
+                        SolveSession(source = source, text = q, answer = a, conversationJson = conv,
+                            imageBytes = single, imagesJson = multi, savedQuestionId = savedQuestionId)
+                    )
+                } else {
+                    dao.updateSolveSession(
+                        SolveSession(id = sid, createdAt = solveSessionCreatedAt, updatedAt = now,
+                            source = source, text = q, answer = a, conversationJson = conv,
+                            imageBytes = single, imagesJson = multi, savedQuestionId = savedQuestionId)
+                    )
+                }
+            }
+        }
+    }
+
+    /** 记录被裁剪掉时要顺手把 [currentSessionId] 松开，否则后续 UPDATE 会写进一条不存在的行 */
+    private fun dropCurrentSessionIfPruned(deleted: List<Long>) {
+        if (currentSessionId != null && deleted.contains(currentSessionId)) currentSessionId = null
+    }
+
+    /** 启动裁剪（挂在 [purgeDeletedData] 旁边）：保留最近 [SOLVE_SESSION_KEEP] 条 / 最近 [SOLVE_SESSION_KEEP_DAYS] 天 */
+    private fun pruneSolveSessions() {
+        viewModelScope.launch {
+            runCatching {
+                val cutoff = System.currentTimeMillis() - SOLVE_SESSION_KEEP_DAYS * DAY_MS
+                val light = dao.solveSessionsLightOnce()
+                val ids = solveSessionsToDelete(light, cutoff, SOLVE_SESSION_KEEP)
+                if (ids.isNotEmpty()) dao.deleteSolveSessionsByIds(ids)
+                // 兜底：createdAt 异常（未来时间戳等）导致上面的倒序裁剪漏掉的，按时间再删一遍
+                dao.deleteSolveSessionsBefore(cutoff)
+                dropCurrentSessionIfPruned(ids)
+            }
+        }
+    }
+
+    /**
+     * 把一条搜题记录载回会话状态（与 [loadQuestion] 同构，但**不**标成「已存错题本」——
+     * 它是"记录"，不是已存的错题；[savedToNotebook] 保持 false，用户仍可点「存错题本」）。
+     * 重字段（原图 / 会话 JSON）由调用方先用 `dao.solveSessionOnce(id)` 取好再传进来。
+     */
+    fun loadSolveSession(s: SolveSession) {
+        callSeq++                       // 让旧请求收尾时不再覆盖界面状态
+        callJob?.cancel()
+        callJob = null
+        busy = false
+        streamingText = null
+        streamInterrupted = false
+        contMessages = null
+        contOnDone = null
+        contPrefix = ""
+        networkError = false
+        retryAction = null
+        gradeMode = false
+        reviewMode = false
+        exitRedo()
+        // 来源还原：camera → 复习"拍照题"分支（气泡只显示原图）；ask/grade 是用户自己写的文字 → 不做题干转译
+        isPhoto = s.source == "camera"
+        askMode = s.source == "ask"
+        chatItems = try {
+            json.decodeFromString<List<ChatItem>>(s.conversationJson ?: "")
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (chatItems.isEmpty()) {
+            chatItems = listOf(ChatItem(0, "question", s.text), ChatItem(1, "assistant", s.answer))
+        }
+        questionText = s.text
+        imageBytes = s.imageBytes
+        questionFromPhoto = s.imageBytes != null && isPhoto
+        // 多图（imagesJson = base64 数组的 JSON）→ 还原成内存图，这样"继续追问带图"仍能带上原图
+        val multi: List<ByteArray> = runCatching {
+            s.imagesJson?.let { j -> json.decodeFromString<List<String>>(j).map { Base64.decode(it, Base64.NO_WRAP) } }
+        }.getOrNull().orEmpty()
+        directImages = multi
+        multiImages = emptyList()
+        questionImages = when {
+            multi.isNotEmpty() -> multi.map { Base64.encodeToString(it, Base64.NO_WRAP) }
+            s.imageBytes != null -> listOf(Base64.encodeToString(s.imageBytes, Base64.NO_WRAP))
+            else -> emptyList()
+        }
+        // ★ 不标 savedToNotebook：它是"搜题记录"。已存过错题本时只把 savedQuestionId 带回来（界面可显示 ✅）
+        savedToNotebook = false
+        savedQuestionId = s.savedQuestionId
+        isDeleted = false
+        isFromNotebook = false
+        currentQuestionCategoryId = null
+        currentQuestionTags = emptyList()
+        suggestedCategory = null
+        suggestedTags = emptyList()
+        currentQuestionCreatedAt = s.createdAt
+        currentSessionId = s.id
+        solveSessionCreatedAt = s.createdAt
+        error = null
+    }
+
     /**
      * 【C 兜底】单独问一次科目/知识点（封闭集：优先从已有分类里选）。
      * 用于：模型正文里没按格式给出分类/知识点、或打开保存对话框时预选为空。
@@ -480,6 +623,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         fromNotebook: Boolean = false
     ) {
         resetSession()          // 内部会把 askMode 复位
+        // 新会话：松开上一条搜题记录（否则新一轮的落库会 UPDATE 上一条，把旧记录覆盖掉）
+        currentSessionId = null
+        solveSessionCreatedAt = 0L
         isPhoto = photo
         gradeMode = grade
         askMode = ask
@@ -707,6 +853,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         savedToNotebook = false
         savedQuestionId = null
+        // 搜题记录：新会话不再指向旧记录（防"一次会话落多条"与"覆盖上一条"）
+        currentSessionId = null
+        solveSessionCreatedAt = 0L
         suggestedCategory = null
         suggestedTags = emptyList()
         currentQuestionCategoryId = null
@@ -769,7 +918,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun continueGeneration() {
         val msgs = contMessages ?: return
         val onDone = contOnDone ?: return
-        streamCall(contModel, msgs, contPrefix, onDone, repeat = null)
+        // ★ 包一层：续写完成后把**同一条**搜题记录也更新掉（否则记录里永远停在被中止时的半截答案）
+        val wrapped: (String) -> Unit = { out -> onDone(out); updateSolveSession() }
+        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null)
     }
 
     private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
@@ -1066,6 +1217,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedTags = r.tags
             addItem("question", r.question)
             addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+            recordSolveSession("camera")     // ★ 尽早落库：进程被杀也不丢（见 recordSolveSession）
         }, repeat = { solveWithImage(bytes) })
     }
 
@@ -1084,6 +1236,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedTags = r.tags
             addItem("question", r.question)
             addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+            recordSolveSession("camera")     // ★ 多图一并落进 imagesJson（顺带修"多图存错题本丢原图"）
         }, repeat = { solveWithImages(images) })
     }
 
@@ -1104,6 +1257,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedCategory = r.category
             suggestedTags = r.tags
             addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+            recordSolveSession("text")
         }, repeat = { solveText(question) })
     }
 
@@ -1137,6 +1291,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedTags = r.tags
                 addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
             }
+            recordSolveSession("ask")
         }, repeat = { solveDirect(text, images) })
     }
 
@@ -1149,7 +1304,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         runCall(model, onDone = { reply ->
             // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
             addItem("assistant", StudyAssistant.stripMetaLines(reply))
+            updateSolveSession()
         }, repeat = { retryFollowUp(encoded) })
+    }
+
+    /** 当前会话的来源标签（camera/ask/text/grade）——更新已有记录时沿用，避免来回改来源 */
+    private fun currentSource(): String = when {
+        gradeMode -> "grade"
+        askMode -> "ask"
+        isPhoto -> "camera"
+        else -> "text"
+    }
+
+    /** 追问 / 继续生成后的更新：**UPDATE 同一条**记录（没落过库则什么都不做，由生成入口负责 insert） */
+    private fun updateSolveSession() {
+        if (currentSessionId == null) return
+        recordSolveSession(currentSource())
     }
 
     /** 网络失败后重新发送最后一次追问（不重复添加 user 消息，保留附图） */
@@ -1180,6 +1350,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedTags = r.tags
                 // 提问气泡已在上面保留，这里只追加回答，避免重复
                 addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+                recordSolveSession(currentSource())   // 重新生成也要把记录刷新（已落库则 UPDATE 同一条）
             }, repeat = { regenerate() })
         } else {
             runCall(model, onDone = { reply ->
@@ -1193,6 +1364,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedTags = r.tags
 
                 addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+                recordSolveSession(currentSource())   // 同上：文字分支重新生成后也刷新记录
             }, repeat = { regenerate() })
         }
     }
@@ -1862,8 +2034,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         chatItems = chatItems.filterIndexed { i, _ -> i !in toRemove }
     }
 
-    /** 退出页面/应用时：若已加入错题本，把当前完整对话更新进该条错题 */
+    /**
+     * 退出页面/应用时调用（`SolveScreen` 的 `onDispose`）。
+     *
+     * ★ 2026-10-13 修复「忘了存错题本就退出 → 记录丢失」：
+     *   原实现第一行是 `val id = savedQuestionId ?: return` —— **没存错题本就什么都不做**，
+     *   整个会话就此消失。现在分两种情况：
+     *   ① 已存错题本 → 照旧把完整对话更新进那条错题；
+     *   ② 没存错题本 → 把这次会话落成/补齐一条**搜题记录**（首次 = INSERT，已落过 = UPDATE 同一条）。
+     *   这也覆盖了"生成成功后又被中断"（onDone 没跑、记录不存在）的情况。
+     */
     fun saveSessionOnExit() {
+        if (savedQuestionId == null) {
+            if (chatItems.isNotEmpty()) recordSolveSession(currentSource())
+            return
+        }
         val id = savedQuestionId ?: return
         if (id <= 0) return
         val q = questionText
@@ -1872,6 +2057,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val img = imageBytes
         viewModelScope.launch {
             dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = currentQuestionCategoryId, createdAt = currentQuestionCreatedAt.ifZeroToNow()))
+            // 已存错题本：顺手把记录里的 savedQuestionId 回填（列表里可显示"已存"标记）
+            recordSolveSession(currentSource())
         }
     }
 
@@ -2023,6 +2210,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         suggestedCategory = r.category
         suggestedTags = r.tags
         addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+        // ★ 批改（source="grade"）不属于「4 个生成入口」，但同样要尽早落库，
+        //   否则"批改完进程被杀"还是会丢（只在 saveSessionOnExit 里落就晚了）
+        recordSolveSession("grade")
         // B6：重做的批改 → 按结论自动更新掌握度（一次性，取完即清）
         val redoFor = pendingRedoFor
         if (redoFor != null) {

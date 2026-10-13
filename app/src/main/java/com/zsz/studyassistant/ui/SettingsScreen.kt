@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -95,30 +96,51 @@ fun SettingsTab(vm: MainViewModel) {
 
     when (page) {
         // 「AI 管理」= API 管理（置顶）+ 原 AI 配置（AI 切图开关 / 框选时限 / 解题模式 / 自定义要求）
-        "ai" -> SettingsSubPage(s["settings.aiManage"], { page = "main" }) {
+        "ai" -> {
             val ctx = LocalContext.current
-            // AI 切图总开关的界面状态（关掉后**整个时限设置项都不显示**）
-            var aiCropOn by remember {
-                mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx))
-            }
-            Text(s["settings.api"], style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            ApiSettings(vm)
-            Spacer(Modifier.height(26.dp))
-            AiCropSwitchSettings(
-                checked = aiCropOn,
-                onChecked = {
-                    aiCropOn = it
-                    com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
+            // ★ 2026-10-13：自定义要求的文本 + "是否已修改"状态**提到页面这一层**，
+            //   这样「保存」按钮才能放进 SettingsSubPage 的底部操作栏 —— 键盘弹出时它贴在键盘上方，
+            //   不用先收起键盘就能点（用户要求）。
+            var cpText by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
+            var cpDirty by remember { mutableStateOf(false) }
+            SettingsSubPage(
+                title = s["settings.aiManage"],
+                onBack = { page = "main" },
+                bottomBar = {
+                    Button(
+                        onClick = {
+                            com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
+                            cpDirty = false
+                            android.widget.Toast.makeText(ctx, s["common.save"], android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        // 没改动时置灰（沿用原来字段下方那颗按钮的行为）
+                        enabled = cpDirty
+                    ) { Text(s["common.save"]) }
                 }
-            )
-            // 只有开了 AI 切图，才显示「AI 框选时限」（用户要求）
-            if (aiCropOn) {
-                Spacer(Modifier.height(20.dp))
-                AiCropTimeoutSettings()
+            ) {
+                // AI 切图总开关的界面状态（关掉后**整个时限设置项都不显示**）
+                var aiCropOn by remember {
+                    mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx))
+                }
+                Text(s["settings.api"], style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                ApiSettings(vm)
+                Spacer(Modifier.height(26.dp))
+                AiCropSwitchSettings(
+                    checked = aiCropOn,
+                    onChecked = {
+                        aiCropOn = it
+                        com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
+                    }
+                )
+                // 只有开了 AI 切图，才显示「AI 框选时限」（用户要求）
+                if (aiCropOn) {
+                    Spacer(Modifier.height(20.dp))
+                    AiCropTimeoutSettings()
+                }
+                AiSolveModelSettings()
+                AiCustomPromptSettings(cpText, onText = { cpText = it; cpDirty = true })
             }
-            AiSolveModelSettings()
-            AiCustomPromptSettings()
         }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) { page = it } }
@@ -168,9 +190,19 @@ internal fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedS
     }
 }
 
-/** 二级页面容器：返回键 + 标题 + 可滚动内容 */
+/**
+ * 二级页面容器：返回键 + 标题 + 可滚动内容（+ 可选底部操作栏）。
+ *
+ * ★ 2026-10-13（用户要求）：新增 [bottomBar] 槽位。容器已有 `imePadding()`，所以**键盘弹出时底部栏
+ *   会自动贴在键盘上方** —— 「自定义要求」的保存按钮放进去后，不用先收起键盘就能点到。
+ */
 @Composable
-private fun SettingsSubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+private fun SettingsSubPage(
+    title: String,
+    onBack: () -> Unit,
+    bottomBar: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
     // ★ 2026-10-13（用户要求）：头部行**不再吃外层 16dp 内边距**（原来箭头因此又小又靠右），
     //   并统一改用 SubPageBackArrow（21sp 的「←」）→ 与解题页/错题本等子页面完全一致。
     // ★ 2026-10-13 修复（用户报「自定义 prompt 输入到底部时被键盘挡住」）：
@@ -184,7 +216,18 @@ private fun SettingsSubPage(title: String, onBack: () -> Unit, content: @Composa
             Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = SUBPAGE_TITLE))
         }
         Spacer(Modifier.height(8.dp))
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) { content() }
+        // weight(1f)：把剩余高度都给内容区，底部操作栏因此始终贴在容器底部（键盘弹出时=键盘上方）
+        Column(
+            Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
+        ) { content() }
+        if (bottomBar != null) {
+            Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) { bottomBar() }
+            }
+        }
     }
 }
 
@@ -349,23 +392,16 @@ private fun AiSolveModelSettings() {
 
 /** ---- 自定义要求（Prompt）：会附加到每次 AI 请求 ---- */
 @Composable
-private fun AiCustomPromptSettings() {
+private fun AiCustomPromptSettings(text: String, onText: (String) -> Unit) {
     val s = LocalStrings.current
-    val ctx = LocalContext.current
     Spacer(Modifier.height(22.dp))
     Text(s["settings.customPrompt"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(4.dp))
     Text(s["settings.customPrompt.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(8.dp))
-    var cpText by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
-    // 是否已修改：未修改时保存按钮置灰，避免误以为没生效
-    var cpDirty by remember { mutableStateOf(false) }
     OutlinedTextField(
-        value = cpText,
-        onValueChange = {
-            cpText = it
-            cpDirty = true
-        },
+        value = text,
+        onValueChange = onText,
         // ★ 2026-10-13 修复「输入到底部被键盘挡住」：
         //   给高度上限 → 内容超出时**输入框内部滚动**，光标始终留在可见区（原来只有 minLines=6、
         //   字一多输入框就无限长高，光标会被顶到键盘下面）；配合 SettingsSubPage 的 imePadding() 整页避让。
@@ -373,21 +409,10 @@ private fun AiCustomPromptSettings() {
         minLines = 6,
         maxLines = 14,
     )
-    Spacer(Modifier.height(8.dp))
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Button(
-            onClick = {
-                com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
-                cpDirty = false
-                android.widget.Toast.makeText(ctx, s["common.save"], android.widget.Toast.LENGTH_SHORT).show()
-            },
-            enabled = cpDirty
-        ) { Text(s["common.save"]) }
-    }
+    // 保存按钮已**移到二级页的底部操作栏**（`SettingsSubPage(bottomBar = …)`）——
+    // 键盘弹出时它贴在键盘上方，不用先收键盘就能点（用户 2026-10-13 要求）。
+    // 这里留一点底部间距，免得输入框贴着底栏。
+    Spacer(Modifier.height(12.dp))
 }
 
 /** 自绘的对数滑条（含刻度标注，严格对齐） */

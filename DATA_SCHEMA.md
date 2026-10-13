@@ -13,6 +13,7 @@
 |---|---|---|
 | 错题 / 分类 / 会话 | Room 数据库 `study_assistant.db` | SQLite；带 schema 版本号 + migration 自动迁移 |
 | 会话消息（追问历史） | `questions.conversationJson`（TEXT） | 序列化后的 `ChatItem[]` |
+| 搜题记录（防"忘了存错题本"） | Room 数据库 `solve_sessions` 表 | v8 新增；**与错题本完全隔离**，不进 `questions`、**本期也不并入 JSON 备份** |
 | 应用主题 | `SharedPreferences("settings")` 的 `theme` | system/light/dark |
 | DeepSeek API Key | Android Keystore（AES/GCM） | 运行时经 `KeyManager` 解密；**不存源码** |
 | 本机凭据备份 | 仓库之外的本地文件（**不入库**） | 用户手动维护，绝不上传 |
@@ -21,8 +22,8 @@
 
 ## 1. Room 数据库 `study_assistant.db`
 
-- 当前 **schema version = 7**（`AppDatabase.version`）。
-- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7`，全部用 `Migration` + `addMigrations(...)`。
+- 当前 **schema version = 8**（`AppDatabase.version`）。
+- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8`，全部用 `Migration` + `addMigrations(...)`。
 
 ### 1.1 表 `questions`（最新结构 = v5）
 
@@ -78,6 +79,33 @@
 
 > 三按钮：熟悉=+1 档；模糊=保持档位；忘记=重置第 0 档（今天）。
 
+### 1.2.4 表 `solve_sessions`（v8 新增，搜题记录）
+
+| 列名 | 类型 | 默认 | 含义 |
+|---|---|---|---|
+| `id` | INTEGER (PK, auto) | — | 主键 |
+| `createdAt` | INTEGER | `System.currentTimeMillis()` | 本次会话创建时间（更新时**不刷新**，用于排序与裁剪） |
+| `updatedAt` | INTEGER | `System.currentTimeMillis()` | 最后一次写入时间 |
+| `source` | TEXT | `"camera"` | 来源：`camera`（拍照）/ `ask`（图文提问）/ `text`（文字）/ `grade`（批改） |
+| `text` | TEXT | `""` | 题干（空则回退 `"（图片题）"`，与 `saveToNotebook` 同规则） |
+| `answer` | TEXT | `""` | 最后一次 AI 回答 |
+| `conversationJson` | TEXT | NULL | 完整对话会话（与 `questions.conversationJson` **同一格式**：`ChatItem[]` 的 JSON） |
+| `imageBytes` | BLOB | NULL | 单图（拍照）原图；纯文字题为 NULL |
+| `imagesJson` | TEXT | NULL | 多图（**base64 数组**的 JSON）；顺带修"多图拍题存错题本丢原图" |
+| `savedQuestionId` | INTEGER | NULL | 已「存错题本」时指向 `questions.id`（NULL = 还是"记录"，可一键存） |
+
+> **与错题本完全隔离**：错题本 / 复习 / 统计 / 查重 / 备份的查询**一律不碰这张表**（新表的意义就在这里）。
+> 相关联 DAO 方法（都在现有 `QuestionDao` 里）：
+> - `solveSessionsLight(): Flow<List<SolveSession>>` —— **列表用轻查询**（只选 `id/createdAt/updatedAt/source/text/answer/savedQuestionId`，
+>   **不含 BLOB 与 `conversationJson`**）→ 否则会重演 CursorWindow 2MB 崩溃；
+> - `solveSessionOnce(id)` —— 进详情时按 id 取**重字段**；
+> - `insertSolveSession`、`updateSolveSession`（按 id 更新同一条）、`countSolveSessions`、
+>   `solveSessionsLightOnce`（裁剪用）、`deleteSolveSessionsByIds`、`deleteSolveSessionsBefore`。
+>
+> **保留策略**：最近 **200 条 / 30 天，两者先到先删**（`SOLVE_SESSION_KEEP` / `SOLVE_SESSION_KEEP_DAYS`），
+> 启动时挂在 `purgeDeletedData()` 旁边执行；判据是纯函数 `solveSessionsToDelete(...)`（`data/SolveSessionPrune.kt`，有单测）。
+> **记录时机**：4 个生成入口的 `onDone` 里**尽早 insert**（进程被杀也不丢），追问/继续生成 `UPDATE` 同一条。
+
 ### 1.3 迁移历史（每个版本对应的结构）
 
 | 迁移 | App 版本 | 结构变化 | SQL |
@@ -89,8 +117,12 @@
 | `MIGRATION_4_5` | v0.3.6 | questions 加 `categoryId`(INT)；新建表 `categories` | `ALTER TABLE questions ADD COLUMN categoryId INTEGER`；`CREATE TABLE categories(...)` |
 | `MIGRATION_5_6` | v0.3.9 | 新建表 `tags` 与 `question_tags` | `CREATE TABLE tags(...)`；`CREATE TABLE question_tags(...)` |
 | `MIGRATION_6_7` | v0.4.0 | 新建表 `review`（艾宾浩斯复习调度） | `CREATE TABLE review(questionId PK, intervalStep, nextReviewAt, lastReviewedAt, reviewCount)` |
+| `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, source TEXT NOT NULL, text TEXT NOT NULL, answer TEXT NOT NULL, conversationJson TEXT, imageBytes BLOB, imagesJson TEXT, savedQuestionId INTEGER)` |
 
-> 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）。
+> 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
+> 与 `data/SolveSession.kt`（`SolveSession` 实体）、`data/SolveSessionPrune.kt`（裁剪纯函数）。
+> **`SolveSession` 实体单独一个文件**是刻意的：本机单测是纯 JVM 且手工拼 classpath（不含 Room），
+> 与 `@Dao`/`Migration` 同文件会让纯函数测试加载不到 `androidx.room.migration.Migration` 而报 `NoClassDefFoundError`。
 
 ---
 

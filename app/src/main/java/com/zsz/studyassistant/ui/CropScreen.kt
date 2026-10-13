@@ -65,9 +65,10 @@ import java.io.ByteArrayOutputStream
 
 private const val EDGE = 48f        // 边缘命中带宽度(px)（加粗，增大判定面积）
 private const val CORNER = 56f      // 四角命中半径(px)
-private const val MIN_SIZE = 60f    // 选框最小尺寸(px)
 private val DIM = Color(0x66000000) // 选区外部遮罩
 private val BORDER = Color(0xFFFF5252)
+// 注：框选相关的**纯数学**（MIN_SIZE / safeCoerceRange / normalizeSelRect）在 `ui/CropMath.kt`，
+//     单独成文件是为了能被本机单测加载（那个文件不碰 Compose 的 Color，见 CropMathTest）。
 
 @Composable
 fun CropScreen(nav: NavHostController, vm: MainViewModel) {
@@ -94,15 +95,20 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
         return
     }
 
-    var sel by remember { mutableStateOf<Rect?>(null) }
+    // ★ 2026-10-13：`sel` 按 `path` 重置 —— 两张模式 / 点「上一张」换图时，选框不该带着上一张的屏幕坐标
+    //   （否则第二张的框可能整块落在图片外 → 拖动夹取区间塌缩 → "上边被钉住、完全不跟手"）。
+    //   ⚠️ 必须与下面两处 `pointerInput` 的键（也改成 `path`）**一起**改：否则换图时手势闭包会被保留，
+    //      它会继续写**旧的** state 对象 → 新图上的框"拖不动"。
+    var sel by remember(path) { mutableStateOf<Rect?>(null) }
     var dispRect by remember { mutableStateOf(Rect.Zero) }
     var mode by remember { mutableStateOf("NONE") }
+    /** 把当前选框夹回图片显示范围（换图、自动框写回、缩放结束后各调一次） */
+    fun normalizeSel() { sel = sel?.let { normalizeSelRect(it, dispRect) } }
     // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
+    // ★ 2026-10-13：现在**手指一按下就置位**（见手势层的 awaitFirstDown），堵住"按下→超过 touch slop"那段窗口。
     var userTouched by remember { mutableStateOf(false) }
     // 是否已跑过一次自动识别（每次换图重来）
     var autoTried by remember(path) { mutableStateOf(false) }
-    // 命中自动框选时给用户的提示
-    var autoHint by remember { mutableStateOf(false) }
     // AI 预框选每次换图只请求一次
     var aiLaunched by remember(path) { mutableStateOf(false) }
     // 手动 AI 识别中
@@ -124,7 +130,6 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
         if (vm.cropIndex > 0) {
             vm.cropGoBackOne()
             userTouched = false
-            autoHint = false
         } else {
             backToCamera()
         }
@@ -143,11 +148,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
     androidx.activity.compose.BackHandler { handleBack() }
 
     /** 归一化矩形 → 屏幕显示坐标（相对当前显示的图片区域） */
-    /** 安全钳制：区间非法（min > max，例如显示矩形瞬时退化成 0 宽/高）时取中点，
- *  绝不抛 IllegalArgumentException（曾导致"拖动选框时应用自动退出"）。 */
-fun safeCoerceRange(v: Float, a: Float, b: Float): Float =
-    if (a <= b) v.coerceIn(a, b) else (a + b) / 2f
-fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
+    fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
         // 布局未就绪 / 缩放过程中 d 可能退化（宽或高接近 0）→ 直接返回，避免后续出现非法区间
     if (d.width < 2f || d.height < 2f) return Rect(d.left, d.top, d.left + 1f, d.top + 1f)
     val l = d.left + n.x * d.width
@@ -195,6 +196,7 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                 LaunchedEffect(disp, path) {
                     if (disp == Rect.Zero) return@LaunchedEffect
                     dispRect = disp
+                    normalizeSel()   // ★ 换图/尺寸变化后先把旧框夹回新图范围（避免非法几何）
                     if (sel == null) {
                         // 默认框：居中的 70% 子矩形（不占满屏，方便拖动）
                         // ★ 预框选失败/超时/结果可疑时，就保持这个默认框
@@ -222,12 +224,15 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                         scope.launch {
                             val ai = runCatching {
                                 StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs)
-                            }.getOrNull()?.maxByOrNull { it.area }?.takeIf { !it.looksUnreliable() }
+                            }.getOrNull()?.maxByOrNull { it.area }
+                                ?.takeIf { !it.looksUnreliable() }
+                                // ★ 2026-10-13：把作者当年写好的"贴边就丢弃"防线**接上**（原来零调用）——
+                                //   AI/本地给出的贴边框（y≈0 等）会让上边正好落在图片顶边，看起来就是"上边蹦到最上边"。
+                                ?.takeIf { !it.touchesEdge() }
                             if (ai == null || userTouched) return@launch
                             val d = dispRect
                             if (d.width < 2f) return@launch
-                            sel = toDisp(ai, d)
-                            autoHint = true
+                            sel = normalizeSelRect(toDisp(ai, d), d)
                         }
                     }
                     // ① 本地投影法：毫秒级，先出结果
@@ -236,10 +241,10 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                             com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p)
                         }
                     }.getOrNull()
-                    val localOk = local?.takeIf { !it.looksUnreliable() }
+                    // ★ 同样接上 touchesEdge 防线（贴顶/贴边的"一页一题"框不要，回退默认框）
+                    val localOk = local?.takeIf { !it.looksUnreliable() }?.takeIf { !it.touchesEdge() }
                     if (localOk != null && !userTouched) {
-                        sel = toDisp(localOk, disp)
-                        autoHint = true
+                        sel = normalizeSelRect(toDisp(localOk, disp), disp)
                     }
                 }
 
@@ -287,9 +292,16 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        // ★ 键用 path：与上面的 `sel = remember(path)` 配套 —— 换图时手势层一起重建，
+                        //   避免旧闭包继续写已废弃的 state（否则新图上的框拖不动）。
+                        .pointerInput(path) {
                             awaitEachGesture {
+                                // ★ 2026-10-13：**手指一按下就置 userTouched**。
+                                //   原来只在 onDragStart/onDrag 置位，而 `detectDragGestures` 的 onDragStart
+                                //   要**超过 touch slop** 才回调 → 按下但还没滑动的那段时间里，异步的自动框选结果
+                                //   仍会把用户的框覆盖掉（"上边蹦到最上边"的常见来源）。
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                userTouched = true
                                 var prevDist = 0f
                                 // ★ 记录当前参与缩放的两根手指，换手指就重新起算（防止把单指拖动误判成缩放）
                                 var idA = -1L
@@ -353,21 +365,14 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                                     prevDist = dist
                                     ev.changes.forEach { it.consume() }
                                 }
-                                // ★ 一次缩放结束后：把越界的红框边收回图片范围内
-                                if (zoomed) {
-                                    val d2 = dispRect
-                                    val c = sel
-                                    if (c != null && d2.width > 20f && d2.height > 20f) {
-                                        val l = c.left.coerceIn(d2.left, (d2.right - MIN_SIZE).coerceAtLeast(d2.left + 10f))
-                                        val t = c.top.coerceIn(d2.top, (d2.bottom - MIN_SIZE).coerceAtLeast(d2.top + 10f))
-                                        val rr = c.right.coerceIn((l + MIN_SIZE).coerceAtMost(d2.right), d2.right)
-                                        val bb = c.bottom.coerceIn((t + MIN_SIZE).coerceAtMost(d2.bottom), d2.bottom)
-                                        sel = Rect(l, t, rr, bb)
-                                    }
-                                }
+                                // ★ 一次缩放结束后：把越界的红框边收回图片范围内（与 normalizeSelRect 同一套夹取）
+                                if (zoomed) normalizeSel()
                             }
                         }
-                        .pointerInput(dispRect) {
+                        // ★ 键用 path（原来是 dispRect）：dispRect 在缩放时每帧都变 → 键变 → 手柄拖到一半
+                        //   手势会被取消重建（"卡住不跟手"）。改用 path 后手势层只在换图时重建，
+                        //   拖动逻辑本来就是每帧现读 `dispRect`/`sel`，不依赖这个键。
+                        .pointerInput(path) {
                             detectDragGestures(
                         onDragStart = { pos ->
                             userTouched = true
@@ -375,11 +380,12 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                             mode = if (r == null) "NONE" else {
                                 val d2 = dispRect
                                 when {
-                                    // 四角优先
-                                    d2 != Rect.Zero && pos.x <= r.left + CORNER && pos.y <= r.top + CORNER -> "TL"
-                                    d2 != Rect.Zero && pos.x >= r.right - CORNER && pos.y <= r.top + CORNER -> "TR"
-                                    d2 != Rect.Zero && pos.x <= r.left + CORNER && pos.y >= r.bottom - CORNER -> "BL"
-                                    d2 != Rect.Zero && pos.x >= r.right - CORNER && pos.y >= r.bottom - CORNER -> "BR"
+                                    // 四角优先（★ 2026-10-13 补外侧边界：原来只有"内侧"判定，
+                                    //   在图片上方黑区甚至屏幕顶端按下也会被判成 TL/TR → 上边被拖到图片顶）
+                                    d2 != Rect.Zero && pos.x in (r.left - CORNER)..(r.left + CORNER) && pos.y <= r.top + CORNER -> "TL"
+                                    d2 != Rect.Zero && pos.x in (r.right - CORNER)..(r.right + CORNER) && pos.y <= r.top + CORNER -> "TR"
+                                    d2 != Rect.Zero && pos.x in (r.left - CORNER)..(r.left + CORNER) && pos.y >= r.bottom - CORNER -> "BL"
+                                    d2 != Rect.Zero && pos.x in (r.right - CORNER)..(r.right + CORNER) && pos.y >= r.bottom - CORNER -> "BR"
                                     d2 != Rect.Zero && pos.y >= r.top - EDGE && pos.y <= r.top + EDGE &&
                                         pos.x >= r.left - EDGE && pos.x <= r.right + EDGE -> "TOP"
                                     d2 != Rect.Zero && pos.y >= r.bottom - EDGE && pos.y <= r.bottom + EDGE &&
@@ -399,23 +405,38 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                             val d2 = dispRect
                             if (r != null && d2 != Rect.Zero) {
                                 val n = when (mode) {
-                                    "TOP" -> Rect(r.left, safeCoerceRange(r.top + drag.y, d2.top, r.bottom - MIN_SIZE), r.right, r.bottom)
-                                    "BOTTOM" -> Rect(r.left, r.top, r.right, safeCoerceRange(r.bottom + drag.y, r.top + MIN_SIZE, d2.bottom))
-                                    "LEFT" -> Rect(safeCoerceRange(r.left + drag.x, d2.left, r.right - MIN_SIZE), r.top, r.right, r.bottom)
-                                    "RIGHT" -> Rect(r.left, r.top, safeCoerceRange(r.right + drag.x, r.left + MIN_SIZE, d2.right), r.bottom)
+                                    // ★ 2026-10-13：每个夹取区间的**两个界都先夹成合法**（coerceAtLeast/coerceAtMost），
+                                    //   配合 safeCoerceRange 的"非法返回原值"双保险 —— 再不会把边"跳"到图片外。
+                                    "TOP" -> Rect(r.left,
+                                        safeCoerceRange(r.top + drag.y, d2.top, (r.bottom - MIN_SIZE).coerceAtLeast(d2.top)),
+                                        r.right, r.bottom)
+                                    "BOTTOM" -> Rect(r.left, r.top, r.right,
+                                        safeCoerceRange(r.bottom + drag.y, (r.top + MIN_SIZE).coerceAtMost(d2.bottom), d2.bottom))
+                                    "LEFT" -> Rect(
+                                        safeCoerceRange(r.left + drag.x, d2.left, (r.right - MIN_SIZE).coerceAtLeast(d2.left)),
+                                        r.top, r.right, r.bottom)
+                                    "RIGHT" -> Rect(r.left, r.top,
+                                        safeCoerceRange(r.right + drag.x, (r.left + MIN_SIZE).coerceAtMost(d2.right), d2.right),
+                                        r.bottom)
                                     // 四角：同时改长宽
-                                    "TL" -> Rect(safeCoerceRange(r.left + drag.x, d2.left, r.right - MIN_SIZE),
-                                        safeCoerceRange(r.top + drag.y, d2.top, r.bottom - MIN_SIZE), r.right, r.bottom)
-                                    "TR" -> Rect(r.left, safeCoerceRange(r.top + drag.y, d2.top, r.bottom - MIN_SIZE),
-                                        safeCoerceRange(r.right + drag.x, r.left + MIN_SIZE, d2.right), r.bottom)
-                                    "BL" -> Rect(safeCoerceRange(r.left + drag.x, d2.left, r.right - MIN_SIZE), r.top,
-                                        r.right, safeCoerceRange(r.bottom + drag.y, r.top + MIN_SIZE, d2.bottom))
+                                    "TL" -> Rect(
+                                        safeCoerceRange(r.left + drag.x, d2.left, (r.right - MIN_SIZE).coerceAtLeast(d2.left)),
+                                        safeCoerceRange(r.top + drag.y, d2.top, (r.bottom - MIN_SIZE).coerceAtLeast(d2.top)),
+                                        r.right, r.bottom)
+                                    "TR" -> Rect(r.left,
+                                        safeCoerceRange(r.top + drag.y, d2.top, (r.bottom - MIN_SIZE).coerceAtLeast(d2.top)),
+                                        safeCoerceRange(r.right + drag.x, (r.left + MIN_SIZE).coerceAtMost(d2.right), d2.right),
+                                        r.bottom)
+                                    "BL" -> Rect(
+                                        safeCoerceRange(r.left + drag.x, d2.left, (r.right - MIN_SIZE).coerceAtLeast(d2.left)),
+                                        r.top, r.right,
+                                        safeCoerceRange(r.bottom + drag.y, (r.top + MIN_SIZE).coerceAtMost(d2.bottom), d2.bottom))
                                     "BR" -> Rect(r.left, r.top,
-                                        safeCoerceRange(r.right + drag.x, r.left + MIN_SIZE, d2.right),
-                                        safeCoerceRange(r.bottom + drag.y, r.top + MIN_SIZE, d2.bottom))
+                                        safeCoerceRange(r.right + drag.x, (r.left + MIN_SIZE).coerceAtMost(d2.right), d2.right),
+                                        safeCoerceRange(r.bottom + drag.y, (r.top + MIN_SIZE).coerceAtMost(d2.bottom), d2.bottom))
                                     "MOVE" -> {
-                                        val dt = safeCoerceRange(r.left + drag.x, d2.left, d2.right - r.width)
-                                        val dtp = safeCoerceRange(r.top + drag.y, d2.top, d2.bottom - r.height)
+                                        val dt = safeCoerceRange(r.left + drag.x, d2.left, (d2.right - r.width).coerceAtLeast(d2.left))
+                                        val dtp = safeCoerceRange(r.top + drag.y, d2.top, (d2.bottom - r.height).coerceAtLeast(d2.top))
                                         Rect(dt, dtp, dt + r.width, dtp + r.height)
                                     }
                                     else -> null
@@ -523,7 +544,7 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                                         }.getOrNull()
                                         val best = boxes?.maxByOrNull { it.area }
                                         if (best != null) {
-                                            sel = toDisp(best, dispRect); autoHint = true; done = true
+                                            sel = normalizeSelRect(toDisp(best, dispRect), dispRect); done = true
                                         }
                                     }
                                     if (!done) {
@@ -533,7 +554,7 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                                             }
                                         }.getOrNull()
                                         if (local != null && !local.looksUnreliable()) {
-                                            sel = toDisp(local, dispRect); autoHint = true; done = true
+                                            sel = normalizeSelRect(toDisp(local, dispRect), dispRect); done = true
                                         }
                                     }
                                 }

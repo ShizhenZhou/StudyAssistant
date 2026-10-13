@@ -122,7 +122,9 @@ foreach ($w in $wanted) {
 # NoClassDefFoundError from a <clinit> in the app code, which looks like a test failure).
 $wantCompose = @(
     @{ Class = 'androidx/compose/runtime/CompositionLocalKt.class'; Out = 'compose-runtime.jar';   Hint = '\\transformed\\runtime' },
-    @{ Class = 'androidx/compose/ui/unit/TextUnitKt.class';         Out = 'compose-ui-unit.jar';   Hint = '\\transformed\\ui-unit' }
+    @{ Class = 'androidx/compose/ui/unit/TextUnitKt.class';         Out = 'compose-ui-unit.jar';   Hint = '\\transformed\\ui-unit' },
+    # CropMathTest 用到 androidx.compose.ui.geometry.Rect（AAR: compose ui-geometry）
+    @{ Class = 'androidx/compose/ui/geometry/Rect.class';           Out = 'compose-ui-geometry.jar'; Hint = '\\transformed\\ui-geometry' }
 )
 $transformDirs = @(Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
     ForEach-Object { Join-Path $_.FullName 'transforms' } |
@@ -162,7 +164,9 @@ $testClasses = @(
     'com.zsz.studyassistant.data.NotebookSortingTest',
     'com.zsz.studyassistant.data.DuplicateCheckTest',
     'com.zsz.studyassistant.data.AutoExposureTest',
+    'com.zsz.studyassistant.data.SolveSessionPruneTest',
     'com.zsz.studyassistant.ui.CategoryLabelStyleTest',
+    'com.zsz.studyassistant.ui.CropMathTest',
     'com.zsz.studyassistant.ui.L10nTableTest'
 )
 & $java '-Dfile.encoding=UTF-8' -cp $cp org.junit.runner.JUnitCore @testClasses
