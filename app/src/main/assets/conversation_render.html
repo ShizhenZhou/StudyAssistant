@@ -83,7 +83,10 @@ function mdToHtml(s){
   var lines=s.split('\n'),out='',ol=false,ul=false,pre=false,preBuf=[];
   function closeList(){ if(ol){out+='</ol>';ol=false;} if(ul){out+='</ul>';ul=false;} }
   function inline(t){
-    t=t.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>');
+    // ★ 2026-10-13 修复「有时候会错误地加粗一些字」：原来 /\*\*([^*]+)\*\*/g 只要同一行出现两个 ** 就加粗，
+    //   于是 python 风格幂运算 `2**10 与 3**5` 会被渲染成 2<strong>10 与 3</strong>5（跨词误加粗）。
+    //   加左边界：** 前面不能紧贴字母/数字/星号，才当作 markdown 加粗。
+    t=t.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/(^|[^A-Za-z0-9*])\*\*([^*]+)\*\*/g,'$1<strong>$2</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>');
     t=t.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
     return t;
   }

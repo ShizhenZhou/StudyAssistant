@@ -36,7 +36,9 @@ object TextPretty {
         var s: String = raw
 
         // 1) 去掉 Markdown 强调/标题/引用等标记
-        s = s.replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")
+        // ★ 2026-10-13：与 conversation_render.html / latex_render.html 同步加左边界 ——
+        //   否则 `2**10 与 3**5` 这种会被当成加粗整段吃掉，列表预览显示成「210 与 35」。
+        s = s.replace(Regex("(^|[^A-Za-z0-9*])\\*\\*(.+?)\\*\\*"), "$1$2")
         s = s.replace(Regex("(?m)^\\s{0,3}#{1,6}\\s*"), "")
         s = s.replace(Regex("(?m)^\\s*>\\s?"), "")
         s = s.replace(Regex("`([^`]+)`"), "$1")

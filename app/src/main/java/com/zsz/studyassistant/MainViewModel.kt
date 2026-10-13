@@ -151,13 +151,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }.getOrNull()
         }
 
-    /** 用户自定义分类列表 */
+    /** 用户自定义分类列表
+     *  ★ 2026-10-13：改成 `SharingStarted.Eagerly` —— 这两个小表要**随时可读 `.value`**：
+     *   拍题链路的请求是在 CropScreen 里拼的（那时 SolveScreen 还没 compose，没人订阅），
+     *   用 `WhileSubscribed` 会让 `.value` 在冷启动/长时间没人看时退回初始空表 →
+     *   提示词又变成「当前没有任何分类」→ AI 自己造分类（重复分类的根因）。
+     *   分类/标签表极小（几十行），常驻收集的开销可忽略。 */
     val categories: StateFlow<List<Category>> =
-        dao.categories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        dao.categories().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** 知识点标签列表 */
+    /** 知识点标签列表（同上：Eagerly，保证 `.value` 随时可用） */
     val tags: StateFlow<List<Tag>> =
-        dao.tags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        dao.tags().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // ───────── 学习统计 ─────────
     /** 统计快照（全部由现有表计算，不改数据库结构） */
@@ -239,13 +244,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val questionTags: StateFlow<List<QuestionTag>> =
         dao.allQuestionTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** 分类名 / 标签名（派生流，供 buildMessages 直接取值，避免每次请求都 map） */
-    private val categoryNames: StateFlow<List<String>> =
-        categories.map { list -> list.map { it.name } }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    private val tagNames: StateFlow<List<String>> =
-        tags.map { list -> list.map { it.name } }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    /**
+     * 分类名 / 标签名：**直接取界面正在订阅的那两个 StateFlow 的当前值**，供拼提示词用。
+     *
+     * ★ 2026-10-13 修复（用户报「没有把错题本已有的科目分类传给 AI」）：
+     *   原先这里是 `categories.map { … }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())`，
+     *   而**全项目只读它的 `.value`、没有任何地方订阅它** → `WhileSubscribed` 的上游**永远不会启动** →
+     *   值恒为 `stateIn` 的初始值 `emptyList()`（读 `.value` 不算订阅！）。
+     *   后果：发给 AI 的提示词永远写着「已知分类：（当前没有任何分类）」→ 模型自己造分类 →
+     *   错题本里出现「大学物理」和「物理」这种重复分类。
+     *   现在改成读 `categories.value`（界面 `collectAsState()` 一直在订阅它，值是最新的）。
+     */
+    private val categoryNames: List<String> get() = categories.value.map { it.name }
+    private val tagNames: List<String> get() = tags.value.map { it.name }
 
     // ---- 对话流状态 ----
     var imageBytes by mutableStateOf<ByteArray?>(null)
@@ -479,8 +490,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 主页「图文提问」入口：开一个空会话并标记为图文提问（标题保持"图文提问"） */
     fun startAskSession() {
         stopActiveGeneration()   // 新会话前先停掉可能在跑的上一轮
-        startNewQuestion()
-        askMode = true
+        // ★ 2026-10-13 修复（用户报「图文提问不提问直接回退，又回到拍照界面」）：
+        //   原来走 `startNewQuestion()`，它**不复位 isPhoto** → 上一轮拍过题时 isPhoto 仍是 true →
+        //   SolveScreen 的返回按钮判定 `!vm.isPhotoSession` 为假 → 走"回拍题界面"分支。
+        //   改用 prepareSession：它是 startNewQuestion 的超集，且显式 `isPhoto = false`。
+        prepareSession(ask = true)
     }
 
     fun classifyCurrentQuestion(needCategory: Boolean = true, needTags: Boolean = true) {
@@ -504,7 +518,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         classifying = true
         viewModelScope.launch {
             try {
-                val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames.value, tagNames.value, imgs, needCategory, needTags)
+                val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames, tagNames, imgs, needCategory, needTags)
                 // 已有分类（来自库/用户选择）优先，AI 只补空的
                 if (!c.isNullOrBlank() && suggestedCategory == null) suggestedCategory = c
                 if (t.isNotEmpty()) suggestedTags = t
@@ -617,35 +631,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
     /**
-     * 用户自定义要求（设置 → AI 配置）：非空时作为一条 system 消息附加到每次请求，
-     * 让 AI 遵守个人偏好（只给思路 / 步骤编号 / 更简洁 …）。
+     * 用户自定义要求（设置 → AI 管理）：让 AI 遵守个人偏好（只给思路 / 步骤编号 / 更简洁 …）。
+     *
+     * ★ 2026-10-13 修复：原先这里叫 `customPromptMessage()` 并且**从来没有被任何地方调用**
+     *   → 用户填的「自定义要求」实际上一次都没发给模型。现在改为取原文，由 [buildMessages] 拼进
+     *   `languageSystemMessage(aiLang, customPrompt)`（合成一条 system 消息）。
      */
-    private fun customPromptMessage(): DeepSeekMessage? {
-        val cp = com.zsz.studyassistant.data.CapturePrefs.customPrompt(getApplication()).trim()
-        if (cp.isEmpty()) return null
-        return DeepSeekMessage("system", kotlinx.serialization.json.JsonPrimitive("用户自定义要求（请务必遵守）：\n$cp"))
-    }
+    private fun customPromptText(): String =
+        com.zsz.studyassistant.data.CapturePrefs.customPrompt(getApplication()).trim()
+
     private fun buildMessages(): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
-        // 回答语言：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
-        msgs.add(StudyAssistant.languageSystemMessage(aiLang))
+        // 回答语言 + 用户自定义要求：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
+        msgs.add(StudyAssistant.languageSystemMessage(aiLang, customPromptText()))
         if (multiImages.isNotEmpty()) {
             // 多张搜题：多图一起作为题目（同一套搜题指令）
-            msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames.value, tagNames.value))
+            msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames, tagNames))
         } else if (directImages.isNotEmpty()) {
             // 直接提问：文字 + 多图一起作为问题
             // ★ 带图的「直接提问」原来用追问提示词（不问分类/知识点）→ 改用搜题指令，保证与拍题一致
             msgs.add(
                 StudyAssistant.userMessageWithImages(
-                    StudyAssistant.solvePrompt(categoryNames.value, tagNames.value) +
+                    StudyAssistant.solvePrompt(categoryNames, tagNames) +
                         "\n【我的题目/问题】" + questionText,
                     directImages
                 )
             )
         } else if (isPhoto && imageBytes != null) {
-            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categoryNames.value, tagNames.value))
+            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categoryNames, tagNames))
         } else if (questionText.isNotBlank()) {
-            msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames.value, tagNames.value))
+            msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
         }
         for (item in chatItems) {
             when (item.role) {
@@ -729,6 +744,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         harvestSuggestions(streamingText.orEmpty())
         StudyAssistant.cancelActiveStream()
         callJob?.cancel()
+    }
+
+    /**
+     * 丢弃「已中止 / 思考中」的那条流式气泡（用户 2026-10-13 要求：中止后这条气泡要能选中删除）。
+     *
+     * 背景：中止后那条气泡**只存在于渲染层**（`streamingText` + `thinkingText`），它不在 `chatItems` 里，
+     * 所以多选/删除（都按 `chatItems` 下标操作）覆盖不到它，长按还会被守卫拒绝。
+     * 用户明确删掉它时调用这里：清掉中断态与「继续生成」的上下文 → 气泡消失。
+     * 不把它固化进 `chatItems`：`continueGeneration()` 依赖 `contPrefix` + `streamingText` 重放，
+     * 固化后会重复出现两次（见 FIXES 记录里的取舍说明）。
+     */
+    fun discardInterrupted() {
+        streamInterrupted = false
+        streamingText = null
+        thinkingText = null
+        thinkingDone = false
+        contMessages = null
+        contOnDone = null
+        contPrefix = ""
     }
 
     /** 继续生成：把已生成部分作为 assistant 上文，要求模型接着往下写（不重复、不重开） */
@@ -1682,7 +1716,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             var lastEmit = 0L
             try {
                 val msgs = mutableListOf<DeepSeekMessage>()
-                msgs.add(StudyAssistant.systemMessage(aiLang))
+                // 同类题链路：2026-10-13 起也带上用户的「自定义要求」
+                msgs.add(StudyAssistant.systemMessage(aiLang, customPromptText()))
                 msgs.add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
                 for (m in similarMessages) msgs.add(DeepSeekMessage(if (m.role == "assistant") "assistant" else "user", JsonPrimitive(m.content)))
                 if (images.isNotEmpty()) msgs.add(StudyAssistant.userMessageWithImages(txt, images))
@@ -2001,8 +2036,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val imgs = directImages
         if (imgs.isEmpty()) return
         val msgs = listOf(
-            StudyAssistant.languageSystemMessage(aiLang),
-            StudyAssistant.gradeUserMessage(imgs[0], imgs.getOrNull(1), aiLang)
+            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
+            StudyAssistant.gradeUserMessage(imgs[0], imgs.getOrNull(1), aiLang, categoryNames, tagNames)
         )
         busyIsGrade = true
         streamCall(
@@ -2016,8 +2051,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun gradeTextCall(qText: String) {
         val ans = directImages.firstOrNull() ?: return
         val msgs = listOf(
-            StudyAssistant.languageSystemMessage(aiLang),
-            StudyAssistant.gradeTextUserMessage(qText, ans, aiLang)
+            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
+            StudyAssistant.gradeTextUserMessage(qText, ans, aiLang, categoryNames, tagNames)
         )
         busyIsGrade = true
         streamCall(

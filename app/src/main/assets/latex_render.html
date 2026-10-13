@@ -42,7 +42,8 @@ function mdToHtml(s){
   function closeList(){ if(ol){out+='</ol>';ol=false;} if(ul){out+='</ul>';ul=false;} }
   function inline(t){
     t=t.replace(/`([^`]+)`/g,'<code>$1</code>');
-    t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+    // ★ 2026-10-13 修复「错误加粗」：加左边界，避免 `2**10 与 3**5` 这类被当成 markdown 加粗
+    t=t.replace(/(^|[^A-Za-z0-9*])\*\*([^*]+)\*\*/g,'$1<strong>$2</strong>');
     t=t.replace(/__([^_]+)__/g,'<strong>$1</strong>');
     t=t.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>');
     t=t.replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');

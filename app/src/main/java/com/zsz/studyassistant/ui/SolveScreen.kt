@@ -247,6 +247,14 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
 
+    // ★ 2026-10-13（用户要求）：中止后那条「思考中 / 已中断」的气泡**只在渲染层**（vm.streamingText /
+    //   vm.thinkingText），不在 vm.chatItems 里 → 多选的两道守卫（下标必须在 chatItems 内）会拒绝它，
+    //   删除也覆盖不到。这里给它一个"虚拟下标"（= 渲染列表的最后一项），并入可选范围；
+    //   删除动作对应 vm.discardInterrupted()（丢弃中断态，而不是往 chatItems 里塞一条）。
+    val virtualTailIndex = if (vm.streamInterrupted && messages.isNotEmpty()) messages.lastIndex else -1
+    fun isSelectableIndexOf(idx: Int): Boolean =
+        idx in vm.chatItems.indices || (virtualTailIndex >= 0 && idx == virtualTailIndex)
+
     // 多选时禁止删除：题干（第一条 question）与 AI 的第一条回复（答案 / 批改结果）
     // 批改模式下「我的手写作答」也在第一条 question 气泡里，因此一并受保护
     val lockedIndices = remember(vm.chatItems) {
@@ -263,11 +271,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     if (editMode) {
                         // 多选态：左侧「全选 / 取消全选」+ 已选条数（删除/完成仍在右侧）
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val selectable = vm.chatItems.indices.filter { it !in lockedIndices }
+                            // 可选集合 = chatItems 里未被锁定的 + （若有）中止后的虚拟尾气泡
+                            val selectable = (vm.chatItems.indices.filter { it !in lockedIndices } +
+                                listOfNotNull(virtualTailIndex.takeIf { it >= 0 }))
                             val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
                             TextButton(
                                 onClick = {
-                                    selectedIndices = if (allSelected) emptySet() else vm.chatItems.indices.filter { it !in lockedIndices }.toSet()
+                                    selectedIndices = if (allSelected) emptySet() else selectable.toSet()
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
@@ -393,10 +403,12 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             val density = LocalDensity.current
                             val refSize = refBtnSize
                             val measurer = rememberTextMeasurer()
-                            val baseTextStyle = TextStyle(fontSize = BTN_LABEL_SOLVE)
-                            // 「📁 + 空格 + 5 个汉字」占多宽 → 按钮内容区宽度（emoji 固定 13sp，不参与缩放）
-                            // ★ 样本必须**带上 emoji 后面那个空格**：标签是「📁 名字」，少了空格会短 1 个字宽，
-                            //   5 个汉字时正好被裁掉一点点。
+                            val baseTextStyle = MaterialTheme.typography.labelLarge.copy(fontSize = BTN_LABEL_SOLVE)
+                            // 「📁 + 空格 + 5 个汉字」占多宽（emoji 固定 13sp，不参与缩放）
+                            // ★ 样本必须**带上 emoji 后面那个空格**：标签是「📁 名字」，少了空格会短 1 个字宽。
+                            // ★★ 测量必须用**按钮内容真正渲染用的样式**（M3 的 TextButton 内容样式 = labelLarge）：
+                            //   2026-10-13 之前用裸 `TextStyle(fontSize = 13.sp)` 测（字距 0），而渲染带 labelLarge 的字距 →
+                            //   实测偏窄，5 个汉字正好把最后一个字 Clip 掉（用户实测「信号与系统」只显示「信号与系」）。
                             val sampleWidthPx = remember(measurer, density, vm.fontScale.factor) {
                                 measurer.measure(
                                     buildAnnotatedString {
@@ -406,12 +418,26 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                     baseTextStyle
                                 ).size.width
                             }
+                            // **实际标签**（📁 + 空格 + 真名字）在基准字号下的宽度
+                            val realLabelWidthPx = remember(catName, emoji, measurer, density, vm.fontScale.factor) {
+                                measurer.measure(
+                                    buildAnnotatedString {
+                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
+                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append(catName) }
+                                    },
+                                    baseTextStyle
+                                ).size.width
+                            }
+                            // 内容宽：至少给「5 个汉字」的位置；名字 ≤5 字时若实测更宽就按实测 —— **绝不裁字**。
+                            // （>5 字不能按 13sp 的真宽给，否则按钮会被撑爆；那些名字交给下面的自适应缩字号）
+                            val contentWidthPx =
+                                if (catName.length <= CATEGORY_FULL_CHARS) maxOf(sampleWidthPx, realLabelWidthPx)
+                                else sampleWidthPx
                             val horizontalPadPx = with(density) { 6.dp.roundToPx() }   // = smallPad 的左右各 6dp
-                            // ≤5 字走"基准字号单行"这条路（不参与实测自适应），所以留 2dp 余量，
-                            // 避免测量样式与按钮 LocalTextStyle（字距等）微小差异把第 5 个字裁掉
-                            val slackPx = with(density) { 2.dp.roundToPx() }
+                            // 极小的安全余量（测量与最终排版之间可能有的 1px 级差异）
+                            val slackPx = with(density) { 1.dp.roundToPx() }
                             // 自适应：挑一个能完整放下的字号（>5 字先在单行里缩字号，仍不行才两行）
-                            val (labelSp, labelMaxLines) = remember(catName, sampleWidthPx, density, vm.fontScale.factor) {
+                            val (labelSp, labelMaxLines) = remember(catName, contentWidthPx, density, vm.fontScale.factor) {
                                 categoryLabelStyle(catName.length) { sp, lines ->
                                     val r = measurer.measure(
                                         buildAnnotatedString {
@@ -420,7 +446,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                         },
                                         baseTextStyle,
                                         maxLines = lines,
-                                        constraints = Constraints(maxWidth = sampleWidthPx)
+                                        constraints = Constraints(maxWidth = contentWidthPx)
                                     )
                                     !r.hasVisualOverflow
                                 }
@@ -431,7 +457,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 modifier = if (refSize != null) {
                                     with(density) {
                                         Modifier
-                                            .width((sampleWidthPx + 2 * horizontalPadPx + slackPx).toDp())
+                                            .width((contentWidthPx + 2 * horizontalPadPx + slackPx).toDp())
                                             .height(refSize.height.toDp())
                                     }
                                 } else Modifier
@@ -489,7 +515,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 text = { Text(s.format("solve.deleteMessages.text", "n" to "${selectedIndices.size}")) },
                 confirmButton = {
                     TextButton(onClick = {
-                        vm.deleteMessages(selectedIndices.filter { it !in lockedIndices })
+                        // 虚拟尾气泡（中止后的「思考中/已中断」那条）走"丢弃中断态"，它不在 chatItems 里
+                        if (virtualTailIndex >= 0 && virtualTailIndex in selectedIndices) vm.discardInterrupted()
+                        vm.deleteMessages(selectedIndices.filter { it in vm.chatItems.indices && it !in lockedIndices })
                         showEditDelete = false
                         editMode = false
                         selectedIndices = emptySet()
@@ -672,7 +700,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择，JS 侧已拦截，这里再兜一层）
                         // 受保护的消息（题干 / AI 首条回复）：从普通态长按进入多选时**不选中它**（显示灰色虚线圈）
                         onLongPressMessage = { idx ->
-                            if (!editMode && sessionMode != SessionMode.REVIEW && !vm.busy && idx in vm.chatItems.indices) {
+                            // 允许的条目：chatItems 里的 + （中止后的）虚拟尾气泡（见 isSelectableIndexOf）
+                            if (!editMode && sessionMode != SessionMode.REVIEW && !vm.busy && isSelectableIndexOf(idx)) {
                                 if (idx in lockedIndices) {
                                     if (!editMode) {
                                         editMode = true
@@ -691,7 +720,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                         selectedIndices = selectedIndices,
                         lockedIndices = lockedIndices,
                         onToggleSelect = { idx ->
-                            if (idx in vm.chatItems.indices && idx !in lockedIndices) {
+                            if (isSelectableIndexOf(idx) && idx !in lockedIndices) {
                                 selectedIndices = if (selectedIndices.contains(idx)) selectedIndices - idx else selectedIndices + idx
                             }
                         },

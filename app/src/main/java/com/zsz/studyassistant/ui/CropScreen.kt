@@ -243,10 +243,7 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                     }
                 }
 
-                // 自动框选提示 3 秒后淡出
-                LaunchedEffect(autoHint) {
-                    if (autoHint) { delay(3000); autoHint = false }
-                }
+                // 自动框选提示的 3 秒淡出计时：提示本身已按用户要求移除（见下方底部按钮区），计时一并去掉
 
                 // 按计算出的 disp 绘制图片（这样缩放/平移后选区仍与图片对齐）
                 Canvas(Modifier.fillMaxSize()) {
@@ -451,16 +448,9 @@ fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect
                     textAlign = TextAlign.Center
                 )
             }
-            // 预框选命中提示（3 秒后自动消失）
-            if (autoHint) {
-                Text(
-                    s["crop.autoSelected"],
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
+            // ★ 2026-10-13（用户要求）：这里原来显示一行绿字「已自动框选题目范围，可拖动微调」。
+            //   它出现/消失会改变底部 Column 的高度 → 上面那张图（weight 1f）跟着重新布局，画面会"抽搐"一下。
+            //   用户要求去掉，所以这里不再渲染任何提示（autoHint 标志保留但不再展示）。
             Button(
                 onClick = {
                     val r = sel ?: dispRect

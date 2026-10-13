@@ -5,6 +5,16 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.4.4
+· 🐞 **修复「自定义要求」从未生效**：设置 → AI 管理里的自定义 Prompt **从上线起就没被发出去过**（代码写了却从未接线）→ 现在解题 / 批改 / 同类题 / 追问都会带上它
+· 🐞 **修复「AI 看不到已有分类」**：发给模型的提示词**一直写着「已知分类：（当前没有任何分类）」**，于是模型自己造科目 —— 错题本里出现「大学物理」和「物理」这种重复分类。根因是取分类名的那个 Flow 从来没人订阅、值恒为空表，已改为常驻读取
+· 🐞 **修复「有时把不该加粗的字加粗」**：`2**10 与 3**5` 这类会被渲染成跨词加粗（对话区 / 详情页 / 列表预览三处同修）
+· 🐞 **修复「图文提问不提问直接返回，却回到拍照界面」**
+· 🐞 **修复「正在思考的气泡中止后不能选中删除」**
+· 📁 **修复「分类」按钮 5 个字显示不全**（如「信号与系统」只显示前 4 个字）：宽度测量改用按钮真实的字体样式
+· 🔤 **默认提示词去冗余、消矛盾**（原来「每行都必须带序号」与「解答可多行」自相矛盾）；提示词里不再用星号示范加粗
+· 📷 切图页**去掉「已自动框选题目范围」那行提示**（它出现/消失会让图片区高度变化、画面抽搐一下）
+
 v0.6.4.3
 · 🐞 **修复复习换题后「下一题」空白页**：从**图片题**切到**没有原图的文字题**时，题目的"轻/重查询重定向"会**再加载一次**并顺手把复习模式清掉 → 表现为**熟悉 / 模糊 / 忘记 三按钮消失**、标题由「复习 x/n」变回「错题」，偶发还**永久卡在居中的「下一题」空白页**。现在复习模式在整条加载链里都不会被清掉，清屏标志也加了兜底复位
 · 📁 **「分类」按钮再修**：**emoji 字号任何时候都不变**（原来会跟着分类名一起缩小）；按钮**加宽到能放下 5 个汉字**（右侧按钮组因此整体左移一个汉字）；超过 5 字**不再显示「…」**，而是**自动调小字号**尽量完整显示（实在放不下才换第二行）
@@ -302,6 +312,16 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.4.4
+· 🐞 **Fixed "custom instructions never applied"**: the custom prompt in Settings → AI management had **never actually been sent** (the code existed but was never wired up). It is now included when solving, grading, asking for similar questions and following up
+· 🐞 **Fixed "the AI could not see your existing categories"**: the prompt sent to the model **always said "known categories: (none)"**, so it invented subjects — which is how duplicates like "大学物理" and "物理" appeared. The cause was a Flow that nobody subscribed to, so it always returned an empty list
+· 🐞 **Fixed "some text gets bolded by mistake"**: inputs like `2**10 and 3**5` were rendered as bold spanning unrelated words (fixed in the chat view, the detail page and the list preview)
+· 🐞 **Fixed "backing out of a text question returned to the camera screen"**
+· 🐞 **Fixed "the thinking bubble could not be selected or deleted after aborting"**
+· 📁 **Fixed the category button cutting off the 5th character** (e.g. "信号与系统" showed only the first four): the width is now measured with the button's real type style, with a fallback to the actual label width
+· 🔤 **Default prompt cleaned up**: removed redundancy and the self-contradictory "every line must start with a number" rule; asterisks are no longer used for emphasis in the prompt
+· 📷 **Removed the "question area auto-selected" hint** on the crop screen: its appearance and disappearance changed the bottom height, which made the picture jump
+
 v0.6.4.3
 · 🐞 **Fixed the blank "next problem" page after switching problems in review**: going from a **photo problem** to a **text problem with no original image** made the problem's "light / heavy query redirect" **load it once more** and wipe the review mode along the way → the **Familiar / Vague / Forgot buttons disappeared**, the title went back from "Review x/n" to "Notebook", and it occasionally got **stuck forever on the centred blank "next problem" page**. Review mode is now kept through the whole loading chain, and the clear-screen flag got a fallback reset as well
 · 📁 **The "subject" button fixed again**: the **emoji never changes size any more** (it used to shrink together with the subject name); the button is now **wide enough for 5 characters** (the button group on the right therefore shifts left by one character); past 5 characters it **no longer shows "…"** but **shrinks the text** so that as much as possible fits (only a really long name wraps to a second line)
@@ -599,6 +619,16 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.4.4
+· 🐞 **「カスタム指示が効いていなかった」を修正**: 設定 → AI 管理のカスタムプロンプトは**これまで一度も送信されていませんでした**（コードはあるが接続されていなかった）。現在は解答・添削・類似問題・追加質問のすべてで送信されます
+· 🐞 **「AI が既存の分類を見られない」を修正**: モデルへ送る文面が**常に「既知の分類：（現在分類なし）」**になっていたため、モデルが科目を勝手に作り、同じ分類が重複していました。原因は誰も購読していない Flow で、値が常に空だったことです
+· 🐞 **「意図しない太字」を修正**: `2**10 と 3**5` のような入力が無関係な語をまたいで太字になっていました（チャット表示・詳細ページ・一覧プレビューの 3 か所を修正）
+· 🐞 **「文字質問で戻るとカメラ画面に戻ってしまう」を修正**
+· 🐞 **「考え中の吹き出しを中止後に選択・削除できない」を修正**
+· 📁 **分類ボタンで 5 文字目が切れる問題を修正**（例：「信号与系统」が 4 文字しか表示されない）—— 幅の測定を実際のフォントスタイルに変更
+· 🔤 **既定プロンプトの冗長さと矛盾を解消**（「各行に番号必須」と「解答は複数行可」が矛盾していました）。プロンプト内で太字の見本を示すのをやめました
+· 📷 切り抜き画面の**「問題範囲を自動選択しました」という案内を削除**（表示の有無で画像の高さが変わり、画面が一瞬ずれていました）
+
 v0.6.4.3
 · 🐞 **復習で問題を切り替えたあとの「次の問題」空白ページを修正**：**画像問題**から**原題画像のない文字だけの問題**へ移ると、問題の「軽／重クエリのリダイレクト」が**もう一度読み込み**、そのついでに復習モードまで消していました → **熟悉／模糊／忘記 の 3 ボタンが消える**、タイトルが「復習 x/n」から「誤答ノート」に戻る、ときには**中央の「次の問題」空白ページで永久に止まる**という症状になっていました。現在は読み込み経路のどこでも復習モードが消えず、画面クリアのフラグにも復帰処理を入れました
 · 📁 **「分類」ボタンを再修正**：**emoji の文字サイズはいつでも変わりません**（以前は分類名と一緒に縮んでいました）。ボタンは**漢字 5 文字が収まる幅**に拡大（そのぶん右側のボタン群が 1 文字ぶん左へ移動）。5 文字を超えても**「…」は表示せず**、**文字サイズを自動で小さく**してできるだけ全部見せます（どうしても入らないときだけ 2 行）
@@ -896,6 +926,16 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.4.4
+· 🐞 **「사용자 지정 지시가 적용되지 않던 문제」수정**: 설정 → AI 관리의 사용자 지정 프롬프트가 **지금까지 한 번도 전송되지 않았습니다**(코드만 있고 연결되어 있지 않았음). 이제 풀이·채점·유사 문제·추가 질문 모두에 포함됩니다
+· 🐞 **「AI가 기존 분류를 보지 못하던 문제」수정**: 모델에 보내는 문구가 **항상 「알려진 분류: (현재 분류 없음)」**이어서 모델이 과목을 지어냈고, 같은 분류가 중복 생성되었습니다. 원인은 아무도 구독하지 않는 Flow라 값이 늘 빈 목록이었던 것입니다
+· 🐞 **「엉뚱한 글자가 굵게 나오던 문제」수정**: `2**10 과 3**5` 같은 입력이 관련 없는 단어까지 굵게 렌더링되었습니다(대화 화면·상세 페이지·목록 미리보기 3곳 수정)
+· 🐞 **「텍스트 질문에서 뒤로 가면 카메라 화면으로 돌아가던 문제」수정**
+· 🐞 **「생각 중 말풍선을 중단 후 선택·삭제할 수 없던 문제」수정**
+· 📁 **분류 버튼에서 5번째 글자가 잘리던 문제 수정**(예: 「信号与系统」가 4글자만 표시) — 너비 측정을 실제 글꼴 스타일로 변경
+· 🔤 **기본 프롬프트의 중복과 모순 정리**(「모든 줄에 번호 필수」와 「해답은 여러 줄 가능」이 모순). 프롬프트에서 별표로 굵게 표시하는 예시를 제거했습니다
+· 📷 자르기 화면의 **「문제 영역을 자동 선택했습니다」 안내 삭제**(표시 여부에 따라 이미지 높이가 바뀌어 화면이 흔들렸습니다)
+
 v0.6.4.3
 · 🐞 **복습에서 문제를 바꾼 뒤 「다음 문제」 빈 페이지 수정**: **이미지 문제**에서 **원본 사진이 없는 텍스트 문제**로 넘어갈 때 문제의 「경량 / 중량 조회 리디렉션」이 **한 번 더 로드**되면서 복습 모드를 함께 지웠습니다 → **익숙 / 애매 / 모름 세 버튼이 사라지고**, 제목이 「복습 x/n」에서 「오답노트」로 돌아가며, 간혹 **가운데 「다음 문제」 빈 페이지에서 영구히 멈추는** 증상이 있었습니다. 이제 복습 모드는 로딩 경로 전체에서 지워지지 않고, 화면 초기화 플래그에도 복구 처리를 넣었습니다
 · 📁 **「분류」 버튼 재수정**: **emoji 글자 크기는 언제나 그대로**입니다(이전에는 분류 이름과 함께 줄어들었습니다). 버튼을 **한자 5자가 들어가는 너비**로 넓혔고(그만큼 오른쪽 버튼 그룹이 한 글자만큼 왼쪽으로 이동), 5자를 넘으면 **「…」를 표시하지 않고** **글자 크기를 자동으로 줄여** 최대한 다 보여줍니다(정말 안 들어갈 때만 두 줄)

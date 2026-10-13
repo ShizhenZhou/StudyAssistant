@@ -40,20 +40,44 @@ object StudyAssistant {
 
     data class SolveResult(val question: String, val answer: String, val category: String? = null, val tags: List<String> = emptyList())
 
-    /** 搜题指令（单图 / 多图共用） */
+    /**
+     * 搜题指令（单图 / 多图 / 图文提问带图共用）。
+     *
+     * ★ 2026-10-13 改写（用户要求「看看有没有冗余或自相矛盾」）：
+     *   · 去掉自相矛盾：原来写「**每行开头都必须带对应序号**」又说「④ 解答：<…可以多行>」→
+     *     模型给解答的每一行都加 ④（项目里 `stripLeakedSectionMarks` 就是在给这句擦屁股）。现在明确
+     *     「只有解答可多行，解答里不要再加序号」。
+     *   · 空列表时不再出现悬空句（原来固定拼「若题目属于其中某一个…」，列表为空时这句没有指代对象）。
+     *   · 借用了 `classifyQuestion` 里那句治「重复分类」的措辞（沾边就必须选、宁可粗一点）。
+     *   · 去掉文案里的 `**`：那等于在教模型输出 markdown 加粗（也顺带减少误加粗）。
+     */
+    /**
+     * 「已知分类 / 已知知识点」两行（空列表时给**不悬空**的说法）。
+     * solvePrompt 与文字解题共用，避免两份拷贝再漂移。
+     */
+    private fun solveKnownHint(categories: List<String>, tags: List<String>): String {
+        val catLine = if (categories.isEmpty())
+            "已知分类：暂无。请给出一个 2~6 字的常见学科名作为「② 分类」。"
+        else
+            "已知分类：${categories.joinToString("、")}。" +
+                "只要有一个与本题沾边（近义、上下位、范围更大或更小都算）就必须原样选它，宁可粗一点也不要新建；" +
+                "全都不沾边，才写一个新的简短科目名。"
+        val tagLine = if (tags.isEmpty())
+            "已知知识点：暂无。请给出新知识点，最多 5 个、用「、」分隔。"
+        else
+            "已知知识点：${tags.joinToString("、")}。能对应上的优先原样沿用；都不符合才给新的，最多 5 个、用「、」分隔。"
+        return catLine + "\n" + tagLine
+    }
+
     fun solvePrompt(categories: List<String>, tags: List<String>): String {
-        val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
-        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
-        return "请识别图片中的理工科题目并给出详细分步解答。请**严格按固定格式**输出，" +
-            "四项各自独立成行、**每行开头都必须带对应序号**，不要省略序号、不要把多项合并到一行、也不要重复输出同一项：\n" +
-            "① 题目：<忠实转写的题干：逐字照录、不改写不省略；所有公式用 LaTeX（行内 $...$、独立成行 $$...$$），上下标/分式/积分/矩阵/希腊字母必须正确>\n" +
+        return "请识别图片中的题目并给出详细的分步解答。所有公式用 LaTeX（行内 $...$、独立成行 $$...$$），" +
+            "上下标、分式、积分、矩阵、希腊字母要写对。\n" +
+            "按下面模板输出，每项只写一次、各占一行；只有「④ 解答」可以多行，解答里不要再加序号、也不要重复抄题干：\n" +
+            "① 题目：<逐字照录题干，不改写、不省略>\n" +
             "② 分类：<所属科目>\n" +
             "③ 知识点：<知识点1、知识点2、知识点3>\n" +
-            "④ 解答：<详细步骤与结论，可以多行>\n" +
-            "已知分类：$catHint。若题目属于其中某一个，请直接用该分类名作为「② 分类」，不要新造；" +
-            "若都不符合，才给出一个新的简短科目名。" +
-            "已知知识点标签：$tagHint。若题目涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签（最多 5 个、用中文顿号分隔）。" +
-            "数学公式请用 LaTeX 书写。"
+            "④ 解答：<先给结论，再写详细步骤>\n" +
+            solveKnownHint(categories, tags)
     }
 
     /** 视觉模型首条用户消息（文字 + 图片）；带已有分类名，让模型优先归入已有分类 */
@@ -81,21 +105,18 @@ object StudyAssistant {
      * 这样错题本保存时也能自动预选科目与标签。
      */
     fun textSolveMessage(text: String, categories: List<String> = emptyList(), tags: List<String> = emptyList()): DeepSeekMessage {
-        val catHint = if (categories.isEmpty()) "（当前没有任何分类）" else categories.joinToString("、")
-        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
+        // ★ 2026-10-13：与 solvePrompt 统一口径（去 `**`、消掉"每行都必须带序号"与"解答可多行"的矛盾、
+        //   空列表不再出现悬空句）。这里保留「① 题目：$text」是因为解析链路要靠它取题干。
         return DeepSeekMessage(
             "user",
             JsonPrimitive(
-                
-                "请解答下面这道理工科题目并给出详细分步解答。请**严格按固定格式**输出，" +
-                    "四项各自独立成行、**每行开头都必须带对应序号**，不要省略序号、不要把多项合并到一行、也不要重复输出同一项：\n" +
+                "请解答下面这道题目并给出详细的分步解答。所有公式用 LaTeX（行内 $...$、独立成行 $$...$$）。\n" +
+                    "按下面模板输出，每项只写一次、各占一行；只有「④ 解答」可以多行，解答里不要再加序号：\n" +
                     "① 题目：$text\n" +
                     "② 分类：<所属科目>\n" +
                     "③ 知识点：<知识点1、知识点2、知识点3>\n" +
-                    "④ 解答：<详细步骤与结论，可以多行>\n" +
-                    "已知分类：$catHint。若属于其中某一个，请直接用该分类名作为「② 分类」，不要新造；都不符合才给出新的简短科目名。" +
-                    "已知知识点标签：$tagHint。若涉及其中某个，请直接使用该标签名，不要新造；都不符合才给出新的简短标签（最多 5 个、用中文顿号分隔）。" +
-                    "数学公式请用 LaTeX 书写。"
+                    "④ 解答：<先给结论，再写详细步骤>\n" +
+                    solveKnownHint(categories, tags)
             )
         )
     }
@@ -124,9 +145,9 @@ object StudyAssistant {
             val prompt = buildString {
                 append("你是学科分类助手。判断下面这道理工科题目属于哪个科目、涉及哪些知识点。\n")
                 append("题目：").append(question.take(600)).append("\n")
-                append("已知分类（**必须优先从中选一个并原样输出**）：")
+                append("已知分类（必须优先从中选一个并原样输出）：")
                 append(if (categories.isEmpty()) "（暂无）" else categories.joinToString("、"))
-                append("。**只要有一个已知分类与本题沾边（近义、上下位、范围更大或更小都算）就必须选它，宁可粗一点也不要新建**；只有全都不沾边，才输出 新：<简短科目名>\n")
+                append("。只要有一个已知分类与本题沾边（近义、上下位、范围更大或更小都算）就必须选它，宁可粗一点也不要新建；只有全都不沾边，才输出 新：<简短科目名>\n")
                 append("已知知识点标签（能对应上的优先使用，不要新造）：")
                 append(if (tags.isEmpty()) "（暂无）" else tags.joinToString("、")).append("\n")
                 append("只输出 JSON，不要任何解释：{\"分类\":\"...\",\"知识点\":[\"...\",\"...\"]}（知识点最多 5 个）")
@@ -193,18 +214,37 @@ object StudyAssistant {
         return DeepSeekMessage("user", content)
     }
 
-    fun systemMessage(lang: AiLang = AiLang.DEFAULT): DeepSeekMessage = DeepSeekMessage(
+    /**
+     * 同类题出题用的"人设"系统消息。
+     * @param customPrompt 用户自定义要求（设置 → AI 管理）；2026-10-13 起同类题链路也会带上它
+     *   （此前同类题只发人设、既没有自定义要求也没有分类概念）。
+     */
+    fun systemMessage(lang: AiLang = AiLang.DEFAULT, customPrompt: String = ""): DeepSeekMessage = DeepSeekMessage(
         "system",
         JsonPrimitive(
             "你是一名理工科大学解题助手。请给出清晰、分步的解答过程，包含必要的公式推导，" +
                 "数学公式请用 LaTeX 书写（$...$ 或 $$...$$），最后明确给出结论。" +
-                "\n" + languageInstruction(lang)
+                "\n" + languageInstruction(lang) +
+                if (customPrompt.isBlank()) "" else "\n\n用户自定义要求（请务必遵守）：\n$customPrompt"
         )
     )
 
-    /** 只含「回答语言」的系统消息：拍题 / 直接提问 / 追问等主链路用（不加人设，尽量少改变原有回答风格） */
-    fun languageSystemMessage(lang: AiLang): DeepSeekMessage =
-        DeepSeekMessage("system", JsonPrimitive(languageInstruction(lang)))
+    /**
+     * 系统消息：回答语言（+ 可选的用户自定义要求）。
+     *
+     * ★ 2026-10-13 修复：用户的「自定义要求」（设置 → AI 管理）此前**定义了 customPromptMessage() 却从来没被调用**，
+     *   等于用户填的要求根本没发给模型。现在把它并进这一条 system 消息里
+     *   （合成一条而不是发两条 system：更保险，避免有的网关只认第一条 system）。
+     *
+     * @param lang 回答语言
+     * @param customPrompt 用户自定义要求原文（空串 = 没设置）
+     */
+    fun languageSystemMessage(lang: AiLang, customPrompt: String = ""): DeepSeekMessage {
+        val langLine = languageInstruction(lang)
+        val text = if (customPrompt.isBlank()) langLine
+        else "$langLine\n\n用户自定义要求（请务必遵守，与上面的固定格式冲突时以本条为准）：\n$customPrompt"
+        return DeepSeekMessage("system", JsonPrimitive(text))
+    }
 
     /** 最近一次接口调用返回的 token 用量（调用方负责持久化统计） */
     @Volatile
@@ -310,7 +350,7 @@ object StudyAssistant {
      *   现在统一：① 分类 / ② 知识点 / ③ 解答（正文里再写「结论：」「讲解：」），
      *   指令本身不再编号，避免被照抄。
      */
-    private fun gradePrompt(answerBytes: ByteArray?, lang: AiLang, catHint: String = "（无）", tagHint: String = "无"): String {
+    private fun gradePrompt(answerBytes: ByteArray?, lang: AiLang, categories: List<String> = emptyList(), tags: List<String> = emptyList()): String {
         // 带手写作答（真批改）：不要求回显题干，直接 ① 分类 / ② 知识点 / ③ 解答
         val fmtWithAnswer =
             "① 分类：<所属科目>\n" +
@@ -327,11 +367,11 @@ object StudyAssistant {
                 "请判断作答是否正确；若不正确，指出错在哪一步、为什么错；并给出正确的解题过程与针对性讲解。用 LaTeX 写公式。"
         else
             "请识别图片中的题目，并给出完整、分步的解答过程，用 LaTeX 写公式。") +
-            "\n请**严格按固定格式**输出，各项独立成行、**每行开头都必须带对应序号**，" +
-            "不要省略序号、不要把多项合并到一行、也不要重复输出同一项：\n" +
+            // ★ 2026-10-13：原句「每行开头都必须带对应序号」与「解答可多行」自相矛盾（模型会给解答每一行都加序号，
+            //   项目里的 stripLeakedSectionMarks 就是给这句擦屁股的），且去掉了文案里的 `**`。
+            "\n按下面模板输出，每项只写一次、各占一行，开头带对应序号；只有「解答」可以多行，解答里不要再加序号：\n" +
             (if (answerBytes != null) fmtWithAnswer else fmtNoAnswer) + "\n" +
-            "已知分类：$catHint。属于其中某一类就直接用该名称，不要新造；都不符合才给一个新的简短科目名。\n" +
-            "已知知识点标签：$tagHint。若涉及其中某个就直接用该标签名，不要新造；最多 5 个、用中文顿号分隔。\n" +
+            solveKnownHint(categories, tags) + "\n" +
             languageInstruction(lang)
     }
 
@@ -349,7 +389,7 @@ object StudyAssistant {
         val parts = buildJsonArray {
             addJsonObject {
                 put("type", "text")
-                put("text", gradePrompt(answerBytes, lang, if (categories.isEmpty()) "（无）" else categories.joinToString("、"), if (tags.isEmpty()) "无" else tags.joinToString("、")))
+                put("text", gradePrompt(answerBytes, lang, categories, tags))
             }
             addJsonObject {
                 put("type", "image_url")
@@ -377,15 +417,13 @@ object StudyAssistant {
         categories: List<String> = emptyList(),
         tags: List<String> = emptyList()
     ): DeepSeekMessage {
-        val catHint = if (categories.isEmpty()) "（无）" else categories.joinToString("、")
-        val tagHint = if (tags.isEmpty()) "无" else tags.joinToString("、")
         val parts = buildJsonArray {
             addJsonObject {
                 put("type", "text")
                 put(
                     "text",
-                    "题目：$questionText\n\n图片中是**学生的手写作答**。\n" +
-                        gradePrompt(answerBytes, lang, catHint, tagHint)
+                    "题目：$questionText\n\n图片中是学生的手写作答。\n" +
+                        gradePrompt(answerBytes, lang, categories, tags)
                 )
             }
             addJsonObject {
@@ -524,7 +562,7 @@ object StudyAssistant {
     ): List<ImageAutoCrop.NormRect>? {
         requireKey()
         val b64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
-        val prompt = "你是图像分析助手。找出图中**每一道题目**的正文区域（包含题干文字与题图、包含选项；" +
+        val prompt = "你是图像分析助手。找出图中每一道题目的正文区域（包含题干文字与题图、包含选项；" +
             "不要包含页眉页脚、\"提交\"按钮、手写笔记或已作答内容）。" +
             "只输出 JSON，不要任何解释：{\"boxes\":[{\"x\":0.05,\"y\":0.35,\"w\":0.9,\"h\":0.12}]}。" +
             "坐标是相对整张图的 0~1 比例值：x/y 为左上角，w/h 为宽高。"
