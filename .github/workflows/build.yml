@@ -85,8 +85,10 @@ jobs:
           ./gradlew testDebugUnitTest assembleRelease --console=plain
 
       # AGP 的 signingConfig 不支持 lineage → 构建后用 apksigner 补上（v3-only）
+      # ★ 2026-10-13：必须同时要求"是 tag 推送"——分支推送按 A 方案不再编译 release，
+      #   只判断 SIGNED_READY 会让这一步去找不存在的 app-release.apk 而报 FileNotFoundException（曾真实发生）。
       - name: 用新证书 + lineage 重签（APK Signature Scheme v3 轮换签名）
-        if: env.SIGNED_READY == '1'
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNED_READY == '1'
         env:
           KS_PASS: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
