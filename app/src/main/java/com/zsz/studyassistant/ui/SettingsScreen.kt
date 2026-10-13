@@ -169,19 +169,16 @@ internal fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedS
 /** 二级页面容器：返回键 + 标题 + 可滚动内容 */
 @Composable
 private fun SettingsSubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
+    // ★ 2026-10-13（用户要求）：头部行**不再吃外层 16dp 内边距**（原来箭头因此又小又靠右），
+    //   并统一改用 SubPageBackArrow（21sp 的「←」）→ 与解题页/错题本等子页面完全一致。
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // ← 按钮收紧内边距 → 与标题之间的空隙变小（原来 TextButton 默认左右各 8dp）
-            TextButton(
-                shape = smoothPill(),
-                onClick = onBack,
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("←") }
+            SubPageBackArrow(onClick = onBack)
             // 二级页标题：比 Material3 titleLarge 默认小 1sp
             Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = SUBPAGE_TITLE))
         }
         Spacer(Modifier.height(8.dp))
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) { content() }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) { content() }
     }
 }
 

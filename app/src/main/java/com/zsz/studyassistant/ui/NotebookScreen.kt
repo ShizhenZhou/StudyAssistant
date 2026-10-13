@@ -192,14 +192,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             contentPadding = PaddingValues(horizontal = 6.dp)
                         ) { Text("✕", fontSize = 18.sp) }
                         // 返回箭头也用紧凑 TextButton：宽度只有"箭头 + 4dp"，标题因此更靠近 ←（用户要求）
-                        page == "manage" -> TextButton(
-                            onClick = { page = "list"; searchOpen = false },
-                            contentPadding = PaddingValues(horizontal = 4.dp)
-                        ) { Text("←", fontSize = SUBPAGE_TITLE) }
-                        else -> TextButton(
-                            onClick = { nav.popBackStack() },
-                            contentPadding = PaddingValues(horizontal = 4.dp)
-                        ) { Text("←", fontSize = SUBPAGE_TITLE) }
+                        page == "manage" -> SubPageBackArrow(onClick = { page = "list"; searchOpen = false })
+                        else -> SubPageBackArrow(onClick = { nav.popBackStack() })
                     }
                 },
                 actions = {

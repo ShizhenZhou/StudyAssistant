@@ -31,27 +31,38 @@ internal val BTN_LABEL_BIG = 14.sp
  */
 internal val BTN_LABEL_SOLVE = 13.sp
 
+/** 顶栏「📁 分类」按钮的基准字号（= 同栏其它按钮），emoji 永远用它、**不随分类名缩放** */
+internal const val BASE_CATEGORY_SP = 13
+
+/** 分类名不超过这个字数（汉字数）就用基准字号单行显示 */
+internal const val CATEGORY_FULL_CHARS = 5
+
+/** 超过 [CATEGORY_FULL_CHARS] 后逐档缩小的候选字号（**不含**基准 13） */
+internal val CATEGORY_SHRINK_SP = listOf(12, 11, 10, 9)
+
 /**
- * 「📁 分类」按钮的字号档位（用户 2026-10-11 要求）。
+ * 「📁 分类」按钮的**排版决策**（用户 2026-10-12 修订）。
  *
  * 背景：这个按钮显示**当前分类名**，而分类名长短差别很大。用户要求：
- *   · 按钮的**整体占位**始终与「⏸ 中止生成 / 🔄 重新生成」按钮一致（宽高都不变）；
- *   · 名字不足 4 个字时**不许**把 emoji 居中/挪位，宁可右边留白（emoji 位置固定）；
- *   · 名字超过 4 个字时逐档**缩小字号**；再长就允许折成两行（见 [categoryLabelMaxLines]）。
+ *   · 按钮占位固定：宽 = 「📁 + [CATEGORY_FULL_CHARS] 个汉字」，高 = 「⏸ 中止 / 🔄 重新生成」的实测高；
+ *   · **emoji 的字号任何时候都不变**（永远 [BASE_CATEGORY_SP]），只有分类名缩放；
+ *   · ≤ [CATEGORY_FULL_CHARS] 字用基准字号**单行**；
+ *   · 多于 [CATEGORY_FULL_CHARS] 字**不许出现「…」**：先在**单行**里逐档调小字号（用户要的是"字变小"而不是"换行"），
+ *     连最小字号单行都放不下才允许**第二行**（占位不变，顶栏高度足够）。
  *
- * 返回 sp 数值（不是 TextUnit），这样纯逻辑可以直接单测，不需要 Compose 运行时。
+ * 这里只做纯逻辑决策：能否放下由调用方以 [fits] 注入（Compose 侧用 TextMeasurer 实测，单测用假实现），
+ * 因此本函数不依赖 Compose 运行时，可直接单测。
+ *
  * @param nameLen 分类名的字符数（**不含** 📁 前缀）
+ * @param fits (字号 sp, 行数) -> 这个组合能否**完整**放下（不截断）
+ * @return (字号 sp, 最大行数)
  */
-internal fun categoryLabelSp(nameLen: Int): Int = when {
-    nameLen <= 4 -> 13      // 与顶栏其它按钮同字号；不足 4 字靠右侧留白补齐占位
-    nameLen <= 6 -> 12
-    nameLen <= 8 -> 11
-    nameLen <= 11 -> 10
-    else -> 9
+internal fun categoryLabelStyle(nameLen: Int, fits: (sp: Int, maxLines: Int) -> Boolean): Pair<Int, Int> {
+    if (nameLen <= CATEGORY_FULL_CHARS) return BASE_CATEGORY_SP to 1
+    for (sp in CATEGORY_SHRINK_SP) if (fits(sp, 1)) return sp to 1
+    for (sp in CATEGORY_SHRINK_SP) if (fits(sp, 2)) return sp to 2
+    return CATEGORY_SHRINK_SP.last() to 2   // 兜底：最小字号两行（仍可能被裁，但不给「…」）
 }
-
-/** 分类名很长时允许两行（占位不变；顶栏按钮最小高度 40dp ≫ 两行 10sp，放得下） */
-internal fun categoryLabelMaxLines(nameLen: Int): Int = if (nameLen >= 9) 2 else 1
 
 /**
  * **内部页面**（学习/统计/设置三个主页之外的页面）左上角标题的字号：

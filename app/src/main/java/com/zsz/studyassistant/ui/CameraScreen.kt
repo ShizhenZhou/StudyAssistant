@@ -341,13 +341,14 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             )
         }
 
-        TextButton(
+        // 返回箭头：全应用统一样式（见 SubPageBackArrow）
+        SubPageBackArrow(
             onClick = { nav.popBackStack() },
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
                 .padding(8.dp)
-        ) { Text(s["common.backArrow"]) }
+        )
 
         // 右上角：批改开关（开 = 批改模式，关 = 正常拍照搜题）；状态记忆，下次进页面沿用
         Row(

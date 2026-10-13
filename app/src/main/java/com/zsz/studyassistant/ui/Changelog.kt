@@ -5,11 +5,40 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.4.3
+· 🐞 **修复复习换题后「下一题」空白页**：从**图片题**切到**没有原图的文字题**时，题目的"轻/重查询重定向"会**再加载一次**并顺手把复习模式清掉 → 表现为**熟悉 / 模糊 / 忘记 三按钮消失**、标题由「复习 x/n」变回「错题」，偶发还**永久卡在居中的「下一题」空白页**。现在复习模式在整条加载链里都不会被清掉，清屏标志也加了兜底复位
+· 📁 **「分类」按钮再修**：**emoji 字号任何时候都不变**（原来会跟着分类名一起缩小）；按钮**加宽到能放下 5 个汉字**（右侧按钮组因此整体左移一个汉字）；超过 5 字**不再显示「…」**，而是**自动调小字号**尽量完整显示（实在放不下才换第二行）
+· ↩️ **所有子页面的返回箭头统一样式**：统一为解题页那种 **21sp 的大箭头**（设置二级页原来漏了字号 → 又小、又因容器内边距显得**靠右**）；相机 / 批改页的「← 返回」也一并统一
+· 🔄 **「应用更新」页与 README 版本记录同步**：`0.x.x.x` 这种小修补的更新内容**也写进 App 内「更新内容」**（此前只写 README），历史四段版本一并补齐
+
+v0.6.4.2
+· 📁 **「分类」按钮占位固定**：尺寸锁定为「⏸ 中止生成 / 🔄 重新生成」按钮的实测宽高，分类名短（≤4 字）时 emoji 不挪位、右侧留白；名字变长自动降字号档位（13 → 12 / 11 / 10 / 9sp），9 字以上允许两行
+· 📷 **拍照单击对焦同时调曝光**：单击测光显式带 `AF|AE|AWB`，并按预览帧亮度统计在约 1.2 秒内自动调整曝光补偿 —— 治「拍电脑屏幕过曝、字看不清」
+· 🔍 **对焦框加大**：原来写死 42 像素（3.5× 屏上仅约 12dp）太小，改用 dp（整框约 64dp）
+
+v0.6.4.1
+· 🔤 **解题页顶栏字号再小 1sp**（用户要求）：⏸ 中止生成 / 🔄 重新生成 / 📚 存错题本统一 14 → **13sp**；「📁 分类」的自动缩放同步下调为 **11 / 10 / 9sp**
+· 🧠 **思考区展开/折叠「记住最后一次操作」**：手动切一次之后，**全应用、跨题目**都按最后一次（展开 / 折叠）显示（存本机偏好 `think_expand_pref`，解题页与同类题页共用）
+· 🐞 **修复荣耀机型误触长按**：点系统「灵动胶囊」后轻点屏幕，偶发被判定为「长按气泡」而进入多选 —— 现在网页侧补 `touchcancel`/失焦复位并加长按超时守卫，原生侧在窗口重新聚焦时复位手势状态
+
 v0.6.4
 · ⛔ **取消「导出这道题」功能**：长图 / PDF 导出**始终无法保证内容完整**（多次修复后仍会在底部截断），决定不再做这个功能 —— 解题页顶栏的 📤 按钮、导出弹窗、相关代码与文案**全部删除**。需要留档时可用系统截图，或长按复制题干与解答
 · ✂️ **新增「AI 切图」开关**（设置 → AI 管理，位于「API 用量统计」下方）：**关掉后完全不调用 AI**，框选只用本地算法（更快、也不消耗额度），下面的「AI 框选时限」设置项随之隐藏；框选页的手动「AI 识别」按钮也不再显示
 · 🔤 **「中止 / 重新生成」恢复文字**：顶栏显示「⏸ 中止生成」「🔄 重新生成」（不再只有图标），字号与「存错题本」等按钮一致
 · 🔍 **错题本搜索按钮字号**：标题栏的 🔍 与右侧「排序 / 管理」等按钮**字号统一**
+
+v0.6.3.3
+· 🐞 **导出截断的真凶找到并修掉**：内容高度是在**原题图（base64 `<img>`）还没加载完**时量出来的 → 位图比真实内容矮 → 底部被切。现在页面里**等图片 + 字体都就绪**再上报高度，并且**截图前原生再量一次取最大值**；页面高度计算也把**页脚**算进去
+· 🔤 **顶栏更紧凑**：📤 与 ⏸/🔄 两个图标按钮显式收紧到 44dp 宽、内边距 2dp（TextButton 默认 58dp 最小宽度会让单个 emoji 显得很"散"），整组贴到右侧
+
+v0.6.3.2
+· 🐞 **再修导出截断**：改成「**把导出页显示出来 + PixelCopy 逐带拷屏幕上真实像素**」，彻底不再依赖离屏 `draw`（它在实机上要么画不出内容、要么只画第一带）；每一带都要求**有内容**且**与上一带不同**，否则重试该带，仍失败就明确报「导出失败」——不会再给半截图
+· 🔤 **顶栏按钮统一**：「中止 / 重新生成」**只保留 emoji**（⏸ / 🔄）；**📤 导出、⏸·🔄、📚 存错题本 三个按钮字号一致**；「分类」按钮（存完错题本后出现）**保留按分类名长度自动缩放**
+
+v0.6.3.1
+· 🐞 **修复导出全是空白**：此前离屏截图时网页被按 **1 像素宽**排版（PNG 成了 1px 白条、PDF 出来 11 页几乎全空）—— 现在挂载时就用真实宽度布局，并强制 **软件渲染** + 截完检查"有没有墨迹"，空白会明确报失败而不是存一张白图
+· 📄 **PDF 改走 Chromium 打印**：由 WebView 自己按 A4 分页输出**矢量** PDF（比"长图切片"清晰得多）；导出固定浅色底（省墨、好看）
+· 📤 **导出按钮挪到「重新生成」左边**（解题页顶栏）；**解题页标题再小 2sp**（21 → 19）
 
 v0.6.3
 · 📤 **新增「导出这道题」**：解题页顶栏最右侧的 📤 → 弹窗里**先选格式（PNG 长图 / PDF）**，再**选保存位置**（系统「保存到文件」）。导出内容 = 原题图 + 题干 + 解答 + 分类 / 知识点，公式用 KaTeX 正常排版；PDF 按 A4 自动分页
@@ -30,6 +59,23 @@ v0.6.2
 · 🐞 **崩溃日志（只存本机）**：闪退时自动记录版本 / 机型 / 完整堆栈（最多留 10 份），设置 → 数据管理里可一键**导出 txt** 或清空
 · ⬆️ **更新页增强**：查到新版本时**直接显示该版本的更新说明**、可「**跳过此版本**」（之后不再顶红点）、显示**上次检查时间**、检查/下载失败可「重试 / 重新下载」
 · 🔍 **内部质量**：新增 47 个单元测试（答案解析 / 版本比较 / 备份裁剪 / 排序 / 查重 / 文案表），每次推送自动运行
+
+v0.6.1.4
+· 🗄 **自动备份**：设置 → 数据管理 → 「自动备份」——选一个文件夹后，**每天第一次打开应用时**自动把整库备份成 JSON 写进去，**只保留最近 3 份**（自动清理更旧的，且只删自己写出的文件）；备份可直接用「导入备份」恢复，不联网、不上传
+· 备份要能扛住"卸载 / 清除数据"，所以需要先选一次文件夹才生效，并且**故意不写进 App 私有目录**；可随时用「立即备份一次」手动触发、也可关掉开关
+· 本次起「更新说明」直接写在 Release 里 —— App 的更新页会把该说明显示出来
+
+v0.6.1.3
+· 🔍 **首次引入单元测试**：新增 `app/src/test`（22 个用例）覆盖**历史上反复踩坑的纯逻辑** —— 答案解析（题干回显、圈码泄漏、正文不能被截断）、版本比较与「同版本新构建」判定、四种语言文案表的键/占位符/繁体转换；`tools/run-unit-tests.ps1` 供本机运行，CI 每次推送都会跑
+· ⬆️ **更新页增强**：发现新版本时直接显示**该版本的更新说明**（Release 说明，Markdown 已清洗）；新增**「跳过此版本」**（跳过后启动静默检查不再顶红点，可随时取消）；显示**上次检查时间**；检查/下载失败时给出**「重试 / 重新下载」**
+
+v0.6.1.2
+· 🌙 **深色主题适配对话区**：解题 / 同类题页面的对话气泡、正文、思考块配色改为 CSS 变量，跟随「应用主题」（浅色 / 深色 / 跟随系统）；此前深色下气泡仍是浅灰、思考块灰字几乎看不清
+· 🐞 **崩溃日志（本地）**：闪退时自动记录到本机（版本 / 机型 / 线程 / 完整堆栈，最多留 10 份），设置 → 数据管理可**一键导出 txt / 清空**；**只存本机、不会上传**
+
+v0.6.1.1
+· 🔁 **同一版本的新构建也能被发现**：即使版本号没变，只要发布物比本机安装更新、且内容确实不同（SHA-256 不同）就会提示更新（兜底能力，正常发版仍走版本号）
+· ℹ️ 「关于 → 应用信息」补上 **MIT License** 一行（灰色小字）
 
 v0.6.1
 · ⬆️ **新增「应用更新」页**（设置里，位于「数据管理」与「关于」之间）：显示当前版本、一键**检查更新**、下载并在安装前做**双重校验**（SHA-256 + 签名证书），校验不通过会删除下载的文件
@@ -256,11 +302,40 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.4.3
+· 🐞 **Fixed the blank "next problem" page after switching problems in review**: going from a **photo problem** to a **text problem with no original image** made the problem's "light / heavy query redirect" **load it once more** and wipe the review mode along the way → the **Familiar / Vague / Forgot buttons disappeared**, the title went back from "Review x/n" to "Notebook", and it occasionally got **stuck forever on the centred blank "next problem" page**. Review mode is now kept through the whole loading chain, and the clear-screen flag got a fallback reset as well
+· 📁 **The "subject" button fixed again**: the **emoji never changes size any more** (it used to shrink together with the subject name); the button is now **wide enough for 5 characters** (the button group on the right therefore shifts left by one character); past 5 characters it **no longer shows "…"** but **shrinks the text** so that as much as possible fits (only a really long name wraps to a second line)
+· ↩️ **One back-arrow style for all sub-pages**: now the **21sp large arrow** used on the solve page (the settings sub-pages had lost their text size, so they were too small and, because of the container padding, looked **pushed to the right**); "← Back" on the camera / grading pages was unified as well
+· 🔄 **The "App update" page is now kept in sync with the README version log**: patch releases such as `0.x.x.x` **also have their notes written into the in-app "What's new"** (previously README only), and the older four-segment versions were filled in too
+
+v0.6.4.2
+· 📁 **The "subject" button has a fixed footprint**: its size is locked to the measured width and height of the "⏸ Stop generation / 🔄 Regenerate" buttons, so with a short subject name (≤4 characters) the emoji no longer shifts and space stays on the right; longer names step the text size down (13 → 12 / 11 / 10 / 9sp), and 9 or more characters may wrap to two lines
+· 📷 **One tap on the camera focuses and adjusts exposure**: tap-to-meter now explicitly uses `AF|AE|AWB` and adjusts the exposure compensation within about 1.2 s from preview-frame brightness statistics — it fixes "photographing a computer screen comes out overexposed and unreadable"
+· 🔍 **Bigger focus box**: it used to be a hard-coded 42 pixels (only about 12dp on a 3.5× screen), which is far too small; it is now in dp (about 64dp for the whole box)
+
+v0.6.4.1
+· 🔤 **Solve-page top bar one more 1sp smaller** (user request): ⏸ Stop generation / 🔄 Regenerate / 📚 Save to notebook are all 14 → **13sp**; the auto-scaling of "📁 subject" steps down to **11 / 10 / 9sp** as well
+· 🧠 **Expanding / collapsing the thinking block "remembers your last action"**: once you toggle it by hand, the **whole app, across problems**, follows your last choice (expanded / collapsed), stored as the local preference `think_expand_pref` shared by the solve page and the similar-problems page
+· 🐞 **Fixed accidental long-presses on Honor devices**: after tapping the system "dynamic capsule" and then lightly tapping the screen, the app occasionally treated it as a "long-press bubble" and entered multi-select — the web side now resets on `touchcancel` / focus loss and guards the long-press timeout, and the native side resets the gesture state when the window regains focus
+
 v0.6.4
 · ⛔ **"Export this problem" has been dropped**: the long-image / PDF export **never managed to include everything** (it still cut off at the bottom after several fixes), so the feature is gone for good — the 📤 button in the solve-page top bar, the export dialog and all related code and strings were **deleted**. To keep a copy, use a system screenshot or copy the question and answer
 · ✂️ **New "AI cropping" switch** (Settings → AI management, right below the API usage stats): when it is off, **no AI is called at all** — boxing uses the local algorithm only (faster and no tokens spent), the "AI crop timeout" setting below is hidden, and the manual "AI detect" button on the crop screen is hidden too
 · 🔤 **"Stop / Regenerate" show their labels again**: the top bar now reads "⏸ Stop generation" and "🔄 Regenerate" instead of icons only, with the same text size as the other buttons such as "Save to notebook"
 · 🔍 **Notebook search button size**: the 🔍 in the title bar now **matches the text size** of "Sort / Manage" next to it
+
+v0.6.3.3
+· 🐞 **The real cause of the truncated export found and fixed**: the content height was measured **before the original photo (base64 `<img>`) had finished loading** → the bitmap was shorter than the real content → the bottom got cut off. The page now **waits for both images and fonts** before reporting its height, and **the native side measures once more before capturing and takes the maximum**; the page height calculation now includes the **footer** as well
+· 🔤 **Tighter top bar**: the 📤 and ⏸/🔄 icon buttons are explicitly tightened to 44dp wide with 2dp padding (the TextButton minimum width of 58dp makes a single emoji look very "loose"), and the whole group sits against the right edge
+
+v0.6.3.2
+· 🐞 **Export truncation fixed again**: it now **shows the export page and copies the real screen pixels band by band with PixelCopy**, no longer relying on offscreen `draw` at all (on a real device that either drew nothing or only the first band); every band must **have content** and **differ from the previous one**, otherwise the band is retried, and if it still fails the app clearly reports "export failed" — no more half screenshots
+· 🔤 **Top-bar buttons unified**: "Stop / Regenerate" **keep only their emoji** (⏸ / 🔄); **📤 export, ⏸·🔄 and 📚 save now share one text size**; the "subject" button (shown after saving to the notebook) **still scales with the subject-name length**
+
+v0.6.3.1
+· 🐞 **Fixed exports coming out completely blank**: offscreen capture used to lay the page out at **1 pixel wide** (the PNG became a 1px white strip and the PDF came out as 11 nearly empty pages) — the page is now laid out at its real width when mounted, **software rendering** is forced, and the result is checked for "ink"; a blank capture reports a failure instead of saving an empty image
+· 📄 **PDF now goes through Chromium printing**: the WebView itself outputs a **vector** PDF paginated to A4 (far sharper than slicing a long image); exports always use a light background (saves ink and looks better)
+· 📤 **Export button moved to the left of "Regenerate"** (solve-page top bar); **the solve-page title is 2sp smaller again** (21 → 19)
 
 v0.6.3
 · 📤 **New "Export this problem"**: the 📤 button at the far right of the solve-page top bar opens a dialog where you **pick the format (PNG long image / PDF)** and then **choose where to save it** (system "Save to file"). The export contains the original photo, question, answer and subject / key points, with formulas typeset by KaTeX; PDF is paginated to A4 automatically
@@ -281,6 +356,23 @@ v0.6.2
 · 🐞 **Crash logs (local only)**: crashes are recorded with version / device / full stack trace (last 10 kept) and can be **exported as txt** or cleared from Settings → Data
 · ⬆️ **Update page improvements**: the **release notes of the new version are shown in-app**, you can "**skip this version**" (no more red badge for it), the **last check time** is displayed, and failed checks/downloads offer retry
 · 🔍 **Engineering**: 47 unit tests added (answer parsing / version comparison / backup pruning / sorting / duplicate check / string tables), run automatically on every push
+
+v0.6.1.4
+· 🗄 **Automatic backup**: Settings → Data → "Auto backup" — pick a folder and the whole database is backed up to JSON on the **first launch of each day**, keeping only the **last 3** (older ones are cleaned up automatically, and only files it wrote itself are deleted); the backup can be restored straight from "Import backup", local only — no network, no upload
+· A backup has to survive "uninstall / clear data", so a folder must be picked once for this to take effect, and the files are **deliberately not written into the app's private directory**; you can trigger it any time with "Back up now" or switch it off
+· From this version on the "what's new" text is written directly in the Release — the app's update page shows it
+
+v0.6.1.3
+· 🔍 **Unit tests introduced for the first time**: a new `app/src/test` (22 cases) covering the **pure logic that had bitten us repeatedly** — answer parsing (question echo, circled-number leakage, body text must not be truncated), version comparison and the "new build of the same version" rule, and the keys / placeholders / traditional conversion of the four string tables; run locally with `tools/run-unit-tests.ps1` and by CI on every push
+· ⬆️ **Update page improvements**: a new version now shows **its release notes** directly (cleaned-up Markdown); a new "**skip this version**" option (silent startup checks no longer raise a red badge afterwards, and it can be cancelled at any time); the **last check time** is shown; failed checks / downloads offer "**Retry / Download again**"
+
+v0.6.1.2
+· 🌙 **Dark theme for the conversation area**: bubbles, body text and the thinking block on the solve / similar-problems pages now use CSS variables and follow "App theme" (light / dark / follow system); previously bubbles stayed light grey and the grey thinking text was nearly unreadable in dark mode
+· 🐞 **Crash logs (local)**: crashes are recorded on the device (version / device / thread / full stack trace, last 10 kept), and Settings → Data can **export them as txt or clear them**; **local only — nothing is uploaded**
+
+v0.6.1.1
+· 🔁 **New builds of the same version are detected too**: even when the version number is unchanged, an update is offered if the published build is newer than your install and the content really differs (SHA-256 differs) — a safety net, since normal releases still go by version number
+· ℹ️ "About → App info" gained a **MIT License** line (small grey text)
 
 v0.6.1
 · ⬆️ **New "App update" page** (in Settings, between Data and About): shows the current version, checks for updates, downloads, and **verifies twice before installing** (SHA-256 + signing certificate); a failed check deletes the file
@@ -507,11 +599,40 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.4.3
+· 🐞 **復習で問題を切り替えたあとの「次の問題」空白ページを修正**：**画像問題**から**原題画像のない文字だけの問題**へ移ると、問題の「軽／重クエリのリダイレクト」が**もう一度読み込み**、そのついでに復習モードまで消していました → **熟悉／模糊／忘記 の 3 ボタンが消える**、タイトルが「復習 x/n」から「誤答ノート」に戻る、ときには**中央の「次の問題」空白ページで永久に止まる**という症状になっていました。現在は読み込み経路のどこでも復習モードが消えず、画面クリアのフラグにも復帰処理を入れました
+· 📁 **「分類」ボタンを再修正**：**emoji の文字サイズはいつでも変わりません**（以前は分類名と一緒に縮んでいました）。ボタンは**漢字 5 文字が収まる幅**に拡大（そのぶん右側のボタン群が 1 文字ぶん左へ移動）。5 文字を超えても**「…」は表示せず**、**文字サイズを自動で小さく**してできるだけ全部見せます（どうしても入らないときだけ 2 行）
+· ↩️ **すべての下位ページの戻る矢印を統一**：解答ページと同じ **21sp の大きい矢印**に統一（設定の下位ページは文字サイズ指定が抜けていて小さく、余白のせいで**右に寄って**見えていました）。カメラ／添削ページの「← 戻る」も同様に統一
+· 🔄 **「アプリ更新」ページを README のバージョン履歴と同期**：`0.x.x.x` のような小さな修正の内容も**アプリ内の「更新内容」に書く**ようにしました（以前は README のみ）。過去の 4 桁バージョンもあわせて補完
+
+v0.6.4.2
+· 📁 **「分類」ボタンの占有幅を固定**：「⏸ 生成を中止 / 🔄 再生成」ボタンの実測サイズに合わせ、分類名が短い（4 文字以下）ときは emoji が動かず右側に余白が残ります。名前が長いと文字サイズを段階的に下げ（13 → 12 / 11 / 10 / 9sp）、9 文字以上は 2 行を許可
+· 📷 **撮影のシングルタップでフォーカスと露出を同時に調整**：タップ測光で明示的に `AF|AE|AWB` を使い、プレビュー画像の明るさ統計から約 1.2 秒で露出補正を自動調整 —— 「パソコンの画面を撮ると白飛びして読めない」を解消
+· 🔍 **フォーカス枠を拡大**：従来は 42 ピクセル固定（3.5× 画面で約 12dp）で小さすぎたため、dp 指定（枠全体で約 64dp）に変更
+
+v0.6.4.1
+· 🔤 **解答ページ上部バーの文字をもう 1sp 小さく**（ユーザー要望）：⏸ 生成を中止 / 🔄 再生成 / 📚 誤答ノートに保存 を 14 → **13sp** に統一。「📁 分類」の自動縮小も **11 / 10 / 9sp** に下げました
+· 🧠 **思考ブロックの展開／折りたたみが「最後の操作を記憶」**：一度手で切り替えると、**アプリ全体・問題をまたいで**最後の状態（展開／折りたたみ）で表示します（端末内の設定 `think_expand_pref` に保存、解答ページと類似問題ページで共用）
+· 🐞 **Honor 端末の誤長押しを修正**：システムの「ダイナミックカプセル」を押したあと画面を軽くタップすると、まれに「長押しバブル」と判定されて複数選択に入っていました —— Web 側に `touchcancel`／フォーカス喪失時のリセットと長押しタイムアウトのガードを追加し、ネイティブ側はウィンドウが再フォーカスされたときにジェスチャ状態をリセットします
+
 v0.6.4
 · ⛔ **「この問題を書き出す」機能を廃止**：長い画像 / PDF の書き出しは**どうしても内容が欠けずに収まらない**（何度直しても下部が切れる）ため、この機能は作らないことにしました —— 解答ページ上部の 📤 ボタン、書き出しダイアログ、関連するコードと文言を**すべて削除**しました。保存したい場合は端末のスクリーンショットを使うか、問題文と解答をコピーしてください
 · ✂️ **「AI 切り抜き」スイッチを追加**（設定 → AI 管理、「API 使用量」のすぐ下）：オフにすると **AI を一切呼び出さず**、枠取りはローカルアルゴリズムのみ（より速く、トークンも消費しません）。下の「AI 枠取りの制限時間」も非表示になり、切り抜き画面の手動「AI 認識」ボタンも表示されません
 · 🔤 **「中止 / 再生成」に文字が戻りました**：上部バーは「⏸ 生成を中止」「🔄 再生成」と表示（アイコンのみではなくなりました）。文字サイズは「誤答ノートに保存」などと同じです
 · 🔍 **誤答ノートの検索ボタンのサイズ**：タイトルバーの 🔍 を、右側の「並べ替え / 管理」などと**同じ文字サイズ**に統一
+
+v0.6.3.3
+· 🐞 **書き出しが切れる真因を特定して修正**：内容の高さを**原題画像（base64 `<img>`）の読み込みが終わる前**に測っていた → ビットマップが実際より低くなり → 下部が切れていました。現在はページ内で**画像とフォントの両方が揃うのを待って**から高さを報告し、**撮影前にネイティブ側でもう一度測って最大値**を採用。ページ高さの計算に**フッター**も含めました
+· 🔤 **上部バーをよりコンパクトに**：📤 と ⏸/🔄 の 2 つのアイコンボタンを 44dp 幅・余白 2dp に明示的に詰めました（TextButton の最小幅 58dp では emoji 1 つがとても「散って」見えるため）。グループ全体を右端に寄せています
+
+v0.6.3.2
+· 🐞 **書き出しの切れを再修正**：「**書き出しページを表示して＋PixelCopy で画面の実ピクセルを帯ごとにコピー**」方式に変更し、オフスクリーンの `draw` に一切依存しなくなりました（実機では内容が描かれないか、最初の帯しか描かれませんでした）。各帯は**内容がある**ことと**前の帯と異なる**ことを必須とし、満たさなければその帯を再試行、それでも失敗すれば「書き出し失敗」と明示 —— 中途半端なスクリーンショットは返しません
+· 🔤 **上部バーのボタンを統一**：「中止／再生成」は**emoji のみ**（⏸ / 🔄）に。**📤 書き出し、⏸·🔄、📚 誤答ノートに保存 の 3 つは同じ文字サイズ**。「分類」ボタン（誤答ノート保存後に出るもの）は**分類名の長さによる自動縮小を維持**
+
+v0.6.3.1
+· 🐞 **書き出しが真っ白になる問題を修正**：以前はオフスクリーン撮影時にページが **1 ピクセル幅**でレイアウトされていました（PNG は 1px の白帯、PDF は 11 ページでほぼ空）。現在はマウント時に実幅でレイアウトし、**ソフトウェアレンダリング**を強制、撮影後に「インクがあるか」を確認。空白なら白い画像を保存せず、明確に失敗を報告します
+· 📄 **PDF を Chromium 印刷に変更**：WebView 自身が A4 でページ分割した**ベクター** PDF を出力（「長い画像の分割」よりずっと鮮明）。書き出しは常に明るい背景（省インクで見やすい）
+· 📤 **書き出しボタンを「再生成」の左へ移動**（解答ページ上部バー）。**解答ページのタイトルをさらに 2sp 小さく**（21 → 19）
 
 v0.6.3
 · 📤 **「この問題を書き出す」を追加**：解答ページ右上の 📤 → ダイアログで**まず形式（PNG 長い画像／PDF）**、次に**保存先**を選択（システムの「ファイルに保存」）。内容は原題の画像＋問題文＋解答＋分類／知識点で、数式は KaTeX で組版。PDF は A4 で自動分割
@@ -532,6 +653,23 @@ v0.6.2
 · 🐞 **クラッシュログ（端末内のみ）**：クラッシュ時にバージョン／機種／スタックトレースを記録（最新 10 件）。設定 → データ管理から **txt 書き出し**や削除ができます
 · ⬆️ **更新ページの強化**：新しいバージョンの**更新内容をアプリ内に表示**、「**このバージョンをスキップ**」（以後バッジを出さない）、**前回の確認時刻**の表示、失敗時の再試行
 · 🔍 **内部品質**：単体テストを 47 件追加（解答解析／バージョン比較／バックアップ整理／並べ替え／重複判定／文言テーブル）。プッシュのたびに自動実行
+
+v0.6.1.4
+· 🗄 **自動バックアップ**：設定 → データ管理 → 「自動バックアップ」——フォルダを選ぶと、**毎日最初にアプリを開いたとき**にデータベース全体を JSON へ書き出し、**最新 3 件だけ**保持（古いものは自動で削除。削除するのは自分が書いたファイルだけ）。バックアップは「バックアップを読み込む」でそのまま復元でき、通信も送信もありません
+· 「アンインストール／データ消去」に耐える必要があるため、**あえてアプリ専用領域には書きません**。フォルダを一度選ばないと有効にならず、「今すぐ 1 回バックアップ」でいつでも手動実行でき、スイッチを切ることもできます
+· このバージョンから「更新内容」は Release に直接書きます —— アプリの更新ページにその内容が表示されます
+
+v0.6.1.3
+· 🔍 **単体テストを初導入**：`app/src/test` を新設（22 件）し、**過去に何度も踏んだ純粋なロジック**をカバー —— 解答解析（問題文の再表示、丸数字の混入、本文が切れないこと）、バージョン比較と「同一バージョンの新ビルド」判定、4 言語の文言テーブルのキー／プレースホルダ／繁体変換。`tools/run-unit-tests.ps1` でローカル実行でき、CI がプッシュのたびに走ります
+· ⬆️ **更新ページの強化**：新しいバージョンを見つけると**そのバージョンの更新内容**を表示（Release 説明、Markdown はクリーニング済み）。**「このバージョンをスキップ」**を追加（スキップ後は起動時の静かな確認でバッジが出ず、いつでも解除可能）。**前回の確認時刻**を表示。確認／ダウンロードの失敗時は**「再試行／再ダウンロード」**を提示
+
+v0.6.1.2
+· 🌙 **ダークテーマの会話エリア対応**：解答／類似問題ページの会話バブル・本文・思考ブロックの配色を CSS 変数にし、「アプリのテーマ」（ライト／ダーク／システムに従う）に追従。以前はダークでもバブルが薄いグレーのままで、思考ブロックの灰色文字がほぼ読めませんでした
+· 🐞 **クラッシュログ（ローカル）**：クラッシュ時に端末内へ記録（バージョン／機種／スレッド／スタックトレース全体、最新 10 件まで）。設定 → データ管理から **txt 書き出し／削除**が可能。**端末内のみで、アップロードはしません**
+
+v0.6.1.1
+· 🔁 **同一バージョンの新しいビルドも検出**：バージョン番号が変わっていなくても、公開物がインストール済みより新しく内容が実際に異なる（SHA-256 が異なる）場合に更新を提示します（あくまで保険。通常のリリースはバージョン番号どおり）
+· ℹ️ 「このアプリについて → アプリ情報」に **MIT License** の 1 行を追加（小さなグレー文字）
 
 v0.6.1
 · ⬆️ **「アプリ更新」ページを追加**（設定内、「データ管理」と「このアプリについて」の間）：現在のバージョン表示・更新の確認・ダウンロード・インストール前の**二重検証**（SHA-256＋署名証明書）。検証に失敗したファイルは削除します
@@ -758,11 +896,40 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.4.3
+· 🐞 **복습에서 문제를 바꾼 뒤 「다음 문제」 빈 페이지 수정**: **이미지 문제**에서 **원본 사진이 없는 텍스트 문제**로 넘어갈 때 문제의 「경량 / 중량 조회 리디렉션」이 **한 번 더 로드**되면서 복습 모드를 함께 지웠습니다 → **익숙 / 애매 / 모름 세 버튼이 사라지고**, 제목이 「복습 x/n」에서 「오답노트」로 돌아가며, 간혹 **가운데 「다음 문제」 빈 페이지에서 영구히 멈추는** 증상이 있었습니다. 이제 복습 모드는 로딩 경로 전체에서 지워지지 않고, 화면 초기화 플래그에도 복구 처리를 넣었습니다
+· 📁 **「분류」 버튼 재수정**: **emoji 글자 크기는 언제나 그대로**입니다(이전에는 분류 이름과 함께 줄어들었습니다). 버튼을 **한자 5자가 들어가는 너비**로 넓혔고(그만큼 오른쪽 버튼 그룹이 한 글자만큼 왼쪽으로 이동), 5자를 넘으면 **「…」를 표시하지 않고** **글자 크기를 자동으로 줄여** 최대한 다 보여줍니다(정말 안 들어갈 때만 두 줄)
+· ↩️ **모든 하위 페이지의 뒤로 화살표 스타일 통일**: 풀이 화면과 같은 **21sp 큰 화살표**로 통일(설정 하위 페이지는 글자 크기 지정이 빠져 작았고, 여백 때문에 **오른쪽으로 치우쳐** 보였습니다). 카메라 / 첨삭 페이지의 「← 뒤로」도 함께 통일
+· 🔄 **「앱 업데이트」 페이지를 README 버전 기록과 동기화**: `0.x.x.x` 같은 작은 수정의 내용도 **앱 안 「업데이트 내역」에 함께 기록**합니다(이전에는 README에만). 지난 4자리 버전도 모두 채웠습니다
+
+v0.6.4.2
+· 📁 **「분류」 버튼 자리 고정**: 크기를 「⏸ 생성 중단 / 🔄 다시 생성」 버튼의 실측 너비·높이로 고정해서, 분류 이름이 짧을(4자 이하) 때 emoji가 움직이지 않고 오른쪽에 여백이 남습니다. 이름이 길어지면 글자 크기를 단계적으로 낮추고(13 → 12 / 11 / 10 / 9sp), 9자 이상은 두 줄까지 허용
+· 📷 **촬영 한 번 누르면 초점과 노출을 함께 조정**: 탭 측광에 `AF|AE|AWB`를 명시하고, 미리보기 프레임 밝기 통계로 약 1.2초 안에 노출 보정을 자동 조정 —— 「컴퓨터 화면을 찍으면 하얗게 날아가 글자가 안 보임」 해결
+· 🔍 **초점 상자 확대**: 기존에는 42픽셀 고정(3.5× 화면에서 약 12dp)이라 너무 작았습니다. dp 기준(상자 전체 약 64dp)으로 변경
+
+v0.6.4.1
+· 🔤 **풀이 화면 상단 글자 1sp 더 작게**(사용자 요청): ⏸ 생성 중단 / 🔄 다시 생성 / 📚 오답노트에 저장 을 14 → **13sp** 로 통일. 「📁 분류」의 자동 축소도 **11 / 10 / 9sp** 로 낮췄습니다
+· 🧠 **사고 영역 펼치기 / 접기에 「마지막 조작 기억」**: 한 번 직접 바꾸면 **앱 전체, 문제를 넘어서** 마지막 상태(펼침 / 접힘)로 표시합니다(기기 내 설정 `think_expand_pref` 에 저장, 풀이 화면과 유사 문제 화면이 함께 사용)
+· 🐞 **Honor 기기 오터치 롱프레스 수정**: 시스템 「다이내믹 캡슐」을 누른 뒤 화면을 살짝 탭하면 간혹 「롱프레스 말풍선」으로 판정되어 다중 선택에 들어갔습니다 —— 웹 쪽에 `touchcancel` / 포커스 해제 시 초기화와 롱프레스 타임아웃 가드를 추가하고, 네이티브 쪽은 창이 다시 포커스될 때 제스처 상태를 초기화합니다
+
 v0.6.4
 · ⛔ **'이 문제 내보내기' 기능을 없앴습니다**: 긴 이미지 / PDF 내보내기는 **아무리 고쳐도 내용이 잘리지 않게 담을 수 없어서** 이 기능은 만들지 않기로 했습니다 — 문제 풀이 화면 상단의 📤 버튼, 내보내기 대화상자, 관련 코드와 문구를 **모두 삭제**했습니다. 보관이 필요하면 시스템 스크린샷을 쓰거나 문제와 풀이를 복사하세요
 · ✂️ **'AI 자르기' 스위치 추가**(설정 → AI 관리, 'API 사용량' 바로 아래): 끄면 **AI를 전혀 호출하지 않고** 자르기는 로컬 알고리즘만 사용합니다(더 빠르고 토큰도 소모하지 않음). 아래 'AI 자르기 제한 시간'도 숨겨지고, 자르기 화면의 수동 'AI 인식' 버튼도 표시되지 않습니다
 · 🔤 **'중단 / 다시 생성'에 글자가 돌아왔습니다**: 상단에 '⏸ 생성 중단', '🔄 다시 생성'으로 표시됩니다(아이콘만 표시하지 않음). 글자 크기는 '오답노트에 저장' 등과 같습니다
 · 🔍 **오답노트 검색 버튼 크기**: 제목 표시줄의 🔍 를 오른쪽 '정렬 / 관리' 등과 **같은 글자 크기**로 통일
+
+v0.6.3.3
+· 🐞 **내보내기 잘림의 진짜 원인을 찾아 수정**: 내용 높이를 **원본 문제 이미지(base64 `<img>`)가 다 로드되기 전**에 측정했습니다 → 비트맵이 실제 내용보다 낮아 → 아래가 잘렸습니다. 이제 페이지에서 **이미지와 글꼴이 모두 준비된 뒤** 높이를 보고하고, **캡처 전에 네이티브에서 한 번 더 측정해 최댓값**을 사용합니다. 페이지 높이 계산에 **바닥글**도 포함
+· 🔤 **상단 바를 더 촘촘하게**: 📤 와 ⏸/🔄 두 아이콘 버튼을 44dp 너비, 안쪽 여백 2dp로 명시적으로 좁혔습니다(TextButton 기본 최소 너비 58dp 때문에 emoji 하나가 매우 「흩어져」 보였습니다). 그룹 전체를 오른쪽 끝에 붙였습니다
+
+v0.6.3.2
+· 🐞 **내보내기 잘림 재수정**: 「**내보내기 페이지를 표시한 뒤 + PixelCopy 로 화면의 실제 픽셀을 띠 단위로 복사**」 방식으로 바꿔, 오프스크린 `draw` 에 전혀 의존하지 않습니다(실기기에서는 내용이 아예 안 그려지거나 첫 띠만 그려졌습니다). 각 띠는 **내용이 있을 것**과 **이전 띠와 다를 것**을 요구하고, 아니면 그 띠를 재시도하며 그래도 실패하면 「내보내기 실패」로 분명히 알립니다 —— 반쪽 스크린샷은 주지 않습니다
+· 🔤 **상단 바 버튼 통일**: 「중단 / 다시 생성」은 **emoji 만**(⏸ / 🔄) 남깁니다. **📤 내보내기, ⏸·🔄, 📚 오답노트에 저장 세 버튼의 글자 크기가 같고**, 「분류」 버튼(오답노트 저장 후 나타남)은 **분류 이름 길이에 따른 자동 축소를 유지**
+
+v0.6.3.1
+· 🐞 **내보내기가 전부 빈 화면이던 문제 수정**: 이전에는 오프스크린 캡처 시 페이지가 **1픽셀 너비**로 배치되었습니다(PNG는 1px 흰 줄, PDF는 11쪽이 거의 빈 상태). 이제 마운트할 때 실제 너비로 배치하고 **소프트웨어 렌더링**을 강제하며, 캡처 후 「잉크가 있는지」 확인해서 빈 화면이면 흰 이미지를 저장하지 않고 실패를 분명히 알립니다
+· 📄 **PDF를 Chromium 인쇄로 변경**: WebView가 직접 A4로 나눈 **벡터** PDF를 출력합니다(「긴 이미지 자르기」보다 훨씬 선명). 내보내기는 항상 밝은 배경(잉크 절약, 보기 좋음)
+· 📤 **내보내기 버튼을 「다시 생성」 왼쪽으로 이동**(풀이 화면 상단). **풀이 화면 제목을 2sp 더 작게**(21 → 19)
 
 v0.6.3
 · 📤 **「이 문제 내보내기」 추가**: 풀이 화면 오른쪽 위 📤 → 대화상자에서 **먼저 형식(PNG 긴 이미지 / PDF)** 을 고르고, 그다음 **저장 위치**를 선택합니다(시스템 "파일로 저장"). 내용은 원본 사진 + 문제 + 풀이 + 분류 / 지식 태그이며 수식은 KaTeX로 조판됩니다. PDF는 A4로 자동 분할
@@ -783,6 +950,23 @@ v0.6.2
 · 🐞 **크래시 로그(기기 내에만)**：크래시 시 버전/기기/전체 스택을 기록(최근 10개). 설정 → 데이터 관리에서 **txt로 내보내기** 또는 삭제 가능
 · ⬆️ **업데이트 페이지 개선**：새 버전의 **업데이트 내용을 앱에서 바로 표시**, 「**이 버전 건너뛰기**」(이후 배지 표시 안 함), **마지막 확인 시간** 표시, 실패 시 다시 시도
 · 🔍 **내부 품질**：단위 테스트 47개 추가(답안 파싱/버전 비교/백업 정리/정렬/중복 판정/문구 테이블). 푸시할 때마다 자동 실행
+
+v0.6.1.4
+· 🗄 **자동 백업**: 설정 → 데이터 관리 → 「자동 백업」 —— 폴더를 선택하면 **매일 처음 앱을 열 때** 데이터베이스 전체를 JSON으로 백업하고 **최근 3개만** 보관합니다(오래된 것은 자동 정리, 자기가 쓴 파일만 삭제). 백업은 「백업 가져오기」로 바로 복원할 수 있고, 네트워크도 업로드도 없습니다
+· 백업은 「삭제 / 데이터 지우기」를 견뎌야 하므로 **일부러 앱 전용 폴더에 쓰지 않습니다**. 폴더를 한 번 선택해야 적용되고, 「지금 한 번 백업」으로 언제든 수동 실행하거나 스위치를 끌 수 있습니다
+· 이 버전부터 「업데이트 안내」는 Release에 직접 씁니다 —— 앱의 업데이트 페이지가 그 내용을 표시합니다
+
+v0.6.1.3
+· 🔍 **단위 테스트 첫 도입**: `app/src/test` 를 새로 만들고 22개 케이스로 **그동안 반복해서 걸렸던 순수 로직**을 검증합니다 —— 답안 파싱(문제 지문 재표시, 원문자 누출, 본문이 잘리지 않을 것), 버전 비교와 「같은 버전 새 빌드」 판정, 4개 언어 문구 테이블의 키 / 자리표시자 / 번체 변환. `tools/run-unit-tests.ps1` 로 로컬 실행하고 CI가 푸시마다 돌립니다
+· ⬆️ **업데이트 페이지 개선**: 새 버전을 찾으면 **그 버전의 업데이트 안내**를 바로 표시(Release 설명, Markdown 정리 완료). **「이 버전 건너뛰기」** 추가(건너뛰면 시작 시 조용한 확인에서 배지가 뜨지 않고 언제든 해제 가능). **마지막 확인 시간** 표시. 확인 / 다운로드 실패 시 **「다시 시도 / 다시 다운로드」** 제공
+
+v0.6.1.2
+· 🌙 **다크 테마 대화 영역 지원**: 풀이 / 유사 문제 화면의 말풍선, 본문, 사고 블록 색상을 CSS 변수로 바꿔 「앱 테마」(라이트 / 다크 / 시스템 따름)를 따릅니다. 이전에는 다크에서도 말풍선이 밝은 회색이고 사고 블록의 회색 글씨가 거의 보이지 않았습니다
+· 🐞 **크래시 로그(로컬)**: 크래시 시 기기에 기록합니다(버전 / 기기 / 스레드 / 전체 스택, 최근 10개까지). 설정 → 데이터 관리에서 **txt로 내보내기 / 비우기** 가능하며 **기기에만 저장되고 업로드되지 않습니다**
+
+v0.6.1.1
+· 🔁 **같은 버전의 새 빌드도 감지**: 버전 번호가 그대로여도 게시물이 설치본보다 새롭고 내용이 실제로 다르면(SHA-256 다름) 업데이트를 안내합니다(안전장치이며, 일반 릴리스는 버전 번호를 따릅니다)
+· ℹ️ 「정보 → 앱 정보」에 **MIT License** 한 줄 추가(작은 회색 글씨)
 
 v0.6.1
 · ⬆️ **「앱 업데이트」 페이지 추가**(설정에서 「데이터 관리」와 「정보」 사이): 현재 버전 표시·업데이트 확인·다운로드·설치 전 **이중 검증**(SHA-256 + 서명 인증서). 검증 실패 시 파일을 삭제합니다

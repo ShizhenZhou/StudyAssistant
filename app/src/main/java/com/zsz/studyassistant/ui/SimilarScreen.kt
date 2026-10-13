@@ -156,7 +156,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     if (editMode) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = pad) { Text("✕") }
                     } else {
-                        TextButton(onClick = { nav.popBackStack() }, contentPadding = pad) { Text("←", fontSize = SUBPAGE_TITLE) }
+                        SubPageBackArrow(onClick = { nav.popBackStack() })
                     }
                 },
                 actions = {

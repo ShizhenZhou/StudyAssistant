@@ -124,10 +124,8 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
             TopAppBar(
                 title = { Text(s["review.title"], fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    // 紧凑返回箭头：标题离 ← 更近（内部页面统一处理）
-                    TextButton(onClick = { nav.popBackStack() }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text("←", fontSize = SUBPAGE_TITLE)
-                    }
+                    // 返回箭头：全应用统一样式（见 SubPageBackArrow）
+                    SubPageBackArrow(onClick = { nav.popBackStack() })
                 }
             )
         }

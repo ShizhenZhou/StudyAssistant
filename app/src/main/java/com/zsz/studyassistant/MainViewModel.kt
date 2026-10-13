@@ -1385,7 +1385,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // 这里按 id 补全重字段，保证进入题目时原图与续答上下文都在。
         viewModelScope.launch {
             val full = runCatching { dao.heavyOnce(q.id) }.getOrNull() ?: q
-            loadQuestion(full)
+            loadQuestion(full, keepReview = true)
             // ★ 必须在 loadQuestion **之后**再置复习模式：
             //   loadQuestion 会复位模式标志（reviewMode=false 等），
             //   之前写在它前面 + 异步执行 → 被覆盖 → 点进去变成"查看错题"（曾出现的 bug）
@@ -2041,7 +2041,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var callSeq = 0L
 
     /** 加载某条错题的完整对话会话（用于续答） */
-    fun loadQuestion(q: Question) {
+    /**
+     * 载入一道错题（错题本 / 复习 / 详情页共用）。
+     *
+     * @param keepReview 复习换题时传 true：**不得**把 `reviewMode` 清成 false。
+     *   ★ 2026-10-12 修复（真机复现的 bug）：复习换到"无原图的文字题"时，下面那个"轻/重查询重定向"
+     *   分支会**再调一次** loadQuestion，于是 reviewMode 被清成 false 且没人恢复 →
+     *   复习模式掉出（三按钮消失、标题变「错题」），并让 SolveScreen 的清屏标志卡死成「下一题」空白页。
+     *   现在这个标志一路透传，复习模式在整条加载链里都不会被清掉。
+     */
+    fun loadQuestion(q: Question, keepReview: Boolean = false) {
         // ★ 列表页可能是"轻查询"（不含 imageBytes / conversationJson，避免大 BLOB 撑爆 CursorWindow），
         //   这里先按 id 补全再走原来的加载逻辑，避免"点进错题本发现原图丢失"。
         if (!heavyRedirect && (q.imageBytes == null || q.conversationJson == null)) {
@@ -2049,7 +2058,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch {
                 val full = runCatching { dao.heavyOnce(id) }.getOrNull() ?: q
                 heavyRedirect = true
-                try { loadQuestion(full) } finally { heavyRedirect = false }
+                try { loadQuestion(full, keepReview) } finally { heavyRedirect = false }
             }
             return
         }
@@ -2068,7 +2077,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         retryAction = null
         gradeMode = false
         exitRedo()                      // 换题/打开错题：重做状态（含"已更新掌握度"提示）一律清掉
-        reviewMode = false              // loadForReview() 会在其后置 true
+        // ★ keepReview=true（复习换题）：绝不清掉复习模式；否则下面这些状态写入会把用户踢出复习
+        //   （曾表现为"图片题换文字题后三按钮消失 + 停在「下一题」空白页"）
+        if (!keepReview) reviewMode = false
         directImages = emptyList()
         chatItems = try {
             json.decodeFromString<List<ChatItem>>(q.conversationJson ?: "")

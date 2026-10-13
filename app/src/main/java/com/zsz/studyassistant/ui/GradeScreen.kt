@@ -242,7 +242,8 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
 
-        TextButton(onClick = { nav.popBackStack() }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) { Text(s["common.backArrow"]) }
+        // 返回箭头：全应用统一样式（见 SubPageBackArrow）
+        SubPageBackArrow(onClick = { nav.popBackStack() }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp))
         // 批改结果不再显示在相机页：拍完直接进入全屏批改页（复用解题界面，流式输出）
     }
 }

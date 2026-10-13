@@ -75,9 +75,15 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -156,15 +162,25 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
     var resetScrollTick by remember { mutableIntStateOf(0) }
 
     // 复习切题：先做一次「清屏」（人眼可见地提示换了题），同时折叠答案、回到顶部
+    // ★ 2026-10-12 修复：switching 原来是"定时器标志"，effect 在 delay 期间被取消（换题/掉出复习模式）
+    //   就会**永远停在 true** → 页面永久显示「下一题」空白（用户实测的 bug）。
+    //   现在 ① delay 用 try/finally 复位；② 掉出复习模式时显式复位；③ 渲染处还要求处于复习模式。
     var switching by remember { mutableStateOf(false) }
     LaunchedEffect(sessionMode == SessionMode.REVIEW, vm.reviewDone) {
         if (sessionMode == SessionMode.REVIEW) {
             answerRevealed = false      // 切换题目时自动把答案折叠回去
             resetScrollTick++           // 新题从顶部开始
             switching = true
-            delay(320)                  // 约 0.3s 的空白，明确让人看到“换题了”
-            switching = false
+            try {
+                delay(320)              // 约 0.3s 的空白，明确让人看到“换题了”
+            } finally {
+                switching = false
+            }
         }
+    }
+    // 离开复习模式（三按钮分支）时，清屏标志必须一并复位，否则残留在普通页面上
+    LaunchedEffect(sessionMode) {
+        if (sessionMode != SessionMode.REVIEW) switching = false
     }
 
     // 复习：题目切换（reviewDone 变化或换了题）→ 页面回到顶端
@@ -308,10 +324,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     if (editMode) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("✕", fontSize = 18.sp) }
                     } else {
-                        TextButton(
-                            // 内边距收紧 → 标题离 ← 更近（内部页面统一处理）
-                            contentPadding = PaddingValues(horizontal = 4.dp),
-                            onClick = {
+                        // 返回箭头：全应用统一样式（见 SubPageBackArrow）
+                        SubPageBackArrow(onClick = {
                             // 只有"拍照搜题"这条流程返回时回拍题界面（方便再拍一张）；
                             // 复习 / 错题本 / 批改 / 图文提问（含空态、纯文字提问）一律返回来处
                             if (sessionMode == SessionMode.REVIEW ||
@@ -324,7 +338,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 vm.startNewQuestion()
                                 nav.navigate("camera") { popUpTo("home") }
                             }
-                        }) { Text("←", fontSize = SUBPAGE_TITLE) }
+                        })
                     }
                 },
                 actions = {
@@ -366,30 +380,71 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 Text(s["solve.restore"], fontSize = BTN_LABEL_SOLVE)
                             }
                         } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
-                            // ★ 「📁 分类」按钮（用户 2026-10-11 要求）：
-                            //   ① **整体大小（宽 × 高）始终等于「⏸ 中止 / 🔄 重新生成」按钮**（实测尺寸，见 refBtnSize）；
-                            //   ② 名字不足 4 字时 **emoji 位置不动**，多余空间留在**右边**（所以文字左对齐 + 撑满宽度）；
-                            //   ③ 名字越长逐档缩小字号（`categoryLabelSp`），再长折成两行（`categoryLabelMaxLines`）。
-                            //   这样无论分类名多长多短，顶栏这组按钮的占位都不跳动。
+                            // ★ 「📁 分类」按钮（用户 2026-10-11 提出、2026-10-12 修订）：
+                            //   ① 占位固定：**宽 = 「📁 + 5 个汉字」的实测宽**（比旁边的「⏸/🔄」宽一个汉字 ⇒
+                            //      右侧按钮组整体往左挪一个汉字），**高 = 「⏸ 中止 / 🔄 重新生成」的实测高**；
+                            //   ② **emoji 字号任何时候都不变**（永远 BTN_LABEL_SOLVE=13sp），只有分类名缩放/换行；
+                            //   ③ 名字 ≤5 字用基准字号单行；多于 5 字**不出「…」**，先逐档调小字号，实在不行才换第二行。
+                            //   决策逻辑在 `categoryLabelStyle()`（纯函数、可单测），能否放下由 TextMeasurer 实测。
+                            val noneLabel = s["solve.category.none"]        // 形如「📁 暂不分类」
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
-                            val catName = curCat?.name ?: s["solve.noCategory"]
-                            val label = if (curCat != null) s.format("solve.category", "name" to catName) else s["solve.category.none"]
+                            val catName = curCat?.name ?: noneLabel.substringAfter(" ", noneLabel)
+                            val emoji = if (curCat != null) "📁" else noneLabel.substringBefore(" ", "📁")
                             val density = LocalDensity.current
                             val refSize = refBtnSize
+                            val measurer = rememberTextMeasurer()
+                            val baseTextStyle = TextStyle(fontSize = BTN_LABEL_SOLVE)
+                            // 「📁 + 空格 + 5 个汉字」占多宽 → 按钮内容区宽度（emoji 固定 13sp，不参与缩放）
+                            // ★ 样本必须**带上 emoji 后面那个空格**：标签是「📁 名字」，少了空格会短 1 个字宽，
+                            //   5 个汉字时正好被裁掉一点点。
+                            val sampleWidthPx = remember(measurer, density, vm.fontScale.factor) {
+                                measurer.measure(
+                                    buildAnnotatedString {
+                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
+                                        append("汉".repeat(CATEGORY_FULL_CHARS))
+                                    },
+                                    baseTextStyle
+                                ).size.width
+                            }
+                            val horizontalPadPx = with(density) { 6.dp.roundToPx() }   // = smallPad 的左右各 6dp
+                            // ≤5 字走"基准字号单行"这条路（不参与实测自适应），所以留 2dp 余量，
+                            // 避免测量样式与按钮 LocalTextStyle（字距等）微小差异把第 5 个字裁掉
+                            val slackPx = with(density) { 2.dp.roundToPx() }
+                            // 自适应：挑一个能完整放下的字号（>5 字先在单行里缩字号，仍不行才两行）
+                            val (labelSp, labelMaxLines) = remember(catName, sampleWidthPx, density, vm.fontScale.factor) {
+                                categoryLabelStyle(catName.length) { sp, lines ->
+                                    val r = measurer.measure(
+                                        buildAnnotatedString {
+                                            withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
+                                            withStyle(SpanStyle(fontSize = sp.sp)) { append(catName) }
+                                        },
+                                        baseTextStyle,
+                                        maxLines = lines,
+                                        constraints = Constraints(maxWidth = sampleWidthPx)
+                                    )
+                                    !r.hasVisualOverflow
+                                }
+                            }
                             TextButton(
                                 onClick = { categoryDialogFor = "change" },
                                 contentPadding = smallPad,
                                 modifier = if (refSize != null) {
                                     with(density) {
-                                        Modifier.width(refSize.width.toDp()).height(refSize.height.toDp())
+                                        Modifier
+                                            .width((sampleWidthPx + 2 * horizontalPadPx + slackPx).toDp())
+                                            .height(refSize.height.toDp())
                                     }
                                 } else Modifier
                             ) {
                                 Text(
-                                    label,
-                                    fontSize = categoryLabelSp(catName.length).sp,
-                                    maxLines = categoryLabelMaxLines(catName.length),
-                                    overflow = TextOverflow.Ellipsis,
+                                    buildAnnotatedString {
+                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
+                                        withStyle(SpanStyle(fontSize = labelSp.sp)) { append(catName) }
+                                    },
+                                    fontSize = labelSp.sp,
+                                    maxLines = labelMaxLines,
+                                    // ★ 不再用 Ellipsis：用户明确要求"多于 5 字不要出现…，宁可把字号调小"
+                                    overflow = TextOverflow.Clip,
                                     textAlign = TextAlign.Start,
                                     softWrap = true,
                                     // 撑满按钮内容区 + 左对齐：emoji 永远贴在同一个位置，剩余宽度留白在右侧
@@ -542,8 +597,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             // ★ 另外：**被中止**时（busy=false 但 streamingText 还在）也必须走 WebView，
             //   否则会掉进"正在等待题目…"占位页，把「思考中… + 蓝色继续生成」的气泡弄丢（曾回归）
             val hasLiveBubble = vm.streamingText != null
-            if (switching || (vm.chatItems.isEmpty() && !vm.busy && !hasLiveBubble)) {
-                if (switching) {
+            // ★ 2026-10-12：清屏占位只在**复习模式**下生效——否则一个残留的 switching 会把普通页面
+            //   （错题本/图文提问）永久顶成「下一题」空白页（用户实测）。
+            val showSwitching = switching && sessionMode == SessionMode.REVIEW
+            if (showSwitching || (vm.chatItems.isEmpty() && !vm.busy && !hasLiveBubble)) {
+                if (showSwitching) {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Text(
                             s["review.nextQuestion"],
