@@ -65,10 +65,21 @@ jobs:
           echo "SIGNED_READY=1" >> "$GITHUB_ENV"
           echo "OK 签名材料已就绪"
 
-      # ★ 2026-10-13 提速：原来「单元测试」「编译 release」是**两条独立 Gradle 调用**，
-      #   各付一次配置阶段 + 守护进程启动。现在合并成**一次调用**（同一次配置里跑两组任务）。
-      #   顺带把 `chmod +x` 内联进来（仓库里 gradlew 已提交 100755，这里只是兜底，不再单独占一步）。
-      - name: 单元测试 + 编译 release APK（一次 Gradle 调用）
+      # ★ 2026-10-13 提速（用户确认的 A 方案）：**按触发分流**
+      #   · 分支 / PR 推送 → 只跑单元测试（快；release 构建留给打 tag 时那一次）
+      #   · tag 推送      → 单测 + 编译 release，一次 Gradle 调用（省一次配置阶段）
+      #   动机：以前一次发版会跑**两遍完整 release 构建**（push main 一遍、push tag 再一遍），
+      #   两遍并发抢缓存、都从冷缓存开始，合计约 9 分钟。分支那遍产出的 APK 构件没人用
+      #   （挂到 Release 的永远是 tag 那遍的），所以直接省掉。
+      #   注：vital lint 保留（仍随 assembleRelease 跑，不做 `-x lintVitalRelease`）。
+      - name: 单元测试（分支 / PR 推送）
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --console=plain
+
+      - name: 单元测试 + 编译 release APK（仅 tag 推送）
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           chmod +x ./gradlew
           ./gradlew testDebugUnitTest assembleRelease --console=plain
@@ -95,7 +106,10 @@ jobs:
           echo "SIGNED_APK=$OUT" >> "$GITHUB_ENV"
           echo "OK 轮换签名完成：$OUT"
 
-      - name: 上传 APK（构建产物，任何触发都会保留 30 天）
+      # ★ 2026-10-13：构件只在 tag 推送时才有（分支推送按 A 方案不再编译 release），
+      #   所以这一步也只在 tag 上跑，避免分支推送出现"没有文件可上传"的空步骤。
+      - name: 上传 APK（仅 tag 推送；构建产物保留 30 天）
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
