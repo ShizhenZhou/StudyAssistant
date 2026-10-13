@@ -15,6 +15,11 @@ on:
 permissions:
   contents: write
 
+# 同一 ref 上后推的 run 直接取消旧的：连推 main + tag 时不再让两组构建同时抢缓存/排队
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,9 +35,6 @@ jobs:
 
       - name: 配置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v4
-
-      - name: 赋予 gradlew 执行权限
-        run: chmod +x ./gradlew
 
       # ── 发布签名材料（自有证书 + key rotation lineage） ─────────────────────
       # 见 README「发布签名（自有证书 + key rotation）」。仓库 Secrets 里存三样：
@@ -63,11 +65,13 @@ jobs:
           echo "SIGNED_READY=1" >> "$GITHUB_ENV"
           echo "OK 签名材料已就绪"
 
-      - name: 单元测试（纯 JVM：答案解析 / 版本比较 / 文案表）
-        run: ./gradlew testDebugUnitTest --console=plain
-
-      - name: 编译 release APK
-        run: ./gradlew assembleRelease --console=plain
+      # ★ 2026-10-13 提速：原来「单元测试」「编译 release」是**两条独立 Gradle 调用**，
+      #   各付一次配置阶段 + 守护进程启动。现在合并成**一次调用**（同一次配置里跑两组任务）。
+      #   顺带把 `chmod +x` 内联进来（仓库里 gradlew 已提交 100755，这里只是兜底，不再单独占一步）。
+      - name: 单元测试 + 编译 release APK（一次 Gradle 调用）
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest assembleRelease --console=plain
 
       # AGP 的 signingConfig 不支持 lineage → 构建后用 apksigner 补上（v3-only）
       - name: 用新证书 + lineage 重签（APK Signature Scheme v3 轮换签名）
