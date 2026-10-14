@@ -69,6 +69,15 @@ function Get-LastLine($text) {
     return ''
 }
 
+# ★ 2026-10-14 修：`-Branch` 不显式指定时，默认推**当前所在分支**。
+#   原来 param 里硬编码 `[string]$Branch = 'main'` —— 在 `Develop` 上提交后忘了传 `-Branch Develop`，
+#   脚本就会去推 `main`（通常已是最新）→ 报 "推送成功" 但其实**你的提交根本没推上去**（静默踩坑）。
+#   现在：不传 = 当前分支；需要推别的分支时显式传 `-Branch main`（发版流程用）。
+if (-not $PSBoundParameters.ContainsKey('Branch')) {
+    $cur = (& git rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1)
+    if ($cur -and $cur.Trim() -ne '' -and $cur.Trim() -ne 'HEAD') { $Branch = $cur.Trim() }
+}
+
 # 传输方式对应的 git 参数（direct 时显式清空 http.proxy，避免继承环境的代理设置）
 function Get-TransportArgs([string]$mode, [int]$port) {
     if ($mode -eq 'proxy') { return @('-c', "http.proxy=http://127.0.0.1:$port") }
