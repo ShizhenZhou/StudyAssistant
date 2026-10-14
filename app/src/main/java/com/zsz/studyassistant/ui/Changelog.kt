@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.5
+· 🕘 **新增「搜题记录」**（首页第 5 个入口）：解答过的题目自动留下，没点「存错题本」就退出也不怕丢；按天分组、点开可继续追问、长按多选删除；保留最近 200 条 / 30 天，原图一并保留
+· 🐞 **修复切图页「上边框偶尔蹦到最上边」**：接上了一道写了却从未启用的「贴边就丢弃」防线；手指按下即锁定手动框选；缩放松手 / 换图后把选框收回图内；四角热区补外侧边界
+· 🐞 **修复搜题记录被分到「更早」甚至被清理误删**：追问 / 重新生成会把创建时间写成 0 → 被当成「过期 30 天」删掉；现已修正写入并加兜底
+· 🎛 **「自定义要求」的保存按钮改为跟随键盘出现**（键盘收起时页面干净，弹出时贴在键盘上方），并修掉键盘与输入框之间的多余空白
+· 🏠 首页入口排布改为：拍照搜题 / 图文提问 各占一行 → 错题本 · 复习 → 搜题记录（不再出现「…」）
+
 v0.6.4.5
 · 📚 **「📚 存错题本」与「📁 分类」占位完全对齐**：「存错题本」按钮也按「📁 + 5 个汉字」的宽度给、文字左对齐、多余宽度留白在右侧 —— 两种状态切换时右侧按钮组**一动不动**
 · ⌨️ **修复「自定义要求（Prompt）」输入到底部被键盘挡住**：设置二级页补上键盘避让（键盘弹出时整页内容上移），输入框加了高度上限、超出改为**框内滚动**，光标始终可见
@@ -316,6 +323,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.5
+· 🕘 **New "Search history"** (5th entry on Home): solved questions are kept automatically, so leaving without tapping "Save to notebook" no longer loses them; grouped by day, tap to continue asking, long-press for multi-select delete; the latest 200 entries / 30 days are kept, original images included
+· 🐞 **Fixed the crop page's top edge occasionally jumping to the very top**: a "discard if it touches the edge" guard had been written but never wired up — it is now active; the selection is locked as soon as a finger touches down; after a pinch-zoom ends or the image changes the selection is pulled back inside the image; the four corner hit areas gained outer bounds
+· 🐞 **Fixed search records being grouped under "Earlier" and even deleted by cleanup**: follow-up / regenerate wrote a zero timestamp, so the record was treated as older than 30 days and removed; the write is fixed and a fallback added
+· 🎛 **The custom-instructions Save button now follows the keyboard** (the page stays clean when the keyboard is closed, and the button sits right above the keyboard when it opens); the leftover gap between the keyboard and the input box is gone
+· 🏠 Home entries are now laid out as: Solve by photo / Ask with text-image each on its own row → Notebook · Review → Search history (no more "…")
+
 v0.6.4.5
 · 📚 **"Save to notebook" now occupies exactly the same slot as "📁 Category"**: it uses the same "📁 + 5 CJK characters" width with left-aligned text and the spare width left blank on the right, so the button group no longer shifts when the two states switch
 · ⌨️ **Fixed the custom instructions field being covered by the keyboard**: settings sub-pages now avoid the keyboard (the page moves up when it opens), and the input box has a maximum height with internal scrolling so the caret stays visible
@@ -627,6 +641,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.5
+· 🕘 **「検索履歴」を追加**（ホームの 5 番目の入口）：解いた問題が自動で残るため、「間違いノートに保存」を押さずに終了しても失われません。日付ごとにグループ化、タップで続けて質問、長押しで複数選択削除。直近 200 件 / 30 日を保持し、元画像も残します
+· 🐞 **切り抜き画面で「上辺がたまに最上部へ飛ぶ」問題を修正**：書かれたまま一度も使われていなかった「端に接したら破棄」のガードを有効化。指を置いた瞬間に手動の選択を固定。ピンチ終了時・画像切り替え時に選択枠を画像内へ戻す。四隅の判定に外側の境界を追加
+· 🐞 **検索履歴が「それ以前」に分類され、削除までされていた問題を修正**：追問 / 再生成が作成時刻を 0 で書き込み、「30 日超過」とみなされて削除されていました。書き込みを修正し、フォールバックを追加
+· 🎛 **カスタム指示の「保存」ボタンがキーボードに追従**（キーボードが閉じているときはページが元のまま、開くとキーボードの真上に表示）。キーボードと入力欄の間の余分な空白も解消
+· 🏠 ホームの入口配置を変更：撮影して質問 / 文字・画像で質問 をそれぞれ 1 行 → 間違いノート · 復習 → 検索履歴（「…」は出ません）
+
 v0.6.4.5
 · 📚 **「📚 間違いノートに保存」と「📁 分類」の占有幅を完全に一致**：同じく「📁 + 漢字 5 文字」の幅で左揃え、右側は余白 —— 2 つの状態を切り替えても右側のボタン群が動きません
 · ⌨️ **カスタム指示の入力欄がキーボードに隠れる問題を修正**：設定の下位ページでキーボードを避けるようにし（開くと内容が上に移動）、入力欄に高さ上限を設けて内部スクロールにしたため、カーソルが常に見えます
@@ -938,6 +959,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.5
+· 🕘 **「검색 기록」 추가**(홈의 다섯 번째 항목): 푼 문제가 자동으로 남아 「오답 노트에 저장」을 누르지 않고 나가도 사라지지 않습니다. 날짜별 그룹, 탭하면 이어서 질문, 길게 눌러 여러 개 삭제. 최근 200건 / 30일 보관하며 원본 이미지도 남깁니다
+· 🐞 **자르기 화면에서 「위쪽 테두리가 가끔 맨 위로 튀는」 문제 수정**: 작성만 되고 한 번도 쓰이지 않던 「가장자리에 닿으면 버림」 가드를 활성화했습니다. 손가락을 대는 순간 수동 선택이 고정됩니다. 핀치 종료·이미지 전환 시 선택 영역을 이미지 안으로 되돌립니다. 네 모서리 판정에 바깥 경계를 추가
+· 🐞 **검색 기록이 「그 이전」으로 분류되고 삭제까지 되던 문제 수정**: 추가 질문 / 재생성이 생성 시각을 0으로 기록해 「30일 초과」로 판단되어 삭제되었습니다. 기록을 바로잡고 폴백을 추가
+· 🎛 **사용자 지정 지시의 「저장」 버튼이 키보드를 따라 표시**됩니다(키보드가 닫혀 있으면 페이지가 그대로, 열면 키보드 바로 위). 키보드와 입력란 사이의 불필요한 여백도 제거
+· 🏠 홈 항목 배치 변경: 사진으로 질문 / 글·이미지 질문 각각 한 줄 → 오답 노트 · 복습 → 검색 기록 (「…」 없음)
+
 v0.6.4.5
 · 📚 **「📚 오답노트에 저장」과 「📁 분류」의 자리를 완전히 일치**: 같은 「📁 + 한자 5자」 너비에 왼쪽 정렬, 오른쪽은 여백 —— 두 상태를 전환해도 오른쪽 버튼 그룹이 움직이지 않습니다
 · ⌨️ **사용자 지정 지시 입력란이 키보드에 가려지던 문제 수정**: 설정 하위 페이지가 키보드를 피하도록 했고(키보드가 열리면 내용이 위로 이동), 입력란에 높이 상한을 두어 내부 스크롤되므로 커서가 항상 보입니다
