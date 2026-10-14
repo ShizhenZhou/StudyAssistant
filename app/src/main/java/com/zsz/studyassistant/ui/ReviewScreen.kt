@@ -230,13 +230,18 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 @Composable
 private fun ReviewCard(q: Question, onClick: () -> Unit) {
     val s = LocalStrings.current
-    // ★ 2026-10-14 修「复习页看不到原图」：`imageBytes` 只存一张，多图拍题 / 图文提问存下的错题它是 null →
-    //   兜底从 conversationJson 里取题目附图（数据一直在那），否则复习自测就没有原图可看。
-    val imgBytes = remember(q.id, q.imageBytes, q.conversationJson) {
-        q.imageBytes ?: questionImageBase64(q.conversationJson).firstOrNull()
-            ?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull() }
+    // ★ 2026-10-14（用户报「双图仍会丢」）：复习自测把**全部原图**都显示出来 ——
+    //   `imageBytes` 只有一张（主图），其余图在 conversationJson 里；这里合并两者、**按 base64 去重**
+    //   （不要用 Bitmap.sameAs 逐像素比较，900px 图上太慢），最多 3 张（拍题上限）。
+    val imgBitmaps = remember(q.id, q.imageBytes, q.conversationJson) {
+        val keys = mutableListOf<String>()
+        q.imageBytes?.let { keys += android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
+        for (b64 in questionImageBase64(q.conversationJson)) if (b64 !in keys) keys += b64
+        keys.take(3).mapNotNull { b64 ->
+            runCatching { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }.getOrNull()
+                ?.let { decodeSampledBitmap(it, 900) }
+        }
     }
-    val bitmap = remember(imgBytes) { imgBytes?.let { decodeSampledBitmap(it, 900) } }
     Card(
         modifier = Modifier
             .padding(horizontal = 4.dp)
@@ -245,13 +250,17 @@ private fun ReviewCard(q: Question, onClick: () -> Unit) {
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(Modifier.padding(8.dp)) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = s["review.imageDesc"],
-                    modifier = Modifier.fillMaxWidth().aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat()),
-                    contentScale = ContentScale.Fit
-                )
+            if (imgBitmaps.isNotEmpty()) {
+                imgBitmaps.forEach { bm ->
+                    Image(
+                        bitmap = bm.asImageBitmap(),
+                        contentDescription = s["review.imageDesc"],
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(bottom = 4.dp)
+                            .aspectRatio(bm.width.toFloat() / bm.height.toFloat()),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             } else {
                 Text(
                     TextPretty.oneLine(q.text, 110),

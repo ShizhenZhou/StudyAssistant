@@ -209,7 +209,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         }
                         else -> {
                             // 🔍 搜索：点开才出现搜索框，再点别处关闭
-                            // ★ 字号与解题页顶栏按钮统一（用户 2026-10-14：原来 BTN_LABEL=12sp 偏小 → 13sp）
+                            // ★ 2026-10-14（用户要求）：与解题页「⏸ 中止 / 🔄 重新生成」**同字号** →
+                            //   用它们同一个常量 BTN_LABEL_SOLVE（13sp），别再自创字号。
                             TextButton(
                                 onClick = { if (searchOpen) closeSearch() else searchOpen = true },
                                 contentPadding = PaddingValues(horizontal = 6.dp)

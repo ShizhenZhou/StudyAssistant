@@ -492,7 +492,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                             // ★ 与「📁 分类」**完全同占位**（见上面 lastSlotModifier）：宽度按「5 个汉字」给，
                             //   文字左对齐 → emoji 与「分类」状态时落在同一个 x，多余宽度留白在右侧（用户 2026-10-13 要求）。
                             TextButton(
-                                onClick = { vm.ensureClassification(); categoryDialogFor = "save" },
+                                // ★ 2026-10-14（用户要求）：点「存错题本」**不再**触发 AI 实时判断 ——
+                                //   预置分类/标签在"解答完成"时就已经拿好了（建议只影响还没存的题）。
+                                onClick = { categoryDialogFor = "save" },
                                 enabled = vm.chatItems.isNotEmpty() && !vm.busy,
                                 contentPadding = smallPad,
                                 modifier = lastSlotModifier
@@ -553,10 +555,8 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             "save" -> {
                 val defaultCat = vm.suggestedCategory
                 val initCatId = categories.firstOrNull { it.name == defaultCat }?.id
-                // 打开保存对话框时若还没有分类建议 → 后台兜底问一次（C）
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    vm.ensureClassification()
-                }
+                // ★ 2026-10-14（用户要求）：**打开对话框时不再后台问 AI**（原来是"预选为空就兜底问一次"）。
+                //   预置只来自解答完成时的解析结果；没有就默认「暂不分类 + 不勾选标签」。
                 // B9 查重：打开对话框时先查一次"是否已存过同一道题"（挂起操作，不能放在保存回调里）
                 // ⚠️ 用 pendingQuestionText()：**与落库时取的是同一个串**（questionText 为空时会回退到
                 //    AI 识别出的题干），否则存的串和查的串不一致 → 永远查不出重复

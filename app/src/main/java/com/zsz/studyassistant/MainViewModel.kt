@@ -358,8 +358,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     /** 正在做兜底分类请求（C）：防止重复发起 */
     private var classifying = false
-    /** 分类请求进行中又被请求了一次（5b 加固）→ 本次跑完自动再补一次 */
-    private var classifyPending = false
 
     /** 供界面显示的"题目图"（base64）：原题/我的提问附图，统一作为浅绿用户气泡显示。
      *  只用于显示，不写入会话 JSON（避免数据库膨胀），旧题由 loadQuestion 从 imageBytes 注入。 */
@@ -594,63 +592,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * 【C 兜底】单独问一次科目/知识点（封闭集：优先从已有分类里选）。
-     * 用于：模型正文里没按格式给出分类/知识点、或打开保存对话框时预选为空。
-     */
-    /**
-     * 统一入口（用户规格）：
-     *  ① 会话里已有 AI 首次回答解析出的分类/标签 → 直接用（suggestedCategory/Tags 就是"会话固定位置"）
-     *  ② 没有 → 立刻后台问 AI（文字 + 图片一起）
-     *  · 解答完成时调用（相当于①②）
-     *  · 打开旧错题时调用（旧数据没有 → 走②）
-     *  · 点「存错题本」时调用（此时仍没有 → 兜底再问一次）
-     * 同一时刻只会跑一个请求（classifying 防重入）。
-     */
-    /**
-     * 5b：把"按需补"出来的分类/标签**写回数据库**，这样旧题只需补一次，之后打开直接读。
-     * 只更新现有列（questions.categoryId）与关联表（question_tags），**不改数据库结构、无需 Migration**。
-     */
-    private fun persistSuggestionToDb(cat: String?, tags: List<String>, needCategory: Boolean = true, needTags: Boolean = true) {
-        val id = savedQuestionId ?: return           // 没落库的题不写
-        if (cat.isNullOrBlank() && tags.isEmpty()) return
-        viewModelScope.launch {
-            if (needCategory && !cat.isNullOrBlank()) {
-                val n = cat.trim()
-                val all = dao.allCategoriesOnce()
-                // 优先复用已有分类（完全相等 → 包含关系），都没有才新建，避免科目重复
-                val hit = all.firstOrNull { it.name.trim() == n }
-                    ?: all.firstOrNull { it.name.contains(n) || n.contains(it.name.trim()) }
-                    // 容忍近义/写法差异：取"共有 2 个以上相同字"里最接近的已有分类
-                    ?: all.map { it to it.name.trim().count { ch -> n.contains(ch) } }
-                        .filter { it.second >= 2 }.maxByOrNull { it.second }?.first
-                val cid = hit?.id ?: dao.insertCategory(Category(name = n))
-                currentQuestionCategoryId = cid
-                dao.setCategoryForIds(listOf(id), cid)
-            }
-            if (needTags && tags.isNotEmpty()) {
-                dao.clearQuestionTags(id)
-                val ids = mutableListOf<Long>()
-                for (tn in tags.take(5)) {
-                    val name = tn.trim()
-                    if (name.isBlank()) continue
-                    val ex = dao.getAllTagsOnce().firstOrNull { it.name == name }
-                    val tid = ex?.id ?: dao.insertTag(Tag(name = name))
-                    if (!ids.contains(tid)) ids += tid
-                }
-                for (tid in ids.take(5)) dao.insertQuestionTag(QuestionTag(id, tid))
-                currentQuestionTags = ids.take(5)
-            }
-        }
-    }
-    fun ensureClassification() {
-        // ★ 分类与标签**分开判断**：缺哪个补哪个（都不缺才不请求）
-        val needCat = suggestedCategory == null
-        val needTags = suggestedTags.isEmpty()
-        if (!needCat && !needTags) return
-        classifyCurrentQuestion(needCat, needTags)
-    }
-
-    /**
      * 统一的会话准备：所有生成入口都从这里开始。
      * 之前每个入口各自 resetSession() + 手工设置 isPhoto/gradeMode/isFromNotebook/questionFromPhoto，
      * 容易漏项（如"带着上一轮的 gradeMode"，曾踩过）——现在集中在这里。
@@ -682,14 +623,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         prepareSession(ask = true)
     }
 
+    /**
+     * 向 AI 要一次「分类 / 标签」建议，**只写入会话内的 [suggestedCategory] / [suggestedTags]**（供存题对话框预选）。
+     *
+     * ★ 2026-10-14（用户要求）：**不再写回数据库**，也**不再**在"打开旧题 / 打开分类对话框"时调用。
+     *   原机制有两个落地问题：① 打开已存的题时擅自改写它的分类（"暂不分类存的题被 AI 改掉"）；
+     *   ② 在分类对话框打开期间异步返回，把用户刚取消勾选的标签"复活"（取消勾选时常失灵）。
+     *   现在唯一的调用点是**解答完成**时（`continueGeneration` 的 onDone），拿到的建议只影响"还没存"的题。
+     */
     fun classifyCurrentQuestion(needCategory: Boolean = true, needTags: Boolean = true) {
-        if (classifying) {
-            // ★ 5b 加固：已经有一次分类请求在跑时，**不能把这次静默丢掉** ——
-            //   否则"打开旧题 → 按需补"正好撞上另一个请求（保存对话框的兜底分类）时，
-            //   这题就永远不会被补上（用户看到分类一直空着）。记一个标记，跑完自动再补一次。
-            classifyPending = true
-            return
-        }
+        if (classifying) return
         val q = questionText
         val imgs = when {
             directImages.isNotEmpty() -> directImages
@@ -707,17 +650,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // 已有分类（来自库/用户选择）优先，AI 只补空的
                 if (!c.isNullOrBlank() && suggestedCategory == null) suggestedCategory = c
                 if (t.isNotEmpty()) suggestedTags = t
-                // ★ 5b：写回数据库（仅当该题已落库；无 DB 结构变更，仅更新现有列/关联表）
-                if ((needCategory && !c.isNullOrBlank()) || (needTags && t.isNotEmpty())) persistSuggestionToDb(c, t, needCategory, needTags)
             } finally {
                 // ★ 必须放 finally：请求异常/被取消时也要复位，否则标志卡死 → 之后所有分类都被跳过
                 classifying = false
-                // 期间被跳过的那次"按需补"在这里补上（ensureClassification 会自己判断还缺什么，
-                // 什么都不缺就直接返回；失败也只补这一次，不会无限重试）
-                if (classifyPending) {
-                    classifyPending = false
-                    ensureClassification()
-                }
             }
         }
     }
@@ -1495,12 +1430,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
         viewModelScope.launch { dao.deleteById(id) }
-        // ★ 删除后分类/标签状态被清空：立刻用会话里的题干+图重算一次，
-        //   这样"删除后再存错题本"仍能预选分类与标签
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(200)
-            classifyCurrentQuestion()
-        }
+        // ★ 2026-10-14（用户要求）：不再实时问 AI 重算 —— 清空会话内预置即可；
+        //   之后要再存，就按"已存信息/置空"处理（分类＝暂不分类、不勾选标签）。
+        suggestedCategory = null
+        suggestedTags = emptyList()
     }
 
     /** 修改当前题目的分类（详情页用）；name 非空→新建分类，categoryId 为 null→暂不分类 */
@@ -2036,12 +1969,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val id = similarSavedQuestionId ?: return
         similarSavedQuestionId = null
         viewModelScope.launch { dao.deleteById(id) }
-        // ★ 删除后分类/标签状态被清空：立刻用会话里的题干+图重算一次，
-        //   这样"删除后再存错题本"仍能预选分类与标签
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(200)
-            classifyCurrentQuestion()
-        }
+        // ★ 2026-10-14（用户要求）：不再实时问 AI 重算 —— 清空会话内预置即可；
+        //   之后要再存，就按"已存信息/置空"处理（分类＝暂不分类、不勾选标签）。
+        suggestedCategory = null
+        suggestedTags = emptyList()
     }
 
     /** 从（可能不完整的）模型输出里提取「分类：/知识点：」，命中就写入会话建议 */
@@ -2383,16 +2314,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         //   ①已有分类 → 立刻作为"预选分类"（读库里的名字）
         //   ②已有标签 → 直接灌进预选
         //   ③若分类或标签缺 → 立刻问 AI（文字+图片），收到后写入会话/数据库
+        // ★ 2026-10-14（用户要求）：**取消"打开旧题就实时问 AI 补分类/标签"**。
+        //   只把**库里已存**的分类/标签读进来当预置；没存就保持空（分类＝暂不分类、不勾选标签）。
+        //   这样：① 打开题目不再擅自改写已存分类（"暂不分类存的题被 AI 改掉"）；
+        //        ② 分类对话框打开期间不会有异步结果把用户刚取消的勾选"复活"。
         viewModelScope.launch {
             val cats = dao.allCategoriesOnce()
             val allTags = dao.getAllTagsOnce()
             val qcat = cats.firstOrNull { it.id == q.categoryId }
-            if (qcat != null) suggestedCategory = qcat.name
-            val tnames = dao.tagIdsForQuestion(q.id)
+            suggestedCategory = qcat?.name
+            suggestedTags = dao.tagIdsForQuestion(q.id)
                 .mapNotNull { tid -> allTags.firstOrNull { it.id == tid }?.name }
-            if (tnames.isNotEmpty()) suggestedTags = tnames
-            val needCat = qcat == null; val needTags = tnames.isEmpty()
-            if (needCat || needTags) classifyCurrentQuestion(needCat, needTags)
         }
         // 拍照题：气泡只显示原图，不再显示 AI 转译题干（旧会话同样按此处理）
         questionFromPhoto = q.imageBytes != null

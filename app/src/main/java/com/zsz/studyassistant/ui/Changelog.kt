@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.5.2
+· 🎛 **取消「打开题目 / 打开分类对话框时 AI 实时判断」**：分类与标签只来自解答时的预置，打开已存题只读库里信息，没有就默认「暂不分类 + 不勾选标签」—— 顺带修好"AI 擅自改写已存分类"与"取消勾选标签失灵"
+· 🖼 **复习自测显示全部原图**（多图 / 图文提问存下的错题不再只看第一页，最多 3 张）
+· 🔤 **错题本右上角按钮与解题页同字号**：🔍 搜索 / ⇅ 排序 / 管理 统一用解题页「⏸ 中止 / 🔄 重新生成」同一个字号常量（13sp）
+
 v0.6.5.1
 · 🐞 **修复「存错题本后原图丢失」**（多图拍题 / 图文提问更容易遇到）：原图一直在会话里，只是没写进专用图片字段 → 现在保存时补上，并在启动时**自动回填历史错题**（错题本卡片 / 复习页自测 / 备份一起恢复）
 · 🔤 **按钮字号统一**：错题本右上角的 🔍 搜索 / ⇅ 排序 / 管理 与解题页顶栏同字号（原来 12sp 偏小 → 13sp）
@@ -328,6 +333,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.5.2
+· 🎛 **Removed the live AI classification when opening a question or the category dialog**: subject and knowledge tags now come only from the presets captured while solving; opening a saved question just reads what is stored, defaulting to "no category + no tags". This also fixes the AI silently rewriting a stored category, and tag checkboxes being hard to untick
+· 🖼 **Review now shows every original image** (multi-photo / text+image questions no longer show only the first page, up to 3)
+· 🔤 **Unified button size**: the notebook's 🔍 / sort / manage buttons now use the very same size constant as the solve screen's ⏸ stop / 🔄 regenerate buttons (13sp)
+
 v0.6.5.1
 · 🐞 **Fixed missing original images after saving to the notebook** (more likely with multi-photo or text+image questions): the images were always in the conversation, just never written to the dedicated image field — saves now include the main image, and older entries are back-filled automatically at launch (notebook cards, review self-test and backups all recover)
 · 🔤 **Unified button size**: the 🔍 search / ⇅ sort / manage buttons at the top right of the notebook now match the solve screen's toolbar (12sp → 13sp)
@@ -651,6 +661,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.5.2
+· 🎛 **問題を開いた時／分類ダイアログを開いた時の AI リアルタイム判定を廃止**：分類とタグは解答時のプリセットのみを使用し、保存済みの問題では保存されている情報だけを読みます（無ければ「分類なし ＋ タグ未選択」）。AI が保存済みの分類を書き換える問題と、タグのチェックを外しにくい問題も解消
+· 🖼 **復習で原図をすべて表示**（複数枚・文字＋画像の問題でも 1 枚目だけにならない、最大 3 枚）
+· 🔤 **ボタンの文字サイズを統一**：間違いノートの 🔍 / 並べ替え / 管理 を、解答画面の「⏸ 中止 / 🔄 再生成」と**同じサイズ定数**（13sp）に
+
 v0.6.5.1
 · 🐞 **「間違いノートに保存すると原図が消える」問題を修正**（複数枚撮影・文字＋画像で起きやすい）：画像はもともと会話内にあり、専用の画像フィールドに書き込まれていなかっただけです → 保存時に主図を書き込み、起動時に**過去の分も自動補完**（カード・復習・バックアップも復旧）
 · 🔤 **ボタンの文字サイズを統一**：間違いノート右上の 🔍 検索 / ⇅ 並べ替え / 管理 を解答画面のツールバーと同じサイズに（12sp → 13sp）
@@ -974,6 +989,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.5.2
+· 🎛 **문제를 열거나 분류 대화상자를 열 때의 AI 실시간 판정 제거**: 분류와 태그는 풀이 시의 프리셋만 사용하며, 저장된 문제는 저장된 정보만 읽습니다(없으면 「분류 없음 + 태그 미선택」). AI가 저장된 분류를 바꾸던 문제와 태그 체크 해제가 잘 안 되던 문제도 함께 해결
+· 🖼 **복습에서 원본 이미지를 모두 표시**(여러 장·글+이미지 문제도 첫 장만 보이지 않음, 최대 3장)
+· 🔤 **버튼 글자 크기 통일**: 오답 노트의 🔍 / 정렬 / 관리 버튼을 풀이 화면의 「⏸ 중지 / 🔄 다시 생성」과 **같은 크기 상수**(13sp)로
+
 v0.6.5.1
 · 🐞 **「오답 노트에 저장하면 원본 이미지가 사라지던」문제 수정**(여러 장 촬영·글+이미지에서 더 자주 발생): 이미지는 원래 대화 안에 있었고 전용 이미지 필드에 기록되지 않았을 뿐입니다 → 저장 시 대표 이미지를 기록하고, 실행 시 **기존 항목도 자동 복구**(카드·복습·백업 모두 복원)
 · 🔤 **버튼 글자 크기 통일**: 오답 노트 오른쪽 위의 🔍 검색 / ⇅ 정렬 / 관리 버튼을 풀이 화면 툴바와 같은 크기로(12sp → 13sp)
