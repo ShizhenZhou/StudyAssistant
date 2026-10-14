@@ -183,7 +183,21 @@ private fun AboutPage() {
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Text(
-            s["about.features.body"],
+            // ★ 2026-10-14：这一页是纯 Text 渲染，文案里的 `**加粗**` 必须过一遍 changelogAnnotated，
+            //   否则会把星号原样显示出来（同一个坑在「更新内容」页踩过）。
+            changelogAnnotated(s["about.features.body"]),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(12.dp)
+        )
+    }
+    // ★ 2026-10-14：新增「数据与隐私」小节 —— 与 README 顶部那两句保持一致
+    //   （用户要求：README 的内容更新同步到这里；数据只存本机是本项目对外最重要的一条）
+    Spacer(Modifier.height(20.dp))
+    Text(s["about.privacy"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(
+            changelogAnnotated(s["about.privacy.body"]),
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(12.dp)
         )

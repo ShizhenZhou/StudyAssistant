@@ -78,6 +78,12 @@ class L10nTableTest {
         assertTrue("搜题记录未转繁体：${tw["home.history"]}", tw["home.history"].contains("搜題記錄"))
         assertTrue("已存错题本未转繁体：${tw["history.saved"]}", tw["history.saved"].contains("錯題本"))
         assertTrue("未存错题本未转繁体：${tw["history.notSaved"]}", tw["history.notSaved"].contains("錯題本"))
+
+        // v0.6.5「关于」页功能说明重写（新文案必须过繁体：隐私/矩阵/校验/趋势 的繁体写法已在表里）
+        assertTrue("隐私未转繁體：${tw["about.privacy"]}", tw["about.privacy"].contains("隱私"))
+        assertTrue("矩阵未转繁體：${tw["about.features.body"]}", tw["about.features.body"].contains("矩陣"))
+        assertTrue("校验未转繁體：${tw["about.features.body"]}", tw["about.features.body"].contains("校驗"))
+        assertTrue("趋势未转繁體：${tw["about.features.body"]}", tw["about.features.body"].contains("趨勢"))
     }
 
     @Test

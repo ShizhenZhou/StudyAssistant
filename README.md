@@ -7,9 +7,9 @@
 ![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2028)-3DDC84?logo=android&logoColor=white)
 
 个人自用安卓应用：**拍照搜题 → AI 解答 → 错题整理 → 艾宾浩斯复习**（面向理工科大学题目）。
-所有数据只存在本机（Room + Android Keystore），不上传任何服务器，仅调用你自己填写的 DeepSeek API。
+所有数据只存在本机（Room + Android Keystore），不上传任何服务器；联网只用于调用使用者自己填写的 DeepSeek API，以及检查更新时访问 GitHub Releases 接口。
 
-**入口一览**：底栏三页签 —— 📚 学习（主页）/ 📊 统计 / ⚙️ 设置；主页四个入口 —— 📷 拍照搜题、✏️ 图文提问、📚 错题本、📖 复习。
+**入口一览**：底栏三页签 —— 📚 学习（主页）/ 📊 统计 / ⚙️ 设置；主页五个入口 —— 📷 拍照搜题、✏️ 图文提问、📚 错题本、📖 复习、🕘 搜题记录（0.6.5 新增）。
 
 ## 功能
 
@@ -17,31 +17,36 @@
 - ✏️ **图文提问**：主页入口，空会话直接给**大输入框**，可用**文字 + 1~3 张图**提问，不必先拍照
 - 📝 **题目以文字为主**：拍题 / 图文提问的题干由 AI **忠实转写**，公式用 **KaTeX 精确排版**（分式/积分/矩阵/希腊字母）；**原图默认折叠**成「📷 查看原题图片」点击展开；复习仍以原图自测
 - 🤖 **AI 解答**：分步推导，公式用 **LaTeX/KaTeX** 渲染（积分、分式、矩阵等正确排版）；答案底部附**核心知识点/难点**；无输出时也有「思考中…」气泡，流式生成中可随时**中止**，中止后可点蓝色**「继续生成」**
-- 🔊 **超长回答自动转副窗口**：主答案过长时（约 >9000 字）自动转到独立窗口，主界面不再卡顿
+- 🧠 **AI 思考流**：思考过程用**浅灰小字**显示在回答气泡**顶端**（流式逐字增长、可随时折叠，展开/折叠状态**全应用记忆**）；设置 → 🤖 AI 管理 的 **🧠 解题模式**可选 **Flash（快 / 省）** 或 **Reasoner（慢 / 准）**
 - 🔄 **重新生成** / 💬 **接续提问**：可重新生成，也可多轮追问（**支持附带图片**）；可**编辑多选删除**消息
 - ✂️ **框选（含自动预框选）**：进入框选页**自动框出题目范围**——本地投影算法与 AI 视觉并行（AI 超时自动回落本地算法/默认框；**AI 框选时限可在设置里调**，默认 500ms，可 100ms~5s）；四条边可单独拖动、双指缩放、长按跳过，也可整张图直接识别；多张图可逐张框选
 - ✏️ **批改题目**：拍照页右上角开关切换；单张或两张拍摄（题目 + 手写答案），AI 判断正误、指出错误步骤并针对性讲解
 - 📚 **错题本**：本地保存（Room），**两列瀑布流**、**全文搜索**、**科目分类 + 知识点标签（多 tag）**、按分类/标签筛选、长按批量改分类/删除
 - 🗂 **自动归类（含旧题补齐）**：保存错题时 **AI 自动判定科目与知识点标签并预选**（**优先复用已有科目**，近义/上下位也算，可手动改；删除入口在分类对话框左下角）；**旧错题打开时自动补齐并写入数据库**
 - 📚 **列表预览轻量排版**：复习 / 错题本列表里的题干会把 LaTeX 转成可读符号（∫ ∮ ∑ ≤ √ ρ …），不再是符号堆
+- 🕘 **搜题记录**：解答过的题目**自动留下**（没点「存错题本」就退出也不会丢）—— 按天分组、点开可**继续追问**、长按**多选删除**，行尾标注「已存错题本 / 未存错题本」；保留**最近 200 条 / 30 天**，**原图一并保留**
 - 📖 **复习（艾宾浩斯）**：新存错题自动进入按 `0/1/2/4/7/15/30` 天排期的复习队列；**今天/本周**选项卡、按科目→知识点分组；点「熟悉/模糊/忘记」自动跳下一题；可**练同类题**（AI 出题、可互动、点「查看答案」）
 - 📊 **学习统计**：今日复习、近 7 天、连续天数、待复习、掌握度分布、新增趋势（近 7 天 / 近 1 个月可切换，带纵坐标）、科目分布
 - 🔔 **复习提醒通知**：设置页可开每日提醒（自定义滚轮时间），到点通知「今天/本周还有 xx 道错题」；点击通知直达复习页
-- 🔑 **API Key 应用内填写**：在 ⚙️ 设置里填自己的 DeepSeek Key（**Android Keystore 加密**存储）；设置 → **🤖 AI 管理** 里可开关 **✂️ AI 切图**（关掉就完全不跑 AI、只用本地算法框选）、设 **AI 框选时限** 与 **自定义要求（Prompt）**（会附加到解题/批改/同类题的每次请求）；API 管理里可看累计调用次数与 token 用量
+- 🔑 **API Key 应用内填写**：在 设置 → **🤖 AI 管理** → 顶部的 **🔑 API 管理** 里填自己的 DeepSeek Key（**Android Keystore 加密**存储）；AI 管理里还可开关 **✂️ AI 切图**（关掉就完全不跑 AI、只用本地算法框选）、设 **AI 框选时限**、**自定义要求（Prompt）**（会附加到解题/批改/同类题的每次请求）与 **🧠 解题模式**；API 管理里可看累计调用次数与 token 用量
 - 🌐 **AI 生成语言可选**：设置 → 语言设置 → AI 生成语言（跟随系统 / 跟随题目 / 简繁中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский）
 - 🌐 **界面多语言**：设置 → 语言设置 → 应用语言（跟随系统 / 简体中文 / 繁體中文 / English / 日本語 / 한국어），切换立即生效
-- 💾 **数据管理**：导出/导入 JSON 备份（含图片）、清空数据；启动时自动清理已删除题目与孤儿记录（数据库不会无限增长）
+- 💾 **数据管理**（设置 → 💾 数据管理）：导出/导入 JSON 备份（含图片）、**自动备份**（选一个文件夹后每天首次打开应用备份一次，只保留最近 3 份）、**崩溃日志**导出（只存本机）、清空数据；启动时自动清理已删除题目与孤儿记录、并按保留策略裁剪搜题记录（数据库不会无限增长）。**搜题记录本期不并入 JSON 备份。**
 
 ## 技术栈
 
-Kotlin · Jetpack Compose（Material3）· MVVM · Room（v7）· Retrofit/OkHttp（SSE 流式）· kotlinx.serialization · CameraX · WebView + KaTeX（公式渲染）· Navigation Compose · AlarmManager（复习提醒，精确闹钟不可用时自动降级）· Android Keystore（Key 加密）· 阿里云 Maven 镜像
+Kotlin · Jetpack Compose（Material3）· MVVM · Room（v8）· Retrofit/OkHttp（SSE 流式）· kotlinx.serialization · CameraX · WebView + KaTeX（公式渲染）· Navigation Compose · AlarmManager（复习提醒，精确闹钟不可用时自动降级）· Android Keystore（Key 加密）· 阿里云 Maven 镜像
 
-构建环境：AGP 8.13 · Kotlin 2.2 · compileSdk / targetSdk **37** · minSdk **28**
+构建环境：AGP 8.13 · Kotlin 2.2 · compileSdk / targetSdk **37** · minSdk **28**（build-tools 36.0.0）
+
+数据库表 / 字段与迁移历史见 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
 
 ## 版本记录
 
 > ⛔ **「导出这道题」（PNG 长图 / PDF）已于 v0.6.4 取消并移除该功能**（长图/PDF 始终做不到内容完整，决定不再做）。
 > 下面 v0.6.3 / v0.6.3.1 / v0.6.3.2 / v0.6.3.3 中与导出有关的条目**只是历史记录**，代码已全部删除。
+>
+> 📌 **版本号约定（现行）**：`0.x.x`（三段）与 `0.x.x.x`（四段）**都要**在 README「版本记录」+ App 内「更新内容」（简 / 英 / 日 / 韩 4 份，繁體由简体自动转换）各记一次；`versionCode` **每次发版 +1**。更早小节里「`0.x.x.x` 不改更新内容、只发 Release」的说法**已作废**。
 
 ### v0.6.5
 - 🕘 **新增「搜题记录」**（首页第 5 个入口）：解答过的题目**自动留下**，没点「存错题本」就退出也不怕丢 —— 按天分组、点开可**继续追问**、长按**多选删除**，行尾标注「已存错题本 / 未存错题本」
@@ -416,6 +421,7 @@ Kotlin · Jetpack Compose（Material3）· MVVM · Room（v7）· Retrofit/OkHtt
 
 .\tools\git-sync.ps1 -Message "docs: 只提交不推送" -NoPush
 .\tools\git-sync.ps1 -NoCommit                      # 工作区已提交，只推送
+.\tools\git-sync.ps1 -Message "..." -Branch main    # 显式推别的分支（不传 -Branch = 推当前分支）
 ```
 
 它解决的问题（在受限/无 `sh` 的环境里尤其有用）：
@@ -423,7 +429,8 @@ Kotlin · Jetpack Compose（Material3）· MVVM · Room（v7）· Retrofit/OkHtt
 1. **提交前先跑 `tools/check-secrets.ps1`** —— 于是沙箱等环境里 `sh` 型 git 钩子跑不起来也不影响安全兜底；
 2. **凭据走 `GIT_ASKPASS`**（原生 `.cmd`，不经 `sh`），token 只在环境变量中，**不进入命令行**（因此无需 `https://<token>@…` 那种写法，也不会写进 shell 历史）；
 3. **传输自动选路**：直连优先，失败自动切本地代理（`-ProxyPort`，默认 12450），并**记住上次成功的方式**（`.git/dsh-transport`），下次直接用它；
-4. 推送后自动同步 `refs/remotes/<remote>/<branch>`，并打印「本地 HEAD / 远端 HEAD / 是否一致」。
+4. 推送后自动同步 `refs/remotes/<remote>/<branch>`，并打印「本地 HEAD / 远端 HEAD / 是否一致」；
+5. **不传 `-Branch` 时推的就是当前所在分支**（2026-10-14 起；此前默认 `main`，在 `Develop` 上忘传 `-Branch` 会把提交静默留在本地）。
 
 退出码：`0` 成功；`1` 失败（扫描未过 / 提交失败 / 推送失败）。
 
@@ -434,6 +441,22 @@ Kotlin · Jetpack Compose（Material3）· MVVM · Room（v7）· Retrofit/OkHtt
 gradlew.bat assembleDebug
 # 产物: app/build/outputs/apk/debug/app-debug.apk
 ```
+
+单元测试（现 **84** 个用例，纯 JVM）：
+
+```powershell
+.\tools\run-unit-tests.ps1
+```
+
+> ⚠️ 本机特有：工程路径含非 ASCII（`文档`）时 `gradlew testDebugUnitTest` 会因测试 worker 的 classpath 乱码而失败，请改用上面的脚本；本机所有 Gradle 调用还要加 `-Pkotlin.compiler.execution.strategy=in-process`，否则 Kotlin 编译守护进程会被沙箱拒绝。
+
+## 分支与 CI
+
+- **`main` = 发布线**（只做合并与发布，始终保持「随时可发版」）；**`Develop` = 日常开发线**（2026-10-14 起，常规小版本在这里改代码 / 编译 / 真机测试 / 推送）。发版时把 `Develop` 合进 `main`，再在 `main` 上打 `v*` tag。
+- `.github/workflows/build.yml` **按触发分流**：
+  - **分支推送**（`main` / `Develop` / `multi_questions`）**只跑单元测试**（`testDebugUnitTest`）—— 不编译 release、**不产出 APK 构件**；
+  - **只有推 `v*` tag** 才跑 `testDebugUnitTest assembleRelease`，再补 lineage 重签、上传构件，并建一个**草稿** Release（说明由发布者补写后再点发布）。
+- 发布顺序：`Develop` → 合进 `main` → 打并推 `v*` tag → 等 CI 变绿 → 补 Release 说明并发布那个草稿。**可安装的 APK 只在 `v*` tag 的 run 里产出**。
 
 ## 发布签名（自有证书 + key rotation）
 
@@ -450,7 +473,8 @@ gradlew.bat assembleDebug
   .\tools\sign-release.ps1     # 输出 StudyAssistant-<版本>-<时间>.apk ← 这个才是要发布的包
   ```
 
-  （AGP 先用 debug 证书签出来的 `app-release.apk` 会被这一步**替换签名**；别把那个直接发出去。）
+  （AGP 用 `signingConfig` 签出的 `app-release.apk` **不带 lineage**，会被这一步**替换签名**；不要直接发布它。）
+- `debug` 变体**也用同一份自有证书**（`secrets.properties` 存在时）：否则 debug 与 release 无法互相覆盖安装（`INSTALL_FAILED_UPDATE_INCOMPATIBLE`）。
 - ⚠️ **三条铁律**：
   1. 以后**每一版都必须带同一条 lineage**（不带的话，还停在旧证书版本的设备就装不上，只能卸载重装）
   2. `lineage.bin` 与 keystore **必须永久备份**（在仓库之外的本地凭据备份里存了 base64 + 口令 + 证书指纹，并另存了一份 CI 用的 GitHub Secrets）
@@ -458,16 +482,30 @@ gradlew.bat assembleDebug
 
 ## 配置 API Key（应用内）
 
-1. 打开 App → 右上角 **⚙️ 设置**
-2. 粘贴你的 DeepSeek API Key（sk- 开头）→ 保存
+1. 打开 App → 底栏右侧 **⚙️ 设置** → **🤖 AI 管理** → 顶部的 **🔑 API 管理**
+2. 粘贴 DeepSeek API Key（sk- 开头）→ 保存
 3. Key 用 **Android Keystore 加密** 存于本机，不写入代码、不提交仓库
 
 Key 获取：https://platform.deepseek.com（账号需开通视觉模型权限）
 
+## 权限说明
+
+- `INTERNET`：调用 DeepSeek API（解答 / 批改 / 框选）与 GitHub Releases（检查更新）
+- `CAMERA`：拍照搜题、拍照批改
+- `READ_EXTERNAL_STORAGE`（仅 Android 12 及以下）：旧系统上从相册选图；Android 13+ 走系统照片选择器，**不需要**相册权限
+- `POST_NOTIFICATIONS`（Android 13+）：复习提醒通知
+- `SCHEDULE_EXACT_ALARM`：复习提醒按精确时间触发；未授予时**自动降级**为非精确闹钟
+- `RECEIVE_BOOT_COMPLETED`：开机后恢复每日提醒
+- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`：设置页「后台运行」引导，避免提醒被系统省电策略杀掉
+- `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC`：生成答案时的前台服务通知（切到后台不中断）
+- `REQUEST_INSTALL_PACKAGES`：应用内更新，下载完成后唤起系统安装器
+
+App 不申请位置、通讯录、麦克风等权限；题目 / 图片 / 会话 / 统计 / 崩溃日志 / API Key 全部只存本机。
+
 ## 环境要求
 
-- JDK 17+（建议 JDK 21）
-- Android SDK：**compileSdk / targetSdk 37**（需已安装 android-37.0 平台），**minSdk 28**
+- JDK 17+（建议 JDK 21，CI 用 JDK 21）
+- Android SDK：**compileSdk / targetSdk 37**（需已安装 android-37.0 平台 + build-tools 36.0.0），**minSdk 28**
 
 ## 许可证（License）
 

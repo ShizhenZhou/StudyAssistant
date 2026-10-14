@@ -1613,24 +1613,31 @@ private val B10_ZH = mapOf(
     "about.features" to "📋 功能",
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
-        "· 📷 拍照搜题：自动预框选 + 手动框选，AI 识别并分步解答\n" +
-        "· ✏️ 图文提问：文字 + 最多 3 张图直接提问\n" +
+        "· 📷 拍照搜题：自动预框选（本地 + AI 并行，可在「AI 管理」里关掉）+ 手动框选 / 双指缩放\n" +
+        "· ✏️ 图文提问：文字 + 最多 3 张图直接提问，不必先拍照\n" +
         "· ✍️ 批改题目：拍题目 + 手写作答，AI 判断正误并针对性讲解\n" +
+        "· 🕘 搜题记录：解答过的题自动留存（最近 200 条 / 30 天），点开可续答、长按可多选删除\n" +
         "· 🧠 AI 思考流：浅灰小字展示思考过程，可折叠、流式跟随\n" +
-        "· 📐 KaTeX 公式排版：积分 / 分式 / 矩阵等正确渲染\n" +
+        "· 📐 KaTeX 公式排版：积分 / 分式 / 矩阵等正确渲染；列表里也会转成可读符号\n" +
         "· 💬 多轮追问：可带图追问，支持中止与继续生成\n" +
+        "· 🎛 解题模式：Flash（快、省）/ Reasoner（慢、准）随需切换\n" +
         "· 🎯 练同类题：AI 出题并给出答案\n" +
-        "· 📚 错题本：两列瀑布流、全文搜索、科目分类 + 知识点标签\n" +
-        "· 🗂 自动归类：AI 判定科目与知识点，打开旧题自动补齐\n" +
-        "· 📖 艾宾浩斯复习：0/1/2/4/7/15/30 天排期，熟悉 / 模糊 / 忘记\n" +
-        "· 📊 学习统计：复习量、连续天数、掌握度、科目分布\n" +
+        "· 📚 错题本：两列瀑布流、全文搜索、科目 + 知识点标签、排序、长按批量处理\n" +
+        "· 🗂 自动归类：AI 判定科目与知识点（优先复用已有科目），打开旧题自动补齐；存题时查重\n" +
+        "· 📖 艾宾浩斯复习：0/1/2/4/7/15/30 天排期，熟悉 / 模糊 / 忘记，可筛选、可手写重做\n" +
+        "· 📊 学习统计：复习量、连续天数、掌握度、新增趋势（7 天 / 1 个月）、科目分布\n" +
         "· 🔔 复习提醒：每日定时通知，点击直达复习\n" +
-        "· 🎨 应用主题：浅色 / 深色 / 跟随系统 + 8 套配色与自定义取色\n" +
-        "· 🌐 多语言界面：简体 / 繁體 / English / 日本語 / 한국어\n" +
-        "· 🔑 API Key 应用内填写：Android Keystore 加密，仅存本机\n" +
-        "· 💾 数据管理：导出 / 导入 JSON 备份、清空数据\n" +
-        "· ⬆️ 应用更新：应用内检查、下载并校验（SHA-256 + 签名）\n" +
-        "· 🔒 隐私：所有数据只存本机，不上传服务器"
+        "· 🎨 主题与字号：浅色 / 深色 / 跟随系统，多套配色与自定义取色，全局字号可调\n" +
+        "· 🌐 多语言界面：简体 / 繁體 / English / 日本語 / 한국어（AI 生成语言另有更多选择）\n" +
+        "· 🔑 API Key 应用内填写：Android Keystore 加密，仅存本机；可看调用次数与 token 用量\n" +
+        "· 💾 数据管理：导出 / 导入 JSON 备份、自动备份（每日首次启动写入自选文件夹，保留最近 3 份）、清空数据\n" +
+        "· ⬆️ 应用更新：应用内检查、下载并校验（SHA-256 + 签名）"
+        ),
+    "about.privacy" to "🔒 数据与隐私",
+    "about.privacy.body" to (
+        "· 所有数据（题目、图片、会话、统计、崩溃日志）**只存在本机**：数据库用 Room，API Key 用 Android Keystore 加密\n" +
+        "· 应用**不接入任何自有服务器**，也不上传内容 —— 联网只用于调用你自己填写的 DeepSeek API，以及检查更新时访问 GitHub Releases 接口\n" +
+        "· 可随时在「数据管理」里导出 JSON 备份或清空全部数据"
         ),
     "update.current" to "当前版本",
     "update.check" to "检查更新",
@@ -1667,24 +1674,31 @@ private val B10_EN = mapOf(
     "about.features" to "📋 Features",
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
-        "· 📷 Photo search: automatic + manual crop, AI recognises and solves step by step\n" +
-        "· ✏️ Ask with images: text plus up to 3 photos\n" +
-        "· ✍️ Grading: photo of the question + your handwritten answer, AI marks and explains\n" +
-        "· 🧠 Thinking stream: shows the model's reasoning in small grey text, collapsible and streaming\n" +
-        "· 📐 KaTeX rendering: integrals, fractions, matrices and more\n" +
+        "· 📷 Solve by photo: automatic pre-crop (local + AI in parallel, can be turned off in AI management) plus manual crop and pinch zoom\n" +
+        "· ✏️ Ask with text/image: text plus up to 3 photos, no camera needed\n" +
+        "· ✍️ Grading: photo of the question + your handwritten answer; the AI marks it and explains\n" +
+        "· 🕘 Search history: solved questions are kept automatically (latest 200 / 30 days); tap to continue asking, long-press to delete several\n" +
+        "· 🧠 Thinking stream: the model's reasoning in small grey text, collapsible and streaming\n" +
+        "· 📐 KaTeX rendering: integrals, fractions, matrices and more, plus readable symbols in lists\n" +
         "· 💬 Follow-up questions with images; stop and continue generation\n" +
+        "· 🎛 Solve mode: switch between Flash (fast, cheap) and Reasoner (slow, accurate)\n" +
         "· 🎯 Similar-question practice: the AI generates a question and its answer\n" +
-        "· 📚 Mistake notebook: two-column grid, full-text search, subjects + knowledge tags\n" +
-        "· 🗂 Auto categorising: the AI assigns subject and tags; older entries are filled in on open\n" +
-        "· 📖 Spaced repetition: 0/1/2/4/7/15/30-day schedule with familiar / vague / forgot\n" +
-        "· 📊 Study stats: review counts, streaks, mastery, subject breakdown\n" +
+        "· 📚 Mistake notebook: two-column grid, full-text search, subjects + knowledge tags, sorting, long-press batch actions\n" +
+        "· 🗂 Auto categorising: the AI assigns subject and tags (reusing existing subjects); older entries are filled in on open; duplicate check on save\n" +
+        "· 📖 Spaced repetition: 0/1/2/4/7/15/30-day schedule with familiar / vague / forgot, filter by subject, redo by handwriting\n" +
+        "· 📊 Study stats: review counts, streaks, mastery, new-item trend (7 days / 1 month), subject breakdown\n" +
         "· 🔔 Review reminders: a daily notification that opens review directly\n" +
-        "· 🎨 Themes: light / dark / system, 8 palettes and a custom colour picker\n" +
-        "· 🌐 Multi-language UI: 简体 / 繁體 / English / 日本語 / 한국어\n" +
-        "· 🔑 API key entered in-app, encrypted with Android Keystore, never uploaded\n" +
-        "· 💾 Data management: export / import JSON backup, wipe data\n" +
-        "· ⬆️ App update: check, download and verify in-app (SHA-256 + signature)\n" +
-        "· 🔒 Privacy: all data stays on your device"
+        "· 🎨 Theme & font size: light / dark / system, several palettes with a custom colour picker, global font scale\n" +
+        "· 🌐 Multi-language UI: 简体 / 繁體 / English / 日本語 / 한국어 (more AI output languages)\n" +
+        "· 🔑 API key entered in-app, encrypted with Android Keystore, stored locally only; call and token counters\n" +
+        "· 💾 Data management: export / import JSON backup, automatic backup (first launch of the day, keeps the latest 3), wipe data\n" +
+        "· ⬆️ App update: check, download and verify in-app (SHA-256 + signature)"
+        ),
+    "about.privacy" to "🔒 Data & privacy",
+    "about.privacy.body" to (
+        "· All data (questions, images, conversations, stats, crash logs) **stays on this device**: Room for the database, Android Keystore for the API key\n" +
+        "· There is **no server of our own** and nothing is uploaded — the network is only used for the DeepSeek API you configured and for checking updates via the GitHub Releases API\n" +
+        "· Export a JSON backup or wipe everything at any time from Data management"
         ),
     "update.current" to "Current version",
     "update.check" to "Check for updates",
@@ -1721,24 +1735,31 @@ private val B10_JA = mapOf(
     "about.features" to "📋 機能",
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
-        "· 📷 撮影検索：自動＋手動の枠取り、AI が認識して段階的に解答\n" +
-        "· ✏️ 画像付き質問：テキスト＋最大 3 枚の写真\n" +
-        "· ✍️ 添削：問題＋手書き解答の写真から正誤と解説\n" +
+        "· 📷 撮影検索：自動プリクロップ（ローカル＋AI 並列、AI 管理でオフ可）＋手動の枠取り・ピンチズーム\n" +
+        "· ✏️ 文字・画像で質問：テキスト＋最大 3 枚の写真（撮影不要）\n" +
+        "· ✍️ 添削：問題＋手書き解答の写真から AI が正誤を判定し解説\n" +
+        "· 🕘 検索履歴：解いた問題を自動保存（直近 200 件 / 30 日）。タップで続けて質問、長押しで複数削除\n" +
         "· 🧠 思考ストリーム：薄いグレーの小文字で思考過程を表示（折りたたみ可・逐次表示）\n" +
-        "· 📐 KaTeX による数式組版：積分・分数・行列など\n" +
+        "· 📐 KaTeX による数式組版：積分・分数・行列など。一覧でも読みやすい記号に変換\n" +
         "· 💬 画像付きの追加質問／生成の中止と再開\n" +
+        "· 🎛 解答モード：Flash（速い・安い）/ Reasoner（遅い・正確）を切り替え\n" +
         "· 🎯 類似問題演習：AI が出題し解答も提示\n" +
-        "· 📚 誤答ノート：2 列レイアウト・全文検索・科目＋知識タグ\n" +
-        "· 🗂 自動分類：AI が科目とタグを判定し、古い問題は開いた時に補完\n" +
-        "· 📖 間隔反復：0/1/2/4/7/15/30 日のスケジュール（熟悉 / 模糊 / 忘记）\n" +
-        "· 📊 学習統計：復習数・連続日数・習熟度・科目分布\n" +
+        "· 📚 誤答ノート：2 列レイアウト・全文検索・科目＋知識タグ・並べ替え・長押しで一括操作\n" +
+        "· 🗂 自動分類：AI が科目とタグを判定（既存の科目を優先）。古い問題は開いた時に補完。保存時に重複チェック\n" +
+        "· 📖 間隔反復：0/1/2/4/7/15/30 日のスケジュール（熟悉 / 模糊 / 忘记）、科目で絞り込み、手書きで再挑戦\n" +
+        "· 📊 学習統計：復習数・連続日数・習熟度・新規推移（7 日 / 1 か月）・科目分布\n" +
         "· 🔔 復習リマインダー：毎日通知、タップで復習へ\n" +
-        "· 🎨 テーマ：ライト / ダーク / システム＋8 色とカスタムカラー\n" +
-        "· 🌐 多言語 UI：简体 / 繁體 / English / 日本語 / 한국어\n" +
-        "· 🔑 API キーはアプリ内で入力し Android Keystore に暗号化保存\n" +
-        "· 💾 データ管理：JSON のエクスポート / インポート、全消去\n" +
-        "· ⬆️ アプリ更新：アプリ内で確認・ダウンロード・検証（SHA-256＋署名）\n" +
-        "· 🔒 プライバシー：データは端末内のみ"
+        "· 🎨 テーマと文字サイズ：ライト / ダーク / システム、複数パレットとカスタムカラー、全体の文字サイズ\n" +
+        "· 🌐 多言語 UI：简体 / 繁體 / English / 日本語 / 한국어（AI の出力言語はさらに選択可）\n" +
+        "· 🔑 API キーはアプリ内で入力し Android Keystore に暗号化保存（呼び出し回数と token 使用量を表示）\n" +
+        "· 💾 データ管理：JSON のエクスポート / インポート、自動バックアップ（当日初回起動時に指定フォルダへ直近 3 件）、全消去\n" +
+        "· ⬆️ アプリ更新：アプリ内で確認・ダウンロード・検証（SHA-256＋署名）"
+        ),
+    "about.privacy" to "🔒 データとプライバシー",
+    "about.privacy.body" to (
+        "· すべてのデータ（問題・画像・会話・統計・クラッシュログ）は**端末内のみ**に保存：DB は Room、API キーは Android Keystore で暗号化\n" +
+        "· **独自のサーバーは持たず**、内容をアップロードしません —— 通信はご自身で設定した DeepSeek API と、更新確認の GitHub Releases API のみに使います\n" +
+        "· 「データ管理」からいつでも JSON バックアップの書き出しや全データ削除ができます"
         ),
     "update.current" to "現在のバージョン",
     "update.check" to "更新を確認",
@@ -1775,24 +1796,31 @@ private val B10_KO = mapOf(
     "about.features" to "📋 기능",
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
-        "· 📷 사진 검색: 자동·수동 자르기 후 AI가 인식해 단계별 풀이\n" +
-        "· ✏️ 이미지 질문: 텍스트 + 최대 3장의 사진\n" +
-        "· ✍️ 첨삭: 문제 + 손글씨 답안 사진으로 정오 판단과 설명\n" +
+        "· 📷 사진으로 질문: 자동 사전 크롭(로컬 + AI 병렬, AI 관리에서 끄기 가능) + 수동 크롭·핀치 줌\n" +
+        "· ✏️ 글·이미지 질문: 글 + 최대 3장의 사진(촬영 불필요)\n" +
+        "· ✍️ 첨삭: 문제 + 손글씨 답안 사진으로 AI가 정오를 판단하고 설명\n" +
+        "· 🕘 검색 기록: 푼 문제를 자동 보관(최근 200건 / 30일). 탭하면 이어서 질문, 길게 누르면 여러 개 삭제\n" +
         "· 🧠 사고 과정: 연한 회색 작은 글씨로 추론 과정 표시(접기 가능, 실시간)\n" +
-        "· 📐 KaTeX 수식 조판: 적분·분수·행렬 등\n" +
+        "· 📐 KaTeX 수식 조판: 적분·분수·행렬 등. 목록에서도 읽기 쉬운 기호로 변환\n" +
         "· 💬 이미지 첨부 추가 질문 / 생성 중지와 재개\n" +
+        "· 🎛 풀이 모드: Flash(빠름·저렴) / Reasoner(느림·정확) 전환\n" +
         "· 🎯 유사 문제 연습: AI가 출제하고 해답 제시\n" +
-        "· 📚 오답노트: 2열 배치·전체 검색·과목 + 지식 태그\n" +
-        "· 🗂 자동 분류: AI가 과목과 태그를 판정, 오래된 문제는 열 때 보완\n" +
-        "· 📖 간격 반복: 0/1/2/4/7/15/30일 일정(익숙 / 애매 / 모름)\n" +
-        "· 📊 학습 통계: 복습 수·연속 일수·숙련도·과목 분포\n" +
+        "· 📚 오답노트: 2열 배치·전체 검색·과목 + 지식 태그·정렬·길게 눌러 일괄 처리\n" +
+        "· 🗂 자동 분류: AI가 과목과 태그를 판정(기존 과목 우선), 오래된 문제는 열 때 보완, 저장 시 중복 확인\n" +
+        "· 📖 간격 반복: 0/1/2/4/7/15/30일 일정(익숙 / 애매 / 모름), 과목 필터, 손글씨로 다시 풀기\n" +
+        "· 📊 학습 통계: 복습 수·연속 일수·숙련도·신규 추이(7일 / 1개월)·과목 분포\n" +
         "· 🔔 복습 알림: 매일 알림, 탭하면 복습으로 이동\n" +
-        "· 🎨 테마: 라이트 / 다크 / 시스템 + 8가지 색상과 사용자 지정 색\n" +
-        "· 🌐 다국어 UI: 简体 / 繁體 / English / 日本語 / 한국어\n" +
-        "· 🔑 API 키는 앱 내 입력, Android Keystore로 암호화 저장\n" +
-        "· 💾 데이터 관리: JSON 내보내기 / 가져오기, 전체 삭제\n" +
-        "· ⬆️ 앱 업데이트: 앱 내 확인·다운로드·검증(SHA-256 + 서명)\n" +
-        "· 🔒 개인정보: 모든 데이터는 기기 안에만"
+        "· 🎨 테마와 글자 크기: 라이트 / 다크 / 시스템, 여러 팔레트와 사용자 색, 전체 글자 크기\n" +
+        "· 🌐 다국어 UI: 简体 / 繁體 / English / 日本語 / 한국어 (AI 출력 언어는 더 많이 선택 가능)\n" +
+        "· 🔑 API 키는 앱 내 입력, Android Keystore로 암호화해 기기에만 저장(호출 횟수와 token 사용량 표시)\n" +
+        "· 💾 데이터 관리: JSON 내보내기 / 가져오기, 자동 백업(그날 첫 실행 시 지정 폴더에 최근 3개), 전체 삭제\n" +
+        "· ⬆️ 앱 업데이트: 앱 내 확인·다운로드·검증(SHA-256 + 서명)"
+        ),
+    "about.privacy" to "🔒 데이터와 개인정보",
+    "about.privacy.body" to (
+        "· 모든 데이터(문제, 이미지, 대화, 통계, 크래시 로그)는 **기기에만** 저장됩니다: DB는 Room, API 키는 Android Keystore로 암호화\n" +
+        "· **자체 서버가 없고** 내용을 업로드하지 않습니다 —— 네트워크는 직접 입력한 DeepSeek API와 업데이트 확인을 위한 GitHub Releases API에만 사용됩니다\n" +
+        "· 「데이터 관리」에서 언제든 JSON 백업을 내보내거나 모든 데이터를 삭제할 수 있습니다"
         ),
     "update.current" to "현재 버전",
     "update.check" to "업데이트 확인",
