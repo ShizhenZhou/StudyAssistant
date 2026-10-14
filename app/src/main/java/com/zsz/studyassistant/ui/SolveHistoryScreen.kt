@@ -103,7 +103,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             ) {
                                 Text(
                                     if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"],
-                                    fontSize = BTN_LABEL, maxLines = 1, softWrap = false
+                                    fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false
                                 )
                             }
                             Text(
@@ -149,11 +149,11 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(
                             onClick = { showDeleteConfirm = true },
                             contentPadding = compact
-                        ) { Text(s["solve.delete"], maxLines = 1, softWrap = false) }
+                        ) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
                         TextButton(
                             onClick = { exitSelection() },
                             contentPadding = compact
-                        ) { Text(s["solve.done"], maxLines = 1, softWrap = false) }
+                        ) { Text(s["solve.done"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
                     }
                 }
             )

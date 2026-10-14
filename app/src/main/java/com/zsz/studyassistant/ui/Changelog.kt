@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.5.1
+· 🔤 **按钮字号统一**：错题本右上角的 🔍 搜索 / ⇅ 排序 / 管理 与解题页顶栏同字号（原来 12sp 偏小 → 13sp）
+· 🔤 **多选顶栏统一**：搜题记录与解题页长按多选时，「全选 / 删除 / 完成」字号与解题页按钮一致（错题本的多选顶栏排得紧，按要求不动）
+
 v0.6.5
 · 🕘 **新增「搜题记录」**（首页第 5 个入口）：解答过的题目自动留下，没点「存错题本」就退出也不怕丢；按天分组、点开可继续追问、长按多选删除；保留最近 200 条 / 30 天，原图一并保留
 · 🐞 **修复切图页「上边框偶尔蹦到最上边」**：接上了一道写了却从未启用的「贴边就丢弃」防线；手指按下即锁定手动框选；缩放松手 / 换图后把选框收回图内；四角热区补外侧边界
@@ -323,6 +327,10 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.5.1
+· 🔤 **Unified button size**: the 🔍 search / ⇅ sort / manage buttons at the top right of the notebook now match the solve screen's toolbar (12sp → 13sp)
+· 🔤 **Unified selection toolbar**: in search history and the solve screen, the select-all / delete / done buttons now use the same size as the solve screen's buttons (the notebook's tighter selection bar stays as it was, by request)
+
 v0.6.5
 · 🕘 **New "Search history"** (5th entry on Home): solved questions are kept automatically, so leaving without tapping "Save to notebook" no longer loses them; grouped by day, tap to continue asking, long-press for multi-select delete; the latest 200 entries / 30 days are kept, original images included
 · 🐞 **Fixed the crop page's top edge occasionally jumping to the very top**: a "discard if it touches the edge" guard had been written but never wired up — it is now active; the selection is locked as soon as a finger touches down; after a pinch-zoom ends or the image changes the selection is pulled back inside the image; the four corner hit areas gained outer bounds
@@ -641,6 +649,10 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.5.1
+· 🔤 **ボタンの文字サイズを統一**：間違いノート右上の 🔍 検索 / ⇅ 並べ替え / 管理 を解答画面のツールバーと同じサイズに（12sp → 13sp）
+· 🔤 **複数選択ツールバーを統一**：検索履歴と解答画面で、全選択 / 削除 / 完了 を解答画面のボタンと同じサイズに（間違いノートの詰まった選択バーはご要望どおり変更なし）
+
 v0.6.5
 · 🕘 **「検索履歴」を追加**（ホームの 5 番目の入口）：解いた問題が自動で残るため、「間違いノートに保存」を押さずに終了しても失われません。日付ごとにグループ化、タップで続けて質問、長押しで複数選択削除。直近 200 件 / 30 日を保持し、元画像も残します
 · 🐞 **切り抜き画面で「上辺がたまに最上部へ飛ぶ」問題を修正**：書かれたまま一度も使われていなかった「端に接したら破棄」のガードを有効化。指を置いた瞬間に手動の選択を固定。ピンチ終了時・画像切り替え時に選択枠を画像内へ戻す。四隅の判定に外側の境界を追加
@@ -959,6 +971,10 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.5.1
+· 🔤 **버튼 글자 크기 통일**: 오답 노트 오른쪽 위의 🔍 검색 / ⇅ 정렬 / 관리 버튼을 풀이 화면 툴바와 같은 크기로(12sp → 13sp)
+· 🔤 **다중 선택 툴바 통일**: 검색 기록과 풀이 화면에서 전체 선택 / 삭제 / 완료를 풀이 화면 버튼과 같은 크기로 (오답 노트의 빽빽한 선택 바는 요청대로 그대로)
+
 v0.6.5
 · 🕘 **「검색 기록」 추가**(홈의 다섯 번째 항목): 푼 문제가 자동으로 남아 「오답 노트에 저장」을 누르지 않고 나가도 사라지지 않습니다. 날짜별 그룹, 탭하면 이어서 질문, 길게 눌러 여러 개 삭제. 최근 200건 / 30일 보관하며 원본 이미지도 남깁니다
 · 🐞 **자르기 화면에서 「위쪽 테두리가 가끔 맨 위로 튀는」 문제 수정**: 작성만 되고 한 번도 쓰이지 않던 「가장자리에 닿으면 버림」 가드를 활성화했습니다. 손가락을 대는 순간 수동 선택이 고정됩니다. 핀치 종료·이미지 전환 시 선택 영역을 이미지 안으로 되돌립니다. 네 모서리 판정에 바깥 경계를 추가

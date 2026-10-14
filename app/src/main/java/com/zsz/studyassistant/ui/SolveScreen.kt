@@ -281,7 +281,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
-                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = BTN_LABEL)
+                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = BTN_LABEL_SOLVE)
                             }
                             Text(
                                 s.format("solve.selectedCount", "n" to "${selectedIndices.size}"),

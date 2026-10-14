@@ -208,16 +208,15 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         }
                         else -> {
                             // 🔍 搜索：点开才出现搜索框，再点别处关闭
-                            // ★ 字号与右侧「排序 / 管理」等按钮**一致**（用户要求）：用紧凑 TextButton + BTN_LABEL，
-                            //   不再用 IconButton（它固定 48dp，且 emoji 用的 18sp 会显得比旁边按钮大一圈）
+                            // ★ 字号与解题页顶栏按钮统一（用户 2026-10-14：原来 BTN_LABEL=12sp 偏小 → 13sp）
                             TextButton(
                                 onClick = { if (searchOpen) closeSearch() else searchOpen = true },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
-                            ) { Text("🔍", fontSize = BTN_LABEL) }
+                            ) { Text("🔍", fontSize = BTN_LABEL_SOLVE) }
                             // ⇅ 排序（A5）：最近添加 / 最早添加 / 下次复习 / 复习次数 / 最不熟
                             Box {
                                 TextButton(onClick = { sortMenu = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                                    Text(s["notebook.sort"], maxLines = 1, softWrap = false)
+                                    Text(s["notebook.sort"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false)
                                 }
                                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                     NotebookSortMode.menuOrder.forEach { m ->
@@ -230,7 +229,9 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                                 }
                             }
                             // 管理：科目（分类）管理
-                            TextButton(onClick = { page = "manage"; searchOpen = false }) { Text(s["notebook.manage"]) }
+                            TextButton(onClick = { page = "manage"; searchOpen = false }) {
+                                Text(s["notebook.manage"], fontSize = BTN_LABEL_SOLVE)
+                            }
                         }
                     }
                 }
