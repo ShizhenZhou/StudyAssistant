@@ -165,6 +165,7 @@ $testClasses = @(
     'com.zsz.studyassistant.data.DuplicateCheckTest',
     'com.zsz.studyassistant.data.AutoExposureTest',
     'com.zsz.studyassistant.data.SolveSessionPruneTest',
+    'com.zsz.studyassistant.data.ConversationImagesTest',
     'com.zsz.studyassistant.ui.CategoryLabelStyleTest',
     'com.zsz.studyassistant.ui.CropMathTest',
     'com.zsz.studyassistant.ui.L10nTableTest'

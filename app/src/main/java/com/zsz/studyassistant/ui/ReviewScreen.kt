@@ -57,6 +57,7 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.questionImageBase64
 import com.zsz.studyassistant.data.Tag
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -229,7 +230,13 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 @Composable
 private fun ReviewCard(q: Question, onClick: () -> Unit) {
     val s = LocalStrings.current
-    val bitmap = remember(q.id, q.imageBytes) { q.imageBytes?.let { decodeSampledBitmap(it, 900) } }
+    // ★ 2026-10-14 修「复习页看不到原图」：`imageBytes` 只存一张，多图拍题 / 图文提问存下的错题它是 null →
+    //   兜底从 conversationJson 里取题目附图（数据一直在那），否则复习自测就没有原图可看。
+    val imgBytes = remember(q.id, q.imageBytes, q.conversationJson) {
+        q.imageBytes ?: questionImageBase64(q.conversationJson).firstOrNull()
+            ?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull() }
+    }
+    val bitmap = remember(imgBytes) { imgBytes?.let { decodeSampledBitmap(it, 900) } }
     Card(
         modifier = Modifier
             .padding(horizontal = 4.dp)

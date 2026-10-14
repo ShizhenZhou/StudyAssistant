@@ -77,6 +77,7 @@ import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.NotebookSortMode
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.questionImageBase64
 import com.zsz.studyassistant.data.Tag
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -437,8 +438,14 @@ private fun NotebookItem(
 ) {
     val s = LocalStrings.current
     // 用 remember 缓存 + 降采样解码，避免每次重组都解码全尺寸大图
-    val bitmap = remember(q.id, q.imageBytes) {
-        q.imageBytes?.let { decodeSampledBitmap(it, 400) }
+    // ★ 2026-10-14 修「错题本卡片没原图」：`imageBytes` 只存一张，多图 / 图文提问存下的错题它是 null →
+    //   兜底从 conversationJson 里取题目附图（数据一直在那）。
+    val imgBytes = remember(q.id, q.imageBytes, q.conversationJson) {
+        q.imageBytes ?: questionImageBase64(q.conversationJson).firstOrNull()
+            ?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull() }
+    }
+    val bitmap = remember(imgBytes) {
+        imgBytes?.let { decodeSampledBitmap(it, 400) }
     }
     Card(
         modifier = Modifier

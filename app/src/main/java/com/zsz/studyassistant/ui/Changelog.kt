@@ -6,6 +6,7 @@ package com.zsz.studyassistant.ui
  */
 internal val CHANGELOG_ZH: String = """
 v0.6.5.1
+· 🐞 **修复「存错题本后原图丢失」**（多图拍题 / 图文提问更容易遇到）：原图一直在会话里，只是没写进专用图片字段 → 现在保存时补上，并在启动时**自动回填历史错题**（错题本卡片 / 复习页自测 / 备份一起恢复）
 · 🔤 **按钮字号统一**：错题本右上角的 🔍 搜索 / ⇅ 排序 / 管理 与解题页顶栏同字号（原来 12sp 偏小 → 13sp）
 · 🔤 **多选顶栏统一**：搜题记录与解题页长按多选时，「全选 / 删除 / 完成」字号与解题页按钮一致（错题本的多选顶栏排得紧，按要求不动）
 
@@ -328,6 +329,7 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.6.5.1
+· 🐞 **Fixed missing original images after saving to the notebook** (more likely with multi-photo or text+image questions): the images were always in the conversation, just never written to the dedicated image field — saves now include the main image, and older entries are back-filled automatically at launch (notebook cards, review self-test and backups all recover)
 · 🔤 **Unified button size**: the 🔍 search / ⇅ sort / manage buttons at the top right of the notebook now match the solve screen's toolbar (12sp → 13sp)
 · 🔤 **Unified selection toolbar**: in search history and the solve screen, the select-all / delete / done buttons now use the same size as the solve screen's buttons (the notebook's tighter selection bar stays as it was, by request)
 
@@ -650,6 +652,7 @@ v0.1 (project start)
 
 internal val CHANGELOG_JA: String = """
 v0.6.5.1
+· 🐞 **「間違いノートに保存すると原図が消える」問題を修正**（複数枚撮影・文字＋画像で起きやすい）：画像はもともと会話内にあり、専用の画像フィールドに書き込まれていなかっただけです → 保存時に主図を書き込み、起動時に**過去の分も自動補完**（カード・復習・バックアップも復旧）
 · 🔤 **ボタンの文字サイズを統一**：間違いノート右上の 🔍 検索 / ⇅ 並べ替え / 管理 を解答画面のツールバーと同じサイズに（12sp → 13sp）
 · 🔤 **複数選択ツールバーを統一**：検索履歴と解答画面で、全選択 / 削除 / 完了 を解答画面のボタンと同じサイズに（間違いノートの詰まった選択バーはご要望どおり変更なし）
 
@@ -972,6 +975,7 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.6.5.1
+· 🐞 **「오답 노트에 저장하면 원본 이미지가 사라지던」문제 수정**(여러 장 촬영·글+이미지에서 더 자주 발생): 이미지는 원래 대화 안에 있었고 전용 이미지 필드에 기록되지 않았을 뿐입니다 → 저장 시 대표 이미지를 기록하고, 실행 시 **기존 항목도 자동 복구**(카드·복습·백업 모두 복원)
 · 🔤 **버튼 글자 크기 통일**: 오답 노트 오른쪽 위의 🔍 검색 / ⇅ 정렬 / 관리 버튼을 풀이 화면 툴바와 같은 크기로(12sp → 13sp)
 · 🔤 **다중 선택 툴바 통일**: 검색 기록과 풀이 화면에서 전체 선택 / 삭제 / 완료를 풀이 화면 버튼과 같은 크기로 (오답 노트의 빽빽한 선택 바는 요청대로 그대로)
 

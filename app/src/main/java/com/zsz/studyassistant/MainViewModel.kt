@@ -15,6 +15,7 @@ import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.questionImageBase64
 import com.zsz.studyassistant.data.Review
 import com.zsz.studyassistant.data.SOLVE_SESSION_KEEP
 import com.zsz.studyassistant.data.SOLVE_SESSION_KEEP_DAYS
@@ -315,9 +316,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 dao.purgeOrphanReviews()
                 dao.purgeOrphanQuestionTags()
             }
+            // ★ 顺带修历史"原图丢失"（多图拍题 / 图文提问存下的错题，imageBytes 一直是空的）
+            backfillQuestionImages()
         }
         // 搜题记录同样在启动时裁剪一次（保留最近 200 条 / 最近 30 天）
         pruneSolveSessions()
+    }
+
+    /**
+     * 一次性「原图回填」（2026-10-14）：把 `imageBytes` 为空、但会话 JSON 里仍有附图的错题补上主图。
+     *
+     * 背景：`imageBytes`（单图专用字段）只覆盖"单图拍照"这条链路，**多图拍题 / 图文提问**从不给它赋值 →
+     * 存进错题本后，错题本卡片缩略图、复习页自测原图、**导出的备份**里都没有图
+     * （用户报的"加错题本后原图有时会丢，多图时更容易"）。
+     * 图片其实一直在 `conversationJson`（`ChatItem.images`）里，所以这里取回来写回数据库，
+     * 让**所有只读 `imageBytes` 的地方**一起恢复（界面侧另有读端兜底，两者互为保险）。
+     *
+     * 幂等且安全：只处理 `imageBytes IS NULL` 的行；解析/解码失败直接跳过，**绝不动已有图**。
+     */
+    private suspend fun backfillQuestionImages() {
+        runCatching {
+            val rows = dao.questionsMissingImageOnce()
+            var fixed = 0
+            for (r in rows) {
+                val b64 = questionImageBase64(r.conversationJson).firstOrNull() ?: continue
+                val bytes = runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull() ?: continue
+                if (bytes.isEmpty()) continue
+                dao.setQuestionImage(r.id, bytes)
+                fixed++
+            }
+            if (fixed > 0) {
+                android.util.Log.i("StudyAssistant", "原图回填：已修复 $fixed 条错题的主图")
+            }
+        }
     }
     /** 推理模型的思考流（浅灰小字展示；非推理模型为 null） */
     var thinkingText by mutableStateOf<String?>(null)
@@ -1411,7 +1442,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             recognized.ifBlank { "（图片题）" }
         }
         val convJson = json.encodeToString(chatItems)
-        val img = imageBytes
+        // ★ 2026-10-14 修「存错题本后原图丢失」：`imageBytes` 只覆盖"单图拍照"这条链路，
+        //   **多图拍题 / 图文提问**从不给它赋值（只有 multiImages / directImages + questionImages）→
+        //   存进去就是 null，错题本卡片与复习页因此看不到原图。这里用 `questionImages`（base64 列表）
+        //   兜底取第一张，保证"主图不丢"；其余图仍在 conversationJson 里（解题页气泡可显示、备份也带得走）。
+        val img = imageBytes ?: questionImages.firstOrNull()?.let {
+            runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
+        }
         val a = lastAnswer()
         saving = true
         cancelPending = false
@@ -2335,7 +2372,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionTags = emptyList()
         error = null
         // 原题图统一作为浅绿用户气泡显示（旧会话也适用：从 imageBytes 注入）
-        questionImages = q.imageBytes?.let { listOf(Base64.encodeToString(it, Base64.NO_WRAP)) } ?: emptyList()
+        // ★ 2026-10-14：`imageBytes` 为空时（多图 / 图文提问存下的错题）从会话 JSON 兜底取回附图，
+        //   否则重新打开这道题时原图会整组消失（数据其实一直在 conversationJson 里）。
+        questionImages = q.imageBytes?.let { listOf(Base64.encodeToString(it, Base64.NO_WRAP)) }
+            ?: questionImageBase64(q.conversationJson)
         // ★ 第5项「按需补」：打开**旧错题**时，若它没有分类（或没有标签），
         //   后台用「题干 + 原图」问一次 AI，拿到结果就直接预选好，
         //   这样即使是很久以前存的题，点「存错题本」/「分类」时也不再是空的。

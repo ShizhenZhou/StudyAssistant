@@ -179,6 +179,18 @@ interface QuestionDao {
     @Query("SELECT id, text, answer, createdAt, deleted, categoryId FROM questions WHERE deleted = 0")
     suspend fun allLightOnce(): List<Question>
 
+    /**
+     * 「原图回填」用（2026-10-14）：找出 `imageBytes` 为空、但会话 JSON 还在的错题。
+     * 只取必要列（**不含 BLOB**），避免把大图整批读进内存。
+     * ⚠️ `createdAt`/`deleted` 是**非空基元**，Room 要求它们必须出现在投影里（Kotlin 默认值不算数）。
+     */
+    @Query("SELECT id, text, answer, createdAt, deleted, conversationJson FROM questions WHERE deleted = 0 AND imageBytes IS NULL AND conversationJson IS NOT NULL")
+    suspend fun questionsMissingImageOnce(): List<Question>
+
+    /** 「原图回填」用：只写回主图，不动其它字段（避免整行 UPDATE 覆盖并发修改） */
+    @Query("UPDATE questions SET imageBytes = :img WHERE id = :id")
+    suspend fun setQuestionImage(id: Long, img: ByteArray)
+
     @Query("SELECT * FROM categories ORDER BY id ASC")
     suspend fun allCategoriesOnce(): List<Category>
 
