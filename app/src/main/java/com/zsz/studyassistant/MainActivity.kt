@@ -57,6 +57,7 @@ import com.zsz.studyassistant.ui.UpdateBadgeState
 import com.zsz.studyassistant.ui.silentUpdateCheck
 import com.zsz.studyassistant.ui.SimilarScreen
 import com.zsz.studyassistant.ui.SolveScreen
+import com.zsz.studyassistant.ui.SolveHistoryScreen
 import com.zsz.studyassistant.ui.StatsScreen
 import com.zsz.studyassistant.ui.stringsFor
 
@@ -183,6 +184,7 @@ class MainActivity : ComponentActivity() {
                                 composable("crop") { CropScreen(nav, viewModel) }
                                 composable("grade") { GradeScreen(nav, viewModel) }
                                 composable("solve") { SolveScreen(nav, viewModel) }
+                                composable("history") { SolveHistoryScreen(nav, viewModel) }
                                 composable("notebook") { NotebookScreen(nav, viewModel) }
                                 composable("review") { ReviewScreen(nav, viewModel) }
                                 composable("similar") { SimilarScreen(nav, viewModel) }

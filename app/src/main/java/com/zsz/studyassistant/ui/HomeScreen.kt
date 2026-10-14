@@ -3,6 +3,7 @@ package com.zsz.studyassistant.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +23,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +48,8 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // ★ 兜底：2×2 后高度已减半，但大字号 + 极小屏（或分屏）下仍可能超高 → 允许滚动，绝不裁掉入口
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -62,42 +67,50 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             )
-            Spacer(Modifier.height(48.dp))
-            Button(shape = smoothPill(), 
-                onClick = { nav.navigate("camera") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-            ) {
-                Text(s["home.camera"], fontSize = 20.sp)
+            Spacer(Modifier.height(32.dp))
+            // ★ 2026-10-13：入口从"竖排 4 个 64dp 按钮"改成 **2 列网格**。
+            //   竖排 4 个已接近小屏/大字号下的临界高度，第 5 个入口（搜题记录）必然被裁 →
+            //   2×2 网格把高度砍掉一半，第 5 个入口独占一行撑满宽度；最外层再加 verticalScroll 兜底。
+            val gap = 12.dp
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                Button(shape = smoothPill(),
+                    onClick = { nav.navigate("camera") },
+                    modifier = Modifier.weight(1f).height(64.dp)
+                ) {
+                    Text(s["home.camera"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
+                Button(shape = smoothPill(),
+                    onClick = { vm.startAskSession(); nav.navigate("solve") { popUpTo("home") } },
+                    modifier = Modifier.weight(1f).height(64.dp)
+                ) {
+                    Text(s["home.ask"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
             }
-            Spacer(Modifier.height(16.dp))
-            // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
-            Button(shape = smoothPill(), 
-                onClick = { vm.startAskSession(); nav.navigate("solve") { popUpTo("home") } },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-            ) {
-                Text(s["home.ask"], fontSize = 20.sp)
+            Spacer(Modifier.height(gap))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                OutlinedButton(shape = smoothPill(),
+                    onClick = { nav.navigate("notebook") },
+                    modifier = Modifier.weight(1f).height(64.dp)
+                ) {
+                    Text(s["home.notebook"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                OutlinedButton(shape = smoothPill(),
+                    onClick = { nav.navigate("review") },
+                    modifier = Modifier.weight(1f).height(64.dp)
+                ) {
+                    Text(s["home.review"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
             }
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(shape = smoothPill(), 
-                onClick = { nav.navigate("notebook") },
+            Spacer(Modifier.height(gap))
+            // 第 5 个入口：🕘 搜题记录（独占一行、撑满宽度）
+            OutlinedButton(shape = smoothPill(),
+                onClick = { nav.navigate("history") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                Text(s["home.notebook"], fontSize = 20.sp)
-            }
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(shape = smoothPill(), 
-                onClick = { nav.navigate("review") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-            ) {
-                Text(s["home.review"], fontSize = 20.sp)
+                Text(s["home.history"], fontSize = 20.sp)
             }
         }
     }

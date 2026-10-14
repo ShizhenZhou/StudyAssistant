@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
@@ -70,6 +72,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -98,25 +101,29 @@ fun SettingsTab(vm: MainViewModel) {
         // 「AI 管理」= API 管理（置顶）+ 原 AI 配置（AI 切图开关 / 框选时限 / 解题模式 / 自定义要求）
         "ai" -> {
             val ctx = LocalContext.current
-            // ★ 2026-10-13：自定义要求的文本 + "是否已修改"状态**提到页面这一层**，
-            //   这样「保存」按钮才能放进 SettingsSubPage 的底部操作栏 —— 键盘弹出时它贴在键盘上方，
-            //   不用先收起键盘就能点（用户要求）。
+            // ★ 2026-10-13（用户要求 · 第 2 版）：自定义要求的文本 + "是否已修改"状态提到页面这一层，
+            //   把「保存」做成**跟着键盘出现**的按钮：
+            //     · 键盘**收起**时 → 保存按钮就在输入框下面（与改动前完全一样，页面底部不出现任何浮动条）
+            //     · 键盘**弹出**时 → 保存按钮挪到键盘正上方（不用先收键盘就能点）
+            //   ⚠️ 首版做成了"常驻底栏"，用户实测反馈"没弹键盘时它也在、还跟着乱跑" → 改为按 IME 可见性切换。
             var cpText by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
             var cpDirty by remember { mutableStateOf(false) }
+            // 键盘（IME）当前是否可见：可见才给底栏
+            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            val savePrompt = {
+                com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
+                cpDirty = false
+                android.widget.Toast.makeText(ctx, s["common.save"], android.widget.Toast.LENGTH_SHORT).show()
+            }
+            // 键盘弹出时贴在键盘上方的那颗「保存」（没改动时置灰）
+            val promptSaveBar: @Composable () -> Unit = {
+                Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
+            }
             SettingsSubPage(
                 title = s["settings.aiManage"],
                 onBack = { page = "main" },
-                bottomBar = {
-                    Button(
-                        onClick = {
-                            com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
-                            cpDirty = false
-                            android.widget.Toast.makeText(ctx, s["common.save"], android.widget.Toast.LENGTH_SHORT).show()
-                        },
-                        // 没改动时置灰（沿用原来字段下方那颗按钮的行为）
-                        enabled = cpDirty
-                    ) { Text(s["common.save"]) }
-                }
+                // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
+                bottomBar = promptSaveBar.takeIf { imeVisible }
             ) {
                 // AI 切图总开关的界面状态（关掉后**整个时限设置项都不显示**）
                 var aiCropOn by remember {
@@ -140,6 +147,17 @@ fun SettingsTab(vm: MainViewModel) {
                 }
                 AiSolveModelSettings()
                 AiCustomPromptSettings(cpText, onText = { cpText = it; cpDirty = true })
+                // 键盘收起时：保存按钮留在输入框下面（原来的位置）—— 与浮动底栏二选一，绝不同时出现
+                if (!imeVisible) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
+                    }
+                }
             }
         }
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
