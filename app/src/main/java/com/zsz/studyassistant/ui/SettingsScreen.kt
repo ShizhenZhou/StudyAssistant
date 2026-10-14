@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -209,6 +210,13 @@ internal fun changelogAnnotated(text: String): AnnotatedString = buildAnnotatedS
 }
 
 /**
+ * 外层壳子（`MainActivity`）底部 `NavigationBar` 的高度：Material3 默认 **80dp**。
+ * 二级页是在它的**上方**渲染的，所以按"键盘高度"做 IME 避让时必须先扣掉它，
+ * 否则就会多缩一截 → 键盘上方出现空白带（用户 2026-10-13 反馈的那个现象）。
+ */
+private val SHELL_BOTTOM_BAR_HEIGHT = 80.dp
+
+/**
  * 二级页面容器：返回键 + 标题 + 可滚动内容（+ 可选底部操作栏）。
  *
  * ★ 2026-10-13（用户要求）：新增 [bottomBar] 槽位。容器已有 `imePadding()`，所以**键盘弹出时底部栏
@@ -224,10 +232,22 @@ private fun SettingsSubPage(
     // ★ 2026-10-13（用户要求）：头部行**不再吃外层 16dp 内边距**（原来箭头因此又小又靠右），
     //   并统一改用 SubPageBackArrow（21sp 的「←」）→ 与解题页/错题本等子页面完全一致。
     // ★ 2026-10-13 修复（用户报「自定义 prompt 输入到底部时被键盘挡住」）：
-    //   二级页容器补上 imePadding() —— 键盘弹出时整页内容上移/收窄，不再被输入法遮住。
-    //   （Manifest 是 adjustResize，且应用是 edge-to-edge，所以必须自己消费 IME inset；
-    //    解题页/同类题页早就是这么做的：`Modifier.fillMaxSize().imePadding().padding(padding)`）
-    Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
+    //   二级页容器补上 IME 避让 —— 键盘弹出时内容收窄，不再被输入法遮住。
+    //   （Manifest 是 adjustResize，且应用是 edge-to-edge，所以必须自己消费 IME inset。）
+    // ★★ 2026-10-13 二修（用户报「键盘和输入框之间有一大块空白」）：
+    //   本页在外层 `Column { Box(weight 1f){ NavHost }; NavigationBar }` 的 **Box 里** ——
+    //   也就是说页面底边**已经**比屏幕底边高了「底部导航栏(80dp) + 系统导航条 inset」那么多。
+    //   若仍按**整个键盘高度**做 imePadding，就会**多缩**这么一截 → 键盘上方出现一条空白带。
+    //   这里改成只补「键盘高度 − 那一截」，内容底边正好落在键盘顶边上。
+    val density = LocalDensity.current
+    val imePx = WindowInsets.ime.getBottom(density)
+    val shellBottomPx = with(density) { SHELL_BOTTOM_BAR_HEIGHT.toPx() } +
+        WindowInsets.navigationBars.getBottom(density)
+    val imeExtraBottom = with(density) { (imePx - shellBottomPx).coerceAtLeast(0f).toDp() }
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding()
+            .padding(bottom = if (imePx > 0) imeExtraBottom else 0.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SubPageBackArrow(onClick = onBack)
             // 二级页标题：比 Material3 titleLarge 默认小 1sp

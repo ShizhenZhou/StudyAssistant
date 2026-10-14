@@ -3,6 +3,7 @@ package com.zsz.studyassistant.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,12 +29,45 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.ApiKeyStore
+
+/**
+ * 首页按钮标签：**只让 emoji 后面的文字参与居中**（用户 2026-10-13 要求）。
+ *
+ * 文案形如 `"📷  拍照搜题"`（emoji + 空格 + 文字）。若整串一起居中，emoji 会把文字整体顶偏，
+ * 视觉上就不像居中。这里让 emoji 占 **0 宽**、绘制到文字左侧 —— Row 的内容宽 = 纯文字宽，
+ * 于是真正居中的是文字本身，emoji 只是"挂在"文字左边。
+ */
+@Composable
+private fun HomeButtonLabel(label: String, fontSize: TextUnit) {
+    val emoji = label.substringBefore(" ")
+    val text = label.substringAfter(" ", "").trimStart()
+    if (text.isEmpty()) {   // 没有 emoji/空格的兜底
+        Text(label, fontSize = fontSize, maxLines = 1)
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            emoji,
+            fontSize = fontSize,
+            // 占 0 宽 + 左移到文字外侧（含一点间距），因此不参与居中计算
+            modifier = Modifier.layout { measurable, constraints ->
+                val p = measurable.measure(Constraints())
+                val gap = (p.width * 0.22f).toInt()
+                layout(0, p.height) { p.place(-p.width - gap, 0) }
+            }
+        )
+        Text(text, fontSize = fontSize, maxLines = 1)
+    }
+}
 
 @Composable
 fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
@@ -68,38 +102,42 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             )
             Spacer(Modifier.height(32.dp))
-            // ★ 2026-10-13：入口从"竖排 4 个 64dp 按钮"改成 **2 列网格**。
-            //   竖排 4 个已接近小屏/大字号下的临界高度，第 5 个入口（搜题记录）必然被裁 →
-            //   2×2 网格把高度砍掉一半，第 5 个入口独占一行撑满宽度；最外层再加 verticalScroll 兜底。
+            // ★ 2026-10-13（用户要求）：五个入口的排布改为
+            //   「📷 拍照搜题」独占一行 → 「✏️ 图文提问」独占一行 → 「📚 错题本 / 📖 复习」各半宽一行
+            //   → 「🕘 搜题记录」独占一行。
+            //   原因：2×2 网格时半宽格子放不下「📷 拍照搜题」，被压成「📷 拍照…」——用户明确不要「…」，
+            //   并要求这两个主入口**各占一行**。最外层已有 verticalScroll 兜底，4 行在小屏/大字号下也不会被裁。
             val gap = 12.dp
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                Button(shape = smoothPill(),
-                    onClick = { nav.navigate("camera") },
-                    modifier = Modifier.weight(1f).height(64.dp)
-                ) {
-                    Text(s["home.camera"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
-                // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
-                Button(shape = smoothPill(),
-                    onClick = { vm.startAskSession(); nav.navigate("solve") { popUpTo("home") } },
-                    modifier = Modifier.weight(1f).height(64.dp)
-                ) {
-                    Text(s["home.ask"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
+            Button(shape = smoothPill(),
+                onClick = { nav.navigate("camera") },
+                modifier = Modifier.fillMaxWidth().height(64.dp)
+            ) {
+                HomeButtonLabel(s["home.camera"], 20.sp)
             }
             Spacer(Modifier.height(gap))
+            // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
+            Button(shape = smoothPill(),
+                onClick = { vm.startAskSession(); nav.navigate("solve") { popUpTo("home") } },
+                modifier = Modifier.fillMaxWidth().height(64.dp)
+            ) {
+                HomeButtonLabel(s["home.ask"], 20.sp)
+            }
+            Spacer(Modifier.height(gap))
+            // 错题本 / 复习：名字短，半宽放得下；仍留 maxLines=2 兜底 —— **任何情况都不出「…」**
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 OutlinedButton(shape = smoothPill(),
                     onClick = { nav.navigate("notebook") },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
                 ) {
-                    Text(s["home.notebook"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    HomeButtonLabel(s["home.notebook"], 19.sp)
                 }
                 OutlinedButton(shape = smoothPill(),
                     onClick = { nav.navigate("review") },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
                 ) {
-                    Text(s["home.review"], fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    HomeButtonLabel(s["home.review"], 19.sp)
                 }
             }
             Spacer(Modifier.height(gap))
@@ -110,7 +148,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                Text(s["home.history"], fontSize = 20.sp)
+                HomeButtonLabel(s["home.history"], 20.sp)
             }
         }
     }

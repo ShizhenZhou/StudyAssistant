@@ -307,10 +307,14 @@ internal data class SolveHistoryGroup(val label: String, val items: List<SolveSe
  */
 internal fun groupSolveSessionsByDay(all: List<SolveSession>, todayStart: Long): List<SolveHistoryGroup> {
     val yesterdayStart = todayStart - TimeUnit.DAYS.toMillis(1)
-    val sorted = all.sortedByDescending { it.createdAt }
-    val today = sorted.filter { it.createdAt >= todayStart }
-    val yesterday = sorted.filter { it.createdAt in yesterdayStart until todayStart }
-    val earlier = sorted.filter { it.createdAt < yesterdayStart }
+    // ★ 2026-10-13：**坏数据兜底** —— 之前的版本可能把 `createdAt` 写成 0（根因见
+    //   `MainViewModel.recordSolveSession` 的修复：INSERT 没记 `solveSessionCreatedAt`，UPDATE 时又写回 0）。
+    //   `createdAt <= 0` 的记录改用 `updatedAt` 参与分组与排序，否则"今天刚搜的题"会掉进「更早」。
+    fun ts(s: SolveSession) = if (s.createdAt > 0L) s.createdAt else s.updatedAt
+    val sorted = all.sortedByDescending { ts(it) }
+    val today = sorted.filter { ts(it) >= todayStart }
+    val yesterday = sorted.filter { ts(it) in yesterdayStart until todayStart }
+    val earlier = sorted.filter { ts(it) < yesterdayStart }
     return buildList {
         if (today.isNotEmpty()) add(SolveHistoryGroup("history.today", today))
         if (yesterday.isNotEmpty()) add(SolveHistoryGroup("history.yesterday", yesterday))

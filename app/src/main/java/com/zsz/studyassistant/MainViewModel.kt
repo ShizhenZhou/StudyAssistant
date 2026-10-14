@@ -456,16 +456,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val multi = if (imgs.size > 1) json.encodeToString(imgs.map { Base64.encodeToString(it, Base64.NO_WRAP) }) else null
         val now = System.currentTimeMillis()
         val sid = currentSessionId
+        // ★ 2026-10-13 修（用户实测：**今天刚搜的题被分到「更早」**）：
+        //   INSERT 原来靠实体默认值 `createdAt = System.currentTimeMillis()`，但**没有把它记进
+        //   `solveSessionCreatedAt`**（那个字段只在 `loadSolveSession` 里赋值，初值是 0）→ 之后任何一次
+        //   UPDATE（追问 / 重新生成 / 批改）都会写 `createdAt = 0` → 记录掉进"更早"分组。
+        //   现在：显式带上 createdAt 并在 insert 后记下来；UPDATE 侧再加一道 `≤0 → now` 兜底
+        //   （这样历史坏数据也会在下次更新时被修好）。
+        val created = if (sid == null) now else solveSessionCreatedAt.takeIf { it > 0L } ?: now
+        solveSessionCreatedAt = created
         viewModelScope.launch {
             runCatching {
                 if (sid == null) {
                     currentSessionId = dao.insertSolveSession(
-                        SolveSession(source = source, text = q, answer = a, conversationJson = conv,
-                            imageBytes = single, imagesJson = multi, savedQuestionId = savedQuestionId)
+                        SolveSession(source = source, createdAt = created, updatedAt = now, text = q, answer = a,
+                            conversationJson = conv, imageBytes = single, imagesJson = multi, savedQuestionId = savedQuestionId)
                     )
                 } else {
                     dao.updateSolveSession(
-                        SolveSession(id = sid, createdAt = solveSessionCreatedAt, updatedAt = now,
+                        SolveSession(id = sid, createdAt = created, updatedAt = now,
                             source = source, text = q, answer = a, conversationJson = conv,
                             imageBytes = single, imagesJson = multi, savedQuestionId = savedQuestionId)
                     )
