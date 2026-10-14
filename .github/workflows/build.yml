@@ -1,12 +1,13 @@
 name: build
 
 # 触发：
-#  1) 每次 push 到 main / multi_questions → 编译 release APK 并归档（校验用）
+#  1) 每次 push 到 main / Develop / multi_questions → 跑测试（main 另编译 release 作校验）
+#     · Develop = 日常开发线（2026-10-14 起），推上去就跑单测，发版前就有信号
 #  2) 推 v* 标签 → 编译并把 APK 自动挂到同名 Release
 #  3) 手动触发（Actions 页面 Run workflow）
 on:
   push:
-    branches: [main, multi_questions]
+    branches: [main, Develop, multi_questions]
     tags: ['v*']
   pull_request:
     branches: [main]
