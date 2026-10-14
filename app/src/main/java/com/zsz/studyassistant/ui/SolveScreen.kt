@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -553,7 +555,13 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
         // 分类 + 标签选择对话框（存题 / 详情页改）
         when (categoryDialogFor) {
             "save" -> {
-                val defaultCat = vm.suggestedCategory
+                // ★★ 2026-10-14（用户反馈"取消勾选标签很卡"）：**打开对话框那一刻把 AI 预置冻结**。
+                //   `remember {}`（无 key）只取首次值 → 之后即使"解答流式解析 / 完成兜底"再把
+                //   suggestedCategory / suggestedTags 写进来，也**不会**改变对话框里的初始勾选，
+                //   更不会把用户刚取消的 ✕ "复活"（这是残余的 AI 干扰来源）。
+                val frozenCat = remember { vm.suggestedCategory }
+                val frozenTags = remember { vm.suggestedTags }
+                val defaultCat = frozenCat
                 val initCatId = categories.firstOrNull { it.name == defaultCat }?.id
                 // ★ 2026-10-14（用户要求）：**打开对话框时不再后台问 AI**（原来是"预选为空就兜底问一次"）。
                 //   预置只来自解答完成时的解析结果；没有就默认「暂不分类 + 不勾选标签」。
@@ -572,11 +580,11 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     tags = tags,
                     initialSelectedId = initCatId,
                     initialNewName = if (initCatId == null) defaultCat else null,
-                    // 默认勾选 AI 建议的知识点标签（与已有标签同名者）
+                    // 默认勾选预置的知识点标签（与已有标签同名者）——用**冻结快照**，不吃后续 AI 更新
                     initialSelectedTagIds = tags.filter { tg ->
-                        vm.suggestedTags.any { it.trim() == tg.name.trim() }
+                        frozenTags.any { it.trim() == tg.name.trim() }
                     }.map { it.id },
-                    suggestedTagNames = vm.suggestedTags,
+                    suggestedTagNames = frozenTags,
                     duplicateOf = dupOf,
                     onConfirm = { name, cid, tagNames, tagIds ->
                         vm.saveToNotebook(name, cid, tagNames, tagIds)
@@ -586,13 +594,17 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 )
             }
             "change" -> {
+                // ★ 2026-10-14：同样**冻结**打开瞬间的已存信息（分类/标签），避免"打开题目后
+                //   异步读库结果到达"再把对话框里的初始勾选改掉（用户点了 ✕ 又跳回来）
+                val frozenCatId = remember { vm.currentQuestionCategoryId }
+                val frozenTagIds = remember { vm.currentQuestionTags }
                 SaveDialog(
                     title = s["solve.catPicker.edit"],
                     categories = categories,
                     tags = tags,
-                    initialSelectedId = vm.currentQuestionCategoryId,
+                    initialSelectedId = frozenCatId,
                     initialNewName = null,
-                    initialSelectedTagIds = vm.currentQuestionTags,
+                    initialSelectedTagIds = frozenTagIds,
                     suggestedTagNames = emptyList(),
                     onConfirm = { name, cid, tagNames, tagIds ->
                         vm.changeCurrentCategory(name, cid)
@@ -1034,7 +1046,7 @@ private fun EditMsgRow(item: ChatItem, selected: Boolean, onClick: () -> Unit) {
  * 存题 / 详情页修改用：分类（单选）+ 知识点标签（多选 ≤5）。
  * onConfirm(name, categoryId, tagNames, tagIds)：name/tagNames 非空 → 新建分类/标签；categoryId/tagIds 为空 → 暂不分类/无标签。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun SaveDialog(
     title: String,
@@ -1131,16 +1143,19 @@ internal fun SaveDialog(
                         }
                     }
                 }
-                // 已选（含 AI 自动预选、新建），点按可移除
+                // 已选（含预置/新建），点整块即移除
                 if (selectedNames.isNotEmpty()) {
-                    // ★ Row + horizontalScroll（而不是 LazyRow）：在 AlertDialog 里嵌套滚动更可靠，
-                    //   否则标签行滑不动；点按标签可移除（含 AI 自动预选的）
-                    Row(
+                    // ★★ 2026-10-14（用户反馈"取消勾选标签仍然很卡/时常失灵"）：
+                    //   原来是 `Row + horizontalScroll`，而它外层还有 `Column(verticalScroll)` ——
+                    //   **嵌套的横向滚动容器会把点击吞掉**（手指稍微一动就被判定成"横向滑动"，
+                    //   于是"点 ✕ 取消勾选"经常不生效）。改成 **FlowRow 自动换行**：
+                    //   不再有横向滚动容器，**整块 chip（含 ✕）都是点击区**，点按即取消 ✅
+                    FlowRow(
                         Modifier
                             .padding(top = 6.dp)
-                            .horizontalScroll(rememberScrollState()),
+                            .fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         selectedNames.toList().forEach { name ->
                             FilterChip(

@@ -317,11 +317,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 dao.purgeOrphanReviews()
                 dao.purgeOrphanQuestionTags()
             }
-            // ★ 顺带修历史"原图丢失"（多图拍题 / 图文提问存下的错题，imageBytes 一直是空的）
+            // ★ 顺序很重要：先从**搜题记录**把历史上丢掉的多图补回会话 JSON，
+            //   再据此回填主图（`imageBytes` 为空的老数据也能一起修好）
+            repairQuestionImagesFromSessions()
             backfillQuestionImages()
         }
         // 搜题记录同样在启动时裁剪一次（保留最近 200 条 / 最近 30 天）
         pruneSolveSessions()
+    }
+
+    /**
+     * 「多图修复」（2026-10-14）：把**历史上"存进错题本时丢了第二张图"**的题补回来。
+     *
+     * 背景：多图拍题的题目气泡曾**不带 images**（已在 `solveWithImages` 修好）→ 存档的 `conversationJson`
+     * 里根本只有一张（或没有）图。但**搜题记录**（`solve_sessions.imagesJson`）当时是存了全部图的 ✅，
+     * 所以这里按 `savedQuestionId`（其次按题干文本）找回记录，把图**补写进该题的 `conversationJson`**，
+     * 之后读取端（错题本卡片 / 复习自测 / 详情页）的合并逻辑就能完整显示。
+     *
+     * 幂等且安全：只在"会话里的图**少于**记录里的图"时才写；解析失败一律跳过，**绝不删已有图**。
+     */
+    private suspend fun repairQuestionImagesFromSessions() {
+        runCatching {
+            val rows = dao.questionsWithConversationOnce()
+            var fixed = 0
+            for (q in rows) {
+                val have = questionImageBase64(q.conversationJson)
+                val s = dao.solveSessionForQuestion(q.id)
+                    ?: q.text.takeIf { it.isNotBlank() }?.let { t -> dao.solveSessionByText(t) }
+                    ?: continue
+                val all = runCatching { s.imagesJson?.let { j -> json.decodeFromString<List<String>>(j) } }
+                    .getOrNull().orEmpty()
+                if (all.size <= have.size) continue                    // 没丢就不动
+                val merged = mergeImageKeys(have.firstOrNull(), all)   // 保序 + 去重 + 上限 3
+                val items = runCatching { json.decodeFromString<List<ChatItem>>(q.conversationJson.orEmpty()) }
+                    .getOrNull() ?: continue
+                val newItems = if (items.any { it.role == "question" }) {
+                    items.map { if (it.role == "question") it.copy(images = merged) else it }
+                } else {
+                    listOf(ChatItem(0L, "question", q.text, merged)) + items
+                }
+                dao.setConversationJson(q.id, json.encodeToString(newItems))
+                fixed++
+            }
+            if (fixed > 0) {
+                android.util.Log.i("StudyAssistant", "多图修复：已补回 $fixed 条错题的附图")
+            }
+        }
     }
 
     /**
@@ -1209,9 +1250,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             questionText = r.question
             suggestedCategory = r.category
             suggestedTags = r.tags
-            addItem("question", r.question)
+            // ★★ 2026-10-14 修「两张图存进错题本后只剩一张」的**真正根因**：
+            //   这里原来 `addItem("question", r.question)` **没带 images** → 题目气泡的 `ChatItem.images` 为空
+            //   → 而 `saveToNotebook` 存的 `conversationJson = chatItems` **正是从它来的** →
+            //   第二张图**从来没被存下来**（读取端再怎么兜底也找不到）。
+            //   现在把 `questionImages`（全部图，base64）一起写进题目气泡，存档后即可完整还原。
+            addItem("question", r.question, questionImages.ifEmpty { null })
             addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            recordSolveSession("camera")     // ★ 多图一并落进 imagesJson（顺带修"多图存错题本丢原图"）
+            recordSolveSession("camera")     // ★ 多图一并落进 imagesJson（搜题记录侧也存全）
         }, repeat = { solveWithImages(images) })
     }
 

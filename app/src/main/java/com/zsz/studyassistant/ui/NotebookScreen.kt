@@ -77,6 +77,7 @@ import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.NotebookSortMode
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.mergeImageKeys
 import com.zsz.studyassistant.data.questionImageBase64
 import com.zsz.studyassistant.data.Tag
 import java.text.SimpleDateFormat
@@ -439,14 +440,17 @@ private fun NotebookItem(
 ) {
     val s = LocalStrings.current
     // 用 remember 缓存 + 降采样解码，避免每次重组都解码全尺寸大图
-    // ★ 2026-10-14 修「错题本卡片没原图」：`imageBytes` 只存一张，多图 / 图文提问存下的错题它是 null →
-    //   兜底从 conversationJson 里取题目附图（数据一直在那）。
-    val imgBytes = remember(q.id, q.imageBytes, q.conversationJson) {
-        q.imageBytes ?: questionImageBase64(q.conversationJson).firstOrNull()
-            ?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull() }
-    }
-    val bitmap = remember(imgBytes) {
-        imgBytes?.let { decodeSampledBitmap(it, 400) }
+    // ★★ 2026-10-14（用户："错题本中只能显示一个图"）：卡片也要显示**全部原图**（最多 3 张，竖向排列）。
+    //   以前这里只取一张（`imageBytes` 或会话里的第一张）→ 双图只看得见一张。
+    //   统一走 `mergeImageKeys`：主图 + 会话附图，按 base64 去重。
+    val bitmaps = remember(q.id, q.imageBytes, q.conversationJson) {
+        mergeImageKeys(
+            q.imageBytes?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) },
+            questionImageBase64(q.conversationJson)
+        ).mapNotNull { b64 ->
+            runCatching { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }.getOrNull()
+                ?.let { decodeSampledBitmap(it, 400) }
+        }
     }
     Card(
         modifier = Modifier
@@ -458,15 +462,18 @@ private fun NotebookItem(
     ) {
         Box {
             Column(Modifier.padding(8.dp)) {
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = s["notebook.imageDesc"],
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat()),
-                        contentScale = ContentScale.Fit
-                    )
+                if (bitmaps.isNotEmpty()) {
+                    bitmaps.forEach { bm ->
+                        Image(
+                            bitmap = bm.asImageBitmap(),
+                            contentDescription = s["notebook.imageDesc"],
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp)
+                                .aspectRatio(bm.width.toFloat() / bm.height.toFloat()),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
                 } else {
                     Text(
                         TextPretty.oneLine(q.text, 110),

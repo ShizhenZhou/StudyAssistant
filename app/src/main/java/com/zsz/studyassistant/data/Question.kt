@@ -191,6 +191,25 @@ interface QuestionDao {
     @Query("UPDATE questions SET imageBytes = :img WHERE id = :id")
     suspend fun setQuestionImage(id: Long, img: ByteArray)
 
+    /**
+     * 「多图修复」用（2026-10-14）：连会话 JSON 一起取出来，用于判断「这道题存下的图比它的搜题记录少」。
+     * 仍**不含 BLOB**（不取 `imageBytes`），避免把大图整批读进内存。
+     */
+    @Query("SELECT id, text, answer, createdAt, deleted, categoryId, conversationJson FROM questions WHERE deleted = 0")
+    suspend fun questionsWithConversationOnce(): List<Question>
+
+    /** 「多图修复」用：把补好的会话 JSON 写回（只动这一列） */
+    @Query("UPDATE questions SET conversationJson = :cj WHERE id = :id")
+    suspend fun setConversationJson(id: Long, cj: String)
+
+    /** 「多图修复」用：按"已存错题 id"找到对应搜题记录（记录里 `imagesJson` 有全部图） */
+    @Query("SELECT * FROM solve_sessions WHERE savedQuestionId = :qid ORDER BY createdAt DESC LIMIT 1")
+    suspend fun solveSessionForQuestion(qid: Long): SolveSession?
+
+    /** 「多图修复」用（兜底）：按题干文本匹配搜题记录 */
+    @Query("SELECT * FROM solve_sessions WHERE text = :text AND imagesJson IS NOT NULL ORDER BY createdAt DESC LIMIT 1")
+    suspend fun solveSessionByText(text: String): SolveSession?
+
     @Query("SELECT * FROM categories ORDER BY id ASC")
     suspend fun allCategoriesOnce(): List<Category>
 
