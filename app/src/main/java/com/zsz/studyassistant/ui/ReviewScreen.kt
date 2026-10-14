@@ -57,6 +57,7 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.mergeImageKeys
 import com.zsz.studyassistant.data.questionImageBase64
 import com.zsz.studyassistant.data.Tag
 import java.text.SimpleDateFormat
@@ -231,13 +232,13 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 private fun ReviewCard(q: Question, onClick: () -> Unit) {
     val s = LocalStrings.current
     // ★ 2026-10-14（用户报「双图仍会丢」）：复习自测把**全部原图**都显示出来 ——
-    //   `imageBytes` 只有一张（主图），其余图在 conversationJson 里；这里合并两者、**按 base64 去重**
+    //   `imageBytes` 只有一张（主图），其余图在 conversationJson 里；统一用 `mergeImageKeys` 合并去重
     //   （不要用 Bitmap.sameAs 逐像素比较，900px 图上太慢），最多 3 张（拍题上限）。
     val imgBitmaps = remember(q.id, q.imageBytes, q.conversationJson) {
-        val keys = mutableListOf<String>()
-        q.imageBytes?.let { keys += android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
-        for (b64 in questionImageBase64(q.conversationJson)) if (b64 !in keys) keys += b64
-        keys.take(3).mapNotNull { b64 ->
+        mergeImageKeys(
+            q.imageBytes?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) },
+            questionImageBase64(q.conversationJson)
+        ).mapNotNull { b64 ->
             runCatching { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }.getOrNull()
                 ?.let { decodeSampledBitmap(it, 900) }
         }

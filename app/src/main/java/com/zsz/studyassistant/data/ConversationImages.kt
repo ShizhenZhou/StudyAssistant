@@ -124,3 +124,22 @@ private fun stringLiteralsIn(s: String, from: Int, to: Int): List<String> {
     }
     return out
 }
+
+/** 一道题最多几张原图（与拍题上限一致） */
+internal const val MAX_QUESTION_IMAGES = 3
+
+/**
+ * 合并「主图」与会话里的附图：**按 base64 去重、主图在前、最多 [MAX_QUESTION_IMAGES] 张**。
+ *
+ * ★ 为什么必须有它（用户 2026-10-14 报「两张图的时候依然会丢」）：
+ *   `Question.imageBytes` 只存**一张**主图；多图拍题 / 图文提问的其余图**只在 `conversationJson` 里**。
+ *   读取端若写成"有 `imageBytes` 就只用它"（`imageBytes?.let { listOf(it) } ?: 会话图`），
+ *   第二张就会消失 —— 而 0.6.5.1 的"保存兜底 + 启动回填"正好把主图写进了 `imageBytes`，
+ *   于是那个分支被走进去、**双图变单图**。读取端一律用本函数合并即可根治。
+ */
+internal fun mergeImageKeys(mainBase64: String?, fromConversation: List<String>): List<String> {
+    val out = ArrayList<String>(MAX_QUESTION_IMAGES)
+    if (!mainBase64.isNullOrBlank()) out += mainBase64
+    for (b in fromConversation) if (b.isNotBlank() && !out.contains(b)) out += b
+    return if (out.size > MAX_QUESTION_IMAGES) out.take(MAX_QUESTION_IMAGES) else out
+}

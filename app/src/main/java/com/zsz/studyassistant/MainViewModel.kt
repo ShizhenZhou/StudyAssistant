@@ -15,6 +15,7 @@ import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.mergeImageKeys
 import com.zsz.studyassistant.data.questionImageBase64
 import com.zsz.studyassistant.data.Review
 import com.zsz.studyassistant.data.SOLVE_SESSION_KEEP
@@ -566,16 +567,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         imageBytes = s.imageBytes
         questionFromPhoto = s.imageBytes != null && isPhoto
         // 多图（imagesJson = base64 数组的 JSON）→ 还原成内存图，这样"继续追问带图"仍能带上原图
-        val multi: List<ByteArray> = runCatching {
-            s.imagesJson?.let { j -> json.decodeFromString<List<String>>(j).map { Base64.decode(it, Base64.NO_WRAP) } }
+        val multiKeys: List<String> = runCatching {
+            s.imagesJson?.let { j -> json.decodeFromString<List<String>>(j) }
         }.getOrNull().orEmpty()
-        directImages = multi
+        directImages = multiKeys.mapNotNull { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
         multiImages = emptyList()
-        questionImages = when {
-            multi.isNotEmpty() -> multi.map { Base64.encodeToString(it, Base64.NO_WRAP) }
-            s.imageBytes != null -> listOf(Base64.encodeToString(s.imageBytes, Base64.NO_WRAP))
-            else -> emptyList()
-        }
+        // ★ 2026-10-14：主图与会话/记录里的多图**合并去重**（别让"有主图就只用主图"吞掉其余图）
+        questionImages = mergeImageKeys(
+            s.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
+            multiKeys
+        )
         // ★ 不标 savedToNotebook：它是"搜题记录"。已存过错题本时只把 savedQuestionId 带回来（界面可显示 ✅）
         savedToNotebook = false
         savedQuestionId = s.savedQuestionId
@@ -2303,10 +2304,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionTags = emptyList()
         error = null
         // 原题图统一作为浅绿用户气泡显示（旧会话也适用：从 imageBytes 注入）
-        // ★ 2026-10-14：`imageBytes` 为空时（多图 / 图文提问存下的错题）从会话 JSON 兜底取回附图，
-        //   否则重新打开这道题时原图会整组消失（数据其实一直在 conversationJson 里）。
-        questionImages = q.imageBytes?.let { listOf(Base64.encodeToString(it, Base64.NO_WRAP)) }
-            ?: questionImageBase64(q.conversationJson)
+        // ★ 2026-10-14 修「两张图仍会丢」：`imageBytes` 只是**一张主图**，其余图在 conversationJson 里 →
+        //   必须**合并去重**（`mergeImageKeys`）。原来写成"有主图就只用主图"，双图会被吞成一张
+        //   （0.6.5.1 的保存兜底 / 启动回填把主图写进 imageBytes 之后，正好走进那个分支）。
+        questionImages = mergeImageKeys(
+            q.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
+            questionImageBase64(q.conversationJson)
+        )
         // ★ 第5项「按需补」：打开**旧错题**时，若它没有分类（或没有标签），
         //   后台用「题干 + 原图」问一次 AI，拿到结果就直接预选好，
         //   这样即使是很久以前存的题，点「存错题本」/「分类」时也不再是空的。

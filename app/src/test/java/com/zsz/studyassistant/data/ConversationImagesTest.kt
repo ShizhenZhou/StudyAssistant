@@ -63,4 +63,28 @@ class ConversationImagesTest {
         val json = """[{"id":0,"role":"question","content":"role=question 是什么意思","images":["K9"],"thinking":null}]"""
         assertEquals(listOf("K9"), questionImageBase64(json))
     }
+
+    // ── mergeImageKeys：修「两张图仍会丢」的关键函数（有主图时也必须带上会话里的其余图） ──
+
+    @Test
+    fun `mergeImageKeys 主图在前、会话图去重后追加`() {
+        assertEquals(listOf("MAIN", "B", "C"), mergeImageKeys("MAIN", listOf("B", "MAIN", "C")))
+    }
+
+    @Test
+    fun `mergeImageKeys 主图为空时只用会话图`() {
+        assertEquals(listOf("A", "B"), mergeImageKeys(null, listOf("A", "B")))
+        assertEquals(listOf("A"), mergeImageKeys("", listOf("A")))
+    }
+
+    @Test
+    fun `mergeImageKeys 最多 3 张（拍题上限）`() {
+        assertEquals(listOf("M", "1", "2"), mergeImageKeys("M", listOf("1", "2", "3")))
+    }
+
+    @Test
+    fun `mergeImageKeys 空输入返回空表`() {
+        assertTrue(mergeImageKeys(null, emptyList()).isEmpty())
+        assertTrue(mergeImageKeys("   ", listOf("", " ")).isEmpty())
+    }
 }

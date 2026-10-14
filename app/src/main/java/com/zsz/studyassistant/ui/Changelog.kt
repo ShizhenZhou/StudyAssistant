@@ -5,6 +5,9 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.5.3
+· 🐞 **修复「两张图仍会丢一张」**：读取端原来"有主图就只用主图"，而其余图只在会话数据里 → 双图打开只剩一张；现在统一**合并主图 + 会话附图**（按 base64 去重，最多 3 张），错题本详情 / 复习自测 / 搜题记录三处一起修好
+
 v0.6.5.2
 · 🎛 **取消「打开题目 / 打开分类对话框时 AI 实时判断」**：分类与标签只来自解答时的预置，打开已存题只读库里信息，没有就默认「暂不分类 + 不勾选标签」—— 顺带修好"AI 擅自改写已存分类"与"取消勾选标签失灵"
 · 🖼 **复习自测显示全部原图**（多图 / 图文提问存下的错题不再只看第一页，最多 3 张）
@@ -333,6 +336,9 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.5.3
+· 🐞 **Fixed one of two images still being lost**: the reader used to keep only the main image whenever it existed, while the rest live in the conversation — so a two-photo question showed a single image. The main image and the conversation images are now merged (deduped by base64, max 3) across the notebook detail, review self-test and search history
+
 v0.6.5.2
 · 🎛 **Removed the live AI classification when opening a question or the category dialog**: subject and knowledge tags now come only from the presets captured while solving; opening a saved question just reads what is stored, defaulting to "no category + no tags". This also fixes the AI silently rewriting a stored category, and tag checkboxes being hard to untick
 · 🖼 **Review now shows every original image** (multi-photo / text+image questions no longer show only the first page, up to 3)
@@ -661,6 +667,9 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.5.3
+· 🐞 **「2 枚のうち 1 枚が消える」問題を修正**：読み込み側が「メイン画像があればそれだけ使う」実装だったため、残りの画像（会話データ内）が表示されず 1 枚になっていました。メイン画像＋会話内の画像を統合（base64 で重複排除、最大 3 枚）し、間違いノート詳細・復習・検索履歴の 3 か所を修正
+
 v0.6.5.2
 · 🎛 **問題を開いた時／分類ダイアログを開いた時の AI リアルタイム判定を廃止**：分類とタグは解答時のプリセットのみを使用し、保存済みの問題では保存されている情報だけを読みます（無ければ「分類なし ＋ タグ未選択」）。AI が保存済みの分類を書き換える問題と、タグのチェックを外しにくい問題も解消
 · 🖼 **復習で原図をすべて表示**（複数枚・文字＋画像の問題でも 1 枚目だけにならない、最大 3 枚）
@@ -989,6 +998,9 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.5.3
+· 🐞 **「두 장 중 한 장이 사라지던」문제 수정**: 읽기 쪽이 「대표 이미지가 있으면 그것만 사용」하도록 되어 있어 나머지 이미지(대화 데이터에 있음)가 표시되지 않았습니다. 대표 이미지 + 대화 내 이미지를 병합(중복 제거, 최대 3장)해 오답 노트 상세·복습·검색 기록 3곳을 함께 수정
+
 v0.6.5.2
 · 🎛 **문제를 열거나 분류 대화상자를 열 때의 AI 실시간 판정 제거**: 분류와 태그는 풀이 시의 프리셋만 사용하며, 저장된 문제는 저장된 정보만 읽습니다(없으면 「분류 없음 + 태그 미선택」). AI가 저장된 분류를 바꾸던 문제와 태그 체크 해제가 잘 안 되던 문제도 함께 해결
 · 🖼 **복습에서 원본 이미지를 모두 표시**(여러 장·글+이미지 문제도 첫 장만 보이지 않음, 최대 3장)
