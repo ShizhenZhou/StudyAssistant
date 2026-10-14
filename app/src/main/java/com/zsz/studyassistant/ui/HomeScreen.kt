@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
@@ -29,9 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,33 +39,23 @@ import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.ApiKeyStore
 
 /**
- * 首页按钮标签：**只让 emoji 后面的文字参与居中**（用户 2026-10-13 要求）。
+ * 首页按钮标签的**居中策略**（用户 2026-10-13 第三版定稿，分长短两种按钮）。
  *
- * 文案形如 `"📷  拍照搜题"`（emoji + 空格 + 文字）。若整串一起居中，emoji 会把文字整体顶偏，
- * 视觉上就不像居中。这里让 emoji 占 **0 宽**、绘制到文字左侧 —— Row 的内容宽 = 纯文字宽，
- * 于是真正居中的是文字本身，emoji 只是"挂在"文字左边。
+ * 长按钮（拍照搜题 / 图文提问 / 搜题记录）：整串居中后**再整体往左偏半个字**。
+ *   （用户三版对比下来定的：v1 整串居中 → emoji 把文字顶右；v2 只让文字居中 → 偏左太多；
+ *     v3 = 中间值，整串居中 + 左移 `fontSize / 2`。）
+ * 短按钮（错题本 / 复习，半宽格子）：**整串严格居中，不做偏移**（名字短，居中即可）。
+ *
+ * `Modifier.offset` 只影响绘制、不影响测量，所以按钮内的裁切/换行逻辑不受影响。
  */
 @Composable
-private fun HomeButtonLabel(label: String, fontSize: TextUnit) {
-    val emoji = label.substringBefore(" ")
-    val text = label.substringAfter(" ", "").trimStart()
-    if (text.isEmpty()) {   // 没有 emoji/空格的兜底
-        Text(label, fontSize = fontSize, maxLines = 1)
-        return
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            emoji,
-            fontSize = fontSize,
-            // 占 0 宽 + 左移到文字外侧（含一点间距），因此不参与居中计算
-            modifier = Modifier.layout { measurable, constraints ->
-                val p = measurable.measure(Constraints())
-                val gap = (p.width * 0.22f).toInt()
-                layout(0, p.height) { p.place(-p.width - gap, 0) }
-            }
-        )
-        Text(text, fontSize = fontSize, maxLines = 1)
-    }
+private fun HomeButtonLabel(label: String, fontSize: TextUnit, shiftHalfCharLeft: Boolean = false) {
+    Text(
+        label,
+        fontSize = fontSize,
+        maxLines = 1,
+        modifier = if (shiftHalfCharLeft) Modifier.offset(x = (-fontSize.value / 2f).dp) else Modifier
+    )
 }
 
 @Composable
@@ -112,7 +101,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 onClick = { nav.navigate("camera") },
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             ) {
-                HomeButtonLabel(s["home.camera"], 20.sp)
+                HomeButtonLabel(s["home.camera"], 20.sp, shiftHalfCharLeft = true)
             }
             Spacer(Modifier.height(gap))
             // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
@@ -120,7 +109,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 onClick = { vm.startAskSession(); nav.navigate("solve") { popUpTo("home") } },
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             ) {
-                HomeButtonLabel(s["home.ask"], 20.sp)
+                HomeButtonLabel(s["home.ask"], 20.sp, shiftHalfCharLeft = true)
             }
             Spacer(Modifier.height(gap))
             // 错题本 / 复习：名字短，半宽放得下；仍留 maxLines=2 兜底 —— **任何情况都不出「…」**
@@ -148,7 +137,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                HomeButtonLabel(s["home.history"], 20.sp)
+                HomeButtonLabel(s["home.history"], 20.sp, shiftHalfCharLeft = true)
             }
         }
     }
