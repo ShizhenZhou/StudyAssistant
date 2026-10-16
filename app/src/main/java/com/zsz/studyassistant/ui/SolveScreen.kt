@@ -64,6 +64,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -553,6 +554,20 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             )
         }
         // 分类 + 标签选择对话框（存题 / 详情页改）
+        // ★★ 2026-10-16 真机定位到的根因修复：**收键盘 + 清焦点**。
+        //   实测（dumpsys window）：键盘明明"未显示"（mImeWindowVis=0 / mInputShown=false / frame 0x0 / alpha 0），
+        //   但 InputMethod 窗口仍留着 `touchableRegion=SkRegion((0,1677,1264,2587))`，且它在窗口层级里**位于本对话框之上**
+        //   → 屏幕下半部（y≥1677）的触摸被这个"看不见的键盘窗口"吞掉：
+        //   标签第二行正好落在死带里 → 只剩 1~2 个标签时（对话框变矮、居中下移）尤其点不动。
+        //   打开对话框时主动 hide 键盘并清焦点，让残留 IME 窗口消失即可根治。
+        val kbCtl = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        val focusMgr = androidx.compose.ui.platform.LocalFocusManager.current
+        androidx.compose.runtime.LaunchedEffect(categoryDialogFor) {
+            if (categoryDialogFor != null) {
+                runCatching { focusMgr.clearFocus(force = true) }
+                runCatching { kbCtl?.hide() }
+            }
+        }
         when (categoryDialogFor) {
             "save" -> {
                 // ★★ 2026-10-14（用户反馈"取消勾选标签很卡"）：**打开对话框那一刻把 AI 预置冻结**。
@@ -1157,16 +1172,28 @@ internal fun SaveDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        selectedNames.toList().forEach { name ->
-                            FilterChip(
-                                selected = true,
-                                onClick = { toggleTagName(name) },
-                                label = { Text(name) },
-                                trailingIcon = { Text("✕", fontSize = 12.sp) }
-                            )
+                        selectedNames.toList().forEachIndexed { idx, name ->
+                            // ★ 加 key(name)：删除某个 chip 后，Compose 按**位置**复用 composable 会让
+                            //   按下/抬起落到"顶替它位置"的邻居上（表现为点了取消却没反应/取消错东西）
+                            key(name) {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { toggleTagName(name) },
+                                    label = { Text(name) },
+                                    trailingIcon = { Text("✕", fontSize = 12.sp) }
+                                )
+                            }
                         }
                     }
                 }
+                // ★★ 2026-10-16（真机定位）：这里的间距**不能小**。
+                //   「新增标签」输入框（OutlinedTextField）自带一块**向上扩大的触摸区**，
+                //   间距太小时它会盖住上面那排标签 chip 的**下半部分** ——
+                //   表现为"点标签中间没反应、点最右边 ✕ 才行"，且**只剩最后一行时最明显**
+                //   （对话框变矮→内容下移，第二行正好落在被盖住的位置）。
+                //   实测：chip 行底 y≈1810 以上可点、以下被吃；「取消」按钮（y≈2307）正常。
+                //   故此处保留 ≥24dp 间隔，把这层重叠推开。
+                Spacer(Modifier.height(24.dp))
                 Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newTag,
