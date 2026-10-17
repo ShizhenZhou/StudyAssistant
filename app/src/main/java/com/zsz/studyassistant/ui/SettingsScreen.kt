@@ -172,9 +172,11 @@ fun SettingsTab(vm: MainViewModel) {
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) { page = it } }
         "notify" -> SettingsSubPage(s["settings.group.notifyBackground"], { page = "main" }) { NotifyBackgroundSettings() }
-        // ★ 2026-10-16 重构：数据管理拆成「备份管理」+「数据升级 / 修复」两个子页
+        // ★ 2026-10-17 再拆：数据管理 = 备份管理 / 自动备份 / 崩溃日志 / 数据升级·修复 四个子页
         "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataMenu(vm) { page = it } }
         "data.backup" -> SettingsSubPage(s["data.backup"], { page = "data" }) { DataSettings(vm) }
+        "data.auto" -> SettingsSubPage(s["data.autoBackup"], { page = "data" }) { DataSettings(vm, "auto") }
+        "data.crash" -> SettingsSubPage(s["data.crash"], { page = "data" }) { DataSettings(vm, "crash") }
         "data.upgrade" -> SettingsSubPage(s["data.upgradePage"], { page = "data" }) { DataUpgradePage(vm) }
         "update" -> SettingsSubPage(s["settings.update"], { page = "main" }) { UpdatePage() }
         "about" -> SettingsSubPage(s["settings.about"], { page = "main" }) { AboutPage() }
@@ -707,6 +709,8 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     Spacer(Modifier.height(8.dp))
     // ⚠️ 标题文案本身已带 emoji（「🗂 备份管理」「🛠 数据升级 / 修复」），这里**不要再传 emoji**，否则会画两个
     DataMenuRow(s["data.backup"], "") { go("data.backup") }
+    DataMenuRow(s["data.autoBackup"], s["data.autoBackupDesc"]) { go("data.auto") }
+    DataMenuRow(s["data.crash"], s["data.crashLogDesc"]) { go("data.crash") }
     DataMenuRow(s["data.upgradePage"], s["data.upgradeDesc"]) { go("data.upgrade") }
 }
 
@@ -766,12 +770,21 @@ private fun DataUpgradePage(vm: MainViewModel) {
     }
 }
 
-/** 💾 备份管理：导出 / 导入 / 自动备份 / 清空 / 崩溃日志 */
+/** 💾 数据管理子页分派：backup（默认）/ auto / crash */
 @Composable
-private fun DataSettings(vm: MainViewModel) {
+private fun DataSettings(vm: MainViewModel, section: String = "backup") {
+    when (section) {
+        "auto" -> AutoBackupSettings(vm)
+        "crash" -> CrashLogSettings(vm)
+        else -> BackupSettings(vm)
+    }
+}
+
+/** 💾 备份管理：摘要 + 导出 / 导入 / 清空（数据管理默认子页） */
+@Composable
+private fun BackupSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
-    val scope = rememberCoroutineScope()
     var showClearConfirm by remember { mutableStateOf(false) }
     var showImportConfirm by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
@@ -827,110 +840,6 @@ private fun DataSettings(vm: MainViewModel) {
 
     Spacer(Modifier.height(24.dp))
 
-    // ── 自动备份（B8）：每天第一次打开应用时写一份 JSON 到用户选的文件夹，只留最近 3 份 ──
-    // 设计取舍：必须由用户选一次文件夹（SAF 持久化授权）才生效 —— 备份要能扛住"卸载/清除数据"；
-    // 不碰该文件夹里除自己写的 study-assistant-auto-*.json 之外的任何文件。
-    var autoFolder by remember { mutableStateOf(AutoBackup.folderName(context)) }
-    var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
-    var autoCount by remember { mutableStateOf(AutoBackup.listBackups(context).size) }
-    var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
-    var autoMessage by remember { mutableStateOf<String?>(null) }
-
-    /** 备份一次（按钮与"刚选完文件夹"共用）：生成 JSON → 写盘 + 裁剪，结果写进 autoMessage */
-    fun backupNow() {
-        autoMessage = null
-        vm.exportBackup(onReady = { json ->
-            // ⚠️ SAF 写盘 + 裁剪是 IO，必须在协程里做，否则阻塞主线程
-            scope.launch {
-                val r = AutoBackup.runBackup(context, json)
-                autoCount = AutoBackup.listBackups(context).size
-                autoLast = AutoBackup.lastBackupAt(context)
-                autoMessage = if (r.ok) {
-                    s.format("data.autoBackup.done", "name" to (r.fileName ?: "")) +
-                        if (r.pruned > 0) "（" + s.format("data.autoBackup.pruned", "n" to "${r.pruned}") + "）" else ""
-                } else {
-                    s.format("data.autoBackup.failed", "msg" to (r.error ?: ""))
-                }
-            }
-        }, onError = { msg -> autoMessage = s.format("data.autoBackup.failed", "msg" to msg) })
-    }
-
-    val folderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            // 持久化授权：否则下次启动就读不到这个文件夹（自动备份会静默失效）
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (e: Exception) { /* 个别 ROM 会抛：仍先记下来，失败时界面会给提示 */ }
-            AutoBackup.setTreeUri(context, uri)
-            autoFolder = AutoBackup.folderName(context) ?: uri.lastPathSegment
-            autoCount = AutoBackup.listBackups(context).size
-            autoMessage = null
-            // 选完文件夹立刻备份一次：既确认权限可用，也让用户马上有一份可用的备份
-            backupNow()
-        }
-    }
-
-    Text(s["data.autoBackup"], style = MaterialTheme.typography.titleSmall)
-    Spacer(Modifier.height(6.dp))
-    Text(
-        if (autoFolder == null) s["data.autoBackup.noFolder"]
-        else s.format("data.autoBackup.folder", "name" to autoFolder!!),
-        style = MaterialTheme.typography.bodySmall,
-        color = if (autoFolder == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
-    )
-    Spacer(Modifier.height(6.dp))
-    Text(
-        s.format("data.autoBackup.count", "n" to "$autoCount") + " · " +
-            if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline
-    )
-    Spacer(Modifier.height(8.dp))
-
-    OutlinedButton(
-        shape = smoothPill(),
-        onClick = { folderLauncher.launch(null) },
-        modifier = Modifier.fillMaxWidth().height(44.dp)
-    ) { Text(if (autoFolder == null) s["data.autoBackup.pick"] else s["data.autoBackup.change"]) }
-
-    Spacer(Modifier.height(8.dp))
-    // 开关：每天首次启动时自动备份
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(s["data.autoBackup.daily"], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(
-            checked = autoEnabled,
-            onCheckedChange = { on ->
-                AutoBackup.setEnabled(context, on)
-                autoEnabled = on
-                autoMessage = null
-            }
-        )
-    }
-
-    Spacer(Modifier.height(8.dp))
-    Button(
-        shape = smoothPill(),
-        enabled = autoFolder != null && !vm.dataBusy,
-        onClick = { backupNow() },
-        modifier = Modifier.fillMaxWidth()
-    ) { Text(s["data.autoBackup.now"]) }
-    Spacer(Modifier.height(4.dp))
-    Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-
-    autoMessage?.let { msg ->
-        Spacer(Modifier.height(8.dp))
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-    }
-
-    Spacer(Modifier.height(16.dp))
-
-    Spacer(Modifier.height(16.dp))
-
     // 清空
     OutlinedButton(shape = smoothPill(), 
         onClick = { showClearConfirm = true },
@@ -941,76 +850,6 @@ private fun DataSettings(vm: MainViewModel) {
     Text(s["data.clear.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 
     Spacer(Modifier.height(24.dp))
-
-    // ── 崩溃日志：崩溃时自动记到本机（data/CrashLogger.kt），这里只做「导出 / 清空」 ──
-    // 设计取舍：不做自动上传（隐私 + 自用无服务端），导出走系统「保存到文件」，用户自己决定发给谁。
-    var crashCount by remember { mutableStateOf(CrashLogger.count(context)) }
-    var crashMessage by remember { mutableStateOf<String?>(null) }
-    var showCrashClearConfirm by remember { mutableStateOf(false) }
-
-    Text(s["data.crash"], style = MaterialTheme.typography.titleSmall)
-    Spacer(Modifier.height(6.dp))
-    Text(
-        if (crashCount == 0) s["data.crash.none"] else s.format("data.crash.count", "n" to "$crashCount"),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline
-    )
-    Spacer(Modifier.height(8.dp))
-
-    val crashExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri ->
-        if (uri != null) {
-            crashMessage = try {
-                val text = CrashLogger.dumpText(context)
-                context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
-                    ?: throw IllegalStateException("无法写入所选位置")
-                s["data.crash.exportDone"]
-            } catch (e: Exception) {
-                s.format("data.crash.failed", "msg" to (e.message ?: "?"))
-            }
-        }
-    }
-    Button(
-        shape = smoothPill(),
-        enabled = crashCount > 0,
-        onClick = { crashExportLauncher.launch(CrashLogger.exportFileName()) },
-        modifier = Modifier.fillMaxWidth()
-    ) { Text(s["data.crash.export"]) }
-    Spacer(Modifier.height(4.dp))
-    Text(s["data.crash.export.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-
-    Spacer(Modifier.height(12.dp))
-
-    OutlinedButton(
-        shape = smoothPill(),
-        enabled = crashCount > 0,
-        onClick = { showCrashClearConfirm = true },
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-    ) { Text(s["data.crash.clear"]) }
-
-    crashMessage?.let { msg ->
-        Spacer(Modifier.height(8.dp))
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-    }
-
-    if (showCrashClearConfirm) {
-        AlertDialog(
-            onDismissRequest = { showCrashClearConfirm = false },
-            title = { Text(s["data.crash.clear.title"]) },
-            text = { Text(s["data.crash.clear.text"]) },
-            confirmButton = {
-                TextButton(shape = smoothPill(), onClick = {
-                    CrashLogger.clear(context)
-                    crashCount = 0
-                    crashMessage = s["data.crash.clearDone"]
-                    showCrashClearConfirm = false
-                }) { Text(s["common.ok"]) }
-            },
-            dismissButton = { TextButton(shape = smoothPill(), onClick = { showCrashClearConfirm = false }) { Text(s["common.cancel"]) } }
-        )
-    }
 
     if (vm.dataBusy) {
         Spacer(Modifier.height(12.dp))
@@ -1078,6 +917,191 @@ private fun DataSettings(vm: MainViewModel) {
                 ) { Text(s["common.ok"]) }
             },
             dismissButton = { TextButton(shape = smoothPill(), onClick = { showClearConfirm = false }) { Text(s["common.cancel"]) } }
+        )
+    }
+}
+
+/** 🗄 自动备份（B8）子页：选文件夹 / 每日开关 / 立即备份 */
+@Composable
+private fun AutoBackupSettings(vm: MainViewModel) {
+    val context = LocalContext.current
+    val s = LocalStrings.current
+    val scope = rememberCoroutineScope()
+
+    // ── 自动备份（B8）：每天第一次打开应用时写一份 JSON 到用户选的文件夹，只留最近 3 份 ──
+    // 设计取舍：必须由用户选一次文件夹（SAF 持久化授权）才生效 —— 备份要能扛住"卸载/清除数据"；
+    // 不碰该文件夹里除自己写的 study-assistant-auto-*.json 之外的任何文件。
+    var autoFolder by remember { mutableStateOf(AutoBackup.folderName(context)) }
+    var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
+    var autoCount by remember { mutableStateOf(AutoBackup.listBackups(context).size) }
+    var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
+    var autoMessage by remember { mutableStateOf<String?>(null) }
+
+    /** 备份一次（按钮与"刚选完文件夹"共用）：生成 JSON → 写盘 + 裁剪，结果写进 autoMessage */
+    fun backupNow() {
+        autoMessage = null
+        vm.exportBackup(onReady = { json ->
+            // ⚠️ SAF 写盘 + 裁剪是 IO，必须在协程里做，否则阻塞主线程
+            scope.launch {
+                val r = AutoBackup.runBackup(context, json)
+                autoCount = AutoBackup.listBackups(context).size
+                autoLast = AutoBackup.lastBackupAt(context)
+                autoMessage = if (r.ok) {
+                    s.format("data.autoBackup.done", "name" to (r.fileName ?: "")) +
+                        if (r.pruned > 0) "（" + s.format("data.autoBackup.pruned", "n" to "${r.pruned}") + "）" else ""
+                } else {
+                    s.format("data.autoBackup.failed", "msg" to (r.error ?: ""))
+                }
+            }
+        }, onError = { msg -> autoMessage = s.format("data.autoBackup.failed", "msg" to msg) })
+    }
+
+    val folderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            // 持久化授权：否则下次启动就读不到这个文件夹（自动备份会静默失效）
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) { /* 个别 ROM 会抛：仍先记下来，失败时界面会给提示 */ }
+            AutoBackup.setTreeUri(context, uri)
+            autoFolder = AutoBackup.folderName(context) ?: uri.lastPathSegment
+            autoCount = AutoBackup.listBackups(context).size
+            autoMessage = null
+            // 选完文件夹立刻备份一次：既确认权限可用，也让用户马上有一份可用的备份
+            backupNow()
+        }
+    }
+
+    // 子页标题由 SettingsSubPage 的顶栏提供，页面内不再重复画一遍「🗄 自动备份」
+    Text(
+        if (autoFolder == null) s["data.autoBackup.noFolder"]
+        else s.format("data.autoBackup.folder", "name" to autoFolder!!),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (autoFolder == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        s.format("data.autoBackup.count", "n" to "$autoCount") + " · " +
+            if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Spacer(Modifier.height(8.dp))
+
+    OutlinedButton(
+        shape = smoothPill(),
+        onClick = { folderLauncher.launch(null) },
+        modifier = Modifier.fillMaxWidth().height(44.dp)
+    ) { Text(if (autoFolder == null) s["data.autoBackup.pick"] else s["data.autoBackup.change"]) }
+
+    Spacer(Modifier.height(8.dp))
+    // 开关：每天首次启动时自动备份
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(s["data.autoBackup.daily"], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(
+            checked = autoEnabled,
+            onCheckedChange = { on ->
+                AutoBackup.setEnabled(context, on)
+                autoEnabled = on
+                autoMessage = null
+            }
+        )
+    }
+
+    Spacer(Modifier.height(8.dp))
+    Button(
+        shape = smoothPill(),
+        enabled = autoFolder != null && !vm.dataBusy,
+        onClick = { backupNow() },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(s["data.autoBackup.now"]) }
+    Spacer(Modifier.height(4.dp))
+    Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    autoMessage?.let { msg ->
+        Spacer(Modifier.height(8.dp))
+        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    }
+
+    Spacer(Modifier.height(16.dp))
+}
+
+/** 🐞 崩溃日志子页：导出 / 清空（本机记录，不上传） */
+@Composable
+private fun CrashLogSettings(vm: MainViewModel) {
+    val context = LocalContext.current
+    val s = LocalStrings.current
+
+    // ── 崩溃日志：崩溃时自动记到本机（data/CrashLogger.kt），这里只做「导出 / 清空」 ──
+    // 设计取舍：不做自动上传（隐私 + 自用无服务端），导出走系统「保存到文件」，用户自己决定发给谁。
+    var crashCount by remember { mutableStateOf(CrashLogger.count(context)) }
+    var crashMessage by remember { mutableStateOf<String?>(null) }
+    var showCrashClearConfirm by remember { mutableStateOf(false) }
+
+    // 子页标题由 SettingsSubPage 的顶栏提供，页面内不再重复画一遍「🐞 崩溃日志」
+    Text(
+        if (crashCount == 0) s["data.crash.none"] else s.format("data.crash.count", "n" to "$crashCount"),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Spacer(Modifier.height(8.dp))
+
+    val crashExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            crashMessage = try {
+                val text = CrashLogger.dumpText(context)
+                context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                    ?: throw IllegalStateException("无法写入所选位置")
+                s["data.crash.exportDone"]
+            } catch (e: Exception) {
+                s.format("data.crash.failed", "msg" to (e.message ?: "?"))
+            }
+        }
+    }
+    Button(
+        shape = smoothPill(),
+        enabled = crashCount > 0,
+        onClick = { crashExportLauncher.launch(CrashLogger.exportFileName()) },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(s["data.crash.export"]) }
+    Spacer(Modifier.height(4.dp))
+    Text(s["data.crash.export.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+    Spacer(Modifier.height(12.dp))
+
+    OutlinedButton(
+        shape = smoothPill(),
+        enabled = crashCount > 0,
+        onClick = { showCrashClearConfirm = true },
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+    ) { Text(s["data.crash.clear"]) }
+
+    crashMessage?.let { msg ->
+        Spacer(Modifier.height(8.dp))
+        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    }
+
+    if (showCrashClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCrashClearConfirm = false },
+            title = { Text(s["data.crash.clear.title"]) },
+            text = { Text(s["data.crash.clear.text"]) },
+            confirmButton = {
+                TextButton(shape = smoothPill(), onClick = {
+                    CrashLogger.clear(context)
+                    crashCount = 0
+                    crashMessage = s["data.crash.clearDone"]
+                    showCrashClearConfirm = false
+                }) { Text(s["common.ok"]) }
+            },
+            dismissButton = { TextButton(shape = smoothPill(), onClick = { showCrashClearConfirm = false }) { Text(s["common.cancel"]) } }
         )
     }
 }
