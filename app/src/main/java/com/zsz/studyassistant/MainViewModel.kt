@@ -1244,12 +1244,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ── 「数据需要升级」提示（2026-10-16，用户规格：更新后**第一次进入应用**弹一次）──────
+
+    /** 启动时若"有图但还没进新表" → 弹一次提示 */
+    var showUpgradePrompt by mutableStateOf(false)
+        private set
+
+    /** 供设置页使用：从提示/警示"直达"数据升级子页（设置页消费后清零） */
+    var openDataUpgradePage by mutableStateOf(false)
+
+    private var upgradePromptChecked = false
+
+    /** 更新后首次进入时调用一次（用 `last_seen_version` 判断；弹完即记住，不重复打扰） */
+    fun checkUpgradePromptOnce(currentVersion: String) {
+        if (upgradePromptChecked) return
+        upgradePromptChecked = true
+        runCatching {
+            val prefs = getApplication<Application>()
+                .getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            if (prefs.getString("last_seen_version", null) == currentVersion) return
+            prefs.edit().putString("last_seen_version", currentVersion).apply()
+        }
+        viewModelScope.launch { runCatching { showUpgradePrompt = needsImageUpgrade() } }
+    }
+
+    fun dismissUpgradePrompt(goUpgrade: Boolean = false) {
+        showUpgradePrompt = false
+        if (goUpgrade) openDataUpgradePage = true
+    }
+
+    /** 还有"有图但没进新表"的题 ⇒ 需要升级（一次查询 + 一次轻扫描） */
+    private suspend fun needsImageUpgrade(): Boolean {
+        val have = runCatching { dao.questionIdsWithImages() }.getOrDefault(emptyList()).toHashSet()
+        for (r in dao.questionsWithConversationOnce()) {
+            if (r.id in have) continue
+            if (questionImageBase64(r.conversationJson).isNotEmpty()) return true
+        }
+        return false
+    }
+
     /**
      * 「一键升级」（数据升级/修复）：把**旧数据**整理进 DB v9 的 `question_images` 新结构。
      * 幂等、可重复执行；只做加法（不动已有图、不改 `imageBytes`）。
      */
-    fun upgradeData() {
-        viewModelScope.launch {
+    fun upgradeData() {        viewModelScope.launch {
             dataBusy = true
             try {
                 fillImagesTable()

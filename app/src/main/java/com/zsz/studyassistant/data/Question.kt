@@ -233,6 +233,10 @@ interface QuestionDao {
     @Query("DELETE FROM question_images WHERE questionId NOT IN (SELECT id FROM questions)")
     suspend fun purgeOrphanImages()
 
+    /** 「是否需要升级数据」判定用：已有原图进新表的题 id（一次查询，避免 N 次） */
+    @Query("SELECT DISTINCT questionId FROM question_images")
+    suspend fun questionIdsWithImages(): List<Long>
+
     // ── 备份 v2：搜题记录整表搬 ────────────────────────────────────────────
 
     @Query("SELECT * FROM solve_sessions ORDER BY createdAt ASC")

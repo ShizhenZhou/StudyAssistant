@@ -97,6 +97,13 @@ import com.zsz.studyassistant.data.UpdateChecker
 fun SettingsTab(vm: MainViewModel) {
     var page by remember { mutableStateOf("main") }
     BackHandler(enabled = page != "main") { page = "main" }
+    // ★ 2026-10-16：从"数据格式需要升级"提示 / "旧格式数据"警示**直达**「数据升级 / 修复」子页
+    LaunchedEffect(vm.openDataUpgradePage) {
+        if (vm.openDataUpgradePage) {
+            page = "data.upgrade"
+            vm.openDataUpgradePage = false
+        }
+    }
     val s = LocalStrings.current
 
     when (page) {

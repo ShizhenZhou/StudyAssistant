@@ -137,6 +137,35 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // ★ 2026-10-16（用户规格）：**更新后第一次进入应用**时，若数据还没升级 → 弹一次提示；
+                    //   弹完即按 `last_seen_version` 记住，不再重复打扰。[去升级] 会跳到设置 →「数据升级 / 修复」。
+                    LaunchedEffect(Unit) {
+                        // 版本号用 PackageManager 取（项目未开启 BuildConfig 字段）
+                        val ver = runCatching {
+                            packageManager.getPackageInfo(packageName, 0).versionName
+                        }.getOrNull() ?: "0"
+                        viewModel.checkUpgradePromptOnce(ver)
+                    }
+                    if (viewModel.showUpgradePrompt) {
+                        val s2 = com.zsz.studyassistant.ui.stringsFor(viewModel.uiLang)
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { viewModel.dismissUpgradePrompt() },
+                            title = { androidx.compose.material3.Text(s2["data.upgradePromptTitle"]) },
+                            text = { androidx.compose.material3.Text(s2["data.upgradePromptBody"]) },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    viewModel.dismissUpgradePrompt(goUpgrade = true)
+                                    nav.navigate("settings")
+                                }) { androidx.compose.material3.Text(s2["data.upgradeNow"]) }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = { viewModel.dismissUpgradePrompt() }) {
+                                    androidx.compose.material3.Text(s2["data.legacySkip"])
+                                }
+                            }
+                        )
+                    }
+
                     // 防触摸穿透：每次页面切换后用**状态标志**封锁内容区触摸 NAV_TOUCH_GUARD_MS。
                     // ⚠️ 这里必须由协程定时解锁，**不能**把 `SystemClock.uptimeMillis() < t` 之类的时间比较写进
                     //    组合条件——那只是组合期快照，页面若不再重组就永远不会解除，会变成
