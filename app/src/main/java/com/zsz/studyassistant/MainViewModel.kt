@@ -14,7 +14,9 @@ import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.QuestionImage
 import com.zsz.studyassistant.data.QuestionTag
+import com.zsz.studyassistant.data.MAX_QUESTION_IMAGES
 import com.zsz.studyassistant.data.mergeImageKeys
 import com.zsz.studyassistant.data.questionImageBase64
 import com.zsz.studyassistant.data.Review
@@ -318,9 +320,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 dao.purgeOrphanQuestionTags()
             }
             // ★ 顺序很重要：先从**搜题记录**把历史上丢掉的多图补回会话 JSON，
-            //   再据此回填主图（`imageBytes` 为空的老数据也能一起修好）
+            //   再据此回填主图（`imageBytes` 为空的老数据也能一起修好），
+            //   最后把图补齐进 DB v9 的 `question_images`（**旧数据原地升级**的关键一步）
             repairQuestionImagesFromSessions()
             backfillQuestionImages()
+            fillImagesTable()
+            dao.purgeOrphanImages()
         }
         // 搜题记录同样在启动时裁剪一次（保留最近 200 条 / 最近 30 天）
         pruneSolveSessions()
@@ -357,6 +362,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     listOf(ChatItem(0L, "question", q.text, merged)) + items
                 }
                 dao.setConversationJson(q.id, json.encodeToString(newItems))
+                // ★ 顺手把它们也写进 DB v9 的 `question_images`（读取端从此不依赖会话里的 base64）
+                val bytesList = merged.take(MAX_QUESTION_IMAGES).mapNotNull { b64 ->
+                    runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull()
+                }
+                if (bytesList.isNotEmpty()) writeQuestionImages(q.id, bytesList, source = "repair")
                 fixed++
             }
             if (fixed > 0) {
@@ -389,6 +399,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (fixed > 0) {
                 android.util.Log.i("StudyAssistant", "原图回填：已修复 $fixed 条错题的主图")
+            }
+        }
+    }
+
+    /** 把某题的原图写入 DB v9 的 `question_images`（覆盖式、幂等；最多 3 张） */
+    private suspend fun writeQuestionImages(qid: Long, images: List<ByteArray>, source: String = "save") {
+        if (images.isEmpty()) return
+        runCatching {
+            dao.clearImages(qid)
+            val now = System.currentTimeMillis()
+            dao.insertImages(
+                images.take(MAX_QUESTION_IMAGES).mapIndexed { i, b ->
+                    QuestionImage(questionId = qid, position = i, bytes = b, source = source, createdAt = now)
+                }
+            )
+        }
+    }
+
+    /**
+     * DB v9 补全任务（幂等，2026-10-16）：**旧数据原地升级**的最后一步。
+     *
+     * 迁移 SQL 已把 `imageBytes`（主图）搬进新表；这里补两类：
+     *  ① 迁移时**没有主图**的题（多图拍题 / 图文提问 → `imageBytes` 为 null），从 `conversationJson` 取图；
+     *  ② 有主图但**其余图还没进新表**的题（会话里还有第 2/3 张）。
+     * 只做加法、失败跳过，**绝不动已有图**（也不改 `imageBytes`，避免把主图换成会话里的另一张）。
+     */
+    private suspend fun fillImagesTable() {
+        runCatching {
+            var fixed = 0
+            for (r in dao.questionsWithConversationOnce()) {
+                val keys = questionImageBase64(r.conversationJson)
+                if (keys.isEmpty()) continue
+                val have = dao.imagesForQuestion(r.id)
+                if (have.size >= keys.size) continue                       // 已经齐了
+                val bytesList = keys.take(MAX_QUESTION_IMAGES).mapNotNull { b64 ->
+                    runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull()
+                }
+                if (bytesList.isEmpty()) continue
+                writeQuestionImages(r.id, bytesList, source = "upgrade")
+                fixed++
+            }
+            if (fixed > 0) {
+                android.util.Log.i("StudyAssistant", "DB v9 补全：已把 $fixed 条错题的原图整理进 question_images")
             }
         }
     }
@@ -1177,7 +1230,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             dataBusy = true
             try {
-                val r = com.zsz.studyassistant.data.BackupManager.import(dao, text)
+                // ★ 备份 v2：事务化导入（失败整体回滚）+ 兼容 v1 旧备份
+                val r = com.zsz.studyassistant.data.BackupManager.import(AppDatabase.get(getApplication()), text)
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
                     "data.importDone",
                     "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}"
@@ -1190,11 +1244,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * 「一键升级」（数据升级/修复）：把**旧数据**整理进 DB v9 的 `question_images` 新结构。
+     * 幂等、可重复执行；只做加法（不动已有图、不改 `imageBytes`）。
+     */
+    fun upgradeData() {
+        viewModelScope.launch {
+            dataBusy = true
+            try {
+                fillImagesTable()
+                val n = runCatching { dao.questionsWithConversationOnce().size }.getOrDefault(0)
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                    .format("data.upgradeDone", "n" to "$n")
+            } catch (e: Exception) {
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+            } finally {
+                dataBusy = false
+            }
+        }
+    }
+
+    /**
+     * 「修复数据」：补全丢失的原图（从会话 / 搜题记录）+ 回填主图 + 清理孤儿数据。
+     * 幂等、可重复执行；**绝不删已有图**。
+     */
+    fun repairData() {
+        viewModelScope.launch {
+            dataBusy = true
+            try {
+                repairQuestionImagesFromSessions()
+                backfillQuestionImages()
+                fillImagesTable()
+                runCatching { dao.purgeDeletedQuestions() }
+                runCatching { dao.purgeOrphanReviews() }
+                runCatching { dao.purgeOrphanQuestionTags() }
+                runCatching { dao.purgeOrphanImages() }
+                val n = dao.countQuestions()
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                    .format("data.repairDone", "n" to "$n")
+            } catch (e: Exception) {
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+            } finally {
+                dataBusy = false
+            }
+        }
+    }
+
     fun clearAllData() {
         viewModelScope.launch {
             dataBusy = true
             try {
-                com.zsz.studyassistant.data.BackupManager.clearAll(dao)
+                com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]
             } catch (e: Exception) {
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
@@ -1443,6 +1543,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val now = System.currentTimeMillis()
             currentQuestionCreatedAt = now
             val qid = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson, categoryId = cid, createdAt = now))
+            // ★★ DB v9（2026-10-16）：把**全部原图**写进 `question_images`（0 = 主图，其余按顺序）。
+            //   从此错题本自己就存全了所有图，不再依赖 `conversationJson` / 搜题记录（30 天清理也不会再丢图）。
+            val allImgBytes = questionImages.take(3).mapNotNull { b64 ->
+                runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull()
+            }.ifEmpty { img?.let { listOf(it) } ?: emptyList() }
+            writeQuestionImages(qid, allImgBytes, source = "save")
             // 关联知识点标签（合并已有 id + 新建名，最多 5 个）
             val finalIds = tagIds.toMutableList()
             for (tn in tagNames.take(5)) {
@@ -2369,6 +2475,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         //   这样：① 打开题目不再擅自改写已存分类（"暂不分类存的题被 AI 改掉"）；
         //        ② 分类对话框打开期间不会有异步结果把用户刚取消的勾选"复活"。
         viewModelScope.launch {
+            // ★★ DB v9：优先读 `question_images`（一题多图的正式存储）；有则覆盖上面的兜底结果。
+            //   三层兜底顺序：新表 → `imageBytes`（主图）→ `conversationJson`（历史 base64），
+            //   所以 v8 及更老的数据即使没补全也照常显示。
+            runCatching {
+                val rows = dao.imagesForQuestion(q.id)
+                if (rows.isNotEmpty()) {
+                    questionImages = rows.sortedBy { it.position }.take(MAX_QUESTION_IMAGES)
+                        .map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
+                }
+            }
             val cats = dao.allCategoriesOnce()
             val allTags = dao.getAllTagsOnce()
             val qcat = cats.firstOrNull { it.id == q.categoryId }

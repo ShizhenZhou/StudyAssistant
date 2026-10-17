@@ -210,6 +210,40 @@ interface QuestionDao {
     @Query("SELECT * FROM solve_sessions WHERE text = :text AND imagesJson IS NOT NULL ORDER BY createdAt DESC LIMIT 1")
     suspend fun solveSessionByText(text: String): SolveSession?
 
+    // ── DB v9：一题多图（`question_images` 表，0=主图）────────────────────────
+
+    /** 读某题的全部原图（按 position 升序，0 = 主图） */
+    @Query("SELECT * FROM question_images WHERE questionId = :qid ORDER BY position ASC")
+    suspend fun imagesForQuestion(qid: Long): List<QuestionImage>
+
+    /** 批量读"主图"（列表页兜底；只取 position=0，避免把全部大图读进内存） */
+    @Query("SELECT * FROM question_images WHERE position = 0 AND questionId IN (:qids)")
+    suspend fun mainImagesFor(qids: List<Long>): List<QuestionImage>
+
+    @Insert
+    suspend fun insertImages(list: List<QuestionImage>): List<Long>
+
+    @Query("DELETE FROM question_images WHERE questionId = :qid")
+    suspend fun clearImages(qid: Long)
+
+    @Query("DELETE FROM question_images WHERE questionId IN (:qids)")
+    suspend fun clearImagesFor(qids: List<Long>)
+
+    /** 清理孤儿图片（题已被彻底删除） */
+    @Query("DELETE FROM question_images WHERE questionId NOT IN (SELECT id FROM questions)")
+    suspend fun purgeOrphanImages()
+
+    // ── 备份 v2：搜题记录整表搬 ────────────────────────────────────────────
+
+    @Query("SELECT * FROM solve_sessions ORDER BY createdAt ASC")
+    suspend fun allSolveSessionsOnce(): List<SolveSession>
+
+    @Insert
+    suspend fun insertSolveSessions(list: List<SolveSession>): List<Long>
+
+    @Query("DELETE FROM solve_sessions")
+    suspend fun clearSolveSessions()
+
     @Query("SELECT * FROM categories ORDER BY id ASC")
     suspend fun allCategoriesOnce(): List<Category>
 
@@ -378,7 +412,39 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
-@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class], version = 8, exportSchema = false)
+/**
+ * 数据库 8 -> 9：新增 `question_images` 表（一题多图，二进制、有序）。
+ *
+ * **旧数据原地升级**（用户 2026-10-16 硬要求）：
+ *  - 建表 + 索引；
+ *  - 把现有 `questions.imageBytes`（主图）**纯 SQL 搬进** `position = 0` —— 迁移即可用，不依赖任何后台任务；
+ *  - 其余图（历史上以 base64 存在 `conversationJson` 里的）由启动时的"补全任务"追加（幂等，失败可重试）；
+ *  - 只做加法：`questions.imageBytes` 列保留不删，读取一律「新表 → imageBytes → conversationJson」三层兜底。
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS question_images (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "questionId INTEGER NOT NULL, " +
+                "position INTEGER NOT NULL, " +
+                "bytes BLOB NOT NULL, " +
+                "source TEXT, " +
+                "createdAt INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_question_images_questionId_position " +
+                "ON question_images(questionId, position)"
+        )
+        // 旧主图 → position=0（纯 SQL，天然幂等：表刚建好时为空）
+        db.execSQL(
+            "INSERT INTO question_images (questionId, position, bytes, source, createdAt) " +
+                "SELECT id, 0, imageBytes, 'migrate', createdAt FROM questions WHERE imageBytes IS NOT NULL"
+        )
+    }
+}
+
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = 9, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
@@ -388,11 +454,38 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "study_assistant.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build().also { INSTANCE = it }
+                INSTANCE ?: run {
+                    // ★ 2026-10-16：**迁移前先把 DB 文件复制一份**（一次性、失败不阻塞启动）。
+                    //   用户库里可能有 v1/v5/v8 等老版本数据，MIGRATION_* 会一路升到 v9；
+                    //   万一某一环在特定老库上出问题（Room 校验失败会直接抛异常 → 应用起不来），
+                    //   有 `study_assistant.db.pre-v9` 就能直接拷回，不至于丢数据。
+                    backupDbBeforeMigration(context)
+                    Room.databaseBuilder(
+                        context.applicationContext,
+                        AppDatabase::class.java,
+                        "study_assistant.db"
+                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build().also { INSTANCE = it }
+                }
             }
+
+        /** 迁移前把 `study_assistant.db`（含 -wal/-shm）复制为 `.pre-v9`；只做一次 */
+        private fun backupDbBeforeMigration(context: Context) {
+            runCatching {
+                val sp = context.getSharedPreferences("db_backup", Context.MODE_PRIVATE)
+                if (sp.getBoolean("pre_v9_done", false)) return
+                val dbFile = context.getDatabasePath("study_assistant.db")
+                if (dbFile.exists()) {
+                    val dir = dbFile.parentFile ?: return
+                    for (suffix in listOf("", "-wal", "-shm")) {
+                        val src = java.io.File(dbFile.path + suffix)
+                        if (src.exists()) {
+                            src.copyTo(java.io.File(dir, "study_assistant.db.pre-v9$suffix"), overwrite = true)
+                        }
+                    }
+                    android.util.Log.i("StudyAssistant", "迁移前已备份 DB → study_assistant.db.pre-v9")
+                }
+                sp.edit().putBoolean("pre_v9_done", true).apply()
+            }
+        }
     }
 }

@@ -79,6 +79,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -164,7 +165,10 @@ fun SettingsTab(vm: MainViewModel) {
         "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
         "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) { page = it } }
         "notify" -> SettingsSubPage(s["settings.group.notifyBackground"], { page = "main" }) { NotifyBackgroundSettings() }
-        "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataSettings(vm) }
+        // ★ 2026-10-16 重构：数据管理拆成「备份管理」+「数据升级 / 修复」两个子页
+        "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataMenu(vm) { page = it } }
+        "data.backup" -> SettingsSubPage(s["data.backup"], { page = "data" }) { DataSettings(vm) }
+        "data.upgrade" -> SettingsSubPage(s["data.upgradePage"], { page = "data" }) { DataUpgradePage(vm) }
         "update" -> SettingsSubPage(s["settings.update"], { page = "main" }) { UpdatePage() }
         "about" -> SettingsSubPage(s["settings.about"], { page = "main" }) { AboutPage() }
         else -> SettingsMain { page = it }
@@ -682,7 +686,81 @@ private fun ApiSettings(vm: MainViewModel) {
     }
 }
 
-/** 💾 数据管理：导出 / 导入 / 自动备份 / 清空 / 崩溃日志 */
+/** 💾 数据管理入口：备份管理 / 数据升级·修复 */
+@Composable
+private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
+    val s = LocalStrings.current
+    LaunchedEffect(Unit) { vm.refreshDataSummary() }
+    val summary = vm.dataSummary
+    Text(
+        if (summary == null) s["data.summary"].replace("{q}", "…").replace("{c}", "…").replace("{t}", "…")
+        else s.format("data.summary", "q" to "${summary.first}", "c" to "${summary.second}", "t" to "${summary.third}"),
+        style = MaterialTheme.typography.bodyMedium
+    )
+    Spacer(Modifier.height(8.dp))
+    DataMenuRow("🗂", s["data.backup"], "") { go("data.backup") }
+    DataMenuRow("🛠", s["data.upgradePage"], s["data.upgradeDesc"]) { go("data.upgrade") }
+}
+
+@Composable
+private fun DataMenuRow(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(emoji, fontSize = 18.sp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (subtitle.isNotBlank()) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Text("›", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.outline)
+    }
+    Spacer(Modifier.height(2.dp))
+}
+
+/**
+ * 🛠 数据升级 / 修复（2026-10-16，DB v9）。
+ * 两个按钮都**幂等、可重复执行**，只做加法（补图/整理），**绝不删已有数据**。
+ */
+@Composable
+private fun DataUpgradePage(vm: MainViewModel) {
+    val s = LocalStrings.current
+    Text(s["data.upgradeDesc"], style = MaterialTheme.typography.bodyMedium)
+    Spacer(Modifier.height(10.dp))
+    Button(
+        onClick = { vm.upgradeData() },
+        enabled = !vm.dataBusy,
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(s["data.upgradeBtn"], fontSize = BTN_LABEL) }
+
+    Spacer(Modifier.height(22.dp))
+    Text(s["data.repairDesc"], style = MaterialTheme.typography.bodyMedium)
+    Spacer(Modifier.height(10.dp))
+    Button(
+        onClick = { vm.repairData() },
+        enabled = !vm.dataBusy,
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(s["data.repairBtn"], fontSize = BTN_LABEL) }
+
+    vm.dataMessage?.let {
+        Spacer(Modifier.height(16.dp))
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    }
+}
+
+/** 💾 备份管理：导出 / 导入 / 自动备份 / 清空 / 崩溃日志 */
 @Composable
 private fun DataSettings(vm: MainViewModel) {
     val context = LocalContext.current
