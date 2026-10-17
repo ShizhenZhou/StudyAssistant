@@ -1255,17 +1255,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var upgradePromptChecked = false
 
-    /** 更新后首次进入时调用一次（用 `last_seen_version` 判断；弹完即记住，不重复打扰） */
+    /**
+     * 更新后首次进入时调用一次（**按版本号提示一次**，不重复打扰）。
+     *
+     * ★ 2026-10-17 修正：原来只有"检出旧格式数据"才弹 —— 但 v8→v9 的 SQL 迁移会自动把旧主图搬进新表，
+     *   于是判定为"无需升级" → **装完新版一次都不弹**（用户实测踩到）。
+     *   现在改为"**版本变了就提示一次**"（这正是用户规格："更新完后弹出对话框，提示数据格式需要升级"）；
+     *   是否真的缺数据由「一键升级」再兜底，二者互不阻塞。标记在**弹出时**写入。
+     */
     fun checkUpgradePromptOnce(currentVersion: String) {
         if (upgradePromptChecked) return
         upgradePromptChecked = true
         runCatching {
             val prefs = getApplication<Application>()
                 .getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-            if (prefs.getString("last_seen_version", null) == currentVersion) return
-            prefs.edit().putString("last_seen_version", currentVersion).apply()
+            if (prefs.getString("upgrade_prompt_version", null) == currentVersion) return
+            prefs.edit().putString("upgrade_prompt_version", currentVersion).apply()
+            showUpgradePrompt = true
         }
-        viewModelScope.launch { runCatching { showUpgradePrompt = needsImageUpgrade() } }
     }
 
     fun dismissUpgradePrompt(goUpgrade: Boolean = false) {

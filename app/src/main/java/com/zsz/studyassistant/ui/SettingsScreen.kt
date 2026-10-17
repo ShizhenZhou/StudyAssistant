@@ -705,12 +705,13 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
         style = MaterialTheme.typography.bodyMedium
     )
     Spacer(Modifier.height(8.dp))
-    DataMenuRow("🗂", s["data.backup"], "") { go("data.backup") }
-    DataMenuRow("🛠", s["data.upgradePage"], s["data.upgradeDesc"]) { go("data.upgrade") }
+    // ⚠️ 标题文案本身已带 emoji（「🗂 备份管理」「🛠 数据升级 / 修复」），这里**不要再传 emoji**，否则会画两个
+    DataMenuRow(s["data.backup"], "") { go("data.backup") }
+    DataMenuRow(s["data.upgradePage"], s["data.upgradeDesc"]) { go("data.upgrade") }
 }
 
 @Composable
-private fun DataMenuRow(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+private fun DataMenuRow(title: String, subtitle: String, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -718,8 +719,6 @@ private fun DataMenuRow(emoji: String, title: String, subtitle: String, onClick:
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(emoji, fontSize = 18.sp)
-        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             if (subtitle.isNotBlank()) {

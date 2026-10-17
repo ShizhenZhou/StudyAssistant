@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6
+· 🗂 数据结构升级：一题多图改为**正经入库**（新表 `question_images`）；**v8 及更老数据自动迁移**，迁移前自动备份数据库文件
+· 💾 备份升级：包含**全部原图 + 搜题记录**；导入改为事务（失败回滚），**旧备份仍可导入**
+· 🛠 数据管理拆成「备份管理」与「数据升级 / 修复」（一键升级 / 修复数据）
+· ⚠️ 更新后首次进入若检出旧格式数据会提示升级（可跳过，不反复打扰）
 v0.6.5.3
 · 🐞 **修复「两张图仍会丢一张」**：读取端原来"有主图就只用主图"，而其余图只在会话数据里 → 双图打开只剩一张；现在统一**合并主图 + 会话附图**（按 base64 去重，最多 3 张），错题本详情 / 复习自测 / 搜题记录三处一起修好
 
@@ -336,6 +341,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6
+· 🗂 Data structure upgrade: multi-image questions are now stored properly (new `question_images` table); **v8 and older data migrate automatically**, with a DB file backup taken before migrating
+· 💾 Backup upgrade: now includes **all original images + search history**; import is transactional (rolls back on failure) and **old backups still import**
+· 🛠 Data management split into "Backup" and "Upgrade / Repair" (one-tap upgrade / repair)
+· ⚠️ After updating, the first launch warns if legacy data is detected (skippable, no repeat nagging)
 v0.6.5.3
 · 🐞 **Fixed one of two images still being lost**: the reader used to keep only the main image whenever it existed, while the rest live in the conversation — so a two-photo question showed a single image. The main image and the conversation images are now merged (deduped by base64, max 3) across the notebook detail, review self-test and search history
 
@@ -667,6 +677,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6
+· 🗂 データ構造の更新：複数画像を正式に保存（新テーブル `question_images`）。**v8 以前のデータは自動移行**、移行前に DB ファイルを自動バックアップ
+· 💾 バックアップ強化：**全原図＋検索履歴**を含む。インポートはトランザクション化（失敗時ロールバック）、**旧バックアップも読み込み可**
+· 🛠 データ管理を「バックアップ管理」と「データ更新 / 修復」に分割（一括更新 / データ修復）
+· ⚠️ 更新後の初回起動時に旧形式データを検出すると更新を促します（スキップ可・繰り返し通知なし）
 v0.6.5.3
 · 🐞 **「2 枚のうち 1 枚が消える」問題を修正**：読み込み側が「メイン画像があればそれだけ使う」実装だったため、残りの画像（会話データ内）が表示されず 1 枚になっていました。メイン画像＋会話内の画像を統合（base64 で重複排除、最大 3 枚）し、間違いノート詳細・復習・検索履歴の 3 か所を修正
 
@@ -998,6 +1013,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6
+· 🗂 데이터 구조 업그레이드: 여러 이미지를 정식으로 저장(새 테이블 `question_images`). **v8 이전 데이터는 자동 이전**, 이전 전에 DB 파일 자동 백업
+· 💾 백업 개선: **모든 원본 이미지 + 검색 기록** 포함. 가져오기는 트랜잭션(실패 시 롤백), **예전 백업도 가져올 수 있음**
+· 🛠 데이터 관리를 「백업 관리」와 「데이터 업그레이드 / 복구」로 분리(한 번에 업그레이드 / 데이터 복구)
+· ⚠️ 업데이트 후 첫 실행 시 구형식 데이터가 감지되면 업그레이드를 안내합니다(건너뛰기 가능, 반복 알림 없음)
 v0.6.5.3
 · 🐞 **「두 장 중 한 장이 사라지던」문제 수정**: 읽기 쪽이 「대표 이미지가 있으면 그것만 사용」하도록 되어 있어 나머지 이미지(대화 데이터에 있음)가 표시되지 않았습니다. 대표 이미지 + 대화 내 이미지를 병합(중복 제거, 최대 3장)해 오답 노트 상세·복습·검색 기록 3곳을 함께 수정
 
