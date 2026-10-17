@@ -1273,6 +1273,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (goUpgrade) openDataUpgradePage = true
     }
 
+    // ── 「读到旧格式数据」警示（2026-10-16，用户规格：[确认]→去升级 / [跳过]→继续看）──────
+    var showLegacyImageWarn by mutableStateOf(false)
+
+    fun dismissLegacyImageWarn(goUpgrade: Boolean = false) {
+        showLegacyImageWarn = false
+        if (goUpgrade) openDataUpgradePage = true
+    }
+
     /** 还有"有图但没进新表"的题 ⇒ 需要升级（一次查询 + 一次轻扫描） */
     private suspend fun needsImageUpgrade(): Boolean {
         val have = runCatching { dao.questionIdsWithImages() }.getOrDefault(emptyList()).toHashSet()
@@ -2521,6 +2529,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (rows.isNotEmpty()) {
                     questionImages = rows.sortedBy { it.position }.take(MAX_QUESTION_IMAGES)
                         .map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
+                } else if (questionImages.isNotEmpty()) {
+                    // ★ 旧格式数据（新表里没有图，只能靠 imageBytes / 会话兜底）→ 提示一次"建议升级"
+                    showLegacyImageWarn = true
                 }
             }
             val cats = dao.allCategoriesOnce()

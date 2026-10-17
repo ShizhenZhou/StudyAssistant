@@ -553,6 +553,23 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text(s["common.cancel"]) } }
             )
         }
+        // ★ 2026-10-16：读到**旧格式数据**时警示一次（[确认] → 去数据升级；[跳过] → 继续查看）
+        if (vm.showLegacyImageWarn) {
+            AlertDialog(
+                onDismissRequest = { vm.dismissLegacyImageWarn() },
+                title = { Text(s["data.legacyWarnTitle"]) },
+                text = { Text(s["data.legacyWarnBody"]) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.dismissLegacyImageWarn(goUpgrade = true)
+                        nav.navigate("settings")
+                    }) { Text(s["data.upgradeNow"]) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { vm.dismissLegacyImageWarn() }) { Text(s["data.legacySkip"]) }
+                }
+            )
+        }
         // 分类 + 标签选择对话框（存题 / 详情页改）
         // ★★ 2026-10-16 真机定位到的根因修复：**收键盘 + 清焦点**。
         //   实测（dumpsys window）：键盘明明"未显示"（mImeWindowVis=0 / mInputShown=false / frame 0x0 / alpha 0），
