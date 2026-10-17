@@ -22,8 +22,26 @@
 
 ## 1. Room 数据库 `study_assistant.db`
 
-- 当前 **schema version = 8**（`AppDatabase.version`）。
-- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8`，全部用 `Migration` + `addMigrations(...)`。
+- 当前 **schema version = 9**（`AppDatabase.version`）。
+- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9`，全部用 `Migration` + `addMigrations(...)`。
+- **维护约定（2026-10-16 起）**：只保证 **v9 及更新格式**；v8 及更老的数据**装上新版会自动迁移**，
+  迁移前会先把 DB 文件复制成 `study_assistant.db.pre-v9`（同目录，异常可拷回）。
+  App 启动时若检测到"有图但还没进 `question_images`"的旧数据，会弹一次升级提示（见「数据升级 / 修复」页）。
+
+### 1.0 表 `question_images`（**v9 新增**：一题多图）
+
+| 列名 | 类型 | 默认 | 含义 |
+|---|---|---|---|
+| `id` | INTEGER (PK, auto) | — | 主键 |
+| `questionId` | INTEGER | — | 指向 `questions.id` |
+| `position` | INTEGER | — | **0 = 主图**（卡片/复习优先用它），1.. = 其余原图 |
+| `bytes` | BLOB | — | 原始 JPEG（**不存 base64**） |
+| `source` | TEXT | NULL | `save` / `upgrade` / `repair` / `import` / `migrate`（诊断用） |
+| `createdAt` | INTEGER | `System.currentTimeMillis()` | 写入时间 |
+
+> 索引 `(questionId, position)`。
+> **兼容策略**：`questions.imageBytes` 列**保留不删**；读取一律「`question_images` → `imageBytes` → `conversationJson`」三层兜底。
+> 保存错题时把全部图写进本表；`v8→v9` 迁移用纯 SQL 把旧 `imageBytes` 搬成 `position=0`（旧数据原地升级）。
 
 ### 1.1 表 `questions`（最新结构 = v5）
 
@@ -117,7 +135,8 @@
 | `MIGRATION_4_5` | v0.3.6 | questions 加 `categoryId`(INT)；新建表 `categories` | `ALTER TABLE questions ADD COLUMN categoryId INTEGER`；`CREATE TABLE categories(...)` |
 | `MIGRATION_5_6` | v0.3.9 | 新建表 `tags` 与 `question_tags` | `CREATE TABLE tags(...)`；`CREATE TABLE question_tags(...)` |
 | `MIGRATION_6_7` | v0.4.0 | 新建表 `review`（艾宾浩斯复习调度） | `CREATE TABLE review(questionId PK, intervalStep, nextReviewAt, lastReviewedAt, reviewCount)` |
-| `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, source TEXT NOT NULL, text TEXT NOT NULL, answer TEXT NOT NULL, conversationJson TEXT, imageBytes BLOB, imagesJson TEXT, savedQuestionId INTEGER)` |
+| `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(...)` |
+| `MIGRATION_8_9` | v0.6.6 | 新建表 `question_images`（一题多图，二进制、有序）+ 索引；**旧 `imageBytes` 搬成 `position=0`** | `CREATE TABLE question_images(...)`；`CREATE INDEX index_question_images_questionId_position ...`；`INSERT INTO question_images(questionId,position,bytes,source,createdAt) SELECT id,0,imageBytes,'migrate',createdAt FROM questions WHERE imageBytes IS NOT NULL` |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
 > 与 `data/SolveSession.kt`（`SolveSession` 实体）、`data/SolveSessionPrune.kt`（裁剪纯函数）。
