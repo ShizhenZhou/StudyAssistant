@@ -1194,10 +1194,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ---- 数据管理：导出 / 导入 / 清空 ----
     var dataBusy by mutableStateOf(false)
         private set
+    /** 备份管理子页自己的结果文案（导出 / 导入） */
     var dataMessage by mutableStateOf<String?>(null)
+        private set
+    /**
+     * 数据升级 / 修复子页的结果文案 —— ★ 2026-10-17（用户反馈）**与备份页分开**：
+     * 原来和 [dataMessage] 共用一个，导致「一键升级完成」的提示串到「备份管理」页面上显示。
+     */
+    var upgradeMessage by mutableStateOf<String?>(null)
+        private set
+    /** 「数据管理」一级页的结果文案（清空所有数据 —— 2026-10-17 从备份管理挪到一级页） */
+    var menuMessage by mutableStateOf<String?>(null)
         private set
 
     fun clearDataMessage() { dataMessage = null }
+    fun clearUpgradeMessage() { upgradeMessage = null }
+    fun clearMenuMessage() { menuMessage = null }
 
     /**
      * 供**自动备份**（设置 → 数据管理）使用：静默生成备份 JSON。
@@ -1307,10 +1319,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 fillImagesTable()
                 val n = runCatching { dao.questionsWithConversationOnce().size }.getOrDefault(0)
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
                     .format("data.upgradeDone", "n" to "$n")
             } catch (e: Exception) {
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
             } finally {
                 dataBusy = false
             }
@@ -1333,10 +1345,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching { dao.purgeOrphanQuestionTags() }
                 runCatching { dao.purgeOrphanImages() }
                 val n = dao.countQuestions()
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
                     .format("data.repairDone", "n" to "$n")
             } catch (e: Exception) {
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
             } finally {
                 dataBusy = false
             }
@@ -1348,9 +1360,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             dataBusy = true
             try {
                 com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]
+                menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]
             } catch (e: Exception) {
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+                menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
             } finally {
                 dataBusy = false
             }

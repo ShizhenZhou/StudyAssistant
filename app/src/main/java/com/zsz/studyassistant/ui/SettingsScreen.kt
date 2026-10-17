@@ -695,11 +695,13 @@ private fun ApiSettings(vm: MainViewModel) {
     }
 }
 
-/** 💾 数据管理入口：备份管理 / 数据升级·修复 */
+/** 💾 数据管理入口：备份管理 / 自动备份 / 崩溃日志 / 数据升级·修复 / 清空所有数据 */
 @Composable
 private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     val s = LocalStrings.current
-    LaunchedEffect(Unit) { vm.refreshDataSummary() }
+    var showClearConfirm by remember { mutableStateOf(false) }
+    // 一级页只显示自己的结果（清空）；导出/导入、升级/修复的文案分别归各自子页（不再串页显示）
+    LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearMenuMessage() }
     val summary = vm.dataSummary
     Text(
         if (summary == null) s["data.summary"].replace("{q}", "…").replace("{c}", "…").replace("{t}", "…")
@@ -712,10 +714,69 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     DataMenuRow(s["data.autoBackup"], s["data.autoBackupDesc"]) { go("data.auto") }
     DataMenuRow(s["data.crash"], s["data.crashLogDesc"]) { go("data.crash") }
     DataMenuRow(s["data.upgradePage"], s["data.upgradeDesc"]) { go("data.upgrade") }
+
+    // ★ 2026-10-17（用户要求）：清空所有数据**从「备份管理」挪到这一级菜单**上
+    Spacer(Modifier.height(10.dp))
+    DataMenuRow("🗑 " + s["data.clear"], s["data.clear.desc"], danger = true) { showClearConfirm = true }
+
+    vm.menuMessage?.let { msg ->
+        Spacer(Modifier.height(10.dp))
+        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    }
+
+    if (showClearConfirm) {
+        val n = summary?.first ?: 0
+        val phrase = s["data.clear.phrase"]
+        var typed by remember { mutableStateOf("") }
+        val matched = typed.trim() == phrase
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text(s["data.clear.title"]) },
+            text = {
+                Column {
+                    Text(s.format("data.clear.text", "n" to "$n"))
+                    Spacer(Modifier.height(12.dp))
+                    Text(s["data.clear.inputLabel"], style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(4.dp))
+                    Text(phrase, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = typed,
+                        onValueChange = { typed = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text(phrase, style = MaterialTheme.typography.bodySmall) }
+                    )
+                }
+            },
+            confirmButton = {
+                // 只有输入完全一致才可点，且用红色按钮
+                TextButton(shape = smoothPill(),
+                    onClick = {
+                        typed = ""
+                        vm.clearAllData()
+                        showClearConfirm = false
+                        vm.refreshDataSummary()
+                    },
+                    enabled = matched,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                        disabledContentColor = MaterialTheme.colorScheme.outline
+                    )
+                ) { Text(s["common.ok"]) }
+            },
+            dismissButton = { TextButton(shape = smoothPill(), onClick = { showClearConfirm = false }) { Text(s["common.cancel"]) } }
+        )
+    }
 }
 
 @Composable
-private fun DataMenuRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun DataMenuRow(
+    title: String,
+    subtitle: String,
+    danger: Boolean = false,
+    onClick: () -> Unit
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -724,7 +785,11 @@ private fun DataMenuRow(title: String, subtitle: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified
+            )
             if (subtitle.isNotBlank()) {
                 Text(
                     subtitle,
@@ -735,7 +800,10 @@ private fun DataMenuRow(title: String, subtitle: String, onClick: () -> Unit) {
                 )
             }
         }
-        Text("›", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.outline)
+        // 危险操作（清空所有数据）不画「›」—— 点它是弹确认框，不是进下一页
+        if (!danger) {
+            Text("›", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.outline)
+        }
     }
     Spacer(Modifier.height(2.dp))
 }
@@ -747,6 +815,8 @@ private fun DataMenuRow(title: String, subtitle: String, onClick: () -> Unit) {
 @Composable
 private fun DataUpgradePage(vm: MainViewModel) {
     val s = LocalStrings.current
+    // 本页只显示升级 / 修复自己的结果（与备份页的导出/导入文案分开）
+    LaunchedEffect(Unit) { vm.clearUpgradeMessage() }
     Text(s["data.upgradeDesc"], style = MaterialTheme.typography.bodyMedium)
     Spacer(Modifier.height(10.dp))
     Button(
@@ -764,7 +834,7 @@ private fun DataUpgradePage(vm: MainViewModel) {
         modifier = Modifier.fillMaxWidth()
     ) { Text(s["data.repairBtn"], fontSize = BTN_LABEL) }
 
-    vm.dataMessage?.let {
+    vm.upgradeMessage?.let {
         Spacer(Modifier.height(16.dp))
         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     }
@@ -785,11 +855,11 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
 private fun BackupSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
-    var showClearConfirm by remember { mutableStateOf(false) }
     var showImportConfirm by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) { vm.refreshDataSummary() }
+    // 本页只显示自己的结果（导出 / 导入）；升级与清空的文案归各自页面，避免串页
+    LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearDataMessage() }
 
     val summary = vm.dataSummary
     Text(
@@ -838,18 +908,7 @@ private fun BackupSettings(vm: MainViewModel) {
     Spacer(Modifier.height(4.dp))
     Text(s["data.import.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 
-    Spacer(Modifier.height(24.dp))
-
-    // 清空
-    OutlinedButton(shape = smoothPill(), 
-        onClick = { showClearConfirm = true },
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-    ) { Text(s["data.clear"]) }
-    Spacer(Modifier.height(4.dp))
-    Text(s["data.clear.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-
-    Spacer(Modifier.height(24.dp))
+    Spacer(Modifier.height(16.dp))
 
     if (vm.dataBusy) {
         Spacer(Modifier.height(12.dp))
@@ -873,50 +932,6 @@ private fun BackupSettings(vm: MainViewModel) {
                 }) { Text(s["common.ok"]) }
             },
             dismissButton = { TextButton(shape = smoothPill(), onClick = { showImportConfirm = false; pendingImport = null }) { Text(s["common.cancel"]) } }
-        )
-    }
-
-    if (showClearConfirm) {
-        val n = summary?.first ?: 0
-        val phrase = s["data.clear.phrase"]
-        var typed by remember { mutableStateOf("") }
-        val matched = typed.trim() == phrase
-        AlertDialog(
-            onDismissRequest = { showClearConfirm = false },
-            title = { Text(s["data.clear.title"]) },
-            text = {
-                Column {
-                    Text(s.format("data.clear.text", "n" to "$n"))
-                    Spacer(Modifier.height(12.dp))
-                    Text(s["data.clear.inputLabel"], style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(4.dp))
-                    Text(phrase, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = typed,
-                        onValueChange = { typed = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        placeholder = { Text(phrase, style = MaterialTheme.typography.bodySmall) }
-                    )
-                }
-            },
-            confirmButton = {
-                // 只有输入完全一致才可点，且用红色按钮
-                TextButton(shape = smoothPill(), 
-                    onClick = {
-                        vm.clearAllData()
-                        showClearConfirm = false
-                        vm.refreshDataSummary()
-                    },
-                    enabled = matched,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                        disabledContentColor = MaterialTheme.colorScheme.outline
-                    )
-                ) { Text(s["common.ok"]) }
-            },
-            dismissButton = { TextButton(shape = smoothPill(), onClick = { showClearConfirm = false }) { Text(s["common.cancel"]) } }
         )
     }
 }
