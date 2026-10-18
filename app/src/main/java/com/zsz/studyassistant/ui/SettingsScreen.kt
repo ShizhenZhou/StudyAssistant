@@ -96,7 +96,12 @@ import com.zsz.studyassistant.data.UpdateChecker
 @Composable
 fun SettingsTab(vm: MainViewModel) {
     var page by remember { mutableStateOf("main") }
-    BackHandler(enabled = page != "main") { page = "main" }
+    // ★ 2026-10-17（用户反馈）：返回手势/返回键要**退到上一级** ——
+    //   原来一律 `page = "main"`，于是「数据管理」的子页（data.backup / data.auto / data.crash / data.upgrade）
+    //   一按返回就直接跳回设置主页，跳过「数据管理」。现在 data.* → data，其余一级页 → main。
+    BackHandler(enabled = page != "main") {
+        page = if (page.startsWith("data.")) "data" else "main"
+    }
     // ★ 2026-10-16：从"数据格式需要升级"提示 / "旧格式数据"警示**直达**「数据升级 / 修复」子页
     LaunchedEffect(vm.openDataUpgradePage) {
         if (vm.openDataUpgradePage) {
