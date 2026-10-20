@@ -115,21 +115,25 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             )
                         }
                     } else {
-                        // 标题 + 条数（条数在列表项数上直接算，不再加 StateFlow）
-                        Column {
+                        // ★ 2026-10-20（用户要求）：条数从"标题下面一行"挪到**标题右边紧贴**（不靠到最右），
+                        //   字号仍小于标题；标题过长时先压标题（省略号），条数优先保证显示。
+                        Row(verticalAlignment = Alignment.Bottom) {
                             Text(
                                 // ★ 2026-10-18（用户要求）：顶栏标题去掉 emoji（主页按钮上仍保留 🕘）
                                 s["history.title"],
                                 fontSize = SUBPAGE_TITLE,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
+                            Spacer(Modifier.width(6.dp))
                             Text(
                                 s.format("history.count", "n" to "${sessions.size}"),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 maxLines = 1,
-                                softWrap = false
+                                softWrap = false,
+                                modifier = Modifier.padding(bottom = 3.dp)
                             )
                         }
                     }

@@ -281,8 +281,11 @@ private fun SettingsSubPage(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SubPageBackArrow(onClick = onBack)
-            // 二级页标题：字号与应用其它顶栏统一（PAGE_TITLE = 19sp，2026-10-18 用户要求）
-            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = SUBPAGE_TITLE))
+            // 二级页标题：**与解题页顶栏标题完全同款** —— 2026-10-18 统一了字号（19sp），
+            // 2026-10-20 又发现"看起来还是更大"：原来这里用 `titleLarge.copy(fontSize=…)`，
+            // titleLarge 自带更大的行高与字重（Medium/SemiBold）→ 同字号也显大。
+            // 解题页用的是**默认文本样式 + 覆盖 fontSize**，这里改成同一写法，字号/字重/行高全部一致。
+            Text(title, fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(8.dp))
         // weight(1f)：把剩余高度都给内容区，底部操作栏因此始终贴在容器底部（键盘弹出时=键盘上方）

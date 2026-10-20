@@ -10,6 +10,7 @@ v0.6.6.1
 · 🔤 **顶栏标题字号统一**：设置子页面（AI 管理 / 语言 / 主题 / 通知 / 数据管理 / 应用更新 / 关于）、搜题记录、错题本、复习的标题，全部与**解题页**一致（19sp；返回箭头仍 21sp）
 · 🕘 **搜题记录顶栏标题去掉 emoji**（主页按钮上的 🕘 保留）
 · 📄 修「应用更新」页里 v0.6.6 与上一版之间少一个空行
+
 v0.6.6
 · 🗂 数据结构升级：一题多图改为**正经入库**（新表 `question_images`）；**v8 及更老数据自动迁移**，迁移前自动备份数据库文件
 · 💾 备份升级：包含**全部原图 + 搜题记录**；导入改为事务（失败回滚），**旧备份仍可导入**
@@ -352,6 +353,7 @@ v0.6.6.1
 · 🔤 **Unified top-bar title size**: settings sub-pages (AI / language / theme / notifications / data / update / about), search history, notebook and review now match the **solve screen** (19sp; the back arrow stays 21sp)
 · 🕘 **Search history title no longer has an emoji** (the home button keeps it)
 · 📄 Fixed the missing blank line between v0.6.6 and the previous release in the in-app changelog
+
 v0.6.6
 · 🗂 Data structure upgrade: multi-image questions are now stored properly (new `question_images` table); **v8 and older data migrate automatically**, with a DB file backup taken before migrating
 · 💾 Backup upgrade: now includes **all original images + search history**; import is transactional (rolls back on failure) and **old backups still import**
@@ -694,6 +696,7 @@ v0.6.6.1
 · 🔤 **上部バーのタイトル文字サイズを統一**：設定のサブページ（AI 管理 / 言語 / テーマ / 通知 / データ管理 / アプリ更新 / このアプリについて）、検索履歴、間違いノート、復習を**解答画面**と同じ 19sp に（戻る矢印は 21sp のまま）
 · 🕘 **検索履歴のタイトルから絵文字を削除**（ホームのボタンには残す）
 · 📄 アプリ内の更新内容で v0.6.6 と前バージョンの間に空行が 1 行足りないのを修正
+
 v0.6.6
 · 🗂 データ構造の更新：複数画像を正式に保存（新テーブル `question_images`）。**v8 以前のデータは自動移行**、移行前に DB ファイルを自動バックアップ
 · 💾 バックアップ強化：**全原図＋検索履歴**を含む。インポートはトランザクション化（失敗時ロールバック）、**旧バックアップも読み込み可**
@@ -1036,6 +1039,7 @@ v0.6.6.1
 · 🔤 **상단 바 제목 글자 크기 통일**: 설정 하위 페이지(AI 관리 / 언어 / 테마 / 알림 / 데이터 관리 / 앱 업데이트 / 정보), 검색 기록, 오답 노트, 복습을 **풀이 화면**과 같은 19sp로 (뒤로 가기 화살표는 21sp 유지)
 · 🕘 **검색 기록 상단 제목에서 이모지 제거**(홈 버튼에는 유지)
 · 📄 앱 내 업데이트 내용에서 v0.6.6과 이전 버전 사이에 빈 줄이 하나 빠진 것을 수정
+
 v0.6.6
 · 🗂 데이터 구조 업그레이드: 여러 이미지를 정식으로 저장(새 테이블 `question_images`). **v8 이전 데이터는 자동 이전**, 이전 전에 DB 파일 자동 백업
 · 💾 백업 개선: **모든 원본 이미지 + 검색 기록** 포함. 가져오기는 트랜잭션(실패 시 롤백), **예전 백업도 가져올 수 있음**
