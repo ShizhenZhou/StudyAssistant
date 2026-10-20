@@ -118,7 +118,8 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                         // 标题 + 条数（条数在列表项数上直接算，不再加 StateFlow）
                         Column {
                             Text(
-                                s["home.history"],
+                                // ★ 2026-10-18（用户要求）：顶栏标题去掉 emoji（主页按钮上仍保留 🕘）
+                                s["history.title"],
                                 fontSize = SUBPAGE_TITLE,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -201,7 +202,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                                     opening = false
                                     if (full != null) {
                                         vm.loadSolveSession(full)
-                                        nav.navigate("solve")
+                                        AppNav.openSolve(nav, AppNav.Origin.HISTORY)
                                     }
                                 }
                             }

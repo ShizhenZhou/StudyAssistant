@@ -118,7 +118,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
     /** 返回 = 回到拍摄界面（放弃本次框选） */
     fun backToCamera() {
         vm.cancelCropFlow()
-        nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
+        nav.navigate(AppNav.CAMERA) { popUpTo(AppNav.CROP) { inclusive = true } }
     }
 
     /**
@@ -138,9 +138,10 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
     /** 提交一张之后：还差一张 → 回拍摄界面；队列还有下一张 → 留在本页继续框；都完成 → 进入解题/批改 */
     fun afterSubmit() {
         when {
-            vm.cropNeedsMore -> nav.navigate("camera") { popUpTo("crop") { inclusive = true } }
+            vm.cropNeedsMore -> nav.navigate(AppNav.CAMERA) { popUpTo(AppNav.CROP) { inclusive = true } }
             vm.cropHasNext -> Unit   // ★ 留在框选页继续框下一张（界面会自动换图）
-            else -> nav.navigate("solve") { popUpTo("crop") { inclusive = true } }
+            // 框选完成 → 进解题页；来路 = 相机（返回箭头因此回拍题页，方便再拍一张）
+            else -> AppNav.openSolve(nav, AppNav.Origin.CAMERA)
         }
     }
 

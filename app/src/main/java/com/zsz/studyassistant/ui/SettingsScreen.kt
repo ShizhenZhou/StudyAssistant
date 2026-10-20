@@ -95,17 +95,16 @@ import com.zsz.studyassistant.data.UpdateChecker
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTab(vm: MainViewModel) {
-    var page by remember { mutableStateOf("main") }
-    // ★ 2026-10-17（用户反馈）：返回手势/返回键要**退到上一级** ——
-    //   原来一律 `page = "main"`，于是「数据管理」的子页（data.backup / data.auto / data.crash / data.upgrade）
-    //   一按返回就直接跳回设置主页，跳过「数据管理」。现在 data.* → data，其余一级页 → main。
-    BackHandler(enabled = page != "main") {
-        page = if (page.startsWith("data.")) "data" else "main"
+    var page by remember { mutableStateOf(AppNav.SettingsPages.MAIN) }
+    // ★ 设置页的"上一级"由页面树统一算（ui/AppNav.kt → SettingsPages.parent）：
+    //   data.* 四个子页 → 数据管理；其余二级页 → 设置主页。不要再各处手写 "main"。
+    BackHandler(enabled = page != AppNav.SettingsPages.MAIN) {
+        page = AppNav.SettingsPages.parent(page)
     }
     // ★ 2026-10-16：从"数据格式需要升级"提示 / "旧格式数据"警示**直达**「数据升级 / 修复」子页
     LaunchedEffect(vm.openDataUpgradePage) {
         if (vm.openDataUpgradePage) {
-            page = "data.upgrade"
+            page = AppNav.SettingsPages.DATA_UPGRADE
             vm.openDataUpgradePage = false
         }
     }
@@ -113,7 +112,7 @@ fun SettingsTab(vm: MainViewModel) {
 
     when (page) {
         // 「AI 管理」= API 管理（置顶）+ 原 AI 配置（AI 切图开关 / 框选时限 / 解题模式 / 自定义要求）
-        "ai" -> {
+        AppNav.SettingsPages.AI -> {
             val ctx = LocalContext.current
             // ★ 2026-10-13（用户要求 · 第 2 版）：自定义要求的文本 + "是否已修改"状态提到页面这一层，
             //   把「保存」做成**跟着键盘出现**的按钮：
@@ -135,7 +134,7 @@ fun SettingsTab(vm: MainViewModel) {
             }
             SettingsSubPage(
                 title = s["settings.aiManage"],
-                onBack = { page = "main" },
+                onBack = { page = AppNav.SettingsPages.parent(page) },
                 // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
                 bottomBar = promptSaveBar.takeIf { imeVisible }
             ) {
@@ -174,17 +173,17 @@ fun SettingsTab(vm: MainViewModel) {
                 }
             }
         }
-        "lang" -> SettingsSubPage(s["lang.title"], { page = "main" }) { LanguageSettings(vm) }
-        "theme" -> SettingsSubPage(s["settings.theme"], { page = "main" }) { ThemeSettings(vm) { page = it } }
-        "notify" -> SettingsSubPage(s["settings.group.notifyBackground"], { page = "main" }) { NotifyBackgroundSettings() }
+        AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { page = AppNav.SettingsPages.parent(page) }) { LanguageSettings(vm) }
+        AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { page = AppNav.SettingsPages.parent(page) }) { ThemeSettings(vm) { page = it } }
+        AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { page = AppNav.SettingsPages.parent(page) }) { NotifyBackgroundSettings() }
         // ★ 2026-10-17 再拆：数据管理 = 备份管理 / 自动备份 / 崩溃日志 / 数据升级·修复 四个子页
-        "data" -> SettingsSubPage(s["settings.data"], { page = "main" }) { DataMenu(vm) { page = it } }
-        "data.backup" -> SettingsSubPage(s["data.backup"], { page = "data" }) { DataSettings(vm) }
-        "data.auto" -> SettingsSubPage(s["data.autoBackup"], { page = "data" }) { DataSettings(vm, "auto") }
-        "data.crash" -> SettingsSubPage(s["data.crash"], { page = "data" }) { DataSettings(vm, "crash") }
-        "data.upgrade" -> SettingsSubPage(s["data.upgradePage"], { page = "data" }) { DataUpgradePage(vm) }
-        "update" -> SettingsSubPage(s["settings.update"], { page = "main" }) { UpdatePage() }
-        "about" -> SettingsSubPage(s["settings.about"], { page = "main" }) { AboutPage() }
+        AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { page = AppNav.SettingsPages.parent(page) }) { DataMenu(vm) { page = it } }
+        AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm) }
+        AppNav.SettingsPages.DATA_AUTO -> SettingsSubPage(s["data.autoBackup"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm, "auto") }
+        AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm, "crash") }
+        AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { page = AppNav.SettingsPages.parent(page) }) { DataUpgradePage(vm) }
+        AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { page = AppNav.SettingsPages.parent(page) }) { UpdatePage() }
+        AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { page = AppNav.SettingsPages.parent(page) }) { AboutPage() }
         else -> SettingsMain { page = it }
     }
 }
@@ -282,7 +281,7 @@ private fun SettingsSubPage(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SubPageBackArrow(onClick = onBack)
-            // 二级页标题：比 Material3 titleLarge 默认小 1sp
+            // 二级页标题：字号与应用其它顶栏统一（PAGE_TITLE = 19sp，2026-10-18 用户要求）
             Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = SUBPAGE_TITLE))
         }
         Spacer(Modifier.height(8.dp))

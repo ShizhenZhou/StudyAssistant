@@ -103,7 +103,13 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
+fun SolveScreen(
+    nav: NavHostController,
+    vm: MainViewModel,
+    // ★ 2026-10-18：解题页的**来路**（页面树里 solve 的父节点）—— 由 AppNav 传进来，
+    //   返回箭头按它决定去处，不再靠 `isPhotoSession` 猜（那样会把"从搜题记录打开的照片题"送回拍照界面）。
+    entryOrigin: AppNav.Origin = AppNav.Origin.HOME
+) {
     val context = LocalContext.current
     // 当前模式 + 该模式的界面配置（唯一的分支来源；放在函数最前面，供 LaunchedEffect 等使用）
     val sessionMode = when {
@@ -337,20 +343,9 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     if (editMode) {
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("✕", fontSize = 18.sp) }
                     } else {
-                        // 返回箭头：全应用统一样式（见 SubPageBackArrow）
+                        // 返回箭头：全应用统一样式（见 SubPageBackArrow）；**去处由页面树决定**（AppNav）
                         SubPageBackArrow(onClick = {
-                            // 只有"拍照搜题"这条流程返回时回拍题界面（方便再拍一张）；
-                            // 复习 / 错题本 / 批改 / 图文提问（含空态、纯文字提问）一律返回来处
-                            if (sessionMode == SessionMode.REVIEW ||
-                                sessionMode == SessionMode.NOTEBOOK ||
-                                sessionMode == SessionMode.GRADE ||
-                                !vm.isPhotoSession
-                            ) {
-                                nav.popBackStack()
-                            } else {
-                                vm.startNewQuestion()
-                                nav.navigate("camera") { popUpTo("home") }
-                            }
+                            AppNav.backFromSolve(nav, entryOrigin) { vm.startNewQuestion() }
                         })
                     }
                 },
@@ -362,7 +357,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                     var refBtnSize by remember { mutableStateOf<IntSize?>(null) }
                     val measureRef = Modifier.onGloballyPositioned { refBtnSize = it.size }
                     if (cfg.showPracticeSimilar) {
-                        TextButton(onClick = { vm.startSimilar(); nav.navigate("similar") }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate(AppNav.SIMILAR) }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE) }
                         TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL_SOLVE) }
@@ -562,7 +557,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 confirmButton = {
                     TextButton(onClick = {
                         vm.dismissLegacyImageWarn(goUpgrade = true)
-                        nav.navigate("settings")
+                        AppNav.switchTab(nav, AppNav.SETTINGS)
                     }) { Text(s["data.upgradeNow"]) }
                 },
                 dismissButton = {
@@ -654,7 +649,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
                     Column(Modifier.padding(12.dp)) {
                         Text(s["solve.noKey"], color = MaterialTheme.colorScheme.error)
-                        TextButton(onClick = { nav.navigate("settings") }) { Text(s["solve.goSettings"]) }
+                        TextButton(onClick = { AppNav.switchTab(nav, AppNav.SETTINGS) }) { Text(s["solve.goSettings"]) }
                     }
                 }
             }
@@ -846,10 +841,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
             //   会直接把 Activity 退掉 → 表现为"点熟悉后回到桌面"。
             val onReviewFinished: () -> Unit = {
                 vm.exitReviewMode()
-                nav.navigate("home") {
-                    popUpTo("home") { inclusive = true }
-                    launchSingleTop = true
-                }
+                AppNav.switchTab(nav, AppNav.HOME)
                 android.widget.Toast.makeText(context, s["solve.reviewDone"], android.widget.Toast.LENGTH_SHORT).show()
             }
 
@@ -914,7 +906,7 @@ fun SolveScreen(nav: NavHostController, vm: MainViewModel) {
                 OutlinedButton(
                     onClick = {
                         vm.startRedo()
-                        nav.navigate("grade")
+                        nav.navigate(AppNav.GRADE)
                     },
                     shape = smoothPill(),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(46.dp)

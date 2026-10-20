@@ -377,7 +377,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                                     selectedIds = if (selectedIds.contains(q.id)) selectedIds - q.id else selectedIds + q.id
                                 } else {
                                     vm.loadQuestion(q)
-                                    nav.navigate("solve")
+                                    AppNav.openSolve(nav, AppNav.Origin.NOTEBOOK)
                                 }
                             },
                             onLongClick = {

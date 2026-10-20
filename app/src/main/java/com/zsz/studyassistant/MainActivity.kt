@@ -43,6 +43,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.zsz.studyassistant.ui.AppNav
 import com.zsz.studyassistant.ui.CameraScreen
 import com.zsz.studyassistant.ui.CropScreen
 import com.zsz.studyassistant.ui.GradeScreen
@@ -120,7 +121,7 @@ class MainActivity : ComponentActivity() {
                     val nav = rememberNavController()
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
-                    val showBottomBar = current == "home" || current == "stats" || current == "settings"
+                    val showBottomBar = current == AppNav.HOME || current == AppNav.STATS || current == AppNav.SETTINGS
 
                     // 启动时**静默**查一次更新：网络失败或已是最新 → 什么都不做；
                     // 查到新版本 → UpdateBadgeState 置位，设置入口与底栏「设置」显示红色气泡①
@@ -155,7 +156,7 @@ class MainActivity : ComponentActivity() {
                             confirmButton = {
                                 androidx.compose.material3.TextButton(onClick = {
                                     viewModel.dismissUpgradePrompt(goUpgrade = true)
-                                    nav.navigate("settings")
+                                    nav.navigate(AppNav.SETTINGS)
                                 }) { androidx.compose.material3.Text(s2["data.upgradeNow"]) }
                             },
                             dismissButton = {
@@ -178,7 +179,7 @@ class MainActivity : ComponentActivity() {
                             // ★ 回到主页 → 停掉在跑的生成 + 清空所有拍摄/框选缓存（不保留任何"已框或未框"的图）
                             // ⚠️ 这里必须是 if 条件语句；曾误写成裸 lambda `{ … }`（没有 if）→ 块永不执行，
                             //    两个功能静默失效（发布前复查 git diff 时发现）
-                            if (destination.route == "home") {
+                            if (destination.route == AppNav.HOME) {
                                 viewModel.stopActiveGeneration()
                                 viewModel.clearCaptureCaches()
                             }
@@ -200,7 +201,7 @@ class MainActivity : ComponentActivity() {
                         Box(Modifier.weight(1f)) {
                             NavHost(
                                 nav,
-                                startDestination = "home",
+                                startDestination = AppNav.HOME,
                                 // 默认过渡是 fadeIn/fadeOut(tween(700))，对一个笔记类 App 偏慢；
                                 // 缩短到 200ms，更跟手，也让「旧页面仍可被命中」的窗口更小
                                 enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
@@ -208,17 +209,25 @@ class MainActivity : ComponentActivity() {
                                 popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
                                 popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) }
                             ) {
-                                composable("home") { HomeScreen(nav, viewModel) }
-                                composable("camera") { CameraScreen(nav, viewModel) }
-                                composable("crop") { CropScreen(nav, viewModel) }
-                                composable("grade") { GradeScreen(nav, viewModel) }
-                                composable("solve") { SolveScreen(nav, viewModel) }
-                                composable("history") { SolveHistoryScreen(nav, viewModel) }
-                                composable("notebook") { NotebookScreen(nav, viewModel) }
-                                composable("review") { ReviewScreen(nav, viewModel) }
-                                composable("similar") { SimilarScreen(nav, viewModel) }
-                                composable("stats") { StatsScreen(viewModel) }
-                                composable("settings") { SettingsTab(viewModel) }
+                                // ⚠️ 路由常量与"谁能进谁、返回去哪"全部集中在 ui/AppNav.kt（页面树），这里只做绑定
+                                composable(AppNav.HOME) { HomeScreen(nav, viewModel) }
+                                composable(AppNav.CAMERA) { CameraScreen(nav, viewModel) }
+                                composable(AppNav.CROP) { CropScreen(nav, viewModel) }
+                                composable(AppNav.GRADE) { GradeScreen(nav, viewModel) }
+                                // 解题页带上来路（home / camera / grade / history / notebook / review）
+                                composable(AppNav.SOLVE_PATTERN) { entry ->
+                                    SolveScreen(
+                                        nav,
+                                        viewModel,
+                                        AppNav.Origin.of(entry.arguments?.getString("origin"))
+                                    )
+                                }
+                                composable(AppNav.HISTORY) { SolveHistoryScreen(nav, viewModel) }
+                                composable(AppNav.NOTEBOOK) { NotebookScreen(nav, viewModel) }
+                                composable(AppNav.REVIEW) { ReviewScreen(nav, viewModel) }
+                                composable(AppNav.SIMILAR) { SimilarScreen(nav, viewModel) }
+                                composable(AppNav.STATS) { StatsScreen(viewModel) }
+                                composable(AppNav.SETTINGS) { SettingsTab(viewModel) }
                             }
 
                             // ★ 切换页面后短时吞掉内容区触摸（对所有目的地生效）：
@@ -242,41 +251,26 @@ class MainActivity : ComponentActivity() {
 
                             // 从通知点进来 → 直接打开复习页
                             androidx.compose.runtime.LaunchedEffect(openReview) {
-                                if (openReview) nav.navigate("review")
+                                if (openReview) nav.navigate(AppNav.REVIEW)
                             }
                         }
                         if (showBottomBar) {
                             NavigationBar {
                                 NavigationBarItem(
-                                    selected = current == "home",
-                                    onClick = {
-                                        nav.navigate("home") {
-                                            popUpTo("home") { inclusive = true }
-                                            launchSingleTop = true
-                                        }
-                                    },
+                                    selected = current == AppNav.HOME,
+                                    onClick = { AppNav.switchTab(nav, AppNav.HOME) },
                                     icon = { Text("📚") },
                                     label = { Text(strings["nav.learn"]) }
                                 )
                                 NavigationBarItem(
-                                    selected = current == "stats",
-                                    onClick = {
-                                        nav.navigate("stats") {
-                                            popUpTo("home") { inclusive = true }
-                                            launchSingleTop = true
-                                        }
-                                    },
+                                    selected = current == AppNav.STATS,
+                                    onClick = { AppNav.switchTab(nav, AppNav.STATS) },
                                     icon = { Text("📊") },
                                     label = { Text(strings["nav.stats"]) }
                                 )
                                 NavigationBarItem(
-                                    selected = current == "settings",
-                                    onClick = {
-                                        nav.navigate("settings") {
-                                            popUpTo("home") { inclusive = true }
-                                            launchSingleTop = true
-                                        }
-                                    },
+                                    selected = current == AppNav.SETTINGS,
+                                    onClick = { AppNav.switchTab(nav, AppNav.SETTINGS) },
                                     icon = {
                                         // 有可用更新时，在「设置」图标右上角叠一个红点①（Canvas 精确居中）
                                         Box {

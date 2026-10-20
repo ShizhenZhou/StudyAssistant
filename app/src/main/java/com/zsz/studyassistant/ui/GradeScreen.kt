@@ -141,7 +141,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         val processImage: (ByteArray) -> Unit = { bytes ->
             if (redo) {
                 vm.submitRedoAnswer(bytes)
-                nav.navigate("solve") { popUpTo("home") }
+                AppNav.openSolve(nav, AppNav.Origin.GRADE)
             } else if (doubleMode && questionBytes == null) {
                 questionBytes = bytes
                 awaitingAnswer = true
@@ -149,7 +149,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                 val q = questionBytes ?: bytes
                 val ans = if (doubleMode) bytes else null
                 vm.startGrade(q, ans)
-                nav.navigate("solve") { popUpTo("home") }
+                AppNav.openSolve(nav, AppNav.Origin.GRADE)
                 awaitingAnswer = false
             }
         }
@@ -168,7 +168,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             when {
                 picked.size >= 2 -> {
                     vm.startGrade(picked[0], picked[1])
-                    nav.navigate("solve") { popUpTo("home") }
+                    AppNav.openSolve(nav, AppNav.Origin.GRADE)
                     awaitingAnswer = false
                 }
                 picked.size == 1 -> processImage(picked[0])

@@ -166,7 +166,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             val path = file.absolutePath
             if (vm.cropNeedsMore) {
                 vm.appendCropPath(path)
-                nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
+                AppNav.openCrop(nav)
                 return
             }
             vm.startCropFlow(
@@ -174,7 +174,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 grade = gradeMode,
                 expect = if (doubleMode) 2 else 1
             )
-            nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
+            AppNav.openCrop(nav)
         }
 
         AndroidView(
@@ -245,7 +245,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     expect = if (doubleMode) 2 else files.size
                 )
             }
-            nav.navigate("crop") { popUpTo("camera") { inclusive = true } }
+            AppNav.openCrop(nav)
         }
 
         // 从图库选图（左下角，圆角正方形 + 花瓣图标）

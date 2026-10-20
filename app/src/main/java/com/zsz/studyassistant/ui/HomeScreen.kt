@@ -98,7 +98,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             //   并要求这两个主入口**各占一行**。最外层已有 verticalScroll 兜底，4 行在小屏/大字号下也不会被裁。
             val gap = 12.dp
             Button(shape = smoothPill(),
-                onClick = { nav.navigate("camera") },
+                onClick = { nav.navigate(AppNav.CAMERA) },
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             ) {
                 HomeButtonLabel(s["home.camera"], 20.sp, shiftHalfCharLeft = true)
@@ -106,7 +106,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(gap))
             // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
             Button(shape = smoothPill(),
-                onClick = { vm.startAskSession(); nav.navigate("solve") { popUpTo("home") } },
+                onClick = { vm.startAskSession(); AppNav.openSolve(nav, AppNav.Origin.HOME) },
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             ) {
                 HomeButtonLabel(s["home.ask"], 20.sp, shiftHalfCharLeft = true)
@@ -115,14 +115,14 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             // 错题本 / 复习：名字短，半宽放得下；仍留 maxLines=2 兜底 —— **任何情况都不出「…」**
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 OutlinedButton(shape = smoothPill(),
-                    onClick = { nav.navigate("notebook") },
+                    onClick = { nav.navigate(AppNav.NOTEBOOK) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
                 ) {
                     HomeButtonLabel(s["home.notebook"], 19.sp)
                 }
                 OutlinedButton(shape = smoothPill(),
-                    onClick = { nav.navigate("review") },
+                    onClick = { nav.navigate(AppNav.REVIEW) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
                 ) {
@@ -132,7 +132,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(gap))
             // 第 5 个入口：🕘 搜题记录（独占一行、撑满宽度）
             OutlinedButton(shape = smoothPill(),
-                onClick = { nav.navigate("history") },
+                onClick = { nav.navigate(AppNav.HISTORY) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)

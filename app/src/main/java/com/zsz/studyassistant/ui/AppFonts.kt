@@ -65,14 +65,24 @@ internal fun categoryLabelStyle(nameLen: Int, fits: (sp: Int, maxLines: Int) -> 
 }
 
 /**
- * **内部页面**（学习/统计/设置三个主页之外的页面）左上角标题的字号：
- * Material3 的 titleLarge 默认 22sp，这里统一 **小 1sp**（用户要求），配合把返回箭头按钮的
- * 内边距收紧，标题会离 ← 更近一点。
+ * **顶栏标题的字号（全应用统一）** —— 2026-10-18 用户要求：
+ * 「设置子页面（AI 管理 / 关于 / 应用更新…）、搜题记录、错题本、复习 的顶栏标题，
+ *   字号都跟解题页（SolveScreen）统一」。
+ *
+ * 之前是两档：内部页 21sp（[SUBPAGE_TITLE]）、解题页 19sp（[SOLVE_TITLE]）→ 看起来新页面比解题页"大一号"。
+ * 现在只有这一个基准值；[SUBPAGE_TITLE] / [SOLVE_TITLE] 保留为**别名**（几十处引用不必改），
+ * 以后要调整只改这里。返回箭头「←」用 [BACK_ARROW_SP]，**不随标题一起缩**。
  */
-internal val SUBPAGE_TITLE = 21.sp
+internal val PAGE_TITLE = 19.sp
 
-/** 解题页（SolveScreen）的标题：用户要求比其它内部页**再小 2sp** */
-internal val SOLVE_TITLE = 19.sp
+/** @see PAGE_TITLE （兼容旧名：内部页面标题 = 统一标题字号） */
+internal val SUBPAGE_TITLE = PAGE_TITLE
+
+/** @see PAGE_TITLE （兼容旧名：解题页标题 = 统一标题字号） */
+internal val SOLVE_TITLE = PAGE_TITLE
+
+/** 顶栏左上角「←」返回箭头：比标题大一号（保持原 21sp，避免箭头看着变小） */
+internal val BACK_ARROW_SP = 21.sp
 
 /** 界面字号档位（C14）：[factor] 直接乘在 Compose 的 fontScale 与 WebView 的 CSS 变量上 */
 enum class FontScale(val id: String, val factor: Float) {

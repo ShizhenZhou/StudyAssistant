@@ -216,7 +216,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                                 // 记录本轮复习进度（第 i/n 题，n = 今日/本周待复习总数）
                                 vm.startReviewSession(flat.size, flat.indexOf(q))
                                 vm.loadForReview(q)
-                                nav.navigate("solve")
+                                AppNav.openSolve(nav, AppNav.Origin.REVIEW)
                             })
                         }
                     }

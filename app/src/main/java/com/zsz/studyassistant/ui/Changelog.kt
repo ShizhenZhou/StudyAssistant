@@ -5,11 +5,17 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.1
+· 🧭 **页面跳转理顺成"树"**：新增 `ui/AppNav.kt`（全应用页面树 = 唯一导航事实源）。进解题页要带上**来路**（home / camera / grade / history / notebook / review），返回按来路走 —— 修掉「从**搜题记录**打开一道拍过照的题，返回却跳到**拍照界面**」
+· 🔤 **顶栏标题字号统一**：设置子页面（AI 管理 / 语言 / 主题 / 通知 / 数据管理 / 应用更新 / 关于）、搜题记录、错题本、复习的标题，全部与**解题页**一致（19sp；返回箭头仍 21sp）
+· 🕘 **搜题记录顶栏标题去掉 emoji**（主页按钮上的 🕘 保留）
+· 📄 修「应用更新」页里 v0.6.6 与上一版之间少一个空行
 v0.6.6
 · 🗂 数据结构升级：一题多图改为**正经入库**（新表 `question_images`）；**v8 及更老数据自动迁移**，迁移前自动备份数据库文件
 · 💾 备份升级：包含**全部原图 + 搜题记录**；导入改为事务（失败回滚），**旧备份仍可导入**
 · 🛠 数据管理拆成**四个子页**（备份管理-导出导入 / 自动备份 / 崩溃日志 / 数据升级·修复），**「清空所有数据」挪到数据管理一级页**（红色危险项，要输入确认词才可执行）
 · ⚠️ 更新后首次进入若检出旧格式数据会提示升级（可跳过，不反复打扰）
+
 v0.6.5.3
 · 🐞 **修复「两张图仍会丢一张」**：读取端原来"有主图就只用主图"，而其余图只在会话数据里 → 双图打开只剩一张；现在统一**合并主图 + 会话附图**（按 base64 去重，最多 3 张），错题本详情 / 复习自测 / 搜题记录三处一起修好
 
@@ -341,11 +347,17 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.1
+· 🧭 **Navigation turned into an explicit page tree**: new `ui/AppNav.kt` (single source of truth for every jump). The solve screen is now told where it was opened from (home / camera / grade / history / notebook / review) and its back button follows that — fixes "open a photo question from **search history**, press back, and land in the **camera**"
+· 🔤 **Unified top-bar title size**: settings sub-pages (AI / language / theme / notifications / data / update / about), search history, notebook and review now match the **solve screen** (19sp; the back arrow stays 21sp)
+· 🕘 **Search history title no longer has an emoji** (the home button keeps it)
+· 📄 Fixed the missing blank line between v0.6.6 and the previous release in the in-app changelog
 v0.6.6
 · 🗂 Data structure upgrade: multi-image questions are now stored properly (new `question_images` table); **v8 and older data migrate automatically**, with a DB file backup taken before migrating
 · 💾 Backup upgrade: now includes **all original images + search history**; import is transactional (rolls back on failure) and **old backups still import**
 · 🛠 Data management split into **four sub-pages** (Backup: export / import, Auto backup, Crash logs, Upgrade & Repair); **"Clear all data" moved to the Data management top page** (red danger row, requires typing the confirmation phrase)
 · ⚠️ After updating, the first launch warns if legacy data is detected (skippable, no repeat nagging)
+
 v0.6.5.3
 · 🐞 **Fixed one of two images still being lost**: the reader used to keep only the main image whenever it existed, while the rest live in the conversation — so a two-photo question showed a single image. The main image and the conversation images are now merged (deduped by base64, max 3) across the notebook detail, review self-test and search history
 
@@ -677,11 +689,17 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.1
+· 🧭 **ページ遷移を「ツリー」に整理**：`ui/AppNav.kt`（アプリ全体のページツリー＝唯一のナビゲーション情報源）を追加。解答画面へ入るときは**来た元**（home / camera / grade / history / notebook / review）を渡し、戻るはその元へ —— 「**検索履歴**から写真の問題を開いて戻ると**カメラ**へ飛ぶ」不具合を修正
+· 🔤 **上部バーのタイトル文字サイズを統一**：設定のサブページ（AI 管理 / 言語 / テーマ / 通知 / データ管理 / アプリ更新 / このアプリについて）、検索履歴、間違いノート、復習を**解答画面**と同じ 19sp に（戻る矢印は 21sp のまま）
+· 🕘 **検索履歴のタイトルから絵文字を削除**（ホームのボタンには残す）
+· 📄 アプリ内の更新内容で v0.6.6 と前バージョンの間に空行が 1 行足りないのを修正
 v0.6.6
 · 🗂 データ構造の更新：複数画像を正式に保存（新テーブル `question_images`）。**v8 以前のデータは自動移行**、移行前に DB ファイルを自動バックアップ
 · 💾 バックアップ強化：**全原図＋検索履歴**を含む。インポートはトランザクション化（失敗時ロールバック）、**旧バックアップも読み込み可**
 · 🛠 データ管理を**4 つのサブページ**に分割（バックアップ管理=書き出し/読み込み／自動バックアップ／クラッシュログ／データ更新・修復）。**「すべてのデータを消去」はデータ管理の一覧ページへ移動**（赤の危険項目・確認語の入力が必要）
 · ⚠️ 更新後の初回起動時に旧形式データを検出すると更新を促します（スキップ可・繰り返し通知なし）
+
 v0.6.5.3
 · 🐞 **「2 枚のうち 1 枚が消える」問題を修正**：読み込み側が「メイン画像があればそれだけ使う」実装だったため、残りの画像（会話データ内）が表示されず 1 枚になっていました。メイン画像＋会話内の画像を統合（base64 で重複排除、最大 3 枚）し、間違いノート詳細・復習・検索履歴の 3 か所を修正
 
@@ -1013,11 +1031,17 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.1
+· 🧭 **페이지 이동을 트리로 정리**: `ui/AppNav.kt`(앱 전체 페이지 트리 = 유일한 내비게이션 정보원) 추가. 풀이 화면에 들어갈 때 **어디서 왔는지**(home / camera / grade / history / notebook / review)를 함께 넘기고 뒤로 가기는 그곳으로 — 「**검색 기록**에서 사진 문제를 열고 뒤로 가면 **카메라**로 가던」버그 수정
+· 🔤 **상단 바 제목 글자 크기 통일**: 설정 하위 페이지(AI 관리 / 언어 / 테마 / 알림 / 데이터 관리 / 앱 업데이트 / 정보), 검색 기록, 오답 노트, 복습을 **풀이 화면**과 같은 19sp로 (뒤로 가기 화살표는 21sp 유지)
+· 🕘 **검색 기록 상단 제목에서 이모지 제거**(홈 버튼에는 유지)
+· 📄 앱 내 업데이트 내용에서 v0.6.6과 이전 버전 사이에 빈 줄이 하나 빠진 것을 수정
 v0.6.6
 · 🗂 데이터 구조 업그레이드: 여러 이미지를 정식으로 저장(새 테이블 `question_images`). **v8 이전 데이터는 자동 이전**, 이전 전에 DB 파일 자동 백업
 · 💾 백업 개선: **모든 원본 이미지 + 검색 기록** 포함. 가져오기는 트랜잭션(실패 시 롤백), **예전 백업도 가져올 수 있음**
 · 🛠 데이터 관리를 **4개 하위 페이지**로 분리(백업 관리=내보내기/가져오기, 자동 백업, 크래시 로그, 데이터 업그레이드·복구). **「모든 데이터 삭제」는 데이터 관리 목록 페이지로 이동**(빨간 위험 항목, 확인 문구 입력 필요)
 · ⚠️ 업데이트 후 첫 실행 시 구형식 데이터가 감지되면 업그레이드를 안내합니다(건너뛰기 가능, 반복 알림 없음)
+
 v0.6.5.3
 · 🐞 **「두 장 중 한 장이 사라지던」문제 수정**: 읽기 쪽이 「대표 이미지가 있으면 그것만 사용」하도록 되어 있어 나머지 이미지(대화 데이터에 있음)가 표시되지 않았습니다. 대표 이미지 + 대화 내 이미지를 병합(중복 제거, 최대 3장)해 오답 노트 상세·복습·검색 기록 3곳을 함께 수정
 
