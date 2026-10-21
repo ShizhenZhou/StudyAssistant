@@ -170,7 +170,8 @@ $testClasses = @(
     'com.zsz.studyassistant.ui.CropMathTest',
     'com.zsz.studyassistant.ui.L10nTableTest',
     'com.zsz.studyassistant.ui.AppNavTest',
-    'com.zsz.studyassistant.ui.ChangelogFormatTest'
+    'com.zsz.studyassistant.ui.ChangelogFormatTest',
+    'com.zsz.studyassistant.ui.MathRenderAssetTest'
 )
 & $java '-Dfile.encoding=UTF-8' -cp $cp org.junit.runner.JUnitCore @testClasses
 if ($LASTEXITCODE -ne 0) { Write-Err2 'unit tests FAILED'; exit 1 }

@@ -8,7 +8,9 @@
   html,body{margin:0;padding:0;background:transparent;color:#111;}
   body{padding:6px 8px;font-size:16px;line-height:1.6;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;overflow-x:hidden;}
   .katex{font-size:1.12em;}
-  .katex-display{text-align:center;max-width:100%;overflow-x:auto;overflow-y:hidden;margin:8px 0;}
+  /* 宽公式：容器内横向滚动。上下必须留 padding —— 否则 overflow:hidden 会把分式/上下标的
+     上下沿裁掉（裁剪边界在 padding 盒，padding 是给溢出墨迹留的空间；2026-10-21 修正）。 */
+  .katex-display{text-align:center;max-width:100%;overflow-x:auto;overflow-y:hidden;margin:4px 0;padding:.5em 0;}
   code{background:#f2f2f2;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}
   pre{background:#f6f6f6;padding:8px;border-radius:4px;overflow-x:auto;}
   strong,b{font-weight:bold;} em,i{font-style:italic;}
@@ -80,8 +82,8 @@ function renderOne(raw){
   else if(/^\\begin\{/.test(raw)){display=true;}
   else if(/^\$/.test(raw)){tex=raw.slice(1,-1);display=false;}
   try{
-    var r=katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false});
-    return display?'<div class="katex-display">'+r+'</div>':r;
+    // ⚠️ display 模式不要再套 <div class="katex-display">：KaTeX 本身已输出 <span class="katex-display">
+    return katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false});
   }catch(e){ return esc(raw); }
 }
 

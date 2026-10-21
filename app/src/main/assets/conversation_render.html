@@ -33,7 +33,11 @@
   .bubble.user{background:var(--bubble-user);color:var(--fg);align-self:flex-end;border:1px solid var(--bubble-user-border);}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}
-  .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:6px 0;}
+  /* 宽公式：容器内横向滚动。
+     ⚠️ **上下必须留 padding**（2026-10-21 用户反馈「分式里字母的顶部被削掉」）：
+        KaTeX 把分式/上下标画在内容盒外一点点，而 overflow:hidden 的裁剪边界在 **padding 盒** ——
+        没有 padding 就等于贴着字形裁，顶端那一点被直接切掉。padding = 给溢出的墨迹留的"救命空间"。 */
+  .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:4px 0;padding:.5em 0;}
   /* 生成中断后的蓝色「继续生成」一行 */
   .continue{color:#2196F3;font-weight:600;padding:8px 2px 2px 2px;cursor:pointer;}
   /* ── 多选：气泡右上角选择圆圈 + 选中红框（用 inset 阴影避免边框改变布局） ── */
@@ -111,7 +115,10 @@ function renderOne(raw){
   else if(/^\\\(/.test(raw)){tex=raw.slice(2,-2);display=false;}
   else if(/^\\begin\{/.test(raw)){display=true;}
   else if(/^\$/.test(raw)){tex=raw.slice(1,-1);display=false;}
-  try{ var r=katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false}); return display?'<div class="katex-display">'+r+'</div>':r; }catch(e){ return esc(raw); }
+  // ⚠️ display 模式**不要**再套一层 <div class="katex-display">：KaTeX 的输出本身就是
+  //    <span class="katex-display">（2026-10-21 实测确认）。套两层会让"横向滚动 + 竖向裁剪"
+  //    的样式同时作用两遍、margin 叠成双份，也更容易把分式的上下沿裁掉。
+  try{ return katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false}); }catch(e){ return esc(raw); }
 }
 function renderMath(text){
   var tok=tokenize(text||''), body=mdToHtml(esc(tok.text));
