@@ -223,6 +223,25 @@ interface QuestionDao {
     @Insert
     suspend fun insertImages(list: List<QuestionImage>): List<Long>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM questions WHERE id = :qid)")
+    suspend fun questionExists(qid: Long): Boolean
+
+    /** 同一事务内检查并追加，不清除、不重排已有图片。 */
+    @androidx.room.Transaction
+    suspend fun appendMissingImages(qid: Long, candidates: List<ByteArray>, source: String): Int {
+        if (!questionExists(qid)) return 0
+        val existing = imagesForQuestion(qid)
+        val missing = additionalQuestionImages(existing.map { it.bytes }, candidates)
+        if (missing.isEmpty()) return 0
+        val firstPosition = (existing.maxOfOrNull { it.position } ?: -1) + 1
+        val now = System.currentTimeMillis()
+        insertImages(missing.mapIndexed { index, bytes ->
+            QuestionImage(questionId = qid, position = firstPosition + index,
+                bytes = bytes, source = source, createdAt = now)
+        })
+        return missing.size
+    }
+
     @Query("DELETE FROM question_images WHERE questionId = :qid")
     suspend fun clearImages(qid: Long)
 
@@ -348,9 +367,6 @@ interface QuestionDao {
     @Query("DELETE FROM solve_sessions WHERE id IN (:ids)")
     suspend fun deleteSolveSessionsByIds(ids: List<Long>)
 
-    /** 删除某时间点之前（不含）的记录，返回删除条数 */
-    @Query("DELETE FROM solve_sessions WHERE createdAt < :ts")
-    suspend fun deleteSolveSessionsBefore(ts: Long): Int
 }
 
 /** 数据库 1 -> 2：给 questions 表加 imageBytes 列，保留现有错题 */
@@ -448,11 +464,13 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
-@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = 9, exportSchema = false)
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
     companion object {
+        const val SCHEMA_VERSION = 9
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 

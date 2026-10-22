@@ -87,4 +87,54 @@ class ConversationImagesTest {
         assertTrue(mergeImageKeys(null, emptyList()).isEmpty())
         assertTrue(mergeImageKeys("   ", listOf("", " ")).isEmpty())
     }
+
+
+    @Test
+    fun `保留已有主图并按内容去重追加（不同数组同内容）`() {
+        val main = byteArrayOf(1, 2)
+        val next = byteArrayOf(3, 4)
+        val result = additionalQuestionImages(listOf(main), listOf(main.copyOf(), next, next.copyOf()))
+        assertEquals(1, result.size)
+        assertTrue(next.contentEquals(result.single()))
+        assertTrue(main.contentEquals(byteArrayOf(1, 2)))
+    }
+
+    @Test
+    fun `已有两张时即使候选也两张仍能补入不同的第三张`() {
+        val a = byteArrayOf(1)
+        val b = byteArrayOf(2)
+        val c = byteArrayOf(3)
+        val result = additionalQuestionImages(listOf(a, b), listOf(b.copyOf(), c))
+        assertEquals(1, result.size)
+        assertTrue(c.contentEquals(result.single()))
+    }
+
+    @Test
+    fun `保留三张上限且已满时不覆盖任何已有图`() {
+        assertTrue(additionalQuestionImages(listOf(byteArrayOf(1), byteArrayOf(2), byteArrayOf(3)),
+            listOf(byteArrayOf(4))).isEmpty())
+        assertEquals(3, additionalQuestionImages(emptyList(), (1..5).map { byteArrayOf(it.toByte()) }).size)
+    }
+
+    @Test
+    fun `重复修复不再追加且空字节不占图片名额`() {
+        val candidates = listOf(byteArrayOf(), byteArrayOf(1), byteArrayOf(2))
+        val first = additionalQuestionImages(emptyList(), candidates)
+        assertEquals(2, first.size)
+        assertTrue(additionalQuestionImages(first, candidates).isEmpty())
+    }
+
+    @Test
+    fun `同 DB 小版本更新不再提示，DB 升版仍提示`() {
+        assertTrue(!needsDataUpgradePrompt(9, 9, 9, false))
+        assertTrue(needsDataUpgradePrompt(10, 9, 9, false))
+    }
+
+    @Test
+    fun `新安装完整数据不提示，首次发现旧格式提示`() {
+        assertTrue(!needsDataUpgradePrompt(9, 0, 0, false))
+        assertTrue(needsDataUpgradePrompt(9, 9, 0, true))
+        assertTrue(!needsDataUpgradePrompt(9, 9, 9, true))
+    }
+
 }

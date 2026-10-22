@@ -5,6 +5,14 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.2
+· ℹ️ “关于”页增加 GPT-6.1 Sol 辅助编写说明，保留 DeepSeek-V4/V4.1
+· 🕘 统一搜题记录过期清理的时间兜底，避免有效记录被误删
+· 📚 从搜题记录打开已存错题时读取最新内容、分类和标签；对应错题已删除时独立查看，不自动恢复
+· 💾 隔离题目保存状态，避免快速切换时串写；事务保存关联数据，原图仅追加缺失内容
+· 🛠 数据升级提示按 DB 版本管理，不随小版本重复提示；一键升级无需变更时提示“无需升级”
+· 📌 DB v9、备份 v2 不变；无原图来源的旧题无法恢复，手动修复的进一步改进暂缓
+
 v0.6.6.1
 · 🧭 **页面跳转理顺成"树"**：新增 `ui/AppNav.kt`（全应用页面树 = 唯一导航事实源）。进解题页要带上**来路**（home / camera / grade / history / notebook / review），返回按来路走 —— 修掉「从**搜题记录**打开一道拍过照的题，返回却跳到**拍照界面**」
 · 🔤 **顶栏标题字号统一**：设置子页面（AI 管理 / 语言 / 主题 / 通知 / 数据管理 / 应用更新 / 关于）、搜题记录、错题本、复习的标题，全部与**解题页**一致（19sp；返回箭头仍 21sp）
@@ -348,6 +356,14 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.2
+· ℹ️ Credit GPT-6.1 Sol alongside DeepSeek-V4/V4.1 in the About page
+· 🕘 Use a consistent timestamp fallback when pruning search history to avoid removing valid records
+· 📚 Open linked notebook problems with their latest content, category and tags; view history independently when the linked problem is deleted
+· 💾 Isolate save state between problems, save related data in transactions, and append only missing original images
+· 🛠 Tie data upgrade prompts to the DB version rather than app patches; show “No upgrade is needed” when nothing needs updating
+· 📌 DB v9 and backup v2 are unchanged; old images without a remaining source cannot be recovered, and further manual repair improvements are deferred
+
 v0.6.6.1
 · 🧭 **Navigation turned into an explicit page tree**: new `ui/AppNav.kt` (single source of truth for every jump). The solve screen is now told where it was opened from (home / camera / grade / history / notebook / review) and its back button follows that — fixes "open a photo question from **search history**, press back, and land in the **camera**"
 · 🔤 **Unified top-bar title size**: settings sub-pages (AI / language / theme / notifications / data / update / about), search history, notebook and review now match the **solve screen** (19sp; the back arrow stays 21sp)
@@ -691,6 +707,14 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.2
+· ℹ️ アプリ情報の開発支援モデルに DeepSeek-V4/V4.1 と併せて GPT-6.1 Sol を記載
+· 🕘 検索履歴の期限判定で日時の補完処理を統一し、有効な履歴の誤削除を防止
+· 📚 保存済み問題の履歴を開くと最新の内容・分類・タグを表示。元の問題が削除済みなら履歴だけを表示し、自動復元しません
+· 💾 問題ごとの保存状態を分離し、関連データをトランザクションで保存。元画像は不足分のみ追加
+· 🛠 データ更新の案内は DB バージョンに基づき、小規模更新ごとには繰り返しません。変更不要なら「更新は不要です」と表示
+· 📌 DB v9・バックアップ v2 は変更なし。元画像の保存先が残っていない旧問題は復元できず、手動修復の追加改善は保留
+
 v0.6.6.1
 · 🧭 **ページ遷移を「ツリー」に整理**：`ui/AppNav.kt`（アプリ全体のページツリー＝唯一のナビゲーション情報源）を追加。解答画面へ入るときは**来た元**（home / camera / grade / history / notebook / review）を渡し、戻るはその元へ —— 「**検索履歴**から写真の問題を開いて戻ると**カメラ**へ飛ぶ」不具合を修正
 · 🔤 **上部バーのタイトル文字サイズを統一**：設定のサブページ（AI 管理 / 言語 / テーマ / 通知 / データ管理 / アプリ更新 / このアプリについて）、検索履歴、間違いノート、復習を**解答画面**と同じ 19sp に（戻る矢印は 21sp のまま）
@@ -1034,6 +1058,14 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.2
+· ℹ️ 앱 정보에 기존 DeepSeek-V4/V4.1과 함께 GPT-6.1 Sol 개발 지원 표기 추가
+· 🕘 검색 기록 정리 시 날짜 대체 처리를 통일하여 유효한 기록이 잘못 삭제되는 문제 방지
+· 📚 오답 노트에 저장된 기록은 최신 내용·분류·태그로 열며, 원래 문제가 삭제된 경우 기록만 독립적으로 표시
+· 💾 문제별 저장 상태를 분리하고 관련 데이터를 트랜잭션으로 저장하며, 원본 이미지는 누락된 항목만 추가
+· 🛠 데이터 업그레이드 안내는 DB 버전을 기준으로 하여 소규모 업데이트마다 반복하지 않으며, 변경이 없으면 업그레이드가 필요 없다고 표시
+· 📌 DB v9와 백업 v2는 유지. 원본이 남아 있지 않은 이전 문제의 이미지는 복구할 수 없으며 수동 복구의 추가 개선은 보류
+
 v0.6.6.1
 · 🧭 **페이지 이동을 트리로 정리**: `ui/AppNav.kt`(앱 전체 페이지 트리 = 유일한 내비게이션 정보원) 추가. 풀이 화면에 들어갈 때 **어디서 왔는지**(home / camera / grade / history / notebook / review)를 함께 넘기고 뒤로 가기는 그곳으로 — 「**검색 기록**에서 사진 문제를 열고 뒤로 가면 **카메라**로 가던」버그 수정
 · 🔤 **상단 바 제목 글자 크기 통일**: 설정 하위 페이지(AI 관리 / 언어 / 테마 / 알림 / 데이터 관리 / 앱 업데이트 / 정보), 검색 기록, 오답 노트, 복습을 **풀이 화면**과 같은 19sp로 (뒤로 가기 화살표는 21sp 유지)

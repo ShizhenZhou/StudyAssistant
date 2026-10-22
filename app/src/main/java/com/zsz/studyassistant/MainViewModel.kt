@@ -5,6 +5,7 @@ import android.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.room.withTransaction
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.zsz.studyassistant.data.AiLang
@@ -282,11 +283,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var networkError by mutableStateOf(false)
         private set
     private var retryAction: (() -> Unit)? = null
-    private var saving = false
-    private var cancelPending = false
+    private var saving: Boolean
+        get() = sessionRecordBinding.saving
+        set(value) { sessionRecordBinding.saving = value }
+    private var cancelPending: Boolean
+        get() = sessionRecordBinding.cancelPending
+        set(value) { sessionRecordBinding.cancelPending = value }
     private var isPhoto = false
-    /** 正在为"轻查询"结果补全重字段（防重入） */
-    private var heavyRedirect = false
     /** 本次会话是否来自「图文提问」（用于标题保持"图文提问"） */
     var askMode by mutableStateOf(false)
         private set
@@ -305,72 +308,83 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * null = 本会话还没落库（或刚开始）；非 null = 后续追问/继续生成一律 UPDATE 这条。
      * 在 [resetSession] / [prepareSession] 里清空（换了新会话）。
      */
-    private var currentSessionId: Long? = null
+    private class SolveSessionBinding(
+        var id: Long? = null,
+        var createdAt: Long = 0L,
+        var source: String? = null,
+        var saving: Boolean = false,
+        var cancelPending: Boolean = false
+    )
 
-    /** 当前记录的原始时间戳（UPDATE 时原样带回，避免"追问一次就把创建时间刷新成现在"） */
-    private var solveSessionCreatedAt: Long = 0L
+    private var sessionRecordBinding = SolveSessionBinding()
+    private val solveSessionWriteMutex = kotlinx.coroutines.sync.Mutex()
+    private val dataMaintenanceMutex = kotlinx.coroutines.sync.Mutex()
+
+    private var currentSessionId: Long?
+        get() = sessionRecordBinding.id
+        set(value) { sessionRecordBinding.id = value }
+
+    private var solveSessionCreatedAt: Long
+        get() = sessionRecordBinding.createdAt
+        set(value) { sessionRecordBinding.createdAt = value }
 
 
     /** 启动时定期清理：软删除的题 + 孤儿复习记录/标签关联（不影响当前会话的「恢复」） */
     fun purgeDeletedData() {
         viewModelScope.launch {
-            runCatching {
-                dao.purgeDeletedQuestions()
-                dao.purgeOrphanReviews()
-                dao.purgeOrphanQuestionTags()
+            dataMaintenanceMutex.lock()
+            var maintained = false
+            try {
+                // 保留原有启动清理政策；先恢复可恢复图片，再裁剪搜题记录。
+                val db = AppDatabase.get(getApplication())
+                db.withTransaction {
+                    dao.purgeDeletedQuestions()
+                    dao.purgeOrphanReviews()
+                    dao.purgeOrphanQuestionTags()
+                    repairQuestionImagesFromSessions()
+                    backfillQuestionImages()
+                    fillImagesTable()
+                    dao.purgeOrphanImages()
+                }
+                maintained = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // 启动维护失败不阻塞使用，也不把失败记作“已修复”。
+            } finally {
+                dataMaintenanceMutex.unlock()
             }
-            // ★ 顺序很重要：先从**搜题记录**把历史上丢掉的多图补回会话 JSON，
-            //   再据此回填主图（`imageBytes` 为空的老数据也能一起修好），
-            //   最后把图补齐进 DB v9 的 `question_images`（**旧数据原地升级**的关键一步）
-            repairQuestionImagesFromSessions()
-            backfillQuestionImages()
-            fillImagesTable()
-            dao.purgeOrphanImages()
+            // 维护失败时保留可能仍有恢复价值的记录，避免马上裁掉修复来源。
+            if (maintained) pruneSolveSessions()
         }
-        // 搜题记录同样在启动时裁剪一次（保留最近 200 条 / 最近 30 天）
-        pruneSolveSessions()
     }
 
     /**
-     * 「多图修复」（2026-10-14）：把**历史上"存进错题本时丢了第二张图"**的题补回来。
-     *
-     * 背景：多图拍题的题目气泡曾**不带 images**（已在 `solveWithImages` 修好）→ 存档的 `conversationJson`
-     * 里根本只有一张（或没有）图。但**搜题记录**（`solve_sessions.imagesJson`）当时是存了全部图的 ✅，
-     * 所以这里按 `savedQuestionId`（其次按题干文本）找回记录，把图**补写进该题的 `conversationJson`**，
-     * 之后读取端（错题本卡片 / 复习自测 / 详情页）的合并逻辑就能完整显示。
-     *
-     * 幂等且安全：只在"会话里的图**少于**记录里的图"时才写；解析失败一律跳过，**绝不删已有图**。
+     * 只使用 savedQuestionId 明确关联的记录补图；只追加，不改写原会话、不按题干猜配。
+     * 异常向上传播，由维护流程的事务负责回滚。
      */
+    /** 从现有表、旧主图、题目会话和明确关联的记录收集原图；不修改这些来源。 */
+    private suspend fun recoverableImages(q: Question, includeSession: Boolean): List<ByteArray> {
+        val result = dao.imagesForQuestion(q.id).sortedBy { it.position }.map { it.bytes }.toMutableList()
+        q.imageBytes?.let { result.add(it) }
+        val keys = questionImageBase64(q.conversationJson).toMutableList()
+        if (includeSession) {
+            // 不根据“题干恰好相同”猜关联，避免把另一道题的图补进来。
+            val session = dao.solveSessionForQuestion(q.id)
+            session?.imageBytes?.let { result.add(it) }
+            session?.imagesJson?.let { keys += json.decodeFromString<List<String>>(it) }
+            keys += questionImageBase64(session?.conversationJson)
+        }
+        keys.filter { it.isNotBlank() }.forEach { result.add(Base64.decode(it, Base64.NO_WRAP)) }
+        return result
+    }
+
     private suspend fun repairQuestionImagesFromSessions() {
-        runCatching {
-            val rows = dao.questionsWithConversationOnce()
-            var fixed = 0
-            for (q in rows) {
-                val have = questionImageBase64(q.conversationJson)
-                val s = dao.solveSessionForQuestion(q.id)
-                    ?: q.text.takeIf { it.isNotBlank() }?.let { t -> dao.solveSessionByText(t) }
-                    ?: continue
-                val all = runCatching { s.imagesJson?.let { j -> json.decodeFromString<List<String>>(j) } }
-                    .getOrNull().orEmpty()
-                if (all.size <= have.size) continue                    // 没丢就不动
-                val merged = mergeImageKeys(have.firstOrNull(), all)   // 保序 + 去重 + 上限 3
-                val items = runCatching { json.decodeFromString<List<ChatItem>>(q.conversationJson.orEmpty()) }
-                    .getOrNull() ?: continue
-                val newItems = if (items.any { it.role == "question" }) {
-                    items.map { if (it.role == "question") it.copy(images = merged) else it }
-                } else {
-                    listOf(ChatItem(0L, "question", q.text, merged)) + items
-                }
-                dao.setConversationJson(q.id, json.encodeToString(newItems))
-                // ★ 顺手把它们也写进 DB v9 的 `question_images`（读取端从此不依赖会话里的 base64）
-                val bytesList = merged.take(MAX_QUESTION_IMAGES).mapNotNull { b64 ->
-                    runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull()
-                }
-                if (bytesList.isNotEmpty()) writeQuestionImages(q.id, bytesList, source = "repair")
-                fixed++
-            }
-            if (fixed > 0) {
-                android.util.Log.i("StudyAssistant", "多图修复：已补回 $fixed 条错题的附图")
+        val db = AppDatabase.get(getApplication())
+        for (row in dao.questionsWithConversationOnce()) {
+            db.withTransaction {
+                val q = dao.heavyOnce(row.id) ?: return@withTransaction
+                dao.appendMissingImages(q.id, recoverableImages(q, includeSession = true), "repair")
             }
         }
     }
@@ -387,34 +401,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 幂等且安全：只处理 `imageBytes IS NULL` 的行；解析/解码失败直接跳过，**绝不动已有图**。
      */
     private suspend fun backfillQuestionImages() {
-        runCatching {
-            val rows = dao.questionsMissingImageOnce()
-            var fixed = 0
-            for (r in rows) {
-                val b64 = questionImageBase64(r.conversationJson).firstOrNull() ?: continue
-                val bytes = runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull() ?: continue
-                if (bytes.isEmpty()) continue
-                dao.setQuestionImage(r.id, bytes)
-                fixed++
-            }
-            if (fixed > 0) {
-                android.util.Log.i("StudyAssistant", "原图回填：已修复 $fixed 条错题的主图")
+        val db = AppDatabase.get(getApplication())
+        for (row in dao.questionsWithConversationOnce()) {
+            db.withTransaction {
+                val q = dao.heavyOnce(row.id) ?: return@withTransaction
+                if (q.imageBytes == null) {
+                    val main = recoverableImages(q, includeSession = true).firstOrNull { it.isNotEmpty() }
+                    if (main != null) dao.setQuestionImage(q.id, main)
+                }
             }
         }
     }
 
-    /** 把某题的原图写入 DB v9 的 `question_images`（覆盖式、幂等；最多 3 张） */
+    /** 原图只按内容去重追加；保留已有主图和顺序，缺图插入失败向上传播。 */
     private suspend fun writeQuestionImages(qid: Long, images: List<ByteArray>, source: String = "save") {
         if (images.isEmpty()) return
-        runCatching {
-            dao.clearImages(qid)
-            val now = System.currentTimeMillis()
-            dao.insertImages(
-                images.take(MAX_QUESTION_IMAGES).mapIndexed { i, b ->
-                    QuestionImage(questionId = qid, position = i, bytes = b, source = source, createdAt = now)
-                }
-            )
-        }
+        dao.appendMissingImages(qid, images, source)
     }
 
     /**
@@ -426,22 +428,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 只做加法、失败跳过，**绝不动已有图**（也不改 `imageBytes`，避免把主图换成会话里的另一张）。
      */
     private suspend fun fillImagesTable() {
-        runCatching {
-            var fixed = 0
-            for (r in dao.questionsWithConversationOnce()) {
-                val keys = questionImageBase64(r.conversationJson)
-                if (keys.isEmpty()) continue
-                val have = dao.imagesForQuestion(r.id)
-                if (have.size >= keys.size) continue                       // 已经齐了
-                val bytesList = keys.take(MAX_QUESTION_IMAGES).mapNotNull { b64 ->
-                    runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull()
-                }
-                if (bytesList.isEmpty()) continue
-                writeQuestionImages(r.id, bytesList, source = "upgrade")
-                fixed++
-            }
-            if (fixed > 0) {
-                android.util.Log.i("StudyAssistant", "DB v9 补全：已把 $fixed 条错题的原图整理进 question_images")
+        val db = AppDatabase.get(getApplication())
+        for (row in dao.questionsWithConversationOnce()) {
+            db.withTransaction {
+                val q = dao.heavyOnce(row.id) ?: return@withTransaction
+                dao.appendMissingImages(q.id, recoverableImages(q, includeSession = false), "upgrade")
             }
         }
     }
@@ -563,45 +554,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 不会出现"列表显示的和点进去看到的不一样"。
      */
     private fun recordSolveSession(source: String) {
+        val binding = sessionRecordBinding
         val imgs = when {
+            questionImages.isNotEmpty() -> questionImages.mapNotNull {
+                runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
+            }
             multiImages.isNotEmpty() -> multiImages
             directImages.isNotEmpty() -> directImages
             imageBytes != null -> listOf(imageBytes!!)
             else -> emptyList()
         }
         val q = questionText.ifBlank {
-            if (imgs.isEmpty()) return          // 没题干也没图：不值得留一条空记录
+            if (imgs.isEmpty()) return
             runCatching { StudyAssistant.parseVisionOutput(lastAnswer()).question }
                 .getOrNull()?.trim().orEmpty().ifBlank { "（图片题）" }
         }
         val a = lastAnswer()
         val conv = json.encodeToString(chatItems)
         val single = if (imgs.size == 1) imgs[0] else null
-        val multi = if (imgs.size > 1) json.encodeToString(imgs.map { Base64.encodeToString(it, Base64.NO_WRAP) }) else null
+        val multi = if (imgs.size > 1) json.encodeToString(imgs.map {
+            Base64.encodeToString(it, Base64.NO_WRAP)
+        }) else null
+        val linkedQuestionId = savedQuestionId
         val now = System.currentTimeMillis()
-        val sid = currentSessionId
-        // ★ 2026-10-13 修（用户实测：**今天刚搜的题被分到「更早」**）：
-        //   INSERT 原来靠实体默认值 `createdAt = System.currentTimeMillis()`，但**没有把它记进
-        //   `solveSessionCreatedAt`**（那个字段只在 `loadSolveSession` 里赋值，初值是 0）→ 之后任何一次
-        //   UPDATE（追问 / 重新生成 / 批改）都会写 `createdAt = 0` → 记录掉进"更早"分组。
-        //   现在：显式带上 createdAt 并在 insert 后记下来；UPDATE 侧再加一道 `≤0 → now` 兜底
-        //   （这样历史坏数据也会在下次更新时被修好）。
-        val created = if (sid == null) now else solveSessionCreatedAt.takeIf { it > 0L } ?: now
-        solveSessionCreatedAt = created
         viewModelScope.launch {
-            runCatching {
-                if (sid == null) {
-                    currentSessionId = dao.insertSolveSession(
-                        SolveSession(source = source, createdAt = created, updatedAt = now, text = q, answer = a,
-                            conversationJson = conv, imageBytes = single, imagesJson = multi, savedQuestionId = savedQuestionId)
-                    )
-                } else {
-                    dao.updateSolveSession(
-                        SolveSession(id = sid, createdAt = created, updatedAt = now,
-                            source = source, text = q, answer = a, conversationJson = conv,
-                            imageBytes = single, imagesJson = multi, savedQuestionId = savedQuestionId)
-                    )
-                }
+            solveSessionWriteMutex.lock()
+            try {
+                val sid = binding.id
+                val created = binding.createdAt.takeIf { it > 0L } ?: now
+                val actualSource = binding.source ?: source
+                val row = SolveSession(
+                    id = sid ?: 0L, source = actualSource, createdAt = created,
+                    updatedAt = now, text = q, answer = a, conversationJson = conv,
+                    imageBytes = single, imagesJson = multi, savedQuestionId = linkedQuestionId
+                )
+                if (sid == null) binding.id = dao.insertSolveSession(row)
+                else dao.updateSolveSession(row)
+                binding.createdAt = created
+                binding.source = actualSource
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // 保持已有的静默记录行为；不把数据库内容写入日志。
+            } finally {
+                solveSessionWriteMutex.unlock()
             }
         }
     }
@@ -616,74 +612,60 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching {
                 val cutoff = System.currentTimeMillis() - SOLVE_SESSION_KEEP_DAYS * DAY_MS
-                val light = dao.solveSessionsLightOnce()
-                val ids = solveSessionsToDelete(light, cutoff, SOLVE_SESSION_KEEP)
+                val ids = solveSessionsToDelete(dao.solveSessionsLightOnce(), cutoff, SOLVE_SESSION_KEEP)
                 if (ids.isNotEmpty()) dao.deleteSolveSessionsByIds(ids)
-                // 兜底：createdAt 异常（未来时间戳等）导致上面的倒序裁剪漏掉的，按时间再删一遍
-                dao.deleteSolveSessionsBefore(cutoff)
                 dropCurrentSessionIfPruned(ids)
             }
         }
     }
 
     /**
-     * 把一条搜题记录载回会话状态（与 [loadQuestion] 同构，但**不**标成「已存错题本」——
-     * 它是"记录"，不是已存的错题；[savedToNotebook] 保持 false，用户仍可点「存错题本」）。
-     * 重字段（原图 / 会话 JSON）由调用方先用 `dao.solveSessionOnce(id)` 取好再传进来。
+     * 已存记录读取对应错题的最新内容；对应错题不存在 / 已软删除时，独立查看记录。
+     * 返回 true 后调用方才导航，期间保留 opening，避免重复打开。
      */
-    fun loadSolveSession(s: SolveSession) {
-        callSeq++                       // 让旧请求收尾时不再覆盖界面状态
-        callJob?.cancel()
-        callJob = null
-        busy = false
-        streamingText = null
-        streamInterrupted = false
-        contMessages = null
-        contOnDone = null
-        contPrefix = ""
-        networkError = false
-        retryAction = null
-        gradeMode = false
-        reviewMode = false
-        exitRedo()
-        // 来源还原：camera → 复习"拍照题"分支（气泡只显示原图）；ask/grade 是用户自己写的文字 → 不做题干转译
-        isPhoto = s.source == "camera"
-        askMode = s.source == "ask"
-        chatItems = try {
-            json.decodeFromString<List<ChatItem>>(s.conversationJson ?: "")
+    suspend fun loadSolveSession(s: SolveSession): Boolean {
+        stopActiveGeneration()
+        val seq = callSeq
+        try {
+            val linked = s.savedQuestionId?.let { dao.heavyOnce(it) }
+            if (seq != callSeq) return false
+            if (linked != null && !linked.deleted) {
+                // 用户选择 A：以错题本最新内容为准，但继续绑定这条搜题记录。
+                loadQuestion(linked, historySession = s)
+                return true
+            }
+            // 对应错题已删除或不存在：记录仍可查看，不再回写失效的错题 id。
+            resetSession()
+            sessionRecordBinding = SolveSessionBinding(
+                s.id, s.createdAt.takeIf { it > 0L } ?: s.updatedAt, s.source
+            )
+            exitRedo()
+            isPhoto = s.source == "camera"
+            askMode = s.source == "ask"
+            chatItems = runCatching {
+                json.decodeFromString<List<ChatItem>>(s.conversationJson.orEmpty())
+            }.getOrDefault(emptyList())
+            if (chatItems.isEmpty()) {
+                chatItems = listOf(ChatItem(0, "question", s.text), ChatItem(1, "assistant", s.answer))
+            }
+            questionText = s.text
+            imageBytes = s.imageBytes
+            val multiKeys = s.imagesJson?.let { json.decodeFromString<List<String>>(it) }.orEmpty()
+            questionImages = mergeImageKeys(
+                s.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
+                multiKeys + questionImageBase64(s.conversationJson)
+            )
+            directImages = questionImages.map { Base64.decode(it, Base64.NO_WRAP) }
+            questionFromPhoto = isPhoto && questionImages.isNotEmpty()
+            currentQuestionCreatedAt = s.createdAt
+            return true
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            emptyList()
+            error = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                .format("data.failed", "msg" to (e.message ?: ""))
+            return false
         }
-        if (chatItems.isEmpty()) {
-            chatItems = listOf(ChatItem(0, "question", s.text), ChatItem(1, "assistant", s.answer))
-        }
-        questionText = s.text
-        imageBytes = s.imageBytes
-        questionFromPhoto = s.imageBytes != null && isPhoto
-        // 多图（imagesJson = base64 数组的 JSON）→ 还原成内存图，这样"继续追问带图"仍能带上原图
-        val multiKeys: List<String> = runCatching {
-            s.imagesJson?.let { j -> json.decodeFromString<List<String>>(j) }
-        }.getOrNull().orEmpty()
-        directImages = multiKeys.mapNotNull { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
-        multiImages = emptyList()
-        // ★ 2026-10-14：主图与会话/记录里的多图**合并去重**（别让"有主图就只用主图"吞掉其余图）
-        questionImages = mergeImageKeys(
-            s.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
-            multiKeys
-        )
-        // ★ 不标 savedToNotebook：它是"搜题记录"。已存过错题本时只把 savedQuestionId 带回来（界面可显示 ✅）
-        savedToNotebook = false
-        savedQuestionId = s.savedQuestionId
-        isDeleted = false
-        isFromNotebook = false
-        currentQuestionCategoryId = null
-        currentQuestionTags = emptyList()
-        suggestedCategory = null
-        suggestedTags = emptyList()
-        currentQuestionCreatedAt = s.createdAt
-        currentSessionId = s.id
-        solveSessionCreatedAt = s.createdAt
-        error = null
     }
 
     /**
@@ -826,22 +808,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 开始新一题：清空当前对话与状态 */
     fun startNewQuestion() {
-        chatItems = emptyList()
-        questionText = ""
-        imageBytes = null
-        error = null
-        savedToNotebook = false
-        savedQuestionId = null
-        isFromNotebook = false
-        suggestedCategory = null
-        suggestedTags = emptyList()
-        currentQuestionCategoryId = null
-        currentQuestionTags = emptyList()
-        reviewMode = false
-        directImages = emptyList()
-        multiImages = emptyList()
-        questionImages = emptyList()
-        questionFromPhoto = false
+        saveSessionOnExit()
+        stopActiveGeneration()
+        resetSession()
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
@@ -915,20 +884,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun resetSession() {
-        askMode = false   // 每次进入新会话先复位，只有图文提问入口会置 true
+        sessionRecordBinding = SolveSessionBinding()
+        askMode = false
         chatItems = emptyList()
         imageBytes = null
         questionText = ""
         error = null
         savedToNotebook = false
         savedQuestionId = null
-        // 搜题记录：新会话不再指向旧记录（防"一次会话落多条"与"覆盖上一条"）
-        currentSessionId = null
-        solveSessionCreatedAt = 0L
+        isFromNotebook = false
+        isDeleted = false
+        isPhoto = false
         suggestedCategory = null
         suggestedTags = emptyList()
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
+        currentQuestionCreatedAt = 0L
         reviewMode = false
         gradeMode = false
         directImages = emptyList()
@@ -1268,22 +1239,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var upgradePromptChecked = false
 
     /**
-     * 更新后首次进入时调用一次（**按版本号提示一次**，不重复打扰）。
-     *
-     * ★ 2026-10-17 修正：原来只有"检出旧格式数据"才弹 —— 但 v8→v9 的 SQL 迁移会自动把旧主图搬进新表，
-     *   于是判定为"无需升级" → **装完新版一次都不弹**（用户实测踩到）。
-     *   现在改为"**版本变了就提示一次**"（这正是用户规格："更新完后弹出对话框，提示数据格式需要升级"）；
-     *   是否真的缺数据由「一键升级」再兜底，二者互不阻塞。标记在**弹出时**写入。
+     * 数据升级提示跟随 DB schema，不跟随 App 小版本。
+     * 兼容以前已显示的 v9 提示；读取旧格式时仍有独立警示。
      */
     fun checkUpgradePromptOnce(currentVersion: String) {
         if (upgradePromptChecked) return
         upgradePromptChecked = true
-        runCatching {
-            val prefs = getApplication<Application>()
-                .getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-            if (prefs.getString("upgrade_prompt_version", null) == currentVersion) return
-            prefs.edit().putString("upgrade_prompt_version", currentVersion).apply()
-            showUpgradePrompt = true
+        viewModelScope.launch {
+            dataMaintenanceMutex.lock()
+            try {
+                val prefs = getApplication<Application>()
+                    .getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                val schema = AppDatabase.SCHEMA_VERSION
+                val oldAppMarker = prefs.getString("upgrade_prompt_version", null)
+                val shownV9Previously = oldAppMarker == "0.6.6" || oldAppMarker == "0.6.6.1"
+                val baseline = if (shownV9Previously) 9 else 0
+                val previous = prefs.getInt("data_upgrade_seen_schema", baseline)
+                val prompted = prefs.getInt("data_upgrade_prompted_schema", baseline)
+                val legacy = needsImageUpgrade()
+                val shouldPrompt = com.zsz.studyassistant.data.needsDataUpgradePrompt(
+                    schema, previous, prompted, legacy
+                )
+                val editor = prefs.edit().putInt("data_upgrade_seen_schema", schema)
+                if (shouldPrompt) editor.putInt("data_upgrade_prompted_schema", schema)
+                editor.apply()
+                showUpgradePrompt = shouldPrompt
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // 读取失败时不写“已提示 / 已完成”，以后仍可重试。
+                upgradePromptChecked = false
+            } finally {
+                dataMaintenanceMutex.unlock()
+            }
         }
     }
 
@@ -1302,10 +1290,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 还有"有图但没进新表"的题 ⇒ 需要升级（一次查询 + 一次轻扫描） */
     private suspend fun needsImageUpgrade(): Boolean {
-        val have = runCatching { dao.questionIdsWithImages() }.getOrDefault(emptyList()).toHashSet()
-        for (r in dao.questionsWithConversationOnce()) {
-            if (r.id in have) continue
-            if (questionImageBase64(r.conversationJson).isNotEmpty()) return true
+        for (row in dao.questionsWithConversationOnce()) {
+            val q = dao.heavyOnce(row.id) ?: continue
+            val existing = dao.imagesForQuestion(q.id).map { it.bytes }
+            val candidates = recoverableImages(q, includeSession = true)
+            if (com.zsz.studyassistant.data.additionalQuestionImages(existing, candidates).isNotEmpty()) return true
+            if (q.imageBytes == null && candidates.any { it.isNotEmpty() }) return true
         }
         return false
     }
@@ -1314,43 +1304,53 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 「一键升级」（数据升级/修复）：把**旧数据**整理进 DB v9 的 `question_images` 新结构。
      * 幂等、可重复执行；只做加法（不动已有图、不改 `imageBytes`）。
      */
-    fun upgradeData() {        viewModelScope.launch {
-            dataBusy = true
-            try {
-                fillImagesTable()
-                val n = runCatching { dao.questionsWithConversationOnce().size }.getOrDefault(0)
-                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                    .format("data.upgradeDone", "n" to "$n")
-            } catch (e: Exception) {
-                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
-            } finally {
-                dataBusy = false
-            }
-        }
+    private fun recordImageRepairSuccess() {
+        getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit().putInt("image_repair_schema", AppDatabase.SCHEMA_VERSION)
+            .putLong("image_repair_last_success_at", System.currentTimeMillis()).apply()
+    }
+
+    fun upgradeData() {
+        repairData(isUpgrade = true)
     }
 
     /**
-     * 「修复数据」：补全丢失的原图（从会话 / 搜题记录）+ 回填主图 + 清理孤儿数据。
-     * 幂等、可重复执行；**绝不删已有图**。
+     * 先检查原图完整性：完整则无需修复，否则事务内追加、回填并复查。
+     * 不清除软删除题目；成功提交后才记录完成的 DB 版本与时间。
      */
-    fun repairData() {
+    fun repairData(isUpgrade: Boolean = false) {
+        if (dataBusy) return
         viewModelScope.launch {
+            dataMaintenanceMutex.lock()
             dataBusy = true
             try {
-                repairQuestionImagesFromSessions()
-                backfillQuestionImages()
-                fillImagesTable()
-                runCatching { dao.purgeDeletedQuestions() }
-                runCatching { dao.purgeOrphanReviews() }
-                runCatching { dao.purgeOrphanQuestionTags() }
-                runCatching { dao.purgeOrphanImages() }
-                val n = dao.countQuestions()
-                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                    .format("data.repairDone", "n" to "$n")
+                val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                val db = AppDatabase.get(getApplication())
+                var needed = false
+                var count = 0
+                db.withTransaction {
+                    needed = needsImageUpgrade()
+                    if (needed) {
+                        repairQuestionImagesFromSessions()
+                        backfillQuestionImages()
+                        fillImagesTable()
+                        check(!needsImageUpgrade())
+                    }
+                    count = dao.countQuestions()
+                }
+                // 只有事务提交且复查完整后，才写入完成记录。
+                recordImageRepairSuccess()
+                upgradeMessage = if (needed) {
+                    s.format(if (isUpgrade) "data.upgradeDone" else "data.repairDone", "n" to "$count")
+                } else s[if (isUpgrade) "data.upgradeNotNeeded" else "data.repairNotNeeded"]
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+                upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                    .format("data.failed", "msg" to (e.message ?: ""))
             } finally {
                 dataBusy = false
+                dataMaintenanceMutex.unlock()
             }
         }
     }
@@ -1573,70 +1573,76 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     //      assets/export_render.html 一并删除，不要再往回加。----
 
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
-    fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {        if (saving) {
-            cancelPending = true
-            return
-        }
+    fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {
+        if (saving) { cancelPending = true; return }
         if (savedQuestionId != null) return
-        // 图文提问可能"只有图片、没有文字" → 只要有图就允许保存（Room 的 text 不能为空，用占位）
         val hasImg = questionImages.isNotEmpty() || imageBytes != null || directImages.isNotEmpty()
         val q = questionText.ifBlank {
             if (!hasImg) return
-            // 只有图片没文字：优先用 AI 识别出的题干（存错题本/搜索/复习都更好读），实在拿不到才用占位
-            val recognized = runCatching {
-                StudyAssistant.parseVisionOutput(lastAnswer() ?: "").question
-            }.getOrNull()?.trim().orEmpty()
-            recognized.ifBlank { "（图片题）" }
+            runCatching { StudyAssistant.parseVisionOutput(lastAnswer()).question }
+                .getOrNull()?.trim().orEmpty().ifBlank { "（图片题）" }
         }
+        val binding = sessionRecordBinding
         val convJson = json.encodeToString(chatItems)
-        // ★ 2026-10-14 修「存错题本后原图丢失」：`imageBytes` 只覆盖"单图拍照"这条链路，
-        //   **多图拍题 / 图文提问**从不给它赋值（只有 multiImages / directImages + questionImages）→
-        //   存进去就是 null，错题本卡片与复习页因此看不到原图。这里用 `questionImages`（base64 列表）
-        //   兜底取第一张，保证"主图不丢"；其余图仍在 conversationJson 里（解题页气泡可显示、备份也带得走）。
+        val a = lastAnswer()
         val img = imageBytes ?: questionImages.firstOrNull()?.let {
             runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
         }
-        val a = lastAnswer()
+        val allImgBytes = questionImages.take(MAX_QUESTION_IMAGES).mapNotNull {
+            runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
+        }.ifEmpty { img?.let { listOf(it) } ?: emptyList() }
+        val now = System.currentTimeMillis()
         saving = true
         cancelPending = false
         viewModelScope.launch {
-            var cid = categoryId
-            if (!name.isNullOrBlank()) {
-                cid = dao.insertCategory(Category(name = name.trim()))
+            try {
+                val db = AppDatabase.get(getApplication())
+                val saved = db.withTransaction {
+                    val cid = if (!name.isNullOrBlank()) {
+                        dao.insertCategory(Category(name = name.trim()))
+                    } else categoryId
+                    val qid = dao.insert(Question(text = q, answer = a, imageBytes = img,
+                        conversationJson = convJson, categoryId = cid, createdAt = now))
+                    writeQuestionImages(qid, allImgBytes, source = "save")
+                    val ids = tagIds.distinct().toMutableList()
+                    for (tn in tagNames.take(5)) {
+                        val n = tn.trim()
+                        if (n.isBlank()) continue
+                        val existing = dao.getAllTagsOnce().firstOrNull { it.name == n }
+                        val tid = existing?.id ?: dao.insertTag(Tag(name = n))
+                        if (tid !in ids) ids += tid
+                    }
+                    val finalIds = ids.take(5)
+                    for (tid in finalIds) dao.insertQuestionTag(QuestionTag(qid, tid))
+                    dao.insertReview(Review(questionId = qid, intervalStep = 0,
+                        nextReviewAt = now, reviewCount = 0))
+                    if (binding.cancelPending) {
+                        dao.clearImages(qid)
+                        dao.clearQuestionTags(qid)
+                        dao.deleteReviewsForQuestions(listOf(qid))
+                        dao.deleteById(qid)
+                        null
+                    } else Triple(qid, cid, finalIds)
+                }
+                if (binding === sessionRecordBinding) {
+                    savedQuestionId = saved?.first
+                    savedToNotebook = saved != null
+                    currentQuestionCategoryId = saved?.second
+                    currentQuestionTags = saved?.third.orEmpty()
+                    if (saved != null) currentQuestionCreatedAt = now
+                    cancelPending = false
+                    recordSolveSession(currentSource())
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (binding === sessionRecordBinding) {
+                    error = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                        .format("data.failed", "msg" to (e.message ?: ""))
+                }
+            } finally {
+                binding.saving = false
             }
-            currentQuestionCategoryId = cid
-            val now = System.currentTimeMillis()
-            currentQuestionCreatedAt = now
-            val qid = dao.insert(Question(text = q, answer = a, imageBytes = img, conversationJson = convJson, categoryId = cid, createdAt = now))
-            // ★★ DB v9（2026-10-16）：把**全部原图**写进 `question_images`（0 = 主图，其余按顺序）。
-            //   从此错题本自己就存全了所有图，不再依赖 `conversationJson` / 搜题记录（30 天清理也不会再丢图）。
-            val allImgBytes = questionImages.take(3).mapNotNull { b64 ->
-                runCatching { Base64.decode(b64, Base64.NO_WRAP) }.getOrNull()
-            }.ifEmpty { img?.let { listOf(it) } ?: emptyList() }
-            writeQuestionImages(qid, allImgBytes, source = "save")
-            // 关联知识点标签（合并已有 id + 新建名，最多 5 个）
-            val finalIds = tagIds.toMutableList()
-            for (tn in tagNames.take(5)) {
-                val name2 = tn.trim()
-                if (name2.isBlank()) continue
-                val existing = dao.getAllTagsOnce().firstOrNull { it.name == name2 }
-                val tid = existing?.id ?: dao.insertTag(Tag(name = name2))
-                if (!finalIds.contains(tid)) finalIds += tid
-            }
-            for (tid in finalIds.take(5)) dao.insertQuestionTag(QuestionTag(qid, tid))
-            currentQuestionTags = finalIds.take(5)
-            // 新建复习调度（第 0 档，今天到期）
-            dao.insertReview(Review(questionId = qid, intervalStep = 0, nextReviewAt = now, reviewCount = 0))
-            if (cancelPending) {
-                dao.deleteById(qid)
-                savedQuestionId = null
-                savedToNotebook = false
-                cancelPending = false
-            } else {
-                savedQuestionId = qid
-                savedToNotebook = true
-            }
-            saving = false
         }
     }
 
@@ -1656,18 +1662,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 修改当前题目的分类（详情页用）；name 非空→新建分类，categoryId 为 null→暂不分类 */
     fun changeCurrentCategory(name: String?, categoryId: Long?) {
+        val id = savedQuestionId ?: return
+        val binding = sessionRecordBinding
         viewModelScope.launch {
             var cid = categoryId
-            if (!name.isNullOrBlank()) {
-                cid = dao.insertCategory(Category(name = name.trim()))
+            if (!name.isNullOrBlank()) cid = dao.insertCategory(Category(name = name.trim()))
+            dao.setCategoryForIds(listOf(id), cid)
+            if (binding === sessionRecordBinding && savedQuestionId == id) {
+                currentQuestionCategoryId = cid
             }
-            currentQuestionCategoryId = cid
-            val id = savedQuestionId ?: return@launch
-            val q = questionText
-            val a = lastAnswer()
-            val conv = json.encodeToString(chatItems)
-            val img = imageBytes
-            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = cid, createdAt = currentQuestionCreatedAt.ifZeroToNow()))
         }
     }
 
@@ -1782,20 +1785,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadForReview(q: Question) {
-        redoMessage = null              // 换到新的一题：上一题的"已更新掌握度"提示不再显示
-        // 复习队列来自"轻查询"（不含图片 BLOB 与会话 JSON，避免 CursorWindow 溢出崩溃），
-        // 这里按 id 补全重字段，保证进入题目时原图与续答上下文都在。
+        stopActiveGeneration()
+        val seq = callSeq
+        val binding = sessionRecordBinding
         viewModelScope.launch {
-            val full = runCatching { dao.heavyOnce(q.id) }.getOrNull() ?: q
-            loadQuestion(full, keepReview = true)
-            // ★ 必须在 loadQuestion **之后**再置复习模式：
-            //   loadQuestion 会复位模式标志（reviewMode=false 等），
-            //   之前写在它前面 + 异步执行 → 被覆盖 → 点进去变成"查看错题"（曾出现的 bug）
-            reviewMode = true
-            currentReviewQuestion = full
-        }
-        viewModelScope.launch {
-            reviewQueue = dao.dueQuestions(endOfToday()).first()
+            try {
+                val full = dao.heavyOnce(q.id) ?: return@launch
+                if (seq != callSeq || binding !== sessionRecordBinding) return@launch
+                redoMessage = null
+                loadQuestion(full, keepReview = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (seq == callSeq && binding === sessionRecordBinding) {
+                    error = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                        .format("data.failed", "msg" to (e.message ?: ""))
+                }
+            }
         }
     }
 
@@ -2239,21 +2245,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *   这也覆盖了"生成成功后又被中断"（onDone 没跑、记录不存在）的情况。
      */
     fun saveSessionOnExit() {
-        if (savedQuestionId == null) {
-            if (chatItems.isNotEmpty()) recordSolveSession(currentSource())
-            return
+        if (chatItems.isEmpty()) return
+        val id = savedQuestionId
+        val snapshot = id?.takeIf { it > 0L }?.let {
+            Question(
+                id = it, text = questionText, answer = lastAnswer(), imageBytes = imageBytes,
+                conversationJson = json.encodeToString(chatItems), deleted = isDeleted,
+                categoryId = currentQuestionCategoryId,
+                createdAt = currentQuestionCreatedAt.ifZeroToNow()
+            )
         }
-        val id = savedQuestionId ?: return
-        if (id <= 0) return
-        val q = questionText
-        val a = lastAnswer()
-        val conv = json.encodeToString(chatItems)
-        val img = imageBytes
-        viewModelScope.launch {
-            dao.update(Question(id = id, text = q, answer = a, imageBytes = img, conversationJson = conv, deleted = isDeleted, categoryId = currentQuestionCategoryId, createdAt = currentQuestionCreatedAt.ifZeroToNow()))
-            // 已存错题本：顺手把记录里的 savedQuestionId 回填（列表里可显示"已存"标记）
-            recordSolveSession(currentSource())
-        }
+        // 在启动任何异步任务之前捕获记录快照，而不是写库结束后再读取 VM。
+        recordSolveSession(currentSource())
+        if (snapshot != null) viewModelScope.launch { dao.update(snapshot) }
     }
 
     /** 从解题页软删除当前已存的这条错题（可恢复） */
@@ -2461,110 +2465,75 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 加载某条错题的完整对话会话（用于续答） */
     /**
-     * 载入一道错题（错题本 / 复习 / 详情页共用）。
-     *
-     * @param keepReview 复习换题时传 true：**不得**把 `reviewMode` 清成 false。
-     *   ★ 2026-10-12 修复（真机复现的 bug）：复习换到"无原图的文字题"时，下面那个"轻/重查询重定向"
-     *   分支会**再调一次** loadQuestion，于是 reviewMode 被清成 false 且没人恢复 →
-     *   复习模式掉出（三按钮消失、标题变「错题」），并让 SolveScreen 的清屏标志卡死成「下一题」空白页。
-     *   现在这个标志一路透传，复习模式在整条加载链里都不会被清掉。
+     * 装载完整 Question，隔离记录绑定；后续图片 / 标签查询只回填同一会话。
+     * 错题本 getAll 已取完整字段；复习与历史入口在调用前 heavyOnce。
+     * historySession 仅保留当前记录身份；返回来路仍由 AppNav 决定。
      */
-    fun loadQuestion(q: Question, keepReview: Boolean = false) {
-        // ★ 列表页可能是"轻查询"（不含 imageBytes / conversationJson，避免大 BLOB 撑爆 CursorWindow），
-        //   这里先按 id 补全再走原来的加载逻辑，避免"点进错题本发现原图丢失"。
-        if (!heavyRedirect && (q.imageBytes == null || q.conversationJson == null)) {
-            val id = q.id
-            viewModelScope.launch {
-                val full = runCatching { dao.heavyOnce(id) }.getOrNull() ?: q
-                heavyRedirect = true
-                try { loadQuestion(full, keepReview) } finally { heavyRedirect = false }
-            }
-            return
-        }
-        // 打开错题本/复习里的题目：先作废并停掉可能还在跑的流式请求，并清掉**模式残留**
-        // （否则会带着上一轮的 gradeMode → 标题显示「批改」、按钮组走错分支）
-        callSeq++                       // 让旧请求收尾时不再覆盖界面状态
-        callJob?.cancel()
-        callJob = null
-        busy = false
-        streamingText = null
-        streamInterrupted = false
-        contMessages = null
-        contOnDone = null
-        contPrefix = ""
-        networkError = false
-        retryAction = null
-        gradeMode = false
-        exitRedo()                      // 换题/打开错题：重做状态（含"已更新掌握度"提示）一律清掉
-        // ★ keepReview=true（复习换题）：绝不清掉复习模式；否则下面这些状态写入会把用户踢出复习
-        //   （曾表现为"图片题换文字题后三按钮消失 + 停在「下一题」空白页"）
-        if (!keepReview) reviewMode = false
-        directImages = emptyList()
-        chatItems = try {
-            json.decodeFromString<List<ChatItem>>(q.conversationJson ?: "")
-        } catch (e: Exception) {
-            emptyList()
-        }
+    fun loadQuestion(q: Question, keepReview: Boolean = false, historySession: SolveSession? = null) {
+        // 调用方提供完整 Question：错题本来自 getAll，复习 / 记录入口先 heavyOnce。
+        if (keepReview && reviewMode) saveSessionOnExit()
+        stopActiveGeneration()
+        resetSession()
+        sessionRecordBinding = SolveSessionBinding(
+            id = historySession?.id,
+            createdAt = historySession?.let { it.createdAt.takeIf { t -> t > 0L } ?: it.updatedAt } ?: 0L,
+            source = historySession?.source
+        )
+        val binding = sessionRecordBinding
+        exitRedo()
+        reviewMode = keepReview
+        chatItems = runCatching {
+            json.decodeFromString<List<ChatItem>>(q.conversationJson.orEmpty())
+        }.getOrDefault(emptyList())
         if (chatItems.isEmpty()) {
             chatItems = listOf(ChatItem(0, "question", q.text), ChatItem(1, "assistant", q.answer))
         }
         questionText = q.text
         imageBytes = q.imageBytes
         isPhoto = q.imageBytes != null
-        savedToNotebook = true
+        savedToNotebook = !q.deleted
         savedQuestionId = q.id
         isFromNotebook = true
         isDeleted = q.deleted
         currentQuestionCategoryId = q.categoryId
         currentQuestionCreatedAt = q.createdAt
-        suggestedCategory = null
-        currentQuestionTags = emptyList()
-        error = null
-        // 原题图统一作为浅绿用户气泡显示（旧会话也适用：从 imageBytes 注入）
-        // ★ 2026-10-14 修「两张图仍会丢」：`imageBytes` 只是**一张主图**，其余图在 conversationJson 里 →
-        //   必须**合并去重**（`mergeImageKeys`）。原来写成"有主图就只用主图"，双图会被吞成一张
-        //   （0.6.5.1 的保存兜底 / 启动回填把主图写进 imageBytes 之后，正好走进那个分支）。
         questionImages = mergeImageKeys(
             q.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
             questionImageBase64(q.conversationJson)
         )
-        // ★ 第5项「按需补」：打开**旧错题**时，若它没有分类（或没有标签），
-        //   后台用「题干 + 原图」问一次 AI，拿到结果就直接预选好，
-        //   这样即使是很久以前存的题，点「存错题本」/「分类」时也不再是空的。
-        // ★ 进入错题页那一刻（用户规格）：
-        //   ①已有分类 → 立刻作为"预选分类"（读库里的名字）
-        //   ②已有标签 → 直接灌进预选
-        //   ③若分类或标签缺 → 立刻问 AI（文字+图片），收到后写入会话/数据库
-        // ★ 2026-10-14（用户要求）：**取消"打开旧题就实时问 AI 补分类/标签"**。
-        //   只把**库里已存**的分类/标签读进来当预置；没存就保持空（分类＝暂不分类、不勾选标签）。
-        //   这样：① 打开题目不再擅自改写已存分类（"暂不分类存的题被 AI 改掉"）；
-        //        ② 分类对话框打开期间不会有异步结果把用户刚取消的勾选"复活"。
+        questionFromPhoto = q.imageBytes != null
+        if (keepReview) currentReviewQuestion = q
         viewModelScope.launch {
-            // ★★ DB v9：优先读 `question_images`（一题多图的正式存储）；有则覆盖上面的兜底结果。
-            //   三层兜底顺序：新表 → `imageBytes`（主图）→ `conversationJson`（历史 base64），
-            //   所以 v8 及更老的数据即使没补全也照常显示。
-            runCatching {
-                val rows = dao.imagesForQuestion(q.id)
-                if (rows.isNotEmpty()) {
-                    questionImages = rows.sortedBy { it.position }.take(MAX_QUESTION_IMAGES)
-                        .map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
-                } else if (questionImages.isNotEmpty()) {
-                    // ★ 旧格式数据（新表里没有图，只能靠 imageBytes / 会话兜底）→ 提示一次"建议升级"
+            try {
+                val rows = dao.imagesForQuestion(q.id).sortedBy { it.position }
+                val storedKeys = rows.map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
+                val fallbackKeys = mergeImageKeys(
+                    q.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
+                    questionImageBase64(q.conversationJson)
+                )
+                val keys = mergeImageKeys(storedKeys.firstOrNull(), storedKeys.drop(1) + fallbackKeys)
+                val cats = dao.allCategoriesOnce()
+                val allTags = dao.getAllTagsOnce()
+                val tagIds = dao.tagIdsForQuestion(q.id)
+                if (binding !== sessionRecordBinding || savedQuestionId != q.id) return@launch
+                questionImages = keys
+                directImages = keys.mapNotNull {
+                    runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
+                }
+                if (rows.size < MAX_QUESTION_IMAGES && fallbackKeys.any { it !in storedKeys }) {
                     showLegacyImageWarn = true
                 }
+                currentQuestionTags = tagIds
+                suggestedCategory = cats.firstOrNull { it.id == q.categoryId }?.name
+                suggestedTags = tagIds.mapNotNull { id -> allTags.firstOrNull { it.id == id }?.name }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (binding === sessionRecordBinding) {
+                    error = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                        .format("data.failed", "msg" to (e.message ?: ""))
+                }
             }
-            val cats = dao.allCategoriesOnce()
-            val allTags = dao.getAllTagsOnce()
-            val qcat = cats.firstOrNull { it.id == q.categoryId }
-            suggestedCategory = qcat?.name
-            suggestedTags = dao.tagIdsForQuestion(q.id)
-                .mapNotNull { tid -> allTags.firstOrNull { it.id == tid }?.name }
-        }
-        // 拍照题：气泡只显示原图，不再显示 AI 转译题干（旧会话同样按此处理）
-        questionFromPhoto = q.imageBytes != null
-        // 异步加载该题的知识点标签
-        viewModelScope.launch {
-            currentQuestionTags = dao.tagIdsForQuestion(q.id)
         }
     }
 }

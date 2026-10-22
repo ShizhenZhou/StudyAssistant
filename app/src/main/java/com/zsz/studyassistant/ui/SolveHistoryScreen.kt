@@ -200,13 +200,15 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                                 // ★ 续答链路：轻查询拿不到重字段 → 先按 id 取整条 → 载回 VM → 进解题页
                                 opening = true
                                 scope.launch {
-                                    val full = withContext(Dispatchers.IO) {
-                                        runCatching { dao.solveSessionOnce(rec.id) }.getOrNull()
-                                    }
-                                    opening = false
-                                    if (full != null) {
-                                        vm.loadSolveSession(full)
-                                        AppNav.openSolve(nav, AppNav.Origin.HISTORY)
+                                    try {
+                                        val full = withContext(Dispatchers.IO) {
+                                            runCatching { dao.solveSessionOnce(rec.id) }.getOrNull()
+                                        }
+                                        if (full != null && vm.loadSolveSession(full)) {
+                                            AppNav.openSolve(nav, AppNav.Origin.HISTORY)
+                                        }
+                                    } finally {
+                                        opening = false
                                     }
                                 }
                             }

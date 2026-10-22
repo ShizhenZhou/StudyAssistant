@@ -902,7 +902,7 @@ private val B5_ZH = mapOf(
 
     "about.version" to "版本 {v}",
     "about.author" to "作者：zsz",
-    "about.desc" to "本应用由 DeepSeek-V4/V4.1 辅助编写，用于拍照搜题、AI 解答与错题整理。",
+    "about.desc" to "本应用由 DeepSeek-V4/V4.1 与 GPT-6.1 Sol 辅助编写，用于拍照搜题、AI 解答与错题整理。",
 
     "timePicker.title" to "设置提醒时间"
 )
@@ -931,7 +931,7 @@ private val B5_EN = mapOf(
 
     "about.version" to "Version {v}",
     "about.author" to "Author: zsz",
-    "about.desc" to "Built with the help of DeepSeek-V4/V4.1, for photo problem search, AI solutions and mistake notes.",
+    "about.desc" to "Built with the help of DeepSeek-V4/V4.1 and GPT-6.1 Sol, for photo problem search, AI solutions and mistake notes.",
 
     "timePicker.title" to "Reminder time"
 )
@@ -960,7 +960,7 @@ private val B5_JA = mapOf(
 
     "about.version" to "バージョン {v}",
     "about.author" to "作者：zsz",
-    "about.desc" to "本アプリは DeepSeek-V4/V4.1 の支援で作成しました。撮影検索・AI 解答・間違い整理に使えます。",
+    "about.desc" to "本アプリは DeepSeek-V4/V4.1 と GPT-6.1 Sol の支援で作成しました。撮影検索・AI 解答・間違い整理に使えます。",
 
     "timePicker.title" to "リマインダー時刻"
 )
@@ -989,7 +989,7 @@ private val B5_KO = mapOf(
 
     "about.version" to "버전 {v}",
     "about.author" to "만든이: zsz",
-    "about.desc" to "DeepSeek-V4/V4.1의 도움으로 제작한 앱입니다. 사진 검색, AI 풀이, 오답 정리에 사용합니다.",
+    "about.desc" to "DeepSeek-V4/V4.1과 GPT-6.1 Sol의 도움으로 제작한 앱입니다. 사진 검색, AI 풀이, 오답 정리에 사용합니다.",
 
     "timePicker.title" to "알림 시간"
 )
@@ -1101,7 +1101,7 @@ private val B7_ZH = mapOf(
     "data.upgradePage" to "🛠 数据升级 / 修复",
     "data.upgradeDesc" to "把旧数据整理到新结构（原图入库）。幂等，可重复执行。",
     "data.upgradeBtn" to "一键升级",
-    "data.repairDesc" to "补全丢失的原图，并清理孤儿数据。",
+    "data.repairDesc" to "检查并补全可恢复的原图，保留已有题目和图片。",
     "data.repairBtn" to "修复数据",
     "data.upgradePromptTitle" to "数据格式需要升级",
     "data.upgradePromptBody" to "新版本使用了新的数据格式。不升级将无法保证后续版本的可用性。\n升级只做加法，不会删除已有数据。",
@@ -1111,6 +1111,8 @@ private val B7_ZH = mapOf(
     "data.legacySkip" to "跳过",
     "data.upgradeDone" to "一键升级完成：已检查 {n} 道题",
     "data.repairDone" to "修复完成：共 {n} 道错题",
+    "data.repairNotNeeded" to "数据已完整，无需修复。",
+    "data.upgradeNotNeeded" to "无需升级。",
     "data.importDone" to "导入完成：新增 {q} 道错题、{c} 个分类、{t} 个标签，跳过重复 {s} 道",
     "data.failed" to "操作失败：{msg}",
     "data.clearDone" to "已清空所有数据",
@@ -1215,7 +1217,7 @@ private val B7_EN = mapOf(
     "data.upgradePage" to "🛠 Upgrade / Repair",
     "data.upgradeDesc" to "Move old data into the new structure (images into the DB). Idempotent — safe to run repeatedly.",
     "data.upgradeBtn" to "Upgrade now",
-    "data.repairDesc" to "Recover missing original images and clean up orphan data.",
+    "data.repairDesc" to "Check and recover available original images while preserving existing problems and images.",
     "data.repairBtn" to "Repair data",
     "data.upgradePromptTitle" to "Data format needs upgrading",
     "data.upgradePromptBody" to "This version uses a new data format. Without upgrading we cannot guarantee compatibility with future versions.\nUpgrading is additive — no existing data is deleted.",
@@ -1225,6 +1227,8 @@ private val B7_EN = mapOf(
     "data.legacySkip" to "Skip",
     "data.upgradeDone" to "Upgrade finished: {n} problems checked",
     "data.repairDone" to "Repair finished: {n} problems in total",
+    "data.repairNotNeeded" to "Data is complete. No repair is needed.",
+    "data.upgradeNotNeeded" to "No upgrade is needed.",
     "data.importDone" to "Import done: {q} problems, {c} categories, {t} tags added; {s} duplicates skipped",
     "data.failed" to "Failed: {msg}",
     "data.clearDone" to "All data erased",
@@ -1329,7 +1333,7 @@ private val B7_JA = mapOf(
     "data.upgradePage" to "🛠 データ更新 / 修復",
     "data.upgradeDesc" to "古いデータを新しい構造へ整理します（原図を DB に保存）。何度実行しても安全です。",
     "data.upgradeBtn" to "一括更新",
-    "data.repairDesc" to "失われた原図を補完し、孤立データを整理します。",
+    "data.repairDesc" to "復元可能な元画像を確認して補完します。既存の問題と画像は保持します。",
     "data.repairBtn" to "データ修復",
     "data.upgradePromptTitle" to "データ形式の更新が必要です",
     "data.upgradePromptBody" to "このバージョンは新しいデータ形式を使用します。更新しない場合、今後のバージョンでの動作は保証できません。\n更新は追加のみで、既存データは削除されません。",
@@ -1339,6 +1343,8 @@ private val B7_JA = mapOf(
     "data.legacySkip" to "スキップ",
     "data.upgradeDone" to "一括更新が完了しました：{n} 問を確認",
     "data.repairDone" to "修復完了：全 {n} 問",
+    "data.repairNotNeeded" to "データは揃っています。修復は不要です。",
+    "data.upgradeNotNeeded" to "更新は不要です。",
     "data.importDone" to "完了：問題 {q} 件・分類 {c} 件・タグ {t} 件を追加、重複 {s} 件をスキップ",
     "data.failed" to "失敗しました：{msg}",
     "data.clearDone" to "すべてのデータを削除しました",
@@ -1442,7 +1448,7 @@ private val B7_KO = mapOf(
     "data.upgradePage" to "🛠 데이터 업그레이드 / 복구",
     "data.upgradeDesc" to "오래된 데이터를 새 구조로 정리합니다(원본 이미지를 DB에 저장). 여러 번 실행해도 안전합니다.",
     "data.upgradeBtn" to "한 번에 업그레이드",
-    "data.repairDesc" to "사라진 원본 이미지를 복구하고 고아 데이터를 정리합니다.",
+    "data.repairDesc" to "복구 가능한 원본 이미지를 확인하고 보완합니다. 기존 문제와 이미지는 유지합니다.",
     "data.repairBtn" to "데이터 복구",
     "data.upgradePromptTitle" to "데이터 형식 업그레이드 필요",
     "data.upgradePromptBody" to "이 버전은 새로운 데이터 형식을 사용합니다. 업그레이드하지 않으면 이후 버전과의 호환성을 보장할 수 없습니다.\n업그레이드는 추가만 하며 기존 데이터를 삭제하지 않습니다.",
@@ -1452,6 +1458,8 @@ private val B7_KO = mapOf(
     "data.legacySkip" to "건너뛰기",
     "data.upgradeDone" to "업그레이드 완료: {n}개 문제 확인",
     "data.repairDone" to "복구 완료: 총 {n}개",
+    "data.repairNotNeeded" to "데이터가 완전합니다. 복구할 필요가 없습니다.",
+    "data.upgradeNotNeeded" to "업그레이드할 필요가 없습니다.",
     "data.importDone" to "완료: 오답 {q}개, 분류 {c}개, 태그 {t}개 추가, 중복 {s}개 건너뜀",
     "data.failed" to "실패: {msg}",
     "data.clearDone" to "모든 데이터를 삭제했습니다",

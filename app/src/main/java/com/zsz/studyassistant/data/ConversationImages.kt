@@ -143,3 +143,26 @@ internal fun mergeImageKeys(mainBase64: String?, fromConversation: List<String>)
     for (b in fromConversation) if (b.isNotBlank() && !out.contains(b)) out += b
     return if (out.size > MAX_QUESTION_IMAGES) out.take(MAX_QUESTION_IMAGES) else out
 }
+
+/** 只挑选尚未保存的原图；比较字节内容，保留已有顺序和已有主图。 */
+internal fun additionalQuestionImages(
+    existing: List<ByteArray>,
+    candidates: List<ByteArray>,
+    limit: Int = MAX_QUESTION_IMAGES
+): List<ByteArray> {
+    val result = ArrayList<ByteArray>()
+    for (candidate in candidates) {
+        if (existing.size + result.size >= limit) break
+        if (candidate.isEmpty()) continue
+        if (existing.any { it.contentEquals(candidate) }) continue
+        if (result.any { it.contentEquals(candidate) }) continue
+        result += candidate
+    }
+    return result
+}
+
+/** 不接收 App 版本号：只有数据库升版或本 schema 首次发现旧数据才提示。 */
+internal fun needsDataUpgradePrompt(
+    schema: Int, previousSchema: Int, promptedSchema: Int, legacyDetected: Boolean
+): Boolean = (previousSchema > 0 && schema > previousSchema) ||
+    (legacyDetected && promptedSchema != schema)
