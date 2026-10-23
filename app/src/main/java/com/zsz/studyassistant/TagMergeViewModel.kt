@@ -12,8 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 data class TagMergeDraft(val key: Long, val group: TagMergeGroup, val selected: Boolean = false)
 
@@ -31,6 +29,7 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
     var noticeKey by mutableStateOf<String?>(null); private set
     var noticeCount by mutableStateOf(0); private set
     var noticeQuestions by mutableStateOf(0); private set
+    var noticeSkipped by mutableStateOf(0); private set
     var undoPresent by mutableStateOf(false); private set
     var undoAllowed by mutableStateOf(false); private set
     var changeRevision by mutableStateOf(0); private set
@@ -79,14 +78,18 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
                     thinkingEnabled = CapturePrefs.solveModel(getApplication()) != "flash")
                 val response = ApiClient.deepSeek.chat(request)
                 UsageStats.add(getApplication(), response.usage)
-                val text = response.choices.firstOrNull()?.message?.content?.jsonPrimitive?.contentOrNull
-                    ?: throw TagMergeException("tagMerge.aiInvalid")
-                val groups = withContext(Dispatchers.Default) { TagMergeSuggestions.parse(text, base) }
+                val result = withContext(Dispatchers.Default) { TagMergeSuggestions.parseResponse(response, base) }
+                val groups = result.groups
                 if (generation != analysisGeneration) return@launch
                 state(base, undo)
                 drafts = groups.map { TagMergeDraft(++nextKey, it) }
-                noticeKey = if (groups.isEmpty()) "tagMerge.noSuggestions" else "tagMerge.suggestionsReady"
+                noticeKey = when {
+                    groups.isEmpty() -> "tagMerge.noSuggestions"
+                    result.rejectedGroups > 0 -> "tagMerge.suggestionsPartial"
+                    else -> "tagMerge.suggestionsReady"
+                }
                 noticeCount = groups.size
+                noticeSkipped = result.rejectedGroups
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (generation == analysisGeneration) {

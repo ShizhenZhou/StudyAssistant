@@ -49,7 +49,7 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
         if (model.analysisBusy) TextButton(onClick = { model.cancelAnalysis() }) { Text(s["common.cancel"]) }
     }
     model.noticeKey?.let {
-        Text(s.format(it, "n" to "${model.noticeCount}", "q" to "${model.noticeQuestions}"),
+        Text(s.format(it, "n" to "${model.noticeCount}", "q" to "${model.noticeQuestions}", "skipped" to "${model.noticeSkipped}"),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
     }
     TextButton(onClick = { showInventory = !showInventory }) { Text(s["tagMerge.browse"]) }

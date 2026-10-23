@@ -23,8 +23,13 @@ data class DeepSeekRequest(
      */
     val thinking: ThinkingOption? = null,
     /** 思考强度：low / high / max（仅思考模式有效） */
-    @SerialName("reasoning_effort") val reasoningEffort: String? = null
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    /** Optional structured output for label analysis; other callers retain their current behavior. */
+    @SerialName("response_format") val responseFormat: DeepSeekResponseFormat? = null
 )
+
+@Serializable
+data class DeepSeekResponseFormat(val type: String)
 
 @Serializable
 data class ThinkingOption(val type: String = "enabled")
@@ -33,7 +38,8 @@ data class ThinkingOption(val type: String = "enabled")
 data class StreamOptions(@SerialName("include_usage") val includeUsage: Boolean = true)
 
 @Serializable
-data class DeepSeekChoice(val message: DeepSeekMessage)
+data class DeepSeekChoice(val message: DeepSeekMessage,
+    @SerialName("finish_reason") val finishReason: String? = null)
 
 /** 接口返回的 token 用量（用于「API 管理」里的用量统计） */
 @Serializable

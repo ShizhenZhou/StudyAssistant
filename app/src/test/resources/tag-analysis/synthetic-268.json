@@ -1,0 +1,1359 @@
+{
+  "description": "Synthetic STEM labels and final suggestions returned by DeepSeek during the 2026-10-24 regression probe. No user data or reasoning content.",
+  "tags": [
+    {
+      "id": 1,
+      "name": "函数极限",
+      "questionCount": 1
+    },
+    {
+      "id": 2,
+      "name": "函数极限习题",
+      "questionCount": 1
+    },
+    {
+      "id": 3,
+      "name": "函数极限题目",
+      "questionCount": 1
+    },
+    {
+      "id": 4,
+      "name": "函数极限练习",
+      "questionCount": 1
+    },
+    {
+      "id": 5,
+      "name": "导数计算",
+      "questionCount": 1
+    },
+    {
+      "id": 6,
+      "name": "导数计算习题",
+      "questionCount": 1
+    },
+    {
+      "id": 7,
+      "name": "导数计算题目",
+      "questionCount": 1
+    },
+    {
+      "id": 8,
+      "name": "导数计算练习",
+      "questionCount": 1
+    },
+    {
+      "id": 9,
+      "name": "定积分",
+      "questionCount": 1
+    },
+    {
+      "id": 10,
+      "name": "定积分习题",
+      "questionCount": 1
+    },
+    {
+      "id": 11,
+      "name": "定积分题目",
+      "questionCount": 1
+    },
+    {
+      "id": 12,
+      "name": "定积分练习",
+      "questionCount": 1
+    },
+    {
+      "id": 13,
+      "name": "不定积分",
+      "questionCount": 1
+    },
+    {
+      "id": 14,
+      "name": "不定积分习题",
+      "questionCount": 1
+    },
+    {
+      "id": 15,
+      "name": "不定积分题目",
+      "questionCount": 1
+    },
+    {
+      "id": 16,
+      "name": "不定积分练习",
+      "questionCount": 1
+    },
+    {
+      "id": 17,
+      "name": "微分方程",
+      "questionCount": 1
+    },
+    {
+      "id": 18,
+      "name": "微分方程习题",
+      "questionCount": 1
+    },
+    {
+      "id": 19,
+      "name": "微分方程题目",
+      "questionCount": 1
+    },
+    {
+      "id": 20,
+      "name": "微分方程练习",
+      "questionCount": 1
+    },
+    {
+      "id": 21,
+      "name": "矩阵求逆",
+      "questionCount": 1
+    },
+    {
+      "id": 22,
+      "name": "矩阵求逆习题",
+      "questionCount": 1
+    },
+    {
+      "id": 23,
+      "name": "矩阵求逆题目",
+      "questionCount": 1
+    },
+    {
+      "id": 24,
+      "name": "矩阵求逆练习",
+      "questionCount": 1
+    },
+    {
+      "id": 25,
+      "name": "行列式",
+      "questionCount": 1
+    },
+    {
+      "id": 26,
+      "name": "行列式习题",
+      "questionCount": 1
+    },
+    {
+      "id": 27,
+      "name": "行列式题目",
+      "questionCount": 1
+    },
+    {
+      "id": 28,
+      "name": "行列式练习",
+      "questionCount": 1
+    },
+    {
+      "id": 29,
+      "name": "特征值",
+      "questionCount": 1
+    },
+    {
+      "id": 30,
+      "name": "特征值习题",
+      "questionCount": 1
+    },
+    {
+      "id": 31,
+      "name": "特征值题目",
+      "questionCount": 1
+    },
+    {
+      "id": 32,
+      "name": "特征值练习",
+      "questionCount": 1
+    },
+    {
+      "id": 33,
+      "name": "概率分布",
+      "questionCount": 1
+    },
+    {
+      "id": 34,
+      "name": "概率分布习题",
+      "questionCount": 1
+    },
+    {
+      "id": 35,
+      "name": "概率分布题目",
+      "questionCount": 1
+    },
+    {
+      "id": 36,
+      "name": "概率分布练习",
+      "questionCount": 1
+    },
+    {
+      "id": 37,
+      "name": "条件概率",
+      "questionCount": 1
+    },
+    {
+      "id": 38,
+      "name": "条件概率习题",
+      "questionCount": 1
+    },
+    {
+      "id": 39,
+      "name": "条件概率题目",
+      "questionCount": 1
+    },
+    {
+      "id": 40,
+      "name": "条件概率练习",
+      "questionCount": 1
+    },
+    {
+      "id": 41,
+      "name": "随机变量",
+      "questionCount": 1
+    },
+    {
+      "id": 42,
+      "name": "随机变量习题",
+      "questionCount": 1
+    },
+    {
+      "id": 43,
+      "name": "随机变量题目",
+      "questionCount": 1
+    },
+    {
+      "id": 44,
+      "name": "随机变量练习",
+      "questionCount": 1
+    },
+    {
+      "id": 45,
+      "name": "统计估计",
+      "questionCount": 1
+    },
+    {
+      "id": 46,
+      "name": "统计估计习题",
+      "questionCount": 1
+    },
+    {
+      "id": 47,
+      "name": "统计估计题目",
+      "questionCount": 1
+    },
+    {
+      "id": 48,
+      "name": "统计估计练习",
+      "questionCount": 1
+    },
+    {
+      "id": 49,
+      "name": "电路分析",
+      "questionCount": 1
+    },
+    {
+      "id": 50,
+      "name": "电路分析习题",
+      "questionCount": 1
+    },
+    {
+      "id": 51,
+      "name": "电路分析题目",
+      "questionCount": 1
+    },
+    {
+      "id": 52,
+      "name": "电路分析练习",
+      "questionCount": 1
+    },
+    {
+      "id": 53,
+      "name": "电场计算",
+      "questionCount": 1
+    },
+    {
+      "id": 54,
+      "name": "电场计算习题",
+      "questionCount": 1
+    },
+    {
+      "id": 55,
+      "name": "电场计算题目",
+      "questionCount": 1
+    },
+    {
+      "id": 56,
+      "name": "电场计算练习",
+      "questionCount": 1
+    },
+    {
+      "id": 57,
+      "name": "磁场计算",
+      "questionCount": 1
+    },
+    {
+      "id": 58,
+      "name": "磁场计算习题",
+      "questionCount": 1
+    },
+    {
+      "id": 59,
+      "name": "磁场计算题目",
+      "questionCount": 1
+    },
+    {
+      "id": 60,
+      "name": "磁场计算练习",
+      "questionCount": 1
+    },
+    {
+      "id": 61,
+      "name": "牛顿运动定律",
+      "questionCount": 1
+    },
+    {
+      "id": 62,
+      "name": "牛顿运动定律习题",
+      "questionCount": 1
+    },
+    {
+      "id": 63,
+      "name": "牛顿运动定律题目",
+      "questionCount": 1
+    },
+    {
+      "id": 64,
+      "name": "牛顿运动定律练习",
+      "questionCount": 1
+    },
+    {
+      "id": 65,
+      "name": "能量守恒",
+      "questionCount": 1
+    },
+    {
+      "id": 66,
+      "name": "能量守恒习题",
+      "questionCount": 1
+    },
+    {
+      "id": 67,
+      "name": "能量守恒题目",
+      "questionCount": 1
+    },
+    {
+      "id": 68,
+      "name": "能量守恒练习",
+      "questionCount": 1
+    },
+    {
+      "id": 69,
+      "name": "动量守恒",
+      "questionCount": 1
+    },
+    {
+      "id": 70,
+      "name": "动量守恒习题",
+      "questionCount": 1
+    },
+    {
+      "id": 71,
+      "name": "动量守恒题目",
+      "questionCount": 1
+    },
+    {
+      "id": 72,
+      "name": "动量守恒练习",
+      "questionCount": 1
+    },
+    {
+      "id": 73,
+      "name": "圆周运动",
+      "questionCount": 1
+    },
+    {
+      "id": 74,
+      "name": "圆周运动习题",
+      "questionCount": 1
+    },
+    {
+      "id": 75,
+      "name": "圆周运动题目",
+      "questionCount": 1
+    },
+    {
+      "id": 76,
+      "name": "圆周运动练习",
+      "questionCount": 1
+    },
+    {
+      "id": 77,
+      "name": "简谐振动",
+      "questionCount": 1
+    },
+    {
+      "id": 78,
+      "name": "简谐振动习题",
+      "questionCount": 1
+    },
+    {
+      "id": 79,
+      "name": "简谐振动题目",
+      "questionCount": 1
+    },
+    {
+      "id": 80,
+      "name": "简谐振动练习",
+      "questionCount": 1
+    },
+    {
+      "id": 81,
+      "name": "波动光学",
+      "questionCount": 1
+    },
+    {
+      "id": 82,
+      "name": "波动光学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 83,
+      "name": "波动光学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 84,
+      "name": "波动光学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 85,
+      "name": "几何光学",
+      "questionCount": 1
+    },
+    {
+      "id": 86,
+      "name": "几何光学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 87,
+      "name": "几何光学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 88,
+      "name": "几何光学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 89,
+      "name": "热力学第一定律",
+      "questionCount": 1
+    },
+    {
+      "id": 90,
+      "name": "热力学第一定律习题",
+      "questionCount": 1
+    },
+    {
+      "id": 91,
+      "name": "热力学第一定律题目",
+      "questionCount": 1
+    },
+    {
+      "id": 92,
+      "name": "热力学第一定律练习",
+      "questionCount": 1
+    },
+    {
+      "id": 93,
+      "name": "热力学第二定律",
+      "questionCount": 1
+    },
+    {
+      "id": 94,
+      "name": "热力学第二定律习题",
+      "questionCount": 1
+    },
+    {
+      "id": 95,
+      "name": "热力学第二定律题目",
+      "questionCount": 1
+    },
+    {
+      "id": 96,
+      "name": "热力学第二定律练习",
+      "questionCount": 1
+    },
+    {
+      "id": 97,
+      "name": "化学平衡",
+      "questionCount": 1
+    },
+    {
+      "id": 98,
+      "name": "化学平衡习题",
+      "questionCount": 1
+    },
+    {
+      "id": 99,
+      "name": "化学平衡题目",
+      "questionCount": 1
+    },
+    {
+      "id": 100,
+      "name": "化学平衡练习",
+      "questionCount": 1
+    },
+    {
+      "id": 101,
+      "name": "酸碱平衡",
+      "questionCount": 1
+    },
+    {
+      "id": 102,
+      "name": "酸碱平衡习题",
+      "questionCount": 1
+    },
+    {
+      "id": 103,
+      "name": "酸碱平衡题目",
+      "questionCount": 1
+    },
+    {
+      "id": 104,
+      "name": "酸碱平衡练习",
+      "questionCount": 1
+    },
+    {
+      "id": 105,
+      "name": "氧化还原",
+      "questionCount": 1
+    },
+    {
+      "id": 106,
+      "name": "氧化还原习题",
+      "questionCount": 1
+    },
+    {
+      "id": 107,
+      "name": "氧化还原题目",
+      "questionCount": 1
+    },
+    {
+      "id": 108,
+      "name": "氧化还原练习",
+      "questionCount": 1
+    },
+    {
+      "id": 109,
+      "name": "有机反应",
+      "questionCount": 1
+    },
+    {
+      "id": 110,
+      "name": "有机反应习题",
+      "questionCount": 1
+    },
+    {
+      "id": 111,
+      "name": "有机反应题目",
+      "questionCount": 1
+    },
+    {
+      "id": 112,
+      "name": "有机反应练习",
+      "questionCount": 1
+    },
+    {
+      "id": 113,
+      "name": "数据结构",
+      "questionCount": 1
+    },
+    {
+      "id": 114,
+      "name": "数据结构习题",
+      "questionCount": 1
+    },
+    {
+      "id": 115,
+      "name": "数据结构题目",
+      "questionCount": 1
+    },
+    {
+      "id": 116,
+      "name": "数据结构练习",
+      "questionCount": 1
+    },
+    {
+      "id": 117,
+      "name": "二叉树",
+      "questionCount": 1
+    },
+    {
+      "id": 118,
+      "name": "二叉树习题",
+      "questionCount": 1
+    },
+    {
+      "id": 119,
+      "name": "二叉树题目",
+      "questionCount": 1
+    },
+    {
+      "id": 120,
+      "name": "二叉树练习",
+      "questionCount": 1
+    },
+    {
+      "id": 121,
+      "name": "图论",
+      "questionCount": 1
+    },
+    {
+      "id": 122,
+      "name": "图论习题",
+      "questionCount": 1
+    },
+    {
+      "id": 123,
+      "name": "图论题目",
+      "questionCount": 1
+    },
+    {
+      "id": 124,
+      "name": "图论练习",
+      "questionCount": 1
+    },
+    {
+      "id": 125,
+      "name": "排序算法",
+      "questionCount": 1
+    },
+    {
+      "id": 126,
+      "name": "排序算法习题",
+      "questionCount": 1
+    },
+    {
+      "id": 127,
+      "name": "排序算法题目",
+      "questionCount": 1
+    },
+    {
+      "id": 128,
+      "name": "排序算法练习",
+      "questionCount": 1
+    },
+    {
+      "id": 129,
+      "name": "动态规划",
+      "questionCount": 1
+    },
+    {
+      "id": 130,
+      "name": "动态规划习题",
+      "questionCount": 1
+    },
+    {
+      "id": 131,
+      "name": "动态规划题目",
+      "questionCount": 1
+    },
+    {
+      "id": 132,
+      "name": "动态规划练习",
+      "questionCount": 1
+    },
+    {
+      "id": 133,
+      "name": "数值分析",
+      "questionCount": 1
+    },
+    {
+      "id": 134,
+      "name": "数值分析习题",
+      "questionCount": 1
+    },
+    {
+      "id": 135,
+      "name": "数值分析题目",
+      "questionCount": 1
+    },
+    {
+      "id": 136,
+      "name": "数值分析练习",
+      "questionCount": 1
+    },
+    {
+      "id": 137,
+      "name": "复数运算",
+      "questionCount": 1
+    },
+    {
+      "id": 138,
+      "name": "复数运算习题",
+      "questionCount": 1
+    },
+    {
+      "id": 139,
+      "name": "复数运算题目",
+      "questionCount": 1
+    },
+    {
+      "id": 140,
+      "name": "复数运算练习",
+      "questionCount": 1
+    },
+    {
+      "id": 141,
+      "name": "级数求和",
+      "questionCount": 1
+    },
+    {
+      "id": 142,
+      "name": "级数求和习题",
+      "questionCount": 1
+    },
+    {
+      "id": 143,
+      "name": "级数求和题目",
+      "questionCount": 1
+    },
+    {
+      "id": 144,
+      "name": "级数求和练习",
+      "questionCount": 1
+    },
+    {
+      "id": 145,
+      "name": "向量计算",
+      "questionCount": 1
+    },
+    {
+      "id": 146,
+      "name": "向量计算习题",
+      "questionCount": 1
+    },
+    {
+      "id": 147,
+      "name": "向量计算题目",
+      "questionCount": 1
+    },
+    {
+      "id": 148,
+      "name": "向量计算练习",
+      "questionCount": 1
+    },
+    {
+      "id": 149,
+      "name": "解析几何",
+      "questionCount": 1
+    },
+    {
+      "id": 150,
+      "name": "解析几何习题",
+      "questionCount": 1
+    },
+    {
+      "id": 151,
+      "name": "解析几何题目",
+      "questionCount": 1
+    },
+    {
+      "id": 152,
+      "name": "解析几何练习",
+      "questionCount": 1
+    },
+    {
+      "id": 153,
+      "name": "多元函数",
+      "questionCount": 1
+    },
+    {
+      "id": 154,
+      "name": "多元函数习题",
+      "questionCount": 1
+    },
+    {
+      "id": 155,
+      "name": "多元函数题目",
+      "questionCount": 1
+    },
+    {
+      "id": 156,
+      "name": "多元函数练习",
+      "questionCount": 1
+    },
+    {
+      "id": 157,
+      "name": "偏导数",
+      "questionCount": 1
+    },
+    {
+      "id": 158,
+      "name": "偏导数习题",
+      "questionCount": 1
+    },
+    {
+      "id": 159,
+      "name": "偏导数题目",
+      "questionCount": 1
+    },
+    {
+      "id": 160,
+      "name": "偏导数练习",
+      "questionCount": 1
+    },
+    {
+      "id": 161,
+      "name": "曲线积分",
+      "questionCount": 1
+    },
+    {
+      "id": 162,
+      "name": "曲线积分习题",
+      "questionCount": 1
+    },
+    {
+      "id": 163,
+      "name": "曲线积分题目",
+      "questionCount": 1
+    },
+    {
+      "id": 164,
+      "name": "曲线积分练习",
+      "questionCount": 1
+    },
+    {
+      "id": 165,
+      "name": "曲面积分",
+      "questionCount": 1
+    },
+    {
+      "id": 166,
+      "name": "曲面积分习题",
+      "questionCount": 1
+    },
+    {
+      "id": 167,
+      "name": "曲面积分题目",
+      "questionCount": 1
+    },
+    {
+      "id": 168,
+      "name": "曲面积分练习",
+      "questionCount": 1
+    },
+    {
+      "id": 169,
+      "name": "拉普拉斯变换",
+      "questionCount": 1
+    },
+    {
+      "id": 170,
+      "name": "拉普拉斯变换习题",
+      "questionCount": 1
+    },
+    {
+      "id": 171,
+      "name": "拉普拉斯变换题目",
+      "questionCount": 1
+    },
+    {
+      "id": 172,
+      "name": "拉普拉斯变换练习",
+      "questionCount": 1
+    },
+    {
+      "id": 173,
+      "name": "傅里叶变换",
+      "questionCount": 1
+    },
+    {
+      "id": 174,
+      "name": "傅里叶变换习题",
+      "questionCount": 1
+    },
+    {
+      "id": 175,
+      "name": "傅里叶变换题目",
+      "questionCount": 1
+    },
+    {
+      "id": 176,
+      "name": "傅里叶变换练习",
+      "questionCount": 1
+    },
+    {
+      "id": 177,
+      "name": "信号处理",
+      "questionCount": 1
+    },
+    {
+      "id": 178,
+      "name": "信号处理习题",
+      "questionCount": 1
+    },
+    {
+      "id": 179,
+      "name": "信号处理题目",
+      "questionCount": 1
+    },
+    {
+      "id": 180,
+      "name": "信号处理练习",
+      "questionCount": 1
+    },
+    {
+      "id": 181,
+      "name": "数字电路",
+      "questionCount": 1
+    },
+    {
+      "id": 182,
+      "name": "数字电路习题",
+      "questionCount": 1
+    },
+    {
+      "id": 183,
+      "name": "数字电路题目",
+      "questionCount": 1
+    },
+    {
+      "id": 184,
+      "name": "数字电路练习",
+      "questionCount": 1
+    },
+    {
+      "id": 185,
+      "name": "模拟电路",
+      "questionCount": 1
+    },
+    {
+      "id": 186,
+      "name": "模拟电路习题",
+      "questionCount": 1
+    },
+    {
+      "id": 187,
+      "name": "模拟电路题目",
+      "questionCount": 1
+    },
+    {
+      "id": 188,
+      "name": "模拟电路练习",
+      "questionCount": 1
+    },
+    {
+      "id": 189,
+      "name": "半导体",
+      "questionCount": 1
+    },
+    {
+      "id": 190,
+      "name": "半导体习题",
+      "questionCount": 1
+    },
+    {
+      "id": 191,
+      "name": "半导体题目",
+      "questionCount": 1
+    },
+    {
+      "id": 192,
+      "name": "半导体练习",
+      "questionCount": 1
+    },
+    {
+      "id": 193,
+      "name": "材料力学",
+      "questionCount": 1
+    },
+    {
+      "id": 194,
+      "name": "材料力学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 195,
+      "name": "材料力学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 196,
+      "name": "材料力学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 197,
+      "name": "流体力学",
+      "questionCount": 1
+    },
+    {
+      "id": 198,
+      "name": "流体力学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 199,
+      "name": "流体力学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 200,
+      "name": "流体力学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 201,
+      "name": "结构力学",
+      "questionCount": 1
+    },
+    {
+      "id": 202,
+      "name": "结构力学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 203,
+      "name": "结构力学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 204,
+      "name": "结构力学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 205,
+      "name": "工程制图",
+      "questionCount": 1
+    },
+    {
+      "id": 206,
+      "name": "工程制图习题",
+      "questionCount": 1
+    },
+    {
+      "id": 207,
+      "name": "工程制图题目",
+      "questionCount": 1
+    },
+    {
+      "id": 208,
+      "name": "工程制图练习",
+      "questionCount": 1
+    },
+    {
+      "id": 209,
+      "name": "误差分析",
+      "questionCount": 1
+    },
+    {
+      "id": 210,
+      "name": "误差分析习题",
+      "questionCount": 1
+    },
+    {
+      "id": 211,
+      "name": "误差分析题目",
+      "questionCount": 1
+    },
+    {
+      "id": 212,
+      "name": "误差分析练习",
+      "questionCount": 1
+    },
+    {
+      "id": 213,
+      "name": "实验设计",
+      "questionCount": 1
+    },
+    {
+      "id": 214,
+      "name": "实验设计习题",
+      "questionCount": 1
+    },
+    {
+      "id": 215,
+      "name": "实验设计题目",
+      "questionCount": 1
+    },
+    {
+      "id": 216,
+      "name": "实验设计练习",
+      "questionCount": 1
+    },
+    {
+      "id": 217,
+      "name": "集合运算",
+      "questionCount": 1
+    },
+    {
+      "id": 218,
+      "name": "集合运算习题",
+      "questionCount": 1
+    },
+    {
+      "id": 219,
+      "name": "集合运算题目",
+      "questionCount": 1
+    },
+    {
+      "id": 220,
+      "name": "集合运算练习",
+      "questionCount": 1
+    },
+    {
+      "id": 221,
+      "name": "逻辑推理",
+      "questionCount": 1
+    },
+    {
+      "id": 222,
+      "name": "逻辑推理习题",
+      "questionCount": 1
+    },
+    {
+      "id": 223,
+      "name": "逻辑推理题目",
+      "questionCount": 1
+    },
+    {
+      "id": 224,
+      "name": "逻辑推理练习",
+      "questionCount": 1
+    },
+    {
+      "id": 225,
+      "name": "数列极限",
+      "questionCount": 1
+    },
+    {
+      "id": 226,
+      "name": "数列极限习题",
+      "questionCount": 1
+    },
+    {
+      "id": 227,
+      "name": "数列极限题目",
+      "questionCount": 1
+    },
+    {
+      "id": 228,
+      "name": "数列极限练习",
+      "questionCount": 1
+    },
+    {
+      "id": 229,
+      "name": "泰勒展开",
+      "questionCount": 1
+    },
+    {
+      "id": 230,
+      "name": "泰勒展开习题",
+      "questionCount": 1
+    },
+    {
+      "id": 231,
+      "name": "泰勒展开题目",
+      "questionCount": 1
+    },
+    {
+      "id": 232,
+      "name": "泰勒展开练习",
+      "questionCount": 1
+    },
+    {
+      "id": 233,
+      "name": "不等式",
+      "questionCount": 1
+    },
+    {
+      "id": 234,
+      "name": "不等式习题",
+      "questionCount": 1
+    },
+    {
+      "id": 235,
+      "name": "不等式题目",
+      "questionCount": 1
+    },
+    {
+      "id": 236,
+      "name": "不等式练习",
+      "questionCount": 1
+    },
+    {
+      "id": 237,
+      "name": "线性规划",
+      "questionCount": 1
+    },
+    {
+      "id": 238,
+      "name": "线性规划习题",
+      "questionCount": 1
+    },
+    {
+      "id": 239,
+      "name": "线性规划题目",
+      "questionCount": 1
+    },
+    {
+      "id": 240,
+      "name": "线性规划练习",
+      "questionCount": 1
+    },
+    {
+      "id": 241,
+      "name": "最优化",
+      "questionCount": 1
+    },
+    {
+      "id": 242,
+      "name": "最优化习题",
+      "questionCount": 1
+    },
+    {
+      "id": 243,
+      "name": "最优化题目",
+      "questionCount": 1
+    },
+    {
+      "id": 244,
+      "name": "最优化练习",
+      "questionCount": 1
+    },
+    {
+      "id": 245,
+      "name": "离散数学",
+      "questionCount": 1
+    },
+    {
+      "id": 246,
+      "name": "离散数学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 247,
+      "name": "离散数学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 248,
+      "name": "离散数学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 249,
+      "name": "控制理论",
+      "questionCount": 1
+    },
+    {
+      "id": 250,
+      "name": "控制理论习题",
+      "questionCount": 1
+    },
+    {
+      "id": 251,
+      "name": "控制理论题目",
+      "questionCount": 1
+    },
+    {
+      "id": 252,
+      "name": "控制理论练习",
+      "questionCount": 1
+    },
+    {
+      "id": 253,
+      "name": "振动分析",
+      "questionCount": 1
+    },
+    {
+      "id": 254,
+      "name": "振动分析习题",
+      "questionCount": 1
+    },
+    {
+      "id": 255,
+      "name": "振动分析题目",
+      "questionCount": 1
+    },
+    {
+      "id": 256,
+      "name": "振动分析练习",
+      "questionCount": 1
+    },
+    {
+      "id": 257,
+      "name": "传热学",
+      "questionCount": 1
+    },
+    {
+      "id": 258,
+      "name": "传热学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 259,
+      "name": "传热学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 260,
+      "name": "传热学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 261,
+      "name": "反应动力学",
+      "questionCount": 1
+    },
+    {
+      "id": 262,
+      "name": "反应动力学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 263,
+      "name": "反应动力学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 264,
+      "name": "反应动力学练习",
+      "questionCount": 1
+    },
+    {
+      "id": 265,
+      "name": "配位化学",
+      "questionCount": 1
+    },
+    {
+      "id": 266,
+      "name": "配位化学习题",
+      "questionCount": 1
+    },
+    {
+      "id": 267,
+      "name": "配位化学题目",
+      "questionCount": 1
+    },
+    {
+      "id": 268,
+      "name": "配位化学练习",
+      "questionCount": 1
+    }
+  ],
+  "replies": [
+    {
+      "case": "baseline",
+      "finishReason": "stop",
+      "expectedGroups": 67,
+      "content": "{\"groups\":[{\"sourceIds\":[1,2,3,4],\"targetName\":\"函数极限\",\"reason\":\"均为函数极限的习题、题目或练习标签。\"},{\"sourceIds\":[5,6,7,8],\"targetName\":\"导数计算\",\"reason\":\"均为导数计算的习题、题目或练习标签。\"},{\"sourceIds\":[9,10,11,12],\"targetName\":\"定积分\",\"reason\":\"均为定积分的习题、题目或练习标签。\"},{\"sourceIds\":[13,14,15,16],\"targetName\":\"不定积分\",\"reason\":\"均为不定积分的习题、题目或练习标签。\"},{\"sourceIds\":[17,18,19,20],\"targetName\":\"微分方程\",\"reason\":\"均为微分方程的习题、题目或练习标签。\"},{\"sourceIds\":[21,22,23,24],\"targetName\":\"矩阵求逆\",\"reason\":\"均为矩阵求逆的习题、题目或练习标签。\"},{\"sourceIds\":[25,26,27,28],\"targetName\":\"行列式\",\"reason\":\"均为行列式的习题、题目或练习标签。\"},{\"sourceIds\":[29,30,31,32],\"targetName\":\"特征值\",\"reason\":\"均为特征值的习题、题目或练习标签。\"},{\"sourceIds\":[33,34,35,36],\"targetName\":\"概率分布\",\"reason\":\"均为概率分布的习题、题目或练习标签。\"},{\"sourceIds\":[37,38,39,40],\"targetName\":\"条件概率\",\"reason\":\"均为条件概率的习题、题目或练习标签。\"},{\"sourceIds\":[41,42,43,44],\"targetName\":\"随机变量\",\"reason\":\"均为随机变量的习题、题目或练习标签。\"},{\"sourceIds\":[45,46,47,48],\"targetName\":\"统计估计\",\"reason\":\"均为统计估计的习题、题目或练习标签。\"},{\"sourceIds\":[49,50,51,52],\"targetName\":\"电路分析\",\"reason\":\"均为电路分析的习题、题目或练习标签。\"},{\"sourceIds\":[53,54,55,56],\"targetName\":\"电场计算\",\"reason\":\"均为电场计算的习题、题目或练习标签。\"},{\"sourceIds\":[57,58,59,60],\"targetName\":\"磁场计算\",\"reason\":\"均为磁场计算的习题、题目或练习标签。\"},{\"sourceIds\":[61,62,63,64],\"targetName\":\"牛顿运动定律\",\"reason\":\"均为牛顿运动定律的习题、题目或练习标签。\"},{\"sourceIds\":[65,66,67,68],\"targetName\":\"能量守恒\",\"reason\":\"均为能量守恒的习题、题目或练习标签。\"},{\"sourceIds\":[69,70,71,72],\"targetName\":\"动量守恒\",\"reason\":\"均为动量守恒的习题、题目或练习标签。\"},{\"sourceIds\":[73,74,75,76],\"targetName\":\"圆周运动\",\"reason\":\"均为圆周运动的习题、题目或练习标签。\"},{\"sourceIds\":[77,78,79,80],\"targetName\":\"简谐振动\",\"reason\":\"均为简谐振动的习题、题目或练习标签。\"},{\"sourceIds\":[81,82,83,84],\"targetName\":\"波动光学\",\"reason\":\"均为波动光学的习题、题目或练习标签。\"},{\"sourceIds\":[85,86,87,88],\"targetName\":\"几何光学\",\"reason\":\"均为几何光学的习题、题目或练习标签。\"},{\"sourceIds\":[89,90,91,92],\"targetName\":\"热力学第一定律\",\"reason\":\"均为热力学第一定律的习题、题目或练习标签。\"},{\"sourceIds\":[93,94,95,96],\"targetName\":\"热力学第二定律\",\"reason\":\"均为热力学第二定律的习题、题目或练习标签。\"},{\"sourceIds\":[97,98,99,100],\"targetName\":\"化学平衡\",\"reason\":\"均为化学平衡的习题、题目或练习标签。\"},{\"sourceIds\":[101,102,103,104],\"targetName\":\"酸碱平衡\",\"reason\":\"均为酸碱平衡的习题、题目或练习标签。\"},{\"sourceIds\":[105,106,107,108],\"targetName\":\"氧化还原\",\"reason\":\"均为氧化还原的习题、题目或练习标签。\"},{\"sourceIds\":[109,110,111,112],\"targetName\":\"有机反应\",\"reason\":\"均为有机反应的习题、题目或练习标签。\"},{\"sourceIds\":[113,114,115,116],\"targetName\":\"数据结构\",\"reason\":\"均为数据结构的习题、题目或练习标签。\"},{\"sourceIds\":[117,118,119,120],\"targetName\":\"二叉树\",\"reason\":\"均为二叉树的习题、题目或练习标签。\"},{\"sourceIds\":[121,122,123,124],\"targetName\":\"图论\",\"reason\":\"均为图论的习题、题目或练习标签。\"},{\"sourceIds\":[125,126,127,128],\"targetName\":\"排序算法\",\"reason\":\"均为排序算法的习题、题目或练习标签。\"},{\"sourceIds\":[129,130,131,132],\"targetName\":\"动态规划\",\"reason\":\"均为动态规划的习题、题目或练习标签。\"},{\"sourceIds\":[133,134,135,136],\"targetName\":\"数值分析\",\"reason\":\"均为数值分析的习题、题目或练习标签。\"},{\"sourceIds\":[137,138,139,140],\"targetName\":\"复数运算\",\"reason\":\"均为复数运算的习题、题目或练习标签。\"},{\"sourceIds\":[141,142,143,144],\"targetName\":\"级数求和\",\"reason\":\"均为级数求和的习题、题目或练习标签。\"},{\"sourceIds\":[145,146,147,148],\"targetName\":\"向量计算\",\"reason\":\"均为向量计算的习题、题目或练习标签。\"},{\"sourceIds\":[149,150,151,152],\"targetName\":\"解析几何\",\"reason\":\"均为解析几何的习题、题目或练习标签。\"},{\"sourceIds\":[153,154,155,156],\"targetName\":\"多元函数\",\"reason\":\"均为多元函数的习题、题目或练习标签。\"},{\"sourceIds\":[157,158,159,160],\"targetName\":\"偏导数\",\"reason\":\"均为偏导数的习题、题目或练习标签。\"},{\"sourceIds\":[161,162,163,164],\"targetName\":\"曲线积分\",\"reason\":\"均为曲线积分的习题、题目或练习标签。\"},{\"sourceIds\":[165,166,167,168],\"targetName\":\"曲面积分\",\"reason\":\"均为曲面积分的习题、题目或练习标签。\"},{\"sourceIds\":[169,170,171,172],\"targetName\":\"拉普拉斯变换\",\"reason\":\"均为拉普拉斯变换的习题、题目或练习标签。\"},{\"sourceIds\":[173,174,175,176],\"targetName\":\"傅里叶变换\",\"reason\":\"均为傅里叶变换的习题、题目或练习标签。\"},{\"sourceIds\":[177,178,179,180],\"targetName\":\"信号处理\",\"reason\":\"均为信号处理的习题、题目或练习标签。\"},{\"sourceIds\":[181,182,183,184],\"targetName\":\"数字电路\",\"reason\":\"均为数字电路的习题、题目或练习标签。\"},{\"sourceIds\":[185,186,187,188],\"targetName\":\"模拟电路\",\"reason\":\"均为模拟电路的习题、题目或练习标签。\"},{\"sourceIds\":[189,190,191,192],\"targetName\":\"半导体\",\"reason\":\"均为半导体的习题、题目或练习标签。\"},{\"sourceIds\":[193,194,195,196],\"targetName\":\"材料力学\",\"reason\":\"均为材料力学的习题、题目或练习标签。\"},{\"sourceIds\":[197,198,199,200],\"targetName\":\"流体力学\",\"reason\":\"均为流体力学的习题、题目或练习标签。\"},{\"sourceIds\":[201,202,203,204],\"targetName\":\"结构力学\",\"reason\":\"均为结构力学的习题、题目或练习标签。\"},{\"sourceIds\":[205,206,207,208],\"targetName\":\"工程制图\",\"reason\":\"均为工程制图的习题、题目或练习标签。\"},{\"sourceIds\":[209,210,211,212],\"targetName\":\"误差分析\",\"reason\":\"均为误差分析的习题、题目或练习标签。\"},{\"sourceIds\":[213,214,215,216],\"targetName\":\"实验设计\",\"reason\":\"均为实验设计的习题、题目或练习标签。\"},{\"sourceIds\":[217,218,219,220],\"targetName\":\"集合运算\",\"reason\":\"均为集合运算的习题、题目或练习标签。\"},{\"sourceIds\":[221,222,223,224],\"targetName\":\"逻辑推理\",\"reason\":\"均为逻辑推理的习题、题目或练习标签。\"},{\"sourceIds\":[225,226,227,228],\"targetName\":\"数列极限\",\"reason\":\"均为数列极限的习题、题目或练习标签。\"},{\"sourceIds\":[229,230,231,232],\"targetName\":\"泰勒展开\",\"reason\":\"均为泰勒展开的习题、题目或练习标签。\"},{\"sourceIds\":[233,234,235,236],\"targetName\":\"不等式\",\"reason\":\"均为不等式的习题、题目或练习标签。\"},{\"sourceIds\":[237,238,239,240],\"targetName\":\"线性规划\",\"reason\":\"均为线性规划的习题、题目或练习标签。\"},{\"sourceIds\":[241,242,243,244],\"targetName\":\"最优化\",\"reason\":\"均为最优化的习题、题目或练习标签。\"},{\"sourceIds\":[245,246,247,248],\"targetName\":\"离散数学\",\"reason\":\"均为离散数学的习题、题目或练习标签。\"},{\"sourceIds\":[249,250,251,252],\"targetName\":\"控制理论\",\"reason\":\"均为控制理论的习题、题目或练习标签。\"},{\"sourceIds\":[253,254,255,256],\"targetName\":\"振动分析\",\"reason\":\"均为振动分析的习题、题目或练习标签。\"},{\"sourceIds\":[257,258,259,260],\"targetName\":\"传热学\",\"reason\":\"均为传热学的习题、题目或练习标签。\"},{\"sourceIds\":[261,262,263,264],\"targetName\":\"反应动力学\",\"reason\":\"均为反应动力学的习题、题目或练习标签。\"},{\"sourceIds\":[265,266,267,268],\"targetName\":\"配位化学\",\"reason\":\"均为配位化学的习题、题目或练习标签。\"}]}"
+    },
+    {
+      "case": "revised",
+      "finishReason": "stop",
+      "expectedGroups": 67,
+      "content": "{\"groups\":[{\"sourceIds\":[1,2,3,4],\"targetName\":\"函数极限\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[5,6,7,8],\"targetName\":\"导数计算\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[9,10,11,12],\"targetName\":\"定积分\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[13,14,15,16],\"targetName\":\"不定积分\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[17,18,19,20],\"targetName\":\"微分方程\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[21,22,23,24],\"targetName\":\"矩阵求逆\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[25,26,27,28],\"targetName\":\"行列式\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[29,30,31,32],\"targetName\":\"特征值\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[33,34,35,36],\"targetName\":\"概率分布\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[37,38,39,40],\"targetName\":\"条件概率\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[41,42,43,44],\"targetName\":\"随机变量\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[45,46,47,48],\"targetName\":\"统计估计\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[49,50,51,52],\"targetName\":\"电路分析\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[53,54,55,56],\"targetName\":\"电场计算\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[57,58,59,60],\"targetName\":\"磁场计算\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[61,62,63,64],\"targetName\":\"牛顿运动定律\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[65,66,67,68],\"targetName\":\"能量守恒\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[69,70,71,72],\"targetName\":\"动量守恒\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[73,74,75,76],\"targetName\":\"圆周运动\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[77,78,79,80],\"targetName\":\"简谐振动\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[81,82,83,84],\"targetName\":\"波动光学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[85,86,87,88],\"targetName\":\"几何光学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[89,90,91,92],\"targetName\":\"热力学第一定律\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[93,94,95,96],\"targetName\":\"热力学第二定律\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[97,98,99,100],\"targetName\":\"化学平衡\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[101,102,103,104],\"targetName\":\"酸碱平衡\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[105,106,107,108],\"targetName\":\"氧化还原\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[109,110,111,112],\"targetName\":\"有机反应\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[113,114,115,116],\"targetName\":\"数据结构\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[117,118,119,120],\"targetName\":\"二叉树\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[121,122,123,124],\"targetName\":\"图论\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[125,126,127,128],\"targetName\":\"排序算法\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[129,130,131,132],\"targetName\":\"动态规划\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[133,134,135,136],\"targetName\":\"数值分析\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[137,138,139,140],\"targetName\":\"复数运算\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[141,142,143,144],\"targetName\":\"级数求和\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[145,146,147,148],\"targetName\":\"向量计算\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[149,150,151,152],\"targetName\":\"解析几何\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[153,154,155,156],\"targetName\":\"多元函数\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[157,158,159,160],\"targetName\":\"偏导数\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[161,162,163,164],\"targetName\":\"曲线积分\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[165,166,167,168],\"targetName\":\"曲面积分\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[169,170,171,172],\"targetName\":\"拉普拉斯变换\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[173,174,175,176],\"targetName\":\"傅里叶变换\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[177,178,179,180],\"targetName\":\"信号处理\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[181,182,183,184],\"targetName\":\"数字电路\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[185,186,187,188],\"targetName\":\"模拟电路\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[189,190,191,192],\"targetName\":\"半导体\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[193,194,195,196],\"targetName\":\"材料力学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[197,198,199,200],\"targetName\":\"流体力学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[201,202,203,204],\"targetName\":\"结构力学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[205,206,207,208],\"targetName\":\"工程制图\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[209,210,211,212],\"targetName\":\"误差分析\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[213,214,215,216],\"targetName\":\"实验设计\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[217,218,219,220],\"targetName\":\"集合运算\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[221,222,223,224],\"targetName\":\"逻辑推理\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[225,226,227,228],\"targetName\":\"数列极限\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[229,230,231,232],\"targetName\":\"泰勒展开\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[233,234,235,236],\"targetName\":\"不等式\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[237,238,239,240],\"targetName\":\"线性规划\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[241,242,243,244],\"targetName\":\"最优化\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[245,246,247,248],\"targetName\":\"离散数学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[249,250,251,252],\"targetName\":\"控制理论\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[253,254,255,256],\"targetName\":\"振动分析\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[257,258,259,260],\"targetName\":\"传热学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[261,262,263,264],\"targetName\":\"反应动力学\",\"reason\":\"习题/题目/练习为同类练习标签\"},{\"sourceIds\":[265,266,267,268],\"targetName\":\"配位化学\",\"reason\":\"习题/题目/练习为同类练习标签\"}]}"
+    }
+  ]
+}
