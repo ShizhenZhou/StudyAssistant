@@ -29,7 +29,7 @@ v0.6.6.5 的标签分析显式构造 `ThinkingOption("enabled")`；该值等于 
 
 - 对照请求已完成，结果见上表；本地 Kotlin / 测试编译、196 项单元测试（21 个测试类）、正式变体构建（含 R8 / vital lint）、SQLite 迁移 / 主库结构检查均通过。补测候选 APK 的自有证书与 v3 + lineage 签名校验通过。CI 状态以本次 Develop 提交实际运行结果为准。
 - 不改版本号或 versionCode，主库 DB v10、备份 v3 与独立撤销库格式均不变。
-- 不改已发布的历史 Changelog / README 版本条目，不移动标签，不自动替换 Release。
+- 2026-10-24 用户明确授权同版本替换发布：在当前 v0.6.6.5 的 README 与四语言 Changelog 补充本次附件修正说明，不改更早版本条目；保留原标签，版本号与 versionCode 不变。
 - 不操作手机数据库或备份，不自动安装。
 
 ## 真机补测
