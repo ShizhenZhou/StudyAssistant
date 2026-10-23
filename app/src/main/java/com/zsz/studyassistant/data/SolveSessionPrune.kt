@@ -38,7 +38,7 @@ fun solveSessionsToDelete(
     sessions: List<SolveSession>,
     cutoffTs: Long,
     keep: Int = SOLVE_SESSION_KEEP
-): List<Long> {
+): List<QuestionId> {
     if (sessions.isEmpty()) return emptyList()
     // ★ 2026-10-13 修：`createdAt <= 0` 的记录**必须**改用 `updatedAt` 参与判定 ——
     //   否则它一定 `0 < cutoffTs`，每次启动都会被当成"过期 30 天"**直接删掉**

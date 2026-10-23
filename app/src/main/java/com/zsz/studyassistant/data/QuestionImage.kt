@@ -21,7 +21,7 @@ import androidx.room.PrimaryKey
 )
 data class QuestionImage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val questionId: Long,
+    val questionId: QuestionId,
     /** 0 = 主图；1.. = 其余（最多 2，与拍题上限 3 张一致） */
     val position: Int,
     /** 原始 JPEG 字节（不存 base64） */

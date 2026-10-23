@@ -85,6 +85,9 @@ jobs:
           chmod +x ./gradlew
           ./gradlew testDebugUnitTest assembleRelease --console=plain
 
+      - name: 校验 DB v10 迁移与 Room 表结构
+        run: python3 tools/verify-identity-migration.py
+
       # AGP 的 signingConfig 不支持 lineage → 构建后用 apksigner 补上（v3-only）
       # ★ 2026-10-13：必须同时要求"是 tag 推送"——分支推送按 A 方案不再编译 release，
       #   只判断 SIGNED_READY 会让这一步去找不存在的 app-release.apk 而报 FileNotFoundException（曾真实发生）。

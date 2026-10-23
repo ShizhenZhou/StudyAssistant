@@ -17,6 +17,10 @@ import java.util.concurrent.TimeUnit
  *    因 `Color` 拉起 `ui-graphics`，本机的手拼 classpath 跑不起来。
  */
 class SolveSessionPruneTest {
+    // Numeric fixture labels keep the original expectations readable; production IDs are opaque strings.
+    private fun solveSessionsToDelete(sessions: List<SolveSession>, cutoffTs: Long, keep: Int = SOLVE_SESSION_KEEP): List<Long> =
+        com.zsz.studyassistant.data.solveSessionsToDelete(sessions, cutoffTs, keep).map { it.toLong() }
+
 
     private fun at(y: Int, mo: Int, d: Int, h: Int = 12): Long =
         Calendar.getInstance().apply {
@@ -25,7 +29,7 @@ class SolveSessionPruneTest {
         }.timeInMillis
 
     /** 一条轻查询能取到的记录（只带 id/createdAt，够裁剪用） */
-    private fun s(id: Long, createdAt: Long) = SolveSession(id = id, createdAt = createdAt, updatedAt = createdAt)
+    private fun s(id: Long, createdAt: Long) = SolveSession(id = id.toString(), createdAt = createdAt, updatedAt = createdAt)
 
     /**
      * ★ 2026-10-13 回归：`createdAt == 0` 的坏记录**不能被裁剪误删**。
@@ -37,7 +41,7 @@ class SolveSessionPruneTest {
     @Test
     fun `createdAt 为 0 的坏记录用 updatedAt 判定，不能被误删`() {
         val now = System.currentTimeMillis()
-        val broken = SolveSession(id = 7, createdAt = 0L, updatedAt = now)
+        val broken = SolveSession(id = "7", createdAt = 0L, updatedAt = now)
         val cutoff = now - TimeUnit.DAYS.toMillis(30)
         assertTrue(
             "createdAt=0 的记录被误判为过期：${solveSessionsToDelete(listOf(broken), cutoff)}",
@@ -49,7 +53,7 @@ class SolveSessionPruneTest {
     @Test
     fun `createdAt 为 0 的坏记录在条数裁剪里按 updatedAt 排序（不会被挤掉）`() {
         val now = System.currentTimeMillis()
-        val broken = SolveSession(id = 8, createdAt = 0L, updatedAt = now)          // 最新的一条
+        val broken = SolveSession(id = "8", createdAt = 0L, updatedAt = now)          // 最新的一条
         val old = s(9, now - TimeUnit.DAYS.toMillis(1))                             // 更早
         val del = solveSessionsToDelete(listOf(broken, old), cutoffTs = 0L, keep = 1)
         assertEquals("应删更早的那条，而不是坏记录", listOf(9L), del)

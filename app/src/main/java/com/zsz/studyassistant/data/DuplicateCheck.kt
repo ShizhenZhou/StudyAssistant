@@ -87,7 +87,7 @@ object DuplicateCheck {
     fun find(
         existing: List<Question>,
         text: String,
-        excludeId: Long? = null,
+        excludeId: QuestionId? = null,
         minLen: Int = MIN_LEN,
         threshold: Double = FUZZY_THRESHOLD
     ): Question? {

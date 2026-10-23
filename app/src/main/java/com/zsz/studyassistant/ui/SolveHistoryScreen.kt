@@ -72,7 +72,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
         .collectAsState(initial = emptyList())
 
     var selectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var selectedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var opening by remember { mutableStateOf(false) }   // 取重字段期间防重复点击
 
@@ -277,7 +277,7 @@ private fun SolveHistoryItem(
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        relativeTimeText(rec.updatedAt),
+                        relativeTimeText(rec.createdAt),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -317,7 +317,7 @@ internal fun groupSolveSessionsByDay(all: List<SolveSession>, todayStart: Long):
     // ★ 2026-10-13：**坏数据兜底** —— 之前的版本可能把 `createdAt` 写成 0（根因见
     //   `MainViewModel.recordSolveSession` 的修复：INSERT 没记 `solveSessionCreatedAt`，UPDATE 时又写回 0）。
     //   `createdAt <= 0` 的记录改用 `updatedAt` 参与分组与排序，否则"今天刚搜的题"会掉进「更早」。
-    fun ts(s: SolveSession) = if (s.createdAt > 0L) s.createdAt else s.updatedAt
+    fun ts(s: SolveSession) = s.createdAt
     val sorted = all.sortedByDescending { ts(it) }
     val today = sorted.filter { ts(it) >= todayStart }
     val yesterday = sorted.filter { ts(it) in yesterdayStart until todayStart }

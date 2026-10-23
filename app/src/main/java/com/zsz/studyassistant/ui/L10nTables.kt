@@ -43,7 +43,7 @@ private val B0_ZH = mapOf(
     "home.review" to "📖  复习",
     // ── 搜题记录（2026-10-13）──
     "home.history" to "🕘  搜题记录",
-    "history.empty" to "还没有搜题记录。解答过的题目会自动留在这里，直到你把它存进错题本、或超过保留上限。",
+    "history.empty" to "还没有搜题记录。首次拍题或提交图文提问后会留下记录，按首次提问时间排序；从错题本打开不会新增记录。",
     "history.count" to "当前共 {n} 条",
     // ★ 2026-10-18：顶栏标题**不带 emoji**（emoji 只留在主页那个按钮的 home.history 上）
     "history.title" to "搜题记录",
@@ -127,7 +127,7 @@ private val B0_EN = mapOf(
     "home.review" to "📖  Review",
     // ── 搜题记录（2026-10-13）──
     "home.history" to "🕘  Search history",
-    "history.empty" to "No search records yet. Solved questions stay here automatically until you save them to the notebook or they exceed the retention limit.",
+    "history.empty" to "No search records yet. Photo and text submissions appear here in first-question order. Opening a notebook problem does not add a record.",
     "history.count" to "{n} records",
     "history.title" to "Search history",
     "history.today" to "Today",
@@ -210,7 +210,7 @@ private val B0_JA = mapOf(
     "home.review" to "📖  復習",
     // ── 搜题记录（2026-10-13）──
     "home.history" to "🕘  検索履歴",
-    "history.empty" to "検索履歴はまだありません。解答した問題は、間違いノートに保存するか保存上限を超えるまで、ここに自動で残ります。",
+    "history.empty" to "検索履歴はまだありません。撮影・質問の初回送信時に記録し、その日時で並びます。ノートから開いても追加しません。",
     "history.count" to "現在 {n} 件",
     "history.title" to "検索履歴",
     "history.today" to "今日",
@@ -293,7 +293,7 @@ private val B0_KO = mapOf(
     "home.review" to "📖  복습",
     // ── 搜题记录（2026-10-13）──
     "home.history" to "🕘  검색 기록",
-    "history.empty" to "검색 기록이 없습니다. 푼 문제는 오답 노트에 저장하거나 보관 한도를 넘을 때까지 여기에 자동으로 남습니다.",
+    "history.empty" to "검색 기록이 없습니다. 촬영 또는 질문을 처음 제출한 시간순으로 기록하며, 오답 노트에서 열어도 새 기록을 추가하지 않습니다.",
     "history.count" to "현재 {n}건",
     "history.title" to "검색 기록",
     "history.today" to "오늘",
@@ -1115,6 +1115,8 @@ private val B7_ZH = mapOf(
     "data.upgradeNotNeeded" to "无需升级。",
     "data.importDone" to "导入完成：新增 {q} 道错题、{c} 个分类、{t} 个标签，跳过重复 {s} 道",
     "data.failed" to "操作失败：{msg}",
+    "data.backupVersionUnsupported" to "此版本只支持备份 v3，请使用升级后的应用重新导出备份。",
+    "data.backupInvalid" to "备份包含无效编号、关联或图片，已取消操作。",
     "data.clearDone" to "已清空所有数据",
 
     // 崩溃日志（v0.6.1.2）：只存本机 + 用户主动导出/清空
@@ -1231,6 +1233,8 @@ private val B7_EN = mapOf(
     "data.upgradeNotNeeded" to "No upgrade is needed.",
     "data.importDone" to "Import done: {q} problems, {c} categories, {t} tags added; {s} duplicates skipped",
     "data.failed" to "Failed: {msg}",
+    "data.backupVersionUnsupported" to "Only backup v3 is supported. Export a new backup with the upgraded app.",
+    "data.backupInvalid" to "Invalid backup identity, reference or image. Operation canceled.",
     "data.clearDone" to "All data erased",
 
     // Crash logs (v0.6.1.2): stored locally only, exported/cleared by the user
@@ -1347,6 +1351,8 @@ private val B7_JA = mapOf(
     "data.upgradeNotNeeded" to "更新は不要です。",
     "data.importDone" to "完了：問題 {q} 件・分類 {c} 件・タグ {t} 件を追加、重複 {s} 件をスキップ",
     "data.failed" to "失敗しました：{msg}",
+    "data.backupVersionUnsupported" to "バックアップ v3 のみ対応しています。更新後のアプリで再度エクスポートしてください。",
+    "data.backupInvalid" to "バックアップの識別番号・関連付け・画像が無効です。操作を中止しました。",
     "data.clearDone" to "すべてのデータを削除しました",
 
     // クラッシュログ（v0.6.1.2）：端末内のみ保存・ユーザー操作で書き出し/削除
@@ -1462,6 +1468,8 @@ private val B7_KO = mapOf(
     "data.upgradeNotNeeded" to "업그레이드할 필요가 없습니다.",
     "data.importDone" to "완료: 오답 {q}개, 분류 {c}개, 태그 {t}개 추가, 중복 {s}개 건너뜀",
     "data.failed" to "실패: {msg}",
+    "data.backupVersionUnsupported" to "백업 v3만 지원합니다. 업그레이드한 앱에서 백업을 다시 내보내세요.",
+    "data.backupInvalid" to "백업의 식별 번호, 연결 또는 이미지가 올바르지 않습니다. 작업을 취소했습니다.",
     "data.clearDone" to "모든 데이터를 삭제했습니다",
 
     // 크래시 로그(v0.6.1.2): 기기 내에만 저장, 사용자가 직접 내보내기/삭제

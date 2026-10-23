@@ -17,7 +17,7 @@ import org.junit.Test
 class DuplicateCheckTest {
 
     private fun q(id: Long, text: String, deleted: Boolean = false) =
-        Question(id = id, text = text, answer = "", createdAt = 0L, deleted = deleted)
+        Question(id = id.toString(), text = text, answer = "", createdAt = 0L, deleted = deleted)
 
     // ── 归一化 ────────────────────────────────────────────────────────────
 
@@ -49,7 +49,7 @@ class DuplicateCheckTest {
         // 第二次拍同一道题：记号写成 $x^2$、逗号变顿号、少一个"所"
         val hit = DuplicateCheck.find(existing, "求下列定积分的值 ∫₀¹ \$x^2 dx\$，并说明用的公式")
         assertNotNull("同一道题的两次转写没被判为重复", hit)
-        assertEquals(1L, hit!!.id)
+        assertEquals("1", hit!!.id)
     }
 
     @Test
@@ -87,7 +87,7 @@ class DuplicateCheckTest {
         val existing = listOf(q(1, "求下列定积分的值：∫₀¹ x² dx。"))
         val hit = DuplicateCheck.find(existing, "求下列定积分的值 ∫₀¹  x² dx")
         assertNotNull("应该判定为重复", hit)
-        assertEquals(1L, hit!!.id)
+        assertEquals("1", hit!!.id)
     }
 
     @Test
@@ -114,7 +114,7 @@ class DuplicateCheckTest {
     fun `可以排除某条题自身（重新保存同一条时不提示自己）`() {
         val existing = listOf(q(7, "求下列定积分的值：∫₀¹ x² dx"))
         assertNotNull(DuplicateCheck.find(existing, "求下列定积分的值：∫₀¹ x² dx"))
-        assertNull(DuplicateCheck.find(existing, "求下列定积分的值：∫₀¹ x² dx", excludeId = 7L))
+        assertNull(DuplicateCheck.find(existing, "求下列定积分的值：∫₀¹ x² dx", excludeId = "7"))
     }
 
     @Test

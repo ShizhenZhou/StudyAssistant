@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.3
+· 🆔 题目改用 UUID＋首次输入时间作为永久编号；错题本、图片、标签及复习进度原地迁移至 DB v10，迁移前保存数据库副本
+· 🕘 搜题记录只在首次拍题或提交提问时创建；错题本/复习打开不新增，追问、重试和重新生成不改变首次时间及排序
+· 💾 备份 v3 按永久编号去重并维护关联；重复导入保留本机内容，不再按题干合并；坏图片或无效关联会中止导入
+· ⚠️ 本版不再导入 v1/v2 老备份，升级后请重新导出 v3；已有错题自动迁移，缺失时间按相邻旧编号题目补齐
+
 v0.6.6.2
 · ℹ️ “关于”页增加 GPT-6.1 Sol 辅助编写说明，保留 DeepSeek-V4/V4.1
 · 🕘 统一搜题记录过期清理的时间兜底，避免有效记录被误删
@@ -356,6 +362,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.3
+· 🆔 Permanent problem IDs combine a UUID and first-input timestamp; DB v10 migrates notebook, image, tag and review references after saving a database copy
+· 🕘 Create history only on initial photo/text submission; notebook/review opens add no records, and follow-ups, retries and regeneration preserve original ordering
+· 💾 Backup v3 deduplicates by permanent ID, preserves local content on repeated imports, and rejects invalid images or references instead of silently merging by text
+· ⚠️ v1/v2 backups are no longer accepted. Export a new v3 backup after upgrading; existing notebook data migrates automatically, with missing times inferred from neighboring old IDs
+
 v0.6.6.2
 · ℹ️ Credit GPT-6.1 Sol alongside DeepSeek-V4/V4.1 in the About page
 · 🕘 Use a consistent timestamp fallback when pruning search history to avoid removing valid records
@@ -707,6 +719,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.3
+· 🆔 UUID＋初回入力日時による永続番号を導入。DB v10 へ問題・画像・タグ・復習の関連を移行し、事前に DB のコピーを保存
+· 🕘 履歴は撮影・質問の初回送信時のみ作成。ノートや復習から開いても追加せず、追問・再試行・再生成で初回日時や並び順を変更しません
+· 💾 バックアップ v3 は永続番号で重複を判定し、再インポート時は端末内の内容を保持。不正な画像や関連は取り込みを中止
+· ⚠️ v1/v2 バックアップは非対応。更新後に v3 を再エクスポートしてください。既存の問題は自動移行し、欠けた日時は旧番号の前後から補完
+
 v0.6.6.2
 · ℹ️ アプリ情報の開発支援モデルに DeepSeek-V4/V4.1 と併せて GPT-6.1 Sol を記載
 · 🕘 検索履歴の期限判定で日時の補完処理を統一し、有効な履歴の誤削除を防止
@@ -1058,6 +1076,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.3
+· 🆔 UUID와 최초 입력 시간으로 영구 문제 번호 도입. DB 복사본을 먼저 저장한 뒤 문제·이미지·태그·복습 연결을 DB v10으로 이전
+· 🕘 촬영 또는 질문을 처음 제출할 때만 기록 생성. 오답 노트·복습에서 열어도 추가하지 않으며 후속 질문·재시도·재생성으로 최초 시간과 정렬이 바뀌지 않음
+· 💾 백업 v3는 영구 번호로 중복을 판정하고 재가져오기 시 기기 내 내용을 유지하며, 잘못된 이미지나 연결이 있으면 가져오기 중단
+· ⚠️ v1/v2 백업은 지원하지 않습니다. 업데이트 후 v3로 다시 내보내세요. 기존 오답은 자동 이전하며 누락된 시간은 이전 숫자 번호의 앞뒤 문제를 기준으로 보완
+
 v0.6.6.2
 · ℹ️ 앱 정보에 기존 DeepSeek-V4/V4.1과 함께 GPT-6.1 Sol 개발 지원 표기 추가
 · 🕘 검색 기록 정리 시 날짜 대체 처리를 통일하여 유효한 기록이 잘못 삭제되는 문제 방지

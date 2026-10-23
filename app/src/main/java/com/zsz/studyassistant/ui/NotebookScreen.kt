@@ -110,7 +110,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     LaunchedEffect(sortMode) { runCatching { gridState.scrollToItem(0) } }
     var page by remember { mutableStateOf("list") }   // list / manage（科目管理）
     var selectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var selectedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
     var showBatchCategory by remember { mutableStateOf(false) }
     var showBatchDelete by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }

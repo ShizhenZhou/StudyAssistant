@@ -15,6 +15,8 @@ import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.QuestionId
+import com.zsz.studyassistant.data.QuestionIdentity
 import com.zsz.studyassistant.data.QuestionImage
 import com.zsz.studyassistant.data.QuestionTag
 import com.zsz.studyassistant.data.MAX_QUESTION_IMAGES
@@ -41,6 +43,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -153,7 +156,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * B9 查重：题干（归一化后）相同的已有错题。
      * 只查未删除的题、只取轻字段（不含图片 BLOB），太短的题干不比（见 DuplicateCheck）。
      */
-    suspend fun findDuplicateQuestion(text: String, excludeId: Long? = null): Question? =
+    suspend fun findDuplicateQuestion(text: String, excludeId: QuestionId? = null): Question? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 com.zsz.studyassistant.data.DuplicateCheck.find(dao.allLightOnce(), text, excludeId)
@@ -276,7 +279,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var savedToNotebook by mutableStateOf(false)
         private set
-    var savedQuestionId: Long? = null
+    var savedQuestionId: QuestionId? = null
         private set
     var isFromNotebook by mutableStateOf(false)
         private set
@@ -309,18 +312,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 在 [resetSession] / [prepareSession] 里清空（换了新会话）。
      */
     private class SolveSessionBinding(
-        var id: Long? = null,
+        var id: QuestionId? = null,
         var createdAt: Long = 0L,
         var source: String? = null,
         var saving: Boolean = false,
-        var cancelPending: Boolean = false
+        var cancelPending: Boolean = false,
+        var historyAllowed: Boolean = false
     )
 
     private var sessionRecordBinding = SolveSessionBinding()
+    private var retryBinding: SolveSessionBinding? = null
+    private var captureIdentity: Pair<QuestionId, Long>? = null
     private val solveSessionWriteMutex = kotlinx.coroutines.sync.Mutex()
+    private val notebookWriteMutex = kotlinx.coroutines.sync.Mutex()
     private val dataMaintenanceMutex = kotlinx.coroutines.sync.Mutex()
 
-    private var currentSessionId: Long?
+    private var currentSessionId: QuestionId?
         get() = sessionRecordBinding.id
         set(value) { sessionRecordBinding.id = value }
 
@@ -414,7 +421,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 原图只按内容去重追加；保留已有主图和顺序，缺图插入失败向上传播。 */
-    private suspend fun writeQuestionImages(qid: Long, images: List<ByteArray>, source: String = "save") {
+    private suspend fun writeQuestionImages(qid: QuestionId, images: List<ByteArray>, source: String = "save") {
         if (images.isEmpty()) return
         dao.appendMissingImages(qid, images, source)
     }
@@ -503,6 +510,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val cropPos: Int get() = cropIndex + 1
 
     fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
+        val firstTime = System.currentTimeMillis()
+        captureIdentity = if (!grade) QuestionIdentity.create(firstTime) to firstTime else null
         cropPaths = paths
         cropIndex = 0
         cropGrade = grade
@@ -542,60 +551,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (cropResults.size < cropExpect) cropNeedsMore = true else finishCropFlow()
     }
 
-    // ───────── 搜题记录（solve_sessions，方案 B）─────────
-    // 动机：**未点「存错题本」就退出 → 整个会话彻底丢失**；本仓库没有 onCleared/SavedStateHandle，
-    // 只靠"离开页面时落库"挡不住进程被杀 → 在 4 个生成入口的 onDone 尾部**尽早 insert**。
-    // 与错题本完全隔离：这里只碰新表，现有 错题本/复习/统计/查重/备份 的查询一律不改。
-
-    /**
-     * 生成入口（[solveWithImage] / [solveWithImages] / [solveText] / [solveDirect] / [regenerate]）
-     * 的 `onDone` 尾部调用：**落库**（首次 insert，之后 UPDATE 同一条，靠 [currentSessionId] 防重复）。
-     * 传给 DAO 的字段就是界面要显示的轻字段 + 进详情才取的重字段，两个落点共用一套取值，
-     * 不会出现"列表显示的和点进去看到的不一样"。
-     */
-    private fun recordSolveSession(source: String) {
+    // History is created at initial input, before requesting AI. Both tables share
+    // the permanent problem ID. Subsequent calls may only update an existing row.
+    // Notebook/review loads explicitly disable history writes.
+    private fun recordSolveSession(source: String, create: Boolean = false) {
         val binding = sessionRecordBinding
+        if (!binding.historyAllowed) return
+        val problemId = binding.id ?: return
         val imgs = when {
-            questionImages.isNotEmpty() -> questionImages.mapNotNull {
-                runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
-            }
+            questionImages.isNotEmpty() -> questionImages.map { Base64.decode(it, Base64.NO_WRAP) }
             multiImages.isNotEmpty() -> multiImages
             directImages.isNotEmpty() -> directImages
             imageBytes != null -> listOf(imageBytes!!)
             else -> emptyList()
         }
-        val q = questionText.ifBlank {
-            if (imgs.isEmpty()) return
-            runCatching { StudyAssistant.parseVisionOutput(lastAnswer()).question }
-                .getOrNull()?.trim().orEmpty().ifBlank { "（图片题）" }
-        }
-        val a = lastAnswer()
-        val conv = json.encodeToString(chatItems)
-        val single = if (imgs.size == 1) imgs[0] else null
-        val multi = if (imgs.size > 1) json.encodeToString(imgs.map {
-            Base64.encodeToString(it, Base64.NO_WRAP)
-        }) else null
-        val linkedQuestionId = savedQuestionId
-        val now = System.currentTimeMillis()
+        val q = questionText.ifBlank { if (imgs.isEmpty()) return else "（图片题）" }
+        val row = SolveSession(
+            id = problemId, createdAt = binding.createdAt,
+            updatedAt = System.currentTimeMillis(), source = binding.source ?: source,
+            text = q, answer = lastAnswer(), conversationJson = json.encodeToString(chatItems),
+            imageBytes = imgs.firstOrNull(),
+            imagesJson = if (imgs.size > 1) json.encodeToString(imgs.map {
+                Base64.encodeToString(it, Base64.NO_WRAP)
+            }) else null,
+            savedQuestionId = savedQuestionId
+        )
         viewModelScope.launch {
             solveSessionWriteMutex.lock()
             try {
-                val sid = binding.id
-                val created = binding.createdAt.takeIf { it > 0L } ?: now
-                val actualSource = binding.source ?: source
-                val row = SolveSession(
-                    id = sid ?: 0L, source = actualSource, createdAt = created,
-                    updatedAt = now, text = q, answer = a, conversationJson = conv,
-                    imageBytes = single, imagesJson = multi, savedQuestionId = linkedQuestionId
-                )
-                if (sid == null) binding.id = dao.insertSolveSession(row)
-                else dao.updateSolveSession(row)
-                binding.createdAt = created
-                binding.source = actualSource
+                AppDatabase.get(getApplication()).withTransaction {
+                    val previous = dao.solveSessionOnce(problemId)
+                    val linkedRow = row.copy(savedQuestionId = problemId.takeIf { dao.questionExists(it) })
+                    // 只有首次提交允许新增；打开错题、追问、退出以及被删/裁剪的历史均不补建。
+                    if (previous == null) {
+                        if (create && binding.historyAllowed) dao.insertSolveSession(linkedRow)
+                    } else {
+                        dao.updateSolveSession(linkedRow.copy(createdAt =
+                            QuestionIdentity.earliest(previous.createdAt, row.createdAt)))
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // 保持已有的静默记录行为；不把数据库内容写入日志。
+                // 历史写入失败不输出题目内容或密钥。
             } finally {
                 solveSessionWriteMutex.unlock()
             }
@@ -603,8 +601,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 记录被裁剪掉时要顺手把 [currentSessionId] 松开，否则后续 UPDATE 会写进一条不存在的行 */
-    private fun dropCurrentSessionIfPruned(deleted: List<Long>) {
-        if (currentSessionId != null && deleted.contains(currentSessionId)) currentSessionId = null
+    private fun dropCurrentSessionIfPruned(deleted: List<QuestionId>) {
+        if (currentSessionId in deleted) sessionRecordBinding.historyAllowed = false
     }
 
     /** 启动裁剪（挂在 [purgeDeletedData] 旁边）：保留最近 [SOLVE_SESSION_KEEP] 条 / 最近 [SOLVE_SESSION_KEEP_DAYS] 天 */
@@ -627,7 +625,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         stopActiveGeneration()
         val seq = callSeq
         try {
-            val linked = s.savedQuestionId?.let { dao.heavyOnce(it) }
+            val linked = dao.heavyOnce(s.id)
             if (seq != callSeq) return false
             if (linked != null && !linked.deleted) {
                 // 用户选择 A：以错题本最新内容为准，但继续绑定这条搜题记录。
@@ -637,7 +635,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // 对应错题已删除或不存在：记录仍可查看，不再回写失效的错题 id。
             resetSession()
             sessionRecordBinding = SolveSessionBinding(
-                s.id, s.createdAt.takeIf { it > 0L } ?: s.updatedAt, s.source
+                s.id, s.createdAt, s.source, historyAllowed = true
             )
             exitRedo()
             isPhoto = s.source == "camera"
@@ -679,10 +677,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ask: Boolean = false,
         fromNotebook: Boolean = false
     ) {
-        resetSession()          // 内部会把 askMode 复位
-        // 新会话：松开上一条搜题记录（否则新一轮的落库会 UPDATE 上一条，把旧记录覆盖掉）
-        currentSessionId = null
-        solveSessionCreatedAt = 0L
+        val retry = retryBinding
+        val capture = if (photo && !ask && !grade) captureIdentity else null
+        resetSession()
+        val firstTime = capture?.second ?: System.currentTimeMillis()
+        sessionRecordBinding = retry ?: SolveSessionBinding(
+            id = capture?.first ?: QuestionIdentity.create(firstTime), createdAt = firstTime,
+            historyAllowed = !grade && !fromNotebook
+        )
+        if (capture != null) captureIdentity = null
+        currentQuestionCreatedAt = sessionRecordBinding.createdAt
         isPhoto = photo
         gradeMode = grade
         askMode = ask
@@ -1114,7 +1118,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")
                         ) {
                             networkError = true
-                            retryAction = repeat
+                            val failedBinding = sessionRecordBinding
+                            retryAction = repeat?.let { action -> {
+                                if (sessionRecordBinding === failedBinding) {
+                                    retryBinding = failedBinding
+                                    try { action() } finally { retryBinding = null }
+                                }
+                            } }
                         }
                     }
                 }
@@ -1187,7 +1197,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 与 [exportBackup] 的区别：不写 dataMessage、不置 dataBusy（启动时的自动备份不该改界面状态）。
      */
     suspend fun buildBackupJson(): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        com.zsz.studyassistant.data.BackupManager.export(dao)
+        com.zsz.studyassistant.data.BackupManager.export(AppDatabase.get(getApplication()))
     }
 
     /** 生成备份 JSON（IO 在后台线程）；ok 回调在拿到结果后触发 */
@@ -1195,12 +1205,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             dataBusy = true
             try {
-                val json = com.zsz.studyassistant.data.BackupManager.export(dao)
+                val json = com.zsz.studyassistant.data.BackupManager.export(AppDatabase.get(getApplication()))
                 val n = dao.countQuestions()
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.exportDone", "n" to "$n")
                 onReady(json)
             } catch (e: Exception) {
-                val m = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+                val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else (e.message ?: "")
+                val m = s.format("data.failed", "msg" to detail)
                 dataMessage = m
                 onError(m)
             } finally {
@@ -1213,14 +1225,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             dataBusy = true
             try {
-                // ★ 备份 v2：事务化导入（失败整体回滚）+ 兼容 v1 旧备份
+                // Backup v3: validate identity/references/images before a transactional merge.
                 val r = com.zsz.studyassistant.data.BackupManager.import(AppDatabase.get(getApplication()), text)
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
                     "data.importDone",
                     "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}"
                 )
             } catch (e: Exception) {
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
+                val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else (e.message ?: "")
+                dataMessage = s.format("data.failed", "msg" to detail)
             } finally {
                 dataBusy = false
             }
@@ -1391,6 +1405,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isFromNotebook = false
         questionFromPhoto = true
         questionImages = listOf(Base64.encodeToString(bytes, Base64.NO_WRAP))
+        recordSolveSession("camera", create = true)
         runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
@@ -1410,6 +1425,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         multiImages = images
         questionFromPhoto = true
         questionImages = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
+        recordSolveSession("camera", create = true)
         runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
             val r = StudyAssistant.parseVisionOutput(output)
             questionText = r.question
@@ -1435,6 +1451,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         questionText = question
         suggestedCategory = null
         suggestedTags = emptyList()
+        recordSolveSession("text", create = true)
         runCall(StudyAssistant.MODEL_TEXT, onDone = { reply ->
             addItem("question", question)
             // ★ 与图文提问走同一条清洗路径：否则原始 reply 里的「题目：/分类：」整块会显示出来
@@ -1462,6 +1479,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         questionImages = encoded
         addItem("question", text, if (encoded.isEmpty()) null else encoded)
+        recordSolveSession("ask", create = true)
         val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             if (images.isNotEmpty()) {
@@ -1583,6 +1601,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .getOrNull()?.trim().orEmpty().ifBlank { "（图片题）" }
         }
         val binding = sessionRecordBinding
+        val stableId = binding.id ?: return
+        val firstCreatedAt = binding.createdAt
         val convJson = json.encodeToString(chatItems)
         val a = lastAnswer()
         val img = imageBytes ?: questionImages.firstOrNull()?.let {
@@ -1597,12 +1617,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val db = AppDatabase.get(getApplication())
-                val saved = db.withTransaction {
+                var reusedQuestion: Question? = null
+                val saved = notebookWriteMutex.withLock { db.withTransaction {
+                    if (binding.cancelPending) return@withTransaction null
+                    val existingQuestion = dao.heavyOnce(stableId)
+                    if (existingQuestion != null) {
+                        // Explicit save can restore this ID, but must not replace a newer notebook copy.
+                        if (existingQuestion.deleted) dao.restore(stableId)
+                        reusedQuestion = existingQuestion.copy(deleted = false)
+                        dao.linkExistingSession(stableId)
+                        return@withTransaction Triple(stableId, existingQuestion.categoryId, dao.tagIdsForQuestion(stableId))
+                    }
                     val cid = if (!name.isNullOrBlank()) {
                         dao.insertCategory(Category(name = name.trim()))
                     } else categoryId
-                    val qid = dao.insert(Question(text = q, answer = a, imageBytes = img,
-                        conversationJson = convJson, categoryId = cid, createdAt = now))
+                    val qid = dao.insertQuestionWithId(Question(id = stableId, text = q, answer = a, imageBytes = img,
+                        conversationJson = convJson, categoryId = cid, createdAt = firstCreatedAt))
                     writeQuestionImages(qid, allImgBytes, source = "save")
                     val ids = tagIds.distinct().toMutableList()
                     for (tn in tagNames.take(5)) {
@@ -1622,14 +1652,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         dao.deleteReviewsForQuestions(listOf(qid))
                         dao.deleteById(qid)
                         null
-                    } else Triple(qid, cid, finalIds)
-                }
+                    } else {
+                        dao.linkExistingSession(qid)
+                        Triple(qid, cid, finalIds)
+                    }
+                } }
                 if (binding === sessionRecordBinding) {
+                    val reused = reusedQuestion
+                    if (reused != null) {
+                        val history = if (binding.historyAllowed) dao.solveSessionOnce(stableId) else null
+                        if (binding === sessionRecordBinding) loadQuestion(reused, historySession = history)
+                        return@launch
+                    }
                     savedQuestionId = saved?.first
                     savedToNotebook = saved != null
+                    if (saved != null) isDeleted = false
                     currentQuestionCategoryId = saved?.second
                     currentQuestionTags = saved?.third.orEmpty()
-                    if (saved != null) currentQuestionCreatedAt = now
+                    if (saved != null) currentQuestionCreatedAt = firstCreatedAt
                     cancelPending = false
                     recordSolveSession(currentSource())
                 }
@@ -1649,13 +1689,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 取消保存当前错题（从错题本移除） */
     fun unsaveFromNotebook() {
         val id = savedQuestionId ?: return
+        val binding = sessionRecordBinding
         savedQuestionId = null
         savedToNotebook = false
         currentQuestionCategoryId = null
         currentQuestionTags = emptyList()
-        viewModelScope.launch { dao.deleteById(id) }
-        // ★ 2026-10-14（用户要求）：不再实时问 AI 重算 —— 清空会话内预置即可；
-        //   之后要再存，就按"已存信息/置空"处理（分类＝暂不分类、不勾选标签）。
+        viewModelScope.launch {
+            try {
+                notebookWriteMutex.withLock {
+                    AppDatabase.get(getApplication()).withTransaction {
+                        dao.clearImages(id)
+                        dao.clearQuestionTags(id)
+                        dao.deleteReviewsForQuestions(listOf(id))
+                        dao.deleteById(id)
+                        dao.unlinkExistingSession(id)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (binding === sessionRecordBinding) {
+                    savedQuestionId = id
+                    savedToNotebook = true
+                    error = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                        .format("data.failed", "msg" to (e.message ?: ""))
+                }
+            }
+        }
         suggestedCategory = null
         suggestedTags = emptyList()
     }
@@ -1675,7 +1735,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 批量改分类：name 非空→新建分类，categoryId 为 null→暂不分类 */
-    fun batchSetCategory(ids: List<Long>, name: String?, categoryId: Long?) {
+    fun batchSetCategory(ids: List<QuestionId>, name: String?, categoryId: Long?) {
         if (ids.isEmpty()) return
         viewModelScope.launch {
             var cid = categoryId
@@ -1730,7 +1790,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 批量彻底删除 */
-    fun batchDelete(ids: List<Long>) {
+    fun batchDelete(ids: List<QuestionId>) {
         if (ids.isEmpty()) return
         viewModelScope.launch { dao.deleteByIds(ids) }
     }
@@ -1743,7 +1803,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun dueQuestionsWeek(): Flow<List<Question>> = dao.dueQuestions(endOfWeek())
 
     /** 三个按钮更新调度：level 0=忘记, 1=模糊, 2=熟悉 */
-    fun reviewQuestion(questionId: Long, level: Int) {
+    fun reviewQuestion(questionId: QuestionId, level: Int) {
         viewModelScope.launch {
             val r = dao.reviewFor(questionId) ?: Review(questionId)
             val (step, days) = scheduleFor(level, r.intervalStep)
@@ -1861,14 +1921,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     /** 当前重做的题目 id */
-    var redoQuestionId by mutableStateOf<Long?>(null)
+    var redoQuestionId by mutableStateOf<QuestionId?>(null)
         private set
 
     private var redoQuestionText: String = ""
     private var redoQuestionImage: ByteArray? = null
 
     /** 本次批改是否属于"重做"（一次性）：批改结束时据此自动更新掌握度 */
-    private var pendingRedoFor: Long? = null
+    private var pendingRedoFor: QuestionId? = null
 
     /** 复习时点「✏️ 手写重做」：记住当前题，等用户拍/选作答照片 */
     fun startRedo() {
@@ -1889,7 +1949,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 批改结束（重做）→ 按结论映射档位、写回复习计划，并给界面一句提示 */
-    private fun applyRedoResult(qid: Long, reply: String) {
+    private fun applyRedoResult(qid: QuestionId, reply: String) {
         val level = com.zsz.studyassistant.data.GradeVerdict.level(reply)
         viewModelScope.launch {
             val r = runCatching { dao.reviewFor(qid) }.getOrNull() ?: Review(qid)
@@ -1974,6 +2034,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startSimilar() {
         val q = currentReviewQuestion ?: return
+        similarCreatedAt = System.currentTimeMillis()
+        similarIdentity = QuestionIdentity.create(similarCreatedAt)
         val mySeq = ++similarSeq
         similarJob?.cancel()
         similarJob = viewModelScope.launch {
@@ -2141,50 +2203,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- 同类题：存错题本（逻辑与解题页一致：分类 + 标签，可取消保存）----
-    var similarSavedQuestionId by mutableStateOf<Long?>(null)
+    private var similarIdentity = QuestionIdentity.create()
+    private var similarCreatedAt = System.currentTimeMillis()
+    var similarSavedQuestionId by mutableStateOf<QuestionId?>(null)
         private set
 
     fun saveSimilarToNotebook(
-        name: String?,
-        categoryId: Long?,
-        tagNames: List<String> = emptyList(),
-        tagIds: List<Long> = emptyList()
+        name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()
     ) {
-        val qTitle = similarQuestion ?: return
+        val title = similarQuestion ?: return
+        val id = similarIdentity
+        val created = similarCreatedAt
+        val seq = similarSeq
+        val answerText = buildString {
+            similarAnswer?.let { append(it) }
+            for (m in similarMessages) {
+                if (isNotEmpty()) append("\n\n")
+                append(if (m.role == "assistant") "AI：" else "我：")
+                append(m.content)
+            }
+        }
         viewModelScope.launch {
-            var cid = categoryId
-            if (!name.isNullOrBlank()) cid = dao.insertCategory(Category(name = name.trim()))
-            // 答案 = 已生成的解答（若有）+ 之后的追问往返
-            val answerText = buildString {
-                similarAnswer?.let { append(it) }
-                for (m in similarMessages) {
-                    if (isNotEmpty()) append("\n\n")
-                    append(if (m.role == "assistant") "AI：" else "我：")
-                    append(m.content)
+            try {
+                notebookWriteMutex.withLock {
+                    AppDatabase.get(getApplication()).withTransaction {
+                        if (!dao.questionExists(id)) {
+                            val cid = if (!name.isNullOrBlank()) dao.insertCategory(Category(name=name.trim())) else categoryId
+                            dao.insertQuestionWithId(Question(id,title,answerText,created,categoryId=cid))
+                            val finalIds = tagIds.distinct().toMutableList()
+                            for (tn in tagNames.take(5)) {
+                                val n = tn.trim()
+                                if (n.isBlank()) continue
+                                val tid = dao.getAllTagsOnce().firstOrNull { it.name==n }?.id ?: dao.insertTag(Tag(name=n))
+                                if (tid !in finalIds) finalIds += tid
+                            }
+                            dao.insertQuestionTags(finalIds.take(5).map { QuestionTag(id,it) })
+                            dao.insertReview(Review(id,nextReviewAt=System.currentTimeMillis()))
+                        }
+                    }
                 }
+                if (seq == similarSeq) similarSavedQuestionId = id
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (seq == similarSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                    .format("data.failed", "msg" to (e.message ?: ""))
             }
-            val now = System.currentTimeMillis()
-            val qid = dao.insert(
-                Question(
-                    text = qTitle,
-                    answer = answerText,
-                    imageBytes = null,
-                    conversationJson = null,
-                    categoryId = cid,
-                    createdAt = now
-                )
-            )
-            val finalIds = tagIds.toMutableList()
-            for (tn in tagNames.take(5)) {
-                val n2 = tn.trim()
-                if (n2.isBlank()) continue
-                val existing = dao.getAllTagsOnce().firstOrNull { it.name == n2 }
-                val tid = existing?.id ?: dao.insertTag(Tag(name = n2))
-                if (!finalIds.contains(tid)) finalIds += tid
-            }
-            for (tid in finalIds.take(5)) dao.insertQuestionTag(QuestionTag(qid, tid))
-            dao.insertReview(Review(questionId = qid, intervalStep = 0, nextReviewAt = now, reviewCount = 0))
-            similarSavedQuestionId = qid
         }
     }
 
@@ -2192,7 +2256,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun unsaveSimilarFromNotebook() {
         val id = similarSavedQuestionId ?: return
         similarSavedQuestionId = null
-        viewModelScope.launch { dao.deleteById(id) }
+        viewModelScope.launch {
+            notebookWriteMutex.withLock {
+                AppDatabase.get(getApplication()).withTransaction {
+                    dao.clearImages(id)
+                    dao.clearQuestionTags(id)
+                    dao.deleteReviewsForQuestions(listOf(id))
+                    dao.deleteById(id)
+                    dao.unlinkExistingSession(id)
+                }
+            }
+        }
         // ★ 2026-10-14（用户要求）：不再实时问 AI 重算 —— 清空会话内预置即可；
         //   之后要再存，就按"已存信息/置空"处理（分类＝暂不分类、不勾选标签）。
         suggestedCategory = null
@@ -2247,12 +2321,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveSessionOnExit() {
         if (chatItems.isEmpty()) return
         val id = savedQuestionId
-        val snapshot = id?.takeIf { it > 0L }?.let {
+        val snapshot = id?.takeIf { QuestionIdentity.valid(it) }?.let {
             Question(
                 id = it, text = questionText, answer = lastAnswer(), imageBytes = imageBytes,
                 conversationJson = json.encodeToString(chatItems), deleted = isDeleted,
                 categoryId = currentQuestionCategoryId,
-                createdAt = currentQuestionCreatedAt.ifZeroToNow()
+                createdAt = currentQuestionCreatedAt
             )
         }
         // 在启动任何异步任务之前捕获记录快照，而不是写库结束后再读取 VM。
@@ -2355,7 +2429,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 开始批改（流式、全屏复用解题页）：把「题目图 [+ 我的作答图]」作为一条提问，
      * 批改结果流式追加；之后可继续带图追问。
      */
-    fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?, redoFor: Long? = null) {
+    fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?, redoFor: QuestionId? = null) {
         prepareSession(grade = true)
         gradeMode = true
         pendingRedoFor = redoFor
@@ -2382,7 +2456,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 批改（**纯文字题干** + 手写作答图）：B6 重做时，复习的题可能本来就没有原图。
      * 与 [startGrade] 的区别只有首轮消息的构造方式（文字题干 + 作答图）。
      */
-    fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: Long? = null) {
+    fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: QuestionId? = null) {
         prepareSession(grade = true)
         gradeMode = true
         pendingRedoFor = redoFor
@@ -2475,9 +2549,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         stopActiveGeneration()
         resetSession()
         sessionRecordBinding = SolveSessionBinding(
-            id = historySession?.id,
-            createdAt = historySession?.let { it.createdAt.takeIf { t -> t > 0L } ?: it.updatedAt } ?: 0L,
-            source = historySession?.source
+            id = q.id,
+            createdAt = QuestionIdentity.earliest(q.createdAt, historySession?.createdAt ?: 0L),
+            source = historySession?.source,
+            historyAllowed = historySession != null
         )
         val binding = sessionRecordBinding
         exitRedo()

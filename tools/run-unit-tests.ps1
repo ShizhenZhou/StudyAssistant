@@ -103,6 +103,7 @@ $root = Join-Path $GradleUserHome 'caches'
 $wanted = @(
     @{ Name = 'junit-4.13.2.jar';                    Pattern = 'junit-*.jar' },
     @{ Name = 'hamcrest-core-1.3.jar';               Pattern = 'hamcrest-core-*.jar' },
+    @{ Name = 'kotlinx-coroutines-core-jvm.jar';      Pattern = 'kotlinx-coroutines-core-jvm-*.jar' },
     @{ Name = 'kotlin-stdlib-2.2.20.jar';            Pattern = 'kotlin-stdlib-2*.jar' },
     @{ Name = 'kotlinx-serialization-json-jvm.jar';  Pattern = 'kotlinx-serialization-json-jvm-1.7*.jar' },
     @{ Name = 'kotlinx-serialization-core-jvm.jar';  Pattern = 'kotlinx-serialization-core-jvm-1.7*.jar' },
@@ -166,6 +167,9 @@ $testClasses = @(
     'com.zsz.studyassistant.data.AutoExposureTest',
     'com.zsz.studyassistant.data.SolveSessionPruneTest',
     'com.zsz.studyassistant.data.ConversationImagesTest',
+    'com.zsz.studyassistant.data.QuestionIdentityTest',
+    'com.zsz.studyassistant.data.BackupValidationTest',
+    'com.zsz.studyassistant.data.BackupImporterTest',
     'com.zsz.studyassistant.ui.CategoryLabelStyleTest',
     'com.zsz.studyassistant.ui.CropMathTest',
     'com.zsz.studyassistant.ui.L10nTableTest',

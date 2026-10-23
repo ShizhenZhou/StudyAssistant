@@ -37,7 +37,7 @@ object NotebookSorting {
 
     fun sort(
         questions: List<Question>,
-        reviews: Map<Long, Review>,
+        reviews: Map<QuestionId, Review>,
         mode: NotebookSortMode
     ): List<Question> = when (mode) {
         NotebookSortMode.NEWEST -> questions.sortedByDescending { it.createdAt }

@@ -13,7 +13,7 @@
 |---|---|---|
 | 错题 / 分类 / 会话 | Room 数据库 `study_assistant.db` | SQLite；带 schema 版本号 + migration 自动迁移 |
 | 会话消息（追问历史） | `questions.conversationJson`（TEXT） | 序列化后的 `ChatItem[]` |
-| 搜题记录（防"忘了存错题本"） | Room 数据库 `solve_sessions` 表 | v8 新增；**与错题本完全隔离**，不进 `questions`、**本期也不并入 JSON 备份** |
+| 搜题记录（防"忘了存错题本"） | Room 数据库 `solve_sessions` 表 | 与错题本分表，共享永久题目编号；包含在备份 v3 中 |
 | 应用主题 | `SharedPreferences("settings")` 的 `theme` | system/light/dark |
 | DeepSeek API Key | Android Keystore（AES/GCM） | 运行时经 `KeyManager` 解密；**不存源码** |
 | 本机凭据备份 | 仓库之外的本地文件（**不入库**） | 用户手动维护，绝不上传 |
@@ -22,18 +22,18 @@
 
 ## 1. Room 数据库 `study_assistant.db`
 
-- 当前 **schema version = 9**（`AppDatabase.version`）。
-- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9`，全部用 `Migration` + `addMigrations(...)`。
-- **维护约定（2026-10-16 起）**：只保证 **v9 及更新格式**；v8 及更老的数据**装上新版会自动迁移**，
-  迁移前会先把 DB 文件复制成 `study_assistant.db.pre-v9`（同目录，异常可拷回）。
-  App 启动时若检测到"有图但还没进 `question_images`"的旧数据，会弹一次升级提示（见「数据升级 / 修复」页）。
+- 当前 **schema version = 10**（`AppDatabase.SCHEMA_VERSION`），自 App v0.6.6.3 起；v0.6.6.2 使用 DB v9。
+- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10`，全部用 `Migration` + `addMigrations(...)`。
+- 保留 v9 到 v10 的原地升级；历史 migration 链仍保留。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。
+- 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v10-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。旧 `.pre-v9` 文件不删除。
+- 界面“一键升级”负责检查/补全，不是 Room 主键迁移的前置条件。升级提示仍按 DB 版本管理。
 
 ### 1.0 表 `question_images`（**v9 新增**：一题多图）
 
 | 列名 | 类型 | 默认 | 含义 |
 |---|---|---|---|
 | `id` | INTEGER (PK, auto) | — | 主键 |
-| `questionId` | INTEGER | — | 指向 `questions.id` |
+| `questionId` | TEXT | — | 指向 `questions.id`，永久编号 |
 | `position` | INTEGER | — | **0 = 主图**（卡片/复习优先用它），1.. = 其余原图 |
 | `bytes` | BLOB | — | 原始 JPEG（**不存 base64**） |
 | `source` | TEXT | NULL | `save` / `upgrade` / `repair` / `import` / `migrate`（诊断用） |
@@ -43,14 +43,14 @@
 > **兼容策略**：`questions.imageBytes` 列**保留不删**；读取一律「`question_images` → `imageBytes` → `conversationJson`」三层兜底。
 > 保存错题时把全部图写进本表；`v8→v9` 迁移用纯 SQL 把旧 `imageBytes` 搬成 `position=0`（旧数据原地升级）。
 
-### 1.1 表 `questions`（最新结构 = v5）
+### 1.1 表 `questions`（最新结构 = v10）
 
 | 列名 | 类型 | 默认 | 含义 |
 |---|---|---|---|
-| `id` | INTEGER (PK, auto) | — | 主键 |
+| `id` | TEXT (PK) | 无，创建入口必须提供 | UUID v4＋首次输入时间戳，格式 `<uuid>-<毫秒>` |
 | `text` | TEXT | — | 题目文字 |
 | `answer` | TEXT | — | 解答内容 |
-| `createdAt` | INTEGER | `System.currentTimeMillis()` | **提问/保存时时间戳**（点进去退出不再刷新） |
+| `createdAt` | INTEGER | 首次输入时间 | 与永久编号后缀一致；追问、重新生成、保存、导入均不刷新 |
 | `imageBytes` | BLOB | NULL | 框选出的错题图片（JPEG 字节；纯文字题为 NULL） |
 | `conversationJson` | TEXT | NULL | 完整对话会话（`ChatItem[]` 的 JSON），用于续答 |
 | `deleted` | INTEGER | `0` | 是否软删除（1=软删除，可从错题本恢复） |
@@ -80,7 +80,7 @@
 
 | 列名 | 类型 | 说明 |
 |---|---|---|
-| `questionId` | INTEGER | 外键 → `questions.id` |
+| `questionId` | TEXT | 语义引用 → `questions.id`，永久编号 |
 | `tagId` | INTEGER | 外键 → `tags.id` |
 
 > 复合主键 `(questionId, tagId)`；一道题最多 5 个 tag（业务层限制）。
@@ -89,7 +89,7 @@
 
 | 列名 | 类型 | 含义 |
 |---|---|---|
-| `questionId` | INTEGER (PK) | 外键 → `questions.id`，一题一条 |
+| `questionId` | TEXT (PK) | 语义引用 → `questions.id`，一题一条 |
 | `intervalStep` | INTEGER | 当前间隔档位（0..6，对应 `[0,1,2,4,7,15,30]` 天） |
 | `nextReviewAt` | INTEGER | 下次复习时间戳 |
 | `lastReviewedAt` | INTEGER | 上次复习时间戳 |
@@ -97,11 +97,11 @@
 
 > 三按钮：熟悉=+1 档；模糊=保持档位；忘记=重置第 0 档（今天）。
 
-### 1.2.4 表 `solve_sessions`（v8 新增，搜题记录）
+### 1.2.4 表 `solve_sessions`（v8 新增，v10 使用永久编号）
 
 | 列名 | 类型 | 默认 | 含义 |
 |---|---|---|---|
-| `id` | INTEGER (PK, auto) | — | 主键 |
+| `id` | TEXT (PK) | 无，首次提交时提供 | 与同一道错题的 `questions.id` 一致 |
 | `createdAt` | INTEGER | `System.currentTimeMillis()` | 本次会话创建时间（更新时**不刷新**，用于排序与裁剪） |
 | `updatedAt` | INTEGER | `System.currentTimeMillis()` | 最后一次写入时间 |
 | `source` | TEXT | `"camera"` | 来源：`camera`（拍照）/ `ask`（图文提问）/ `text`（文字）/ `grade`（批改） |
@@ -110,9 +110,9 @@
 | `conversationJson` | TEXT | NULL | 完整对话会话（与 `questions.conversationJson` **同一格式**：`ChatItem[]` 的 JSON） |
 | `imageBytes` | BLOB | NULL | 单图（拍照）原图；纯文字题为 NULL |
 | `imagesJson` | TEXT | NULL | 多图（**base64 数组**的 JSON）；顺带修"多图拍题存错题本丢原图" |
-| `savedQuestionId` | INTEGER | NULL | 已「存错题本」时指向 `questions.id`（NULL = 还是"记录"，可一键存） |
+| `savedQuestionId` | TEXT | NULL | 已存错题本时与本行 `id` 相同；NULL = 无对应错题 |
 
-> **与错题本完全隔离**：错题本 / 复习 / 统计 / 查重 / 备份的查询**一律不碰这张表**（新表的意义就在这里）。
+> 与错题本分表存储，共享题目永久编号；备份 v3 包含两表。首次拍题/提问才建历史，从错题本/复习打开不新增；已删/裁剪的历史不自动复活。
 > 相关联 DAO 方法（都在现有 `QuestionDao` 里）：
 > - `solveSessionsLight(): Flow<List<SolveSession>>` —— **列表用轻查询**（只选 `id/createdAt/updatedAt/source/text/answer/savedQuestionId`，
 >   **不含 BLOB 与 `conversationJson`**）→ 否则会重演 CursorWindow 2MB 崩溃；
@@ -137,6 +137,7 @@
 | `MIGRATION_6_7` | v0.4.0 | 新建表 `review`（艾宾浩斯复习调度） | `CREATE TABLE review(questionId PK, intervalStep, nextReviewAt, lastReviewedAt, reviewCount)` |
 | `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(...)` |
 | `MIGRATION_8_9` | v0.6.6 | 新建表 `question_images`（一题多图，二进制、有序）+ 索引；**旧 `imageBytes` 搬成 `position=0`** | `CREATE TABLE question_images(...)`；`CREATE INDEX index_question_images_questionId_position ...`；`INSERT INTO question_images(questionId,position,bytes,source,createdAt) SELECT id,0,imageBytes,'migrate',createdAt FROM questions WHERE imageBytes IS NOT NULL` |
+| `MIGRATION_9_10` | v0.6.6.3 | 题目及所有题目引用改为 TEXT 永久编号；补齐旧时间 | 迁移前备份；映射复制五表；数量校验；事务回滚保护 |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
 > 与 `data/SolveSession.kt`（`SolveSession` 实体）、`data/SolveSessionPrune.kt`（裁剪纯函数）。
@@ -162,6 +163,29 @@
     同 DB 选择跳过后不重复启动弹窗，实际读到旧数据时仍保留警示。成功修复记录不代替之后的完整性检查。
 - 新键只是诊断 / 提示状态，不用于跳过 Room migration、不替代迁移前 DB 备份；备份 v2 不包含这些偏好，
   导入旧数据后会重新检查。未来 DB 升版仍需新增 migration 与对应迁移前备份策略。
+
+---
+
+## 1.5 永久编号与备份 v3（2026-10-23，v0.6.6.3）
+
+- 新题编号：`<随机 UUID v4>-<首次输入毫秒时间>`，与设备标识无关。题目本地主键及所有题目引用均为 TEXT；分类、标签、图片行自身编号继续用 INTEGER。
+- 旧数字编号仅在迁移映射表中使用。按编号顺序保留有效时间；连续缺时间的题在前后有效时间之间随机补值并排序；前后倒置仍在两时间之间取值；不足 1 毫秒或两边相同则沿用较小值。
+- 首部逐题向前 1 秒、尾部逐题向后 1 秒；极端越过时间下界时限制为 1 毫秒。全未知使用执行迁移时的时间。UUID 保证唯一，时间戳允许相同。
+- 迁移以 SQL 复制保留题目、二进制图片、分类引用、标签和复习进度；孤儿关联也映射保留，不静默丢弃。替换旧表前比较五张表记录数，不一致即回滚。
+- 用户已清空旧历史，不要求兼容旧历史关联；若残留历史，独立生成编号并保留内容，不自动关联或覆盖错题本。
+- 新历史只在首次输入时创建；追问、重试、重新生成、存题、退出只更新已有行。错题本/复习加载关闭历史写入。分组、列表显示及排序只用 `createdAt`，`updatedAt` 仅用于诊断。
+- `MIGRATION_9_10` 调用 `IdentityMigrationPlan`，测试使用同一份实际 SQL 计划，与 Room 生成的 v10 表结构对比，并验证失败回滚。
+
+备份 v3：
+
+- 顶层仍为 JSON：`format="study-assistant-backup"`、`version=3`、`exportedAt`、`categories`、`tags`、`questions`、`questionTags`、`reviews`、`solveSessions`、`stats`。
+- `questions[].id`、`questionTags[].questionId`、`reviews[].questionId`、`solveSessions[].id/savedQuestionId` 改为永久编号字符串。分类/标签编号保留数字，导入按名称重映射。
+- `questions[].images`、`solveSessions[].images` 为原图 base64 数组，`imageBase64` 必须与首图一致；对话仍为 `ChatItem[]`，消息 `id` 是序号，不是题目编号或时间。
+- 仅接受 v3，v1/v2 或更新格式均在写库前拒绝（用户已授权不兼容老备份）。旧 v2 备份保持原文件不变；迁移后必须重新导出 v3。
+- 导出在后台线程使用一致的数据库事务快照。导入预先校验格式、编号/时间、重复键、图片和关联，在一个事务内合并；坏文件不部分导入。
+- 按永久编号判重：同编号保留本机题目/对话/分类/标签/复习进度，不覆盖；缺失题目及历史才恢复。题干相同、编号不同仍是不同题。不向已有错题重复追加标签或复习记录。
+- 新导入历史若本机存在同编号错题，关联至该题；先有历史、后恢复错题时也按编号补关联，不改历史时间或内容。重复导入不新增题目/历史。
+- 当前导入策略不自动合并同编号的内容差异，也不恢复现有同编号题目中缺失的图片；此类冲突保留本机内容，可另行设计用户确认流程。
 
 ---
 
