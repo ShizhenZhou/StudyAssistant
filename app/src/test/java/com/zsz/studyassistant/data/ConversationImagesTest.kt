@@ -137,4 +137,29 @@ class ConversationImagesTest {
         assertTrue(!needsDataUpgradePrompt(9, 9, 9, true))
     }
 
+    @Test
+    fun `自动迁移后首次确认成功，之后重复检查或重启不再确认`() {
+        val promptedSchema = 10
+        var confirmedSchema = 9
+        assertTrue(needsDataUpgradeConfirmation(10, promptedSchema, confirmedSchema))
+        // A failed check or leaving the page must leave the persisted confirmation untouched.
+        assertTrue(needsDataUpgradeConfirmation(10, promptedSchema, confirmedSchema))
+        confirmedSchema = 10 // Written only after the upgrade check commits successfully.
+        assertTrue(!needsDataUpgradeConfirmation(10, promptedSchema, confirmedSchema))
+    }
+
+    @Test
+    fun `新安装或仅更新应用不产生结构升级确认`() {
+        assertTrue(!needsDataUpgradeConfirmation(10, 0, 0))
+        assertTrue(!needsDataUpgradeConfirmation(10, 9, 9))
+        assertTrue(!needsDataUpgradeConfirmation(10, 10, 10))
+    }
+
+    @Test
+    fun `下次数据库升级需重新确认而旧提示不会消费未来确认`() {
+        assertTrue(!needsDataUpgradeConfirmation(11, 10, 10))
+        assertTrue(needsDataUpgradeConfirmation(11, 11, 10))
+        assertTrue(!needsDataUpgradeConfirmation(11, 11, 11))
+    }
+
 }

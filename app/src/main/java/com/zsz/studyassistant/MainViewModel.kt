@@ -1192,6 +1192,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun clearUpgradeMessage() { upgradeMessage = null }
     fun clearMenuMessage() { menuMessage = null }
 
+    var currentDatabaseVersion by mutableStateOf<Int?>(null)
+        private set
+    var databaseVersionReadFailed by mutableStateOf(false)
+        private set
+    var hasLegacyData by mutableStateOf(false)
+        private set
+
+    private suspend fun readDatabaseVersion(): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        AppDatabase.get(getApplication()).openHelper.readableDatabase.version
+    }
+
+    fun refreshDatabaseVersion() {
+        viewModelScope.launch {
+            dataMaintenanceMutex.lock()
+            currentDatabaseVersion = null
+            databaseVersionReadFailed = false
+            hasLegacyData = false
+            try {
+                currentDatabaseVersion = readDatabaseVersion()
+                hasLegacyData = needsImageUpgrade()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                databaseVersionReadFailed = true
+            } finally {
+                dataMaintenanceMutex.unlock()
+            }
+        }
+    }
+
     /**
      * 供**自动备份**（设置 → 数据管理）使用：静默生成备份 JSON。
      * 与 [exportBackup] 的区别：不写 dataMessage、不置 dataBusy（启动时的自动备份不该改界面状态）。
@@ -1315,7 +1345,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * 「一键升级」（数据升级/修复）：把**旧数据**整理进 DB v9 的 `question_images` 新结构。
+     * 记录补图检查成功；与用户确认数据库结构升级的记录分开。
      * 幂等、可重复执行；只做加法（不动已有图、不改 `imageBytes`）。
      */
     private fun recordImageRepairSuccess() {
@@ -1340,6 +1370,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
                 val db = AppDatabase.get(getApplication())
+                val schema = readDatabaseVersion()
+                val prefs = getApplication<Application>()
+                    .getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                val confirmationNeeded = com.zsz.studyassistant.data.needsDataUpgradeConfirmation(
+                    schema, prefs.getInt("data_upgrade_prompted_schema", 0),
+                    prefs.getInt("data_upgrade_confirmed_schema", 0)
+                )
                 var needed = false
                 var count = 0
                 db.withTransaction {
@@ -1354,7 +1391,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 // 只有事务提交且复查完整后，才写入完成记录。
                 recordImageRepairSuccess()
-                upgradeMessage = if (needed) {
+                if (isUpgrade) prefs.edit().putInt("data_upgrade_confirmed_schema", schema).apply()
+                currentDatabaseVersion = schema
+                databaseVersionReadFailed = false
+                hasLegacyData = false
+                upgradeMessage = if (needed || (isUpgrade && confirmationNeeded)) {
                     s.format(if (isUpgrade) "data.upgradeDone" else "data.repairDone", "n" to "$count")
                 } else s[if (isUpgrade) "data.upgradeNotNeeded" else "data.repairNotNeeded"]
             } catch (e: CancellationException) {

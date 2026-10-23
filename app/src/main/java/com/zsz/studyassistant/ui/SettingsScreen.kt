@@ -72,6 +72,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -816,14 +817,14 @@ private fun DataMenuRow(
 }
 
 /**
- * 🛠 数据升级 / 修复（2026-10-16，DB v9）。
+ * 🛠 数据升级 / 修复；展示应用支持版本与实际数据库结构版本。
  * 两个按钮都**幂等、可重复执行**，只做加法（补图/整理），**绝不删已有数据**。
  */
 @Composable
 private fun DataUpgradePage(vm: MainViewModel) {
     val s = LocalStrings.current
     // 本页只显示升级 / 修复自己的结果（与备份页的导出/导入文案分开）
-    LaunchedEffect(Unit) { vm.clearUpgradeMessage() }
+    LaunchedEffect(Unit) { vm.clearUpgradeMessage(); vm.refreshDatabaseVersion() }
     Text(s["data.upgradeDesc"], style = MaterialTheme.typography.bodyMedium)
     Spacer(Modifier.height(10.dp))
     Button(
@@ -844,6 +845,30 @@ private fun DataUpgradePage(vm: MainViewModel) {
     vm.upgradeMessage?.let {
         Spacer(Modifier.height(16.dp))
         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    }
+    Spacer(Modifier.height(24.dp))
+    Text(
+        s.format("data.supportedVersions",
+            "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
+            "bak" to "${com.zsz.studyassistant.data.BackupFile.VERSION}"),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Text(
+        when {
+            vm.databaseVersionReadFailed -> s["data.databaseVersionFailed"]
+            vm.currentDatabaseVersion == null -> s["data.databaseVersionLoading"]
+            else -> s.format("data.actualDatabaseVersion", "db" to "${vm.currentDatabaseVersion}")
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    if (vm.hasLegacyData) {
+        Text(
+            s["data.legacyDataPresent"],
+            style = MaterialTheme.typography.bodySmall,
+            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFFFFC107) else Color(0xFF9C6500)
+        )
     }
 }
 

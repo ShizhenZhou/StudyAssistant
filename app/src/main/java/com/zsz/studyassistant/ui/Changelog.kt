@@ -6,6 +6,7 @@ package com.zsz.studyassistant.ui
  */
 internal val CHANGELOG_ZH: String = """
 v0.6.6.3
+· 🛠 同版本附件更新：首次成功确认数据库升级显示“升级成功”，之后无变更显示“无需升级”；升级 / 修复页显示 DB / Bak 与实际数据库版本，旧格式数据以橙黄色警示
 · 🆔 题目改用 UUID＋首次输入时间作为永久编号；错题本、图片、标签及复习进度原地迁移至 DB v10，迁移前保存数据库副本
 · 🕘 搜题记录只在首次拍题或提交提问时创建；错题本/复习打开不新增，追问、重试和重新生成不改变首次时间及排序
 · 💾 备份 v3 按永久编号去重并维护关联；重复导入保留本机内容，不再按题干合并；坏图片或无效关联会中止导入
@@ -363,6 +364,7 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.6.6.3
+· 🛠 Updated APK under the same version: confirm the first successful database upgrade separately from later no-op checks; show DB / Bak and actual schema versions, with an amber warning for legacy data
 · 🆔 Permanent problem IDs combine a UUID and first-input timestamp; DB v10 migrates notebook, image, tag and review references after saving a database copy
 · 🕘 Create history only on initial photo/text submission; notebook/review opens add no records, and follow-ups, retries and regeneration preserve original ordering
 · 💾 Backup v3 deduplicates by permanent ID, preserves local content on repeated imports, and rejects invalid images or references instead of silently merging by text
@@ -720,6 +722,7 @@ v0.1 (project start)
 
 internal val CHANGELOG_JA: String = """
 v0.6.6.3
+· 🛠 同一バージョンの APK を更新。初回の更新成功と以後の更新不要を区別し、DB / Bak と実際の DB バージョンを表示。旧形式データがあれば黄橙色で警告
 · 🆔 UUID＋初回入力日時による永続番号を導入。DB v10 へ問題・画像・タグ・復習の関連を移行し、事前に DB のコピーを保存
 · 🕘 履歴は撮影・質問の初回送信時のみ作成。ノートや復習から開いても追加せず、追問・再試行・再生成で初回日時や並び順を変更しません
 · 💾 バックアップ v3 は永続番号で重複を判定し、再インポート時は端末内の内容を保持。不正な画像や関連は取り込みを中止
@@ -1077,6 +1080,7 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.6.6.3
+· 🛠 같은 버전의 APK 교체: 첫 데이터베이스 업그레이드 성공과 이후 변경 불필요를 구분하고 DB / Bak 및 실제 DB 버전 표시. 이전 형식 데이터가 있으면 황색 경고 표시
 · 🆔 UUID와 최초 입력 시간으로 영구 문제 번호 도입. DB 복사본을 먼저 저장한 뒤 문제·이미지·태그·복습 연결을 DB v10으로 이전
 · 🕘 촬영 또는 질문을 처음 제출할 때만 기록 생성. 오답 노트·복습에서 열어도 추가하지 않으며 후속 질문·재시도·재생성으로 최초 시간과 정렬이 바뀌지 않음
 · 💾 백업 v3는 영구 번호로 중복을 판정하고 재가져오기 시 기기 내 내용을 유지하며, 잘못된 이미지나 연결이 있으면 가져오기 중단

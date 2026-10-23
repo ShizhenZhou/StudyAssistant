@@ -166,3 +166,8 @@ internal fun needsDataUpgradePrompt(
     schema: Int, previousSchema: Int, promptedSchema: Int, legacyDetected: Boolean
 ): Boolean = (previousSchema > 0 && schema > previousSchema) ||
     (legacyDetected && promptedSchema != schema)
+
+/** A prompted schema upgrade is acknowledged only after the Upgrade check succeeds. */
+internal fun needsDataUpgradeConfirmation(
+    schema: Int, promptedSchema: Int, confirmedSchema: Int
+): Boolean = schema > 0 && promptedSchema == schema && confirmedSchema < schema
