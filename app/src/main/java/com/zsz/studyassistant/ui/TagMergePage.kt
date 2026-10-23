@@ -154,7 +154,8 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
         confirmButton = { TextButton(onClick = { undoConfirm = false; model.undo() }) { Text(s["common.ok"]) } },
         dismissButton = { TextButton(onClick = { undoConfirm = false }) { Text(s["common.cancel"]) } })
     model.errorKey?.let { error ->
-        AlertDialog(onDismissRequest = { model.dismissError() }, title = { Text(s["tagMerge.title"]) }, text = { Text(s[error]) },
+        AlertDialog(onDismissRequest = { model.dismissError() }, title = { Text(s["tagMerge.title"]) },
+            text = { Text(s.format(error, "code" to model.errorHttpCode?.toString().orEmpty())) },
             confirmButton = { TextButton(onClick = { model.dismissError() }) { Text(s["common.ok"]) } })
     }
 }

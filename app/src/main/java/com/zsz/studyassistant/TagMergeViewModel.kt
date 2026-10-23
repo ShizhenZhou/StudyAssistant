@@ -12,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -28,6 +27,7 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
     var analysisBusy by mutableStateOf(false); private set
     val busy: Boolean get() = operationBusy || analysisBusy
     var errorKey by mutableStateOf<String?>(null); private set
+    var errorHttpCode by mutableStateOf<Int?>(null); private set
     var noticeKey by mutableStateOf<String?>(null); private set
     var noticeCount by mutableStateOf(0); private set
     var noticeQuestions by mutableStateOf(0); private set
@@ -43,7 +43,10 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
         undoPresent = undo != null
         undoAllowed = TagMergeEngine.canUndo(base, undo)
     }
-    private fun failed(e: Exception) { errorKey = (e as? TagMergeException)?.messageKey ?: "tagMerge.failed" }
+    private fun failed(e: Exception) {
+        errorHttpCode = null
+        errorKey = (e as? TagMergeException)?.messageKey ?: "tagMerge.failed"
+    }
 
     fun load() {
         if (busy) return
@@ -72,13 +75,9 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val (base, undo) = TagMergeRepository.snapshot(db)
                 if (base.tags.size < 2) throw TagMergeException("tagMerge.tooFew")
-                val response = ApiClient.deepSeek.chat(DeepSeekRequest(
-                    model = StudyAssistant.MODEL_TEXT,
-                    messages = listOf(DeepSeekMessage("system", JsonPrimitive(TagMergeSuggestions.instruction(language))),
-                        DeepSeekMessage("user", JsonPrimitive(TagMergeSuggestions.payload(base)))),
-                    maxTokens = 8192, temperature = 0.0,
-                    thinking = ThinkingOption(if (CapturePrefs.solveModel(getApplication()) == "flash") "disabled" else "enabled")
-                ))
+                val request = TagMergeSuggestions.request(base, language,
+                    thinkingEnabled = CapturePrefs.solveModel(getApplication()) != "flash")
+                val response = ApiClient.deepSeek.chat(request)
                 UsageStats.add(getApplication(), response.usage)
                 val text = response.choices.firstOrNull()?.message?.content?.jsonPrimitive?.contentOrNull
                     ?: throw TagMergeException("tagMerge.aiInvalid")
@@ -89,7 +88,13 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
                 noticeKey = if (groups.isEmpty()) "tagMerge.noSuggestions" else "tagMerge.suggestionsReady"
                 noticeCount = groups.size
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { if (generation == analysisGeneration) failed(e) }
+            catch (e: Exception) {
+                if (generation == analysisGeneration) {
+                    val failure = TagAnalysisError.from(e, (e as? retrofit2.HttpException)?.code())
+                    errorHttpCode = failure.httpCode
+                    errorKey = failure.key
+                }
+            }
             finally { if (generation == analysisGeneration) analysisBusy = false }
         }
     }
@@ -120,7 +125,7 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) { failed(e) }
     }
     fun dismissPreview() { prepared = null }
-    fun dismissError() { errorKey = null }
+    fun dismissError() { errorKey = null; errorHttpCode = null }
 
     fun apply() {
         if (busy) return
