@@ -115,6 +115,17 @@ kotlin {
     }
 }
 
+// The SQLite verifier consumes these extra test outputs. Include them in Gradle's
+// task cache so a cached successful test run also restores the files it produced.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    if (name == "testDebugUnitTest") {
+        outputs.file(layout.buildDirectory.file("identity-work/migration-plan.json"))
+            .withPropertyName("identityMigrationPlan")
+        outputs.file(layout.buildDirectory.file("identity-work/tag-merge-schema.sql"))
+            .withPropertyName("tagUndoSchema")
+    }
+}
+
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)
