@@ -327,15 +327,6 @@ interface QuestionDao {
     suspend fun deleteTagsByIds(ids: List<Long>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun putTagMergeUndo(record: TagMergeUndo)
-
-    @Query("SELECT * FROM tag_merge_undo WHERE id=1")
-    suspend fun tagMergeUndoOnce(): TagMergeUndo?
-
-    @Query("DELETE FROM tag_merge_undo")
-    suspend fun clearTagMergeUndo()
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReviews(list: List<Review>)
 
     @Query("DELETE FROM categories")
@@ -525,16 +516,14 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
-val MIGRATION_10_11 = object : Migration(10, 11) {
-    override fun migrate(db: SupportSQLiteDatabase) { db.execSQL(TagMergeSchema.CREATE) }
-}
-
-@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class, TagMergeUndo::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = false)
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
+    lateinit var tagUndoStore: TagUndoStore
+        internal set
 
     companion object {
-        const val SCHEMA_VERSION = 11
+        const val SCHEMA_VERSION = 10
 
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -549,7 +538,10 @@ abstract class AppDatabase : RoomDatabase() {
                         context.applicationContext,
                         AppDatabase::class.java,
                         "study_assistant.db"
-                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build().also { INSTANCE = it }
+                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build().also {
+                        it.tagUndoStore = SqliteTagUndoStore(context)
+                        INSTANCE = it
+                    }
                 }
             }
 

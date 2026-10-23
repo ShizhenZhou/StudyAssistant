@@ -11,7 +11,7 @@ import sqlite3
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = json.loads((ROOT / "app/build/identity-work/migration-plan.json").read_text(encoding="utf-8"))
 GENERATED = (ROOT / "app/build/generated/source/kapt/debug/com/zsz/studyassistant/data/AppDatabase_Impl.java").read_text(encoding="utf-8")
-TAG_MIGRATION = (ROOT / "app/build/identity-work/tag-merge-schema.sql").read_text(encoding="utf-8")
+UNDO_SCHEMA = (ROOT / "app/build/identity-work/tag-merge-schema.sql").read_text(encoding="utf-8")
 
 
 def old_database():
@@ -50,9 +50,9 @@ def migrate(db, statements):
 
 
 def verify_preservation_and_schema():
+    assert "new RoomOpenDelegate(10," in GENERATED, "Main database must remain v10"
     db = old_database()
     migrate(db, PLAN)
-    migrate(db, [TAG_MIGRATION])
     rows = {r[1]: r for r in db.execute("SELECT id,text,createdAt,imageBytes,deleted,categoryId FROM questions")}
     assert len(rows) == 3
     assert rows["one"][2:] == (10000, b"\x01\x02", 0, 1)
@@ -75,26 +75,35 @@ def verify_preservation_and_schema():
     assert len(statements) >= 8
     for sql in statements:
         fresh.execute(sql)
-    for table in ("questions","question_tags","review","question_images","solve_sessions","categories","tags","tag_merge_undo"):
+    assert "tag_merge_undo" not in GENERATED
+    for table in ("questions","question_tags","review","question_images","solve_sessions","categories","tags"):
         assert db.execute(f"PRAGMA table_info({table})").fetchall() == fresh.execute(f"PRAGMA table_info({table})").fetchall(), table
         assert db.execute(f"PRAGMA index_list({table})").fetchall() == fresh.execute(f"PRAGMA index_list({table})").fetchall(), table
     db.close()
     fresh.close()
 
 
-def verify_v11_addition_rolls_back_without_touching_v10_data():
+def verify_auxiliary_database_is_independent():
     db = old_database()
     migrate(db, PLAN)
     before = db.execute("SELECT * FROM questions ORDER BY id").fetchall()
+    undo = sqlite3.connect(":memory:")
+    undo.execute(UNDO_SCHEMA)
+    undo.execute("INSERT INTO tag_merge_undo VALUES(1,100,'old-before','old-after')")
+    undo.execute("INSERT INTO tag_merge_undo VALUES(2,200,'new-before','new-after')")
+    undo.commit()
+    # Auxiliary promotion is atomic: an injected failure preserves both slots.
     try:
-        migrate(db, [TAG_MIGRATION, "INSERT INTO table_that_does_not_exist VALUES(1)"])
-        raise AssertionError("Injected migration failure did not abort")
+        migrate(undo, ["DELETE FROM tag_merge_undo WHERE id=1", "INSERT INTO table_that_does_not_exist VALUES(1)"])
+        raise AssertionError("Injected promotion failure did not abort")
     except sqlite3.OperationalError:
         pass
+    assert undo.execute("SELECT id,createdAt FROM tag_merge_undo ORDER BY id").fetchall() == [(1,100),(2,200)]
+    migrate(undo, ["DELETE FROM tag_merge_undo WHERE id=1", "UPDATE tag_merge_undo SET id=1 WHERE id=2"])
+    assert undo.execute("SELECT * FROM tag_merge_undo").fetchall() == [(1,200,'new-before','new-after')]
+    # Losing the auxiliary DB cannot delete, migrate or otherwise change main data.
+    undo.close()
     assert not db.execute("SELECT name FROM sqlite_master WHERE name='tag_merge_undo'").fetchall()
-    assert db.execute("SELECT * FROM questions ORDER BY id").fetchall() == before
-    migrate(db, [TAG_MIGRATION])
-    assert db.execute("SELECT COUNT(*) FROM tag_merge_undo").fetchone()[0] == 0
     assert db.execute("SELECT * FROM questions ORDER BY id").fetchall() == before
     db.close()
 
@@ -116,5 +125,5 @@ def verify_failed_migration_rolls_back():
 if __name__ == "__main__":
     verify_preservation_and_schema()
     verify_failed_migration_rolls_back()
-    verify_v11_addition_rolls_back_without_touching_v10_data()
-    print("PASS: actual Kotlin v9-v10-v11 migrations preserve records/bytes/associations, match Room v11 schema, and roll back on injected failures.")
+    verify_auxiliary_database_is_independent()
+    print("PASS: actual Kotlin v9-v10 migration preserves records/bytes/associations, matches Room v10 schema, and rolls back on failure; auxiliary undo is separate and its slot promotion rolls back on failure.")

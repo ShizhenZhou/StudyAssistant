@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.room.withTransaction
 import com.zsz.studyassistant.data.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +21,6 @@ data class TagMergeDraft(val key: Long, val group: TagMergeGroup, val selected: 
 /** Independent from solve sessions: analyzing labels must not interrupt or create a question conversation. */
 class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.get(app)
-    private val dao = db.questionDao()
     var inventory by mutableStateOf<TagInventory?>(null); private set
     var drafts by mutableStateOf<List<TagMergeDraft>>(emptyList()); private set
     var prepared by mutableStateOf<TagMergePreview?>(null); private set
@@ -52,9 +50,7 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
         operationBusy = true
         viewModelScope.launch {
             try {
-                val (base, undo) = withContext(Dispatchers.IO) { db.withTransaction {
-                    TagMergeEngine.inventory(dao) to dao.tagMergeUndoOnce()
-                } }
+                val (base, undo) = TagMergeRepository.snapshot(db)
                 if (inventory != null && inventory?.fingerprint() != base.fingerprint()) {
                     drafts = emptyList(); prepared = null
                     noticeKey = "tagMerge.reloaded"
@@ -74,9 +70,7 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
         val generation = ++analysisGeneration
         analysisJob = viewModelScope.launch {
             try {
-                val (base, undo) = withContext(Dispatchers.IO) { db.withTransaction {
-                    TagMergeEngine.inventory(dao) to dao.tagMergeUndoOnce()
-                } }
+                val (base, undo) = TagMergeRepository.snapshot(db)
                 if (base.tags.size < 2) throw TagMergeException("tagMerge.tooFew")
                 val response = ApiClient.deepSeek.chat(DeepSeekRequest(
                     model = StudyAssistant.MODEL_TEXT,
@@ -134,10 +128,7 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
         prepared = null; operationBusy = true; errorKey = null; noticeKey = null
         viewModelScope.launch {
             try {
-                val (result, base, undo) = withContext(Dispatchers.IO) { db.withTransaction {
-                    val result = TagMergeEngine.apply(dao, plan)
-                    Triple(result, TagMergeEngine.inventory(dao), dao.tagMergeUndoOnce())
-                } }
+                val (result, base, undo) = TagMergeRepository.apply(db, plan)
                 state(base, undo); drafts = emptyList(); changeRevision++
                 noticeCount = result.removedTags; noticeQuestions = result.affectedQuestions; noticeKey = "tagMerge.applied"
             } catch (e: CancellationException) { throw e }
@@ -151,9 +142,7 @@ class TagMergeViewModel(app: Application) : AndroidViewModel(app) {
         operationBusy = true; errorKey = null; noticeKey = null; prepared = null
         viewModelScope.launch {
             try {
-                val (count, base) = withContext(Dispatchers.IO) { db.withTransaction {
-                    TagMergeEngine.undo(dao) to TagMergeEngine.inventory(dao)
-                } }
+                val (count, base) = TagMergeRepository.undo(db)
                 state(base, null); drafts = emptyList(); changeRevision++
                 noticeQuestions = count; noticeKey = "tagMerge.undone"
             } catch (e: CancellationException) { throw e }

@@ -9,7 +9,7 @@ v0.6.6.5
 · 🏷 新增标签整理：AI 根据完整标签名单和关联题数提出近义标签建议；可手动分组、改名与调整来源标签，预览确认后才合并
 · ↩️ 合并按事务迁移关联并去重，保留题目永久编号；支持重启后撤销最近一次合并，相关数据再次变化时停止撤销以保留后续编辑
 · 🔒 AI 分析只发送标签编号、名称及题数，不发送题目正文、答案或图片；与解题会话独立，可取消
-· 💾 DB v11 新增本机撤销记录，迁移前备份数据库；备份仍为 v3，导入成功后清除旧撤销记录
+· 💾 主库保持 DB v10，撤销记录存入独立本机辅助库；新合并成功后覆盖旧记录，备份仍为 v3，开始导入或清空前使旧撤销记录失效
 
 v0.6.6.4
 · 💾 自动备份写入后读回并校验 SHA-256，通过后才清理旧备份；备份与清理串行执行，失败时尝试清理本次不完整文件
@@ -379,7 +379,7 @@ v0.6.6.5
 · 🏷 Organize labels with AI suggestions based on the full label list and usage counts; edit source groups and names manually, then preview and confirm merges
 · ↩️ Merge and deduplicate links transactionally while preserving problem IDs; undo the latest merge after restart, with conflict checks that preserve later edits
 · 🔒 Analysis sends only label IDs, names and question counts, excluding question text, answers and images; it is separate from solve sessions and can be canceled
-· 💾 DB v11 adds a local undo journal after a pre-migration backup; backup stays v3 and successful imports clear prior undo records
+· 💾 Main DB stays v10; undo uses a separate local auxiliary database. Successful merges replace prior undo; backup stays v3, with undo invalidated before import or clearing data
 
 v0.6.6.4
 · 💾 Read back automatic backups and verify SHA-256 before pruning old copies; serialize backup and cleanup, and attempt to remove incomplete new files after failure
@@ -749,7 +749,7 @@ v0.6.6.5
 · 🏷 タグ一覧と関連問題数を使った AI 整理候補を追加。統合元・名称を手動編集でき、プレビューと確認後に統合
 · ↩️ 問題番号を維持し関連付けをトランザクションで統合・重複排除。再起動後も直前の統合を取り消せ、後の関連編集は競合チェックで保護
 · 🔒 分析で送るのはタグ番号・名称・問題数のみ。問題本文・解答・画像は送らず、解題会話と独立してキャンセル可能
-· 💾 事前バックアップ後 DB v11 に端末内の取消記録を追加。バックアップは v3 のまま、インポート成功時に旧取消記録を消去
+· 💾 主 DB は v10 のまま、取消記録は独立した端末内の補助 DB に保存。統合成功後に前回記録を更新。バックアップは v3、インポートや全消去の開始前に取消記録を無効化
 
 v0.6.6.4
 · 💾 自動バックアップを再読み取りして SHA-256 を検証後、古いファイルを整理。バックアップと整理を直列化し、失敗時は今回の不完全ファイルの削除を試行
@@ -1119,7 +1119,7 @@ v0.6.6.5
 · 🏷 전체 태그 목록과 연결 문제 수를 바탕으로 AI 정리 제안. 원본 그룹과 이름을 직접 수정하고 미리 보기·확인 후 병합
 · ↩️ 문제 번호를 유지하며 연결을 트랜잭션으로 병합·중복 제거. 재시작 후 마지막 병합 취소 지원, 이후 관련 편집은 충돌 검사로 보존
 · 🔒 분석 시 태그 번호·이름·문제 수만 전송하며 문제 본문·답변·이미지는 제외. 풀이 대화와 별개로 실행하고 취소 가능
-· 💾 이전 전 DB 백업 후 DB v11에 기기 내 취소 기록 추가. 백업은 v3 유지, 가져오기 성공 시 이전 취소 기록 삭제
+· 💾 주 DB는 v10 유지, 취소 기록은 별도 기기 내 보조 DB에 저장. 병합 성공 후 이전 기록 교체. 백업은 v3 유지, 가져오기나 전체 삭제 시작 전에 취소 기록 무효화
 
 v0.6.6.4
 · 💾 자동 백업을 다시 읽어 SHA-256 검증 후 이전 파일 정리. 백업과 정리를 순차 실행하고 실패 시 이번에 만든 불완전 파일 삭제 시도

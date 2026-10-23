@@ -1,7 +1,5 @@
 package com.zsz.studyassistant.data
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 import java.security.MessageDigest
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -10,10 +8,9 @@ import kotlinx.serialization.json.Json
 
 class TagMergeException(val messageKey: String) : IllegalArgumentException(messageKey)
 
-@Entity(tableName = "tag_merge_undo")
-data class TagMergeUndo(@PrimaryKey val id: Int = 1, val createdAt: Long, val beforeJson: String, val afterJson: String)
+data class TagMergeUndo(val createdAt: Long, val beforeJson: String, val afterJson: String)
 
-/** Additive migration only; exported v3 backups intentionally do not contain the local undo journal. */
+/** This schema belongs to the independent auxiliary database, never AppDatabase. */
 object TagMergeSchema {
     const val CREATE = "CREATE TABLE IF NOT EXISTS tag_merge_undo (id INTEGER NOT NULL, createdAt INTEGER NOT NULL, beforeJson TEXT NOT NULL, afterJson TEXT NOT NULL, PRIMARY KEY(id))"
 }
@@ -66,7 +63,8 @@ object TagMergeEngine {
         return TagMergePreview(base.normalized(), groups, count)
     }
 
-    suspend fun apply(dao: QuestionDao, prepared: TagMergePreview, now: Long = System.currentTimeMillis()): TagMergeResult {
+    suspend fun apply(dao: QuestionDao, prepared: TagMergePreview, now: Long = System.currentTimeMillis(),
+        stageUndo: (TagMergeUndo) -> Unit): TagMergeResult {
         val before = inventory(dao)
         if (before.fingerprint() != prepared.baseline.fingerprint()) fail("tagMerge.changed")
         val plan = preview(before, prepared.groups)
@@ -84,7 +82,8 @@ object TagMergeEngine {
             dao.deleteTagsByIds(group.sourceIds.filter { it != target })
         }
         val after = inventory(dao)
-        dao.putTagMergeUndo(TagMergeUndo(createdAt = now,
+        // Persist the candidate before the main transaction can commit. The old active record stays intact.
+        stageUndo(TagMergeUndo(createdAt = now,
             beforeJson = encodeJournal(before.subset(touched)), afterJson = encodeJournal(after.subset(touched))))
         return TagMergeResult(plan.groups.size, before.tags.size - after.tags.size, affected.size)
     }
@@ -119,8 +118,13 @@ object TagMergeEngine {
         catch (_: TagMergeException) { false }
     }
 
-    suspend fun undo(dao: QuestionDao): Int {
-        val record = dao.tagMergeUndoOnce() ?: fail("tagMerge.undoMissing")
+    fun matchesBefore(current: TagInventory, record: TagMergeUndo): Boolean = try {
+        val (before, after) = journal(record)
+        current.subset((before.tags + after.tags).map { it.id }.toSet()) == before
+    } catch (_: TagMergeException) { false }
+
+    suspend fun undo(dao: QuestionDao, record: TagMergeUndo?): Int {
+        record ?: fail("tagMerge.undoMissing")
         val (before, after) = journal(record)
         val touched = checkUndo(inventory(dao), before, after)
         for (id in before.links.map { it.questionId }.distinct()) if (!dao.questionExists(id)) fail("tagMerge.undoChanged")
@@ -128,7 +132,6 @@ object TagMergeEngine {
         dao.deleteTagsByIds(touched.toList())
         dao.insertTags(before.tags)
         dao.insertQuestionTags(before.links)
-        dao.clearTagMergeUndo()
         return before.links.map { it.questionId }.distinct().size
     }
 
