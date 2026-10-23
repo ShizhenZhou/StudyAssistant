@@ -887,11 +887,10 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
 private fun BackupSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
-    var showImportConfirm by remember { mutableStateOf(false) }
-    var pendingImport by remember { mutableStateOf<String?>(null) }
 
     // 本页只显示自己的结果（导出 / 导入）；升级与清空的文案归各自页面，避免串页
     LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearDataMessage() }
+    androidx.compose.runtime.DisposableEffect(vm) { onDispose { vm.discardPreparedBackup() } }
 
     val summary = vm.dataSummary
     Text(
@@ -915,7 +914,8 @@ private fun BackupSettings(vm: MainViewModel) {
             }, onError = { })
         }
     }
-    Button(shape = smoothPill(), onClick = { exportLauncher.launch("study-assistant-backup.json") }, modifier = Modifier.fillMaxWidth()) {
+    Button(shape = smoothPill(), onClick = { exportLauncher.launch("study-assistant-backup.json") },
+        enabled = !vm.dataBusy && vm.preparedBackup == null, modifier = Modifier.fillMaxWidth()) {
         Text(s["data.export"])
     }
     Spacer(Modifier.height(4.dp))
@@ -927,14 +927,10 @@ private fun BackupSettings(vm: MainViewModel) {
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) {
-            val text = try {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
-            } catch (e: Exception) { null }
-            if (text != null) { pendingImport = text; showImportConfirm = true }
-        }
+        if (uri != null) vm.prepareBackupImport(uri)
     }
-    OutlinedButton(shape = smoothPill(), onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+    OutlinedButton(shape = smoothPill(), onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
+        enabled = !vm.dataBusy && vm.preparedBackup == null, modifier = Modifier.fillMaxWidth()) {
         Text(s["data.import"])
     }
     Spacer(Modifier.height(4.dp))
@@ -944,26 +940,25 @@ private fun BackupSettings(vm: MainViewModel) {
 
     if (vm.dataBusy) {
         Spacer(Modifier.height(12.dp))
-        Text(s["data.exporting"], style = MaterialTheme.typography.bodySmall)
+        androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        Text(s[vm.dataProgressKey ?: "data.exporting"], style = MaterialTheme.typography.bodySmall)
     }
     vm.dataMessage?.let { msg ->
         Spacer(Modifier.height(12.dp))
         Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
     }
 
-    if (showImportConfirm) {
+    if (vm.preparedBackup != null) {
         AlertDialog(
-            onDismissRequest = { showImportConfirm = false; pendingImport = null },
+            onDismissRequest = { vm.discardPreparedBackup() },
             title = { Text(s["data.import"]) },
             text = { Text(s["data.import.desc"]) },
             confirmButton = {
                 TextButton(shape = smoothPill(), onClick = {
-                    pendingImport?.let { vm.importBackup(it) }
-                    showImportConfirm = false; pendingImport = null
-                    vm.refreshDataSummary()
+                    vm.importBackup()
                 }) { Text(s["common.ok"]) }
             },
-            dismissButton = { TextButton(shape = smoothPill(), onClick = { showImportConfirm = false; pendingImport = null }) { Text(s["common.cancel"]) } }
+            dismissButton = { TextButton(shape = smoothPill(), onClick = { vm.discardPreparedBackup() }) { Text(s["common.cancel"]) } }
         )
     }
 }
@@ -983,13 +978,17 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     var autoCount by remember { mutableStateOf(AutoBackup.listBackups(context).size) }
     var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
     var autoMessage by remember { mutableStateOf<String?>(null) }
+    var autoWriting by remember { mutableStateOf(false) }
 
     /** 备份一次（按钮与"刚选完文件夹"共用）：生成 JSON → 写盘 + 裁剪，结果写进 autoMessage */
     fun backupNow() {
+        if (autoWriting || vm.dataBusy || vm.preparedBackup != null) return
+        autoWriting = true
         autoMessage = null
         vm.exportBackup(onReady = { json ->
             // ⚠️ SAF 写盘 + 裁剪是 IO，必须在协程里做，否则阻塞主线程
             scope.launch {
+                try {
                 val r = AutoBackup.runBackup(context, json)
                 autoCount = AutoBackup.listBackups(context).size
                 autoLast = AutoBackup.lastBackupAt(context)
@@ -997,10 +996,11 @@ private fun AutoBackupSettings(vm: MainViewModel) {
                     s.format("data.autoBackup.done", "name" to (r.fileName ?: "")) +
                         if (r.pruned > 0) "（" + s.format("data.autoBackup.pruned", "n" to "${r.pruned}") + "）" else ""
                 } else {
-                    s.format("data.autoBackup.failed", "msg" to (r.error ?: ""))
+                    s.format("data.autoBackup.failed", "msg" to (r.errorKey?.let { s[it] } ?: r.error.orEmpty()))
                 }
+                } finally { autoWriting = false }
             }
-        }, onError = { msg -> autoMessage = s.format("data.autoBackup.failed", "msg" to msg) })
+        }, onError = { msg -> autoWriting = false; autoMessage = s.format("data.autoBackup.failed", "msg" to msg) })
     }
 
     val folderLauncher = rememberLauncherForActivityResult(
@@ -1062,10 +1062,10 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     Spacer(Modifier.height(8.dp))
     Button(
         shape = smoothPill(),
-        enabled = autoFolder != null && !vm.dataBusy,
+        enabled = autoFolder != null && !vm.dataBusy && !autoWriting,
         onClick = { backupNow() },
         modifier = Modifier.fillMaxWidth()
-    ) { Text(s["data.autoBackup.now"]) }
+    ) { Text(s[if (autoWriting) "data.exporting" else "data.autoBackup.now"]) }
     Spacer(Modifier.height(4.dp))
     Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 

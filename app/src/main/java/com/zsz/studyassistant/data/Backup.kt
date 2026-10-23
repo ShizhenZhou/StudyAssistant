@@ -31,7 +31,7 @@ data class BackupFile(
     companion object {
         const val FORMAT = "study-assistant-backup"
 
-        /** 当前导出格式版本；**导入时接受 <= 此值**（旧备份可导入） */
+        /** Only this exact format is accepted; unsupported older backups are rejected. */
         const val VERSION = 3
     }
 }
@@ -153,6 +153,10 @@ object BackupManager {
     /** v3 only. Validate before writes, then apply all related data atomically. */
     suspend fun import(db: AppDatabase, text: String): ImportResult = withContext(Dispatchers.IO) {
         val file = BackupValidation.decode(text)
+        db.withTransaction { BackupImporter.merge(db.questionDao(), file) }
+    }
+
+    suspend fun importFile(db: AppDatabase, file: BackupFile): ImportResult = withContext(Dispatchers.IO) {
         db.withTransaction { BackupImporter.merge(db.questionDao(), file) }
     }
 

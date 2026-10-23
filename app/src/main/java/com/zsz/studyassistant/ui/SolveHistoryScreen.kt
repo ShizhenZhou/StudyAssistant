@@ -237,7 +237,9 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                     showDeleteConfirm = false
                     exitSelection()
                     if (ids.isNotEmpty()) {
-                        scope.launch { withContext(Dispatchers.IO) { dao.deleteSolveSessionsByIds(ids) } }
+                        vm.deleteHistoryRecords(ids) {
+                            android.widget.Toast.makeText(context, s["history.deleteFailed"], android.widget.Toast.LENGTH_LONG).show()
+                        }
                     }
                 }) { Text(s["common.delete"]) }
             },

@@ -50,4 +50,38 @@ class BackupValidationTest {
     @Test fun malformedConversationIsRejectedBeforeWrites() {
         val b=good();rejects(b.copy(questions=listOf(b.questions.single().copy(conversationJson="[broken"))))
     }
+    @Test fun streamRoundTripPreservesDataAndClosesBothHandles() {
+        val source = good()
+        val bytes = Json { encodeDefaults=true }.encodeToString(source).toByteArray(Charsets.UTF_8)
+        var opens = 0
+        var closes = 0
+        val decoded = BackupValidation.decodeStream {
+            opens++
+            object : java.io.ByteArrayInputStream(bytes) { override fun close() { closes++; super.close() } }
+        }
+        assertEquals(source, decoded); assertEquals(2, opens); assertEquals(2, closes)
+    }
+    @Test fun streamRejectsOldNumericBackupWithoutOpeningSecondHandle() {
+        var opens = 0
+        try {
+            BackupValidation.decodeStream { opens++; """{"format":"study-assistant-backup","version":2,"questions":[{"id":123}]}""".byteInputStream() }
+            fail()
+        } catch (e: BackupValidationException) {
+            assertEquals("data.backupVersionUnsupported", e.messageKey); assertEquals(1, opens)
+        }
+    }
+    @Test fun malformedStreamFailsAndClosesHandle() {
+        var closed = false
+        try {
+            BackupValidation.decodeStream { object : java.io.ByteArrayInputStream("{broken".toByteArray()) {
+                override fun close() { closed = true; super.close() }
+            } }; fail()
+        } catch (_: BackupValidationException) { assertTrue(closed) }
+    }
+    @Test fun streamReopenFailureIsAnAccessErrorRatherThanInvalidData() {
+        val bytes = Json { encodeDefaults=true }.encodeToString(good()).toByteArray()
+        var opens = 0
+        try { BackupValidation.decodeStream { if (++opens == 1) bytes.inputStream() else null }; fail() }
+        catch (_: java.io.IOException) { assertEquals(2, opens) }
+    }
 }

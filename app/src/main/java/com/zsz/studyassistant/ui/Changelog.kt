@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.4
+· 💾 自动备份写入后读回并校验 SHA-256，通过后才清理旧备份；备份与清理串行执行，失败时尝试清理本次不完整文件
+· 📥 备份在后台读取和校验，显示处理状态；图片逐题解码，降低导入时的内存峰值，保持整次事务回滚
+· 🕘 搜题记录保存失败显示提示并支持重试；保留最新快照与原编号，已删除或过期的记录不因重试恢复
+· 📌 DB v10、备份 v3 不变，无新增数据迁移
+
 v0.6.6.3
 · 🛠 同版本附件更新：首次成功确认数据库升级显示“升级成功”，之后无变更显示“无需升级”；升级 / 修复页显示 DB / Bak 与实际数据库版本，旧格式数据以橙黄色警示
 · 🆔 题目改用 UUID＋首次输入时间作为永久编号；错题本、图片、标签及复习进度原地迁移至 DB v10，迁移前保存数据库副本
@@ -363,6 +369,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.4
+· 💾 Read back automatic backups and verify SHA-256 before pruning old copies; serialize backup and cleanup, and attempt to remove incomplete new files after failure
+· 📥 Read and validate backups in the background with status feedback; decode images per problem to reduce peak memory while preserving transactional rollback
+· 🕘 Show failed history saves with a retry action; retain the latest snapshot and original ID without recreating deleted or expired records
+· 📌 DB v10 and backup v3 unchanged; no new data migration
+
 v0.6.6.3
 · 🛠 Updated APK under the same version: confirm the first successful database upgrade separately from later no-op checks; show DB / Bak and actual schema versions, with an amber warning for legacy data
 · 🆔 Permanent problem IDs combine a UUID and first-input timestamp; DB v10 migrates notebook, image, tag and review references after saving a database copy
@@ -721,6 +733,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.4
+· 💾 自動バックアップを再読み取りして SHA-256 を検証後、古いファイルを整理。バックアップと整理を直列化し、失敗時は今回の不完全ファイルの削除を試行
+· 📥 バックアップの読み取りと検証をバックグラウンド化し、処理状況を表示。画像を問題ごとに復号し、メモリ使用量を抑えつつ一括ロールバックを維持
+· 🕘 履歴の保存失敗を表示し再試行に対応。最新内容と元の番号を保持し、削除済み・期限切れの履歴は再作成しません
+· 📌 DB v10・バックアップ v3 は変更なし。追加のデータ移行は不要
+
 v0.6.6.3
 · 🛠 同一バージョンの APK を更新。初回の更新成功と以後の更新不要を区別し、DB / Bak と実際の DB バージョンを表示。旧形式データがあれば黄橙色で警告
 · 🆔 UUID＋初回入力日時による永続番号を導入。DB v10 へ問題・画像・タグ・復習の関連を移行し、事前に DB のコピーを保存
@@ -1079,6 +1097,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.4
+· 💾 자동 백업을 다시 읽어 SHA-256 검증 후 이전 파일 정리. 백업과 정리를 순차 실행하고 실패 시 이번에 만든 불완전 파일 삭제 시도
+· 📥 백업 읽기와 검증을 백그라운드에서 실행하고 상태 표시. 이미지를 문제별로 해독해 최대 메모리 사용을 줄이며 전체 트랜잭션 롤백 유지
+· 🕘 검색 기록 저장 실패 알림과 재시도 지원. 최신 내용과 원래 번호를 유지하며 삭제되거나 만료된 기록은 다시 만들지 않음
+· 📌 DB v10 및 백업 v3 유지. 추가 데이터 이전 없음
+
 v0.6.6.3
 · 🛠 같은 버전의 APK 교체: 첫 데이터베이스 업그레이드 성공과 이후 변경 불필요를 구분하고 DB / Bak 및 실제 DB 버전 표시. 이전 형식 데이터가 있으면 황색 경고 표시
 · 🆔 UUID와 최초 입력 시간으로 영구 문제 번호 도입. DB 복사본을 먼저 저장한 뒤 문제·이미지·태그·복습 연결을 DB v10으로 이전

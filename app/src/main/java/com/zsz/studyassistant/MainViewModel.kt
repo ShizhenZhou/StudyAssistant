@@ -324,6 +324,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var retryBinding: SolveSessionBinding? = null
     private var captureIdentity: Pair<QuestionId, Long>? = null
     private val solveSessionWriteMutex = kotlinx.coroutines.sync.Mutex()
+    private val historyWriteQueue = com.zsz.studyassistant.data.HistoryWriteQueue()
+    var failedHistoryWrites by mutableStateOf(0)
+        private set
+    var retryingHistoryWrites by mutableStateOf(false)
+        private set
     private val notebookWriteMutex = kotlinx.coroutines.sync.Mutex()
     private val dataMaintenanceMutex = kotlinx.coroutines.sync.Mutex()
 
@@ -576,44 +581,70 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }) else null,
             savedQuestionId = savedQuestionId
         )
-        viewModelScope.launch {
-            solveSessionWriteMutex.lock()
+        val ticket = historyWriteQueue.enqueue(row, create)
+        failedHistoryWrites = historyWriteQueue.failedTickets().size
+        viewModelScope.launch { persistHistoryTicket(ticket) }
+    }
+
+    private suspend fun persistHistoryTicket(ticket: com.zsz.studyassistant.data.HistoryWriteQueue.Ticket) {
+        solveSessionWriteMutex.withLock {
+            if (!historyWriteQueue.isCurrent(ticket)) return@withLock
             try {
                 AppDatabase.get(getApplication()).withTransaction {
-                    val previous = dao.solveSessionOnce(problemId)
-                    val linkedRow = row.copy(savedQuestionId = problemId.takeIf { dao.questionExists(it) })
-                    // 只有首次提交允许新增；打开错题、追问、退出以及被删/裁剪的历史均不补建。
-                    if (previous == null) {
-                        if (create && binding.historyAllowed) dao.insertSolveSession(linkedRow)
-                    } else {
-                        dao.updateSolveSession(linkedRow.copy(createdAt =
-                            QuestionIdentity.earliest(previous.createdAt, row.createdAt)))
-                    }
+                    com.zsz.studyassistant.data.persistHistoryWrite(dao, ticket.row, historyWriteQueue.canCreate(ticket),
+                        System.currentTimeMillis() - SOLVE_SESSION_KEEP_DAYS * DAY_MS)
                 }
+                historyWriteQueue.complete(ticket)
             } catch (e: CancellationException) {
+                historyWriteQueue.fail(ticket)
                 throw e
             } catch (_: Exception) {
-                // 历史写入失败不输出题目内容或密钥。
+                // Retain the snapshot for explicit retry; never expose exception payloads or question text.
+                historyWriteQueue.fail(ticket)
             } finally {
-                solveSessionWriteMutex.unlock()
+                failedHistoryWrites = historyWriteQueue.failedTickets().size
+            }
+        }
+    }
+
+    fun retryFailedHistoryWrites() {
+        if (retryingHistoryWrites) return
+        retryingHistoryWrites = true
+        val tickets = historyWriteQueue.failedTickets()
+        viewModelScope.launch {
+            try { tickets.forEach { persistHistoryTicket(it) } }
+            finally { retryingHistoryWrites = false }
+        }
+    }
+
+    fun deleteHistoryRecords(ids: List<QuestionId>, onFailure: () -> Unit = {}) {
+        viewModelScope.launch {
+            solveSessionWriteMutex.withLock {
+                try {
+                    dao.deleteSolveSessionsByIds(ids)
+                    dropCurrentSessionIfPruned(ids)
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { onFailure() }
             }
         }
     }
 
     /** 记录被裁剪掉时要顺手把 [currentSessionId] 松开，否则后续 UPDATE 会写进一条不存在的行 */
     private fun dropCurrentSessionIfPruned(deleted: List<QuestionId>) {
+        historyWriteQueue.forget(deleted)
+        failedHistoryWrites = historyWriteQueue.failedTickets().size
         if (currentSessionId in deleted) sessionRecordBinding.historyAllowed = false
     }
 
     /** 启动裁剪（挂在 [purgeDeletedData] 旁边）：保留最近 [SOLVE_SESSION_KEEP] 条 / 最近 [SOLVE_SESSION_KEEP_DAYS] 天 */
     private fun pruneSolveSessions() {
         viewModelScope.launch {
-            runCatching {
+            solveSessionWriteMutex.withLock { runCatching {
                 val cutoff = System.currentTimeMillis() - SOLVE_SESSION_KEEP_DAYS * DAY_MS
                 val ids = solveSessionsToDelete(dao.solveSessionsLightOnce(), cutoff, SOLVE_SESSION_KEEP)
                 if (ids.isNotEmpty()) dao.deleteSolveSessionsByIds(ids)
                 dropCurrentSessionIfPruned(ids)
-            }
+            } }
         }
     }
 
@@ -1232,8 +1263,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 生成备份 JSON（IO 在后台线程）；ok 回调在拿到结果后触发 */
     fun exportBackup(onReady: (String) -> Unit, onError: (String) -> Unit) {
+        if (dataBusy || preparedBackup != null) return
+        dataBusy = true
         viewModelScope.launch {
-            dataBusy = true
             try {
                 val json = com.zsz.studyassistant.data.BackupManager.export(AppDatabase.get(getApplication()))
                 val n = dao.countQuestions()
@@ -1251,22 +1283,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun importBackup(text: String) {
+    var preparedBackup by mutableStateOf<com.zsz.studyassistant.data.BackupFile?>(null)
+        private set
+    var dataProgressKey by mutableStateOf<String?>(null)
+        private set
+    private var backupReadJob: Job? = null
+
+    fun discardPreparedBackup() { backupReadJob?.cancel(); preparedBackup = null }
+
+    fun prepareBackupImport(uri: android.net.Uri) {
+        if (dataBusy || preparedBackup != null) return
+        dataBusy = true
+        dataMessage = null
+        dataProgressKey = "data.importReading"
+        backupReadJob = viewModelScope.launch {
+            try {
+                preparedBackup = withContext(Dispatchers.IO) {
+                    com.zsz.studyassistant.data.BackupValidation.decodeStream {
+                        getApplication<Application>().contentResolver.openInputStream(uri)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                dataMessage = s.format("data.failed", "msg" to
+                    if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else s["data.importReadFailed"])
+            } finally {
+                dataBusy = false
+                dataProgressKey = null
+            }
+        }
+    }
+
+    fun importBackup() {
+        if (dataBusy) return
+        val file = preparedBackup ?: return
+        preparedBackup = null
+        dataBusy = true
+        dataProgressKey = "data.importing"
         viewModelScope.launch {
-            dataBusy = true
             try {
                 // Backup v3: validate identity/references/images before a transactional merge.
-                val r = com.zsz.studyassistant.data.BackupManager.import(AppDatabase.get(getApplication()), text)
+                val r = com.zsz.studyassistant.data.BackupManager.importFile(AppDatabase.get(getApplication()), file)
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
                     "data.importDone",
                     "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}"
                 )
+                refreshDataSummary()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
                 val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else (e.message ?: "")
                 dataMessage = s.format("data.failed", "msg" to detail)
             } finally {
                 dataBusy = false
+                dataProgressKey = null
             }
         }
     }
@@ -1414,7 +1487,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             dataBusy = true
             try {
-                com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
+                solveSessionWriteMutex.withLock {
+                    com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
+                    historyWriteQueue.clear()
+                    failedHistoryWrites = 0
+                    sessionRecordBinding.historyAllowed = false
+                }
                 menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]
             } catch (e: Exception) {
                 menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))

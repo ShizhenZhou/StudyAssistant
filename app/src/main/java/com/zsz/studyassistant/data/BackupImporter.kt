@@ -8,8 +8,6 @@ object BackupImporter {
     private val json = Json { encodeDefaults = true }
     suspend fun merge(dao: QuestionDao, file: BackupFile): ImportResult {
         BackupValidation.validate(file)
-        val questionImages = file.questions.associate { it.id to BackupValidation.images(it.images) }
-        val sessionImages = file.solveSessions.associate { it.id to BackupValidation.images(it.images) }
         val cats = dao.allCategoriesOnce().associateBy { it.name }.toMutableMap()
         val tags = dao.getAllTagsOnce().associateBy { it.name }.toMutableMap()
         val catMap = mutableMapOf<Long, Long>()
@@ -32,7 +30,7 @@ object BackupImporter {
         var imageCount = 0
         for (q in file.questions) {
             if (dao.questionExists(q.id)) continue
-            val images = questionImages.getValue(q.id)
+            val images = BackupValidation.images(q.images)
             dao.insert(Question(id=q.id, text=q.text, answer=q.answer, createdAt=q.createdAt,
                 imageBytes=images.firstOrNull(), conversationJson=q.conversationJson,
                 deleted=q.deleted, categoryId=q.categoryId?.let { catMap.getValue(it) }))
@@ -51,7 +49,7 @@ object BackupImporter {
         var sessionCount = 0
         for (s in file.solveSessions) {
             if (dao.solveSessionOnce(s.id) != null) continue
-            val images = sessionImages.getValue(s.id)
+            val images = BackupValidation.images(s.images)
             dao.insertSolveSession(SolveSession(id=s.id, createdAt=s.createdAt, updatedAt=s.updatedAt,
                 source=s.source, text=s.text, answer=s.answer, conversationJson=s.conversationJson,
                 imageBytes=images.firstOrNull(), imagesJson=if (s.images.size>1) json.encodeToString(s.images) else null,

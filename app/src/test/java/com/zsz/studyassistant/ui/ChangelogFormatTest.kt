@@ -78,7 +78,7 @@ class ChangelogFormatTest {
         for (lang in listOf(UiLang.ZH_CN, UiLang.ZH_TW, UiLang.EN, UiLang.JA, UiLang.KO)) {
             val text = changelogText(lang)
             assertTrue("$lang 的更新内容为空", text.trim().isNotEmpty())
-            assertTrue("$lang 少了当前版本 v0.6.6.3", text.trim().startsWith("v0.6.6.3"))
+            assertTrue("$lang 少了当前版本 v0.6.6.4", text.trim().startsWith("v0.6.6.4"))
         }
     }
 }

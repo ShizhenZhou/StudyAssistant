@@ -6,6 +6,12 @@ import android.provider.DocumentsContract
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,6 +43,7 @@ object AutoBackup {
     private const val KEY_ENABLED = "auto_backup_enabled"
     private const val KEY_LAST_DAY = "auto_backup_last_day"
     private const val KEY_LAST_AT = "auto_backup_last_at"
+    private val writeMutex = Mutex()
 
     // ── 纯逻辑（单元测试覆盖，见 AutoBackupTest）─────────────────────────────
 
@@ -97,8 +104,8 @@ object AutoBackup {
 
     // ── 文件夹访问（用框架的 DocumentsContract，不引额外依赖）──────────────────
 
-    private fun treeDocUri(context: Context): Uri? {
-        val tree = treeUri(context) ?: return null
+    private fun treeDocUri(context: Context, tree: Uri? = treeUri(context)): Uri? {
+        if (tree == null) return null
         return runCatching {
             DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         }.getOrNull()
@@ -115,18 +122,20 @@ object AutoBackup {
     }
 
     /** 文件夹里的子项（名字 → 文档 Uri） */
-    private fun children(context: Context): List<Pair<String, Uri>> {
-        val tree = treeUri(context) ?: return emptyList()
+    private fun children(context: Context, tree: Uri? = treeUri(context), strict: Boolean = false): List<Pair<String, Uri>> {
+        if (tree == null) return emptyList()
         return runCatching {
             val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
                 tree, DocumentsContract.getTreeDocumentId(tree)
             )
             val out = mutableListOf<Pair<String, Uri>>()
-            context.contentResolver.query(
+            val cursor = context.contentResolver.query(
                 childrenUri,
                 arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
                 null, null, null
-            )?.use { c ->
+            )
+            if (cursor == null && strict) throw java.io.IOException("Cannot list backup folder")
+            cursor?.use { c ->
                 while (c.moveToNext()) {
                     val id = c.getString(0) ?: continue
                     val name = c.getString(1) ?: continue
@@ -134,7 +143,7 @@ object AutoBackup {
                 }
             }
             out
-        }.getOrDefault(emptyList())
+        }.getOrElse { if (strict) throw it else emptyList() }
     }
 
     /** 已有的自动备份文件名（新的在前）；文件夹没设置或读不到 → 空 */
@@ -154,7 +163,8 @@ object AutoBackup {
         val fileName: String?,
         /** 本次裁掉的旧备份份数 */
         val pruned: Int = 0,
-        val error: String? = null
+        val error: String? = null,
+        val errorKey: String? = null
     )
 
     /**
@@ -162,57 +172,83 @@ object AutoBackup {
      * 文件 IO 在 IO 线程；[jsonProvider] 由调用方提供（ViewModel 从数据库导出）。
      */
     suspend fun runIfDue(context: Context, jsonProvider: suspend () -> String): Result? {
-        val now = System.currentTimeMillis()
-        if (!isDue(context, now)) return null
-        val json = runCatching { jsonProvider() }.getOrElse {
-            Log.w(TAG, "build backup json failed: ${it.message}")
-            return null
+        return writeMutex.withLock {
+            val now = System.currentTimeMillis()
+            if (!isDue(context, now)) return@withLock null
+            val json = try { jsonProvider() }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) {
+                Log.w(TAG, "build backup json failed")
+                return@withLock null
+            }
+            if (!isDue(context, now)) return@withLock null
+            runBackupLocked(context, json, now)
         }
-        return runBackup(context, json, now)
     }
 
-    /** 真正写盘：新建文件 → 写入 → 裁剪到最近 [KEEP] 份 → 记录时间 */
+    /** Manual and automatic writes share one lock, including verification and retention. */
     suspend fun runBackup(
         context: Context,
         json: String,
         now: Long = System.currentTimeMillis()
-    ): Result = withContext(Dispatchers.IO) {
-        val parent = treeDocUri(context)
-            ?: return@withContext Result(false, null, error = "未选择备份文件夹")
+    ): Result = writeMutex.withLock { runBackupLocked(context, json, now) }
+
+    private suspend fun runBackupLocked(context: Context, json: String, now: Long): Result = withContext(Dispatchers.IO) {
+        val tree = treeUri(context)
+        val parent = treeDocUri(context, tree)
+            ?: return@withContext Result(false, null, errorKey = "data.autoBackup.folderMissing")
+        var created: Uri? = null
+        var verified = false
         try {
             val name = backupFileName(now)
-            val created = DocumentsContract.createDocument(context.contentResolver, parent, MIME, name)
-                ?: return@withContext Result(false, null, error = "无法在该文件夹创建文件")
-            context.contentResolver.openOutputStream(created)?.use { out ->
-                out.write(json.toByteArray())
-                out.flush()
-            } ?: return@withContext Result(false, null, error = "无法写入备份文件")
-
-            // 裁剪：只认自己写的文件，保留最近 KEEP 份
-            val mine = children(context).filter { it.first.startsWith(PREFIX) && it.first.endsWith(SUFFIX) }
-            val toDelete = pruneTargets(mine.map { it.first }).toHashSet()
+            val before = children(context, tree, strict = true).map { DocumentsContract.getDocumentId(it.second) }.toSet()
+            val document = DocumentsContract.createDocument(context.contentResolver, parent, MIME, name)
+                ?: throw BackupWriteException("data.autoBackup.createFailed")
+            // A broken provider must not let verification cleanup remove a pre-existing file.
+            val documentId = DocumentsContract.getDocumentId(document)
+            if (documentId in before) throw BackupWriteException("data.autoBackup.createFailed")
+            created = document
+            val jobContext = currentCoroutineContext()
+            VerifiedBackupWriter.writeAndVerify(json,
+                output = { context.contentResolver.openOutputStream(document, "wt") },
+                input = { context.contentResolver.openInputStream(document) },
+                checkActive = { jobContext.ensureActive() })
+            verified = true
+            jobContext.ensureActive()
+            // Protect the verified new document even if the clock moved backwards or names collide.
+            val mine = children(context, tree, strict = true).filter { it.first.startsWith(PREFIX) && it.first.endsWith(SUFFIX) }
+            val toDelete = mine.filter { DocumentsContract.getDocumentId(it.second) != documentId }
+                .sortedByDescending { it.first }.drop(KEEP - 1)
             var pruned = 0
-            for ((n, uri) in mine) {
-                if (n in toDelete && runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }
-                        .getOrDefault(false)) pruned++
+            for ((_, uri) in toDelete) {
+                jobContext.ensureActive()
+                if (runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }.getOrDefault(false)) pruned++
             }
-            markBackedUp(context, now)
-            Result(true, name, pruned)
+            if (treeUri(context) == tree) markBackedUp(context, now)
+            Result(true, mine.firstOrNull { DocumentsContract.getDocumentId(it.second) == documentId }?.first ?: name, pruned)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.w(TAG, "backup failed: ${e.message}")
-            Result(false, null, error = e.message ?: e.javaClass.simpleName)
+            Log.w(TAG, "backup write or verification failed")
+            Result(false, null, errorKey = (e as? BackupWriteException)?.messageKey ?: "data.autoBackup.storageFailed")
+        } finally {
+            val failedDocument = created
+            if (!verified && failedDocument != null) withContext(NonCancellable + Dispatchers.IO) {
+                runCatching { DocumentsContract.deleteDocument(context.contentResolver, failedDocument) }
+            }
         }
     }
 
     /** 清空自动备份（只删自己写的文件），返回删除份数 */
-    suspend fun clearBackups(context: Context): Int = withContext(Dispatchers.IO) {
+    suspend fun clearBackups(context: Context): Int = writeMutex.withLock { withContext(Dispatchers.IO) {
+        val tree = treeUri(context)
         var n = 0
-        for ((name, uri) in children(context)) {
+        for ((name, uri) in children(context, tree)) {
             if (name.startsWith(PREFIX) && name.endsWith(SUFFIX) &&
                 runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }.getOrDefault(false)
             ) n++
         }
-        prefs(context).edit().remove(KEY_LAST_DAY).remove(KEY_LAST_AT).apply()
+        if (treeUri(context) == tree) prefs(context).edit().remove(KEY_LAST_DAY).remove(KEY_LAST_AT).apply()
         n
-    }
+    } }
 }

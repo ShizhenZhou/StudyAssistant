@@ -11,6 +11,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -198,6 +201,19 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Column(Modifier.fillMaxSize()) {
+                        if (viewModel.failedHistoryWrites > 0) {
+                            Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Text(strings.format("history.saveFailed", "n" to "${viewModel.failedHistoryWrites}"),
+                                        modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { viewModel.retryFailedHistoryWrites() },
+                                        enabled = !viewModel.retryingHistoryWrites
+                                    ) { Text(strings[if (viewModel.retryingHistoryWrites) "history.saveRetrying" else "history.saveRetry"]) }
+                                }
+                            }
+                        }
                         Box(Modifier.weight(1f)) {
                             NavHost(
                                 nav,
