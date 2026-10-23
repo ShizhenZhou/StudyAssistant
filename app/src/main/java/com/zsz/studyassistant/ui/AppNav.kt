@@ -129,13 +129,14 @@ object AppNav {
         const val DATA_AUTO = "data.auto"
         const val DATA_CRASH = "data.crash"
         const val DATA_UPGRADE = "data.upgrade"
+        const val DATA_TAG_MERGE = "data.tags"
         const val UPDATE = "update"
         const val ABOUT = "about"
 
-        /** 上一级（返回手势 / ← 的去处）：数据管理的四个子页 → 数据管理，其余 → 设置主页 */
+        /** 上一级（返回手势 / ← 的去处）：数据管理的五个子页 → 数据管理，其余 → 设置主页 */
         fun parent(page: String): String = when (page) {
             MAIN -> MAIN
-            DATA_BACKUP, DATA_AUTO, DATA_CRASH, DATA_UPGRADE -> DATA
+            DATA_BACKUP, DATA_AUTO, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
             else -> MAIN
         }
     }

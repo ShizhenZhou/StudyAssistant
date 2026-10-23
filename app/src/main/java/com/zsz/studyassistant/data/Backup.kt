@@ -153,17 +153,26 @@ object BackupManager {
     /** v3 only. Validate before writes, then apply all related data atomically. */
     suspend fun import(db: AppDatabase, text: String): ImportResult = withContext(Dispatchers.IO) {
         val file = BackupValidation.decode(text)
-        db.withTransaction { BackupImporter.merge(db.questionDao(), file) }
+        db.withTransaction {
+            val result = BackupImporter.merge(db.questionDao(), file)
+            db.questionDao().clearTagMergeUndo()
+            result
+        }
     }
 
     suspend fun importFile(db: AppDatabase, file: BackupFile): ImportResult = withContext(Dispatchers.IO) {
-        db.withTransaction { BackupImporter.merge(db.questionDao(), file) }
+        db.withTransaction {
+            val result = BackupImporter.merge(db.questionDao(), file)
+            db.questionDao().clearTagMergeUndo()
+            result
+        }
     }
 
     /** 清空：全部业务表（含一题多图与搜题记录） */
     suspend fun clearAll(db: AppDatabase) {
         val dao = db.questionDao()
         db.withTransaction {
+            dao.clearTagMergeUndo()
             dao.clearAllQuestionTags()
             dao.clear()
             dao.clearCategories()

@@ -164,6 +164,8 @@ $testClasses = @(
     'com.zsz.studyassistant.data.AutoBackupTest',
     'com.zsz.studyassistant.data.VerifiedBackupWriterTest',
     'com.zsz.studyassistant.data.HistoryWriteQueueTest',
+    'com.zsz.studyassistant.data.TagMergeEngineTest',
+    'com.zsz.studyassistant.data.TagMergeSuggestionsTest',
     'com.zsz.studyassistant.data.NotebookSortingTest',
     'com.zsz.studyassistant.data.DuplicateCheckTest',
     'com.zsz.studyassistant.data.AutoExposureTest',

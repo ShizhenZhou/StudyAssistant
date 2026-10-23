@@ -1797,7 +1797,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (binding === sessionRecordBinding) {
                     error = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                        .format("data.failed", "msg" to (e.message ?: ""))
+                        .format("data.failed", "msg" to tagWriteError(e))
                 }
             } finally {
                 binding.saving = false
@@ -1865,35 +1865,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 给当前题目加一个标签；name 非空→新建标签。返回是否成功 */
-    fun addTagToCurrent(name: String?, tagId: Long?) {
+    private fun tagWriteError(e: Exception): String = if (e is com.zsz.studyassistant.data.TagMergeException)
+        com.zsz.studyassistant.ui.stringsFor(uiLang)[e.messageKey] else e.message.orEmpty()
+
+    fun onNotebookTagsChanged() {
+        refreshDataSummary(); refreshUsage()
         val id = savedQuestionId ?: return
+        val binding = sessionRecordBinding
         viewModelScope.launch {
+            try {
+            val ids = dao.tagIdsForQuestion(id)
+            val all = dao.getAllTagsOnce()
+            if (binding === sessionRecordBinding && savedQuestionId == id) {
+                currentQuestionTags = ids
+                suggestedTags = ids.mapNotNull { tid -> all.firstOrNull { it.id == tid }?.name }
+            }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { if (binding === sessionRecordBinding) error = tagWriteError(e) }
+        }
+    }
+
+    private fun editCurrentTags(action: suspend (QuestionId) -> Unit) {
+        val id = savedQuestionId ?: return
+        val binding = sessionRecordBinding
+        viewModelScope.launch {
+            try {
+                AppDatabase.get(getApplication()).withTransaction {
+                    if (!dao.questionExists(id)) throw com.zsz.studyassistant.data.TagMergeException("tagMerge.changed")
+                    action(id)
+                }
+                if (binding === sessionRecordBinding && savedQuestionId == id) onNotebookTagsChanged()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { if (binding === sessionRecordBinding) error = tagWriteError(e) }
+        }
+    }
+
+    /** 给当前题目加一个标签；在事务内重新核对编号，防止使用已合并标签。 */
+    fun addTagToCurrent(name: String?, tagId: Long?) {
+        editCurrentTags { id ->
             var tid = tagId
             if (!name.isNullOrBlank()) {
                 val existing = dao.getAllTagsOnce().firstOrNull { it.name == name.trim() }
                 tid = existing?.id ?: dao.insertTag(Tag(name = name.trim()))
             }
-            if (tid == null) return@launch
-            if (currentQuestionTags.contains(tid)) return@launch
+            if (tid == null) return@editCurrentTags
+            if (dao.tagIdsForQuestion(id).contains(tid)) return@editCurrentTags
             dao.insertQuestionTag(QuestionTag(id, tid))
-            currentQuestionTags = currentQuestionTags + tid
         }
     }
 
     /** 移除当前题目的一个标签 */
     fun removeTagFromCurrent(tagId: Long) {
-        val id = savedQuestionId ?: return
-        viewModelScope.launch {
+        editCurrentTags { id ->
             dao.deleteQuestionTag(id, tagId)
-            currentQuestionTags = currentQuestionTags - tagId
         }
     }
 
     /** 重置当前题目的标签（详情页批量改；tagIds + 新建 tagNames，≤5 个） */
     fun setCurrentTags(tagIds: List<Long>, newTagNames: List<String>) {
-        val id = savedQuestionId ?: return
-        viewModelScope.launch {
+        editCurrentTags { id ->
             dao.clearQuestionTags(id)
             val finalIds = tagIds.toMutableList()
             for (tn in newTagNames.take(5)) {
@@ -1903,8 +1933,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val tid = ex?.id ?: dao.insertTag(Tag(name = n))
                 if (!finalIds.contains(tid)) finalIds += tid
             }
-            for (tid in finalIds.take(5)) dao.insertQuestionTag(QuestionTag(id, tid))
-            currentQuestionTags = finalIds.take(5)
+            dao.insertQuestionTags(finalIds.distinct().take(5).map { QuestionTag(id, it) })
         }
     }
 
@@ -2366,7 +2395,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 if (seq == similarSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                    .format("data.failed", "msg" to (e.message ?: ""))
+                    .format("data.failed", "msg" to tagWriteError(e))
             }
         }
     }

@@ -15,6 +15,7 @@ import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.Serializable
 
 @Entity(tableName = "questions")
 data class Question(
@@ -41,6 +42,7 @@ data class Category(
 )
 
 /** 知识点标签（独立于科目分类，全局不分科），一道题可多个 */
+@Serializable
 @Entity(tableName = "tags")
 data class Tag(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -49,6 +51,7 @@ data class Tag(
 )
 
 /** 错题 ↔ 知识点标签 的多对多关联表 */
+@Serializable
 @Entity(tableName = "question_tags", primaryKeys = ["questionId", "tagId"])
 data class QuestionTag(
     val questionId: QuestionId,
@@ -103,7 +106,16 @@ interface QuestionDao {
     suspend fun insertTag(t: Tag): Long
 
     @Insert
-    suspend fun insertQuestionTag(qt: QuestionTag)
+    suspend fun insertQuestionTagRaw(qt: QuestionTag)
+
+    @Query("SELECT COUNT(*) FROM tags WHERE id IN (:ids)")
+    suspend fun existingTagCount(ids: List<Long>): Int
+
+    @androidx.room.Transaction
+    suspend fun insertQuestionTag(qt: QuestionTag) {
+        if (existingTagCount(listOf(qt.tagId)) != 1) throw TagMergeException("tagMerge.changed")
+        insertQuestionTagRaw(qt)
+    }
 
     @Query("DELETE FROM question_tags WHERE questionId = :questionId AND tagId = :tagId")
     suspend fun deleteQuestionTag(questionId: QuestionId, tagId: Long)
@@ -299,7 +311,29 @@ interface QuestionDao {
     suspend fun insertTags(list: List<Tag>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertQuestionTags(list: List<QuestionTag>)
+    suspend fun insertQuestionTagsRaw(list: List<QuestionTag>)
+
+    @androidx.room.Transaction
+    suspend fun insertQuestionTags(list: List<QuestionTag>) {
+        val ids = list.map { it.tagId }.distinct()
+        if (ids.isNotEmpty() && existingTagCount(ids) != ids.size) throw TagMergeException("tagMerge.changed")
+        insertQuestionTagsRaw(list)
+    }
+
+    @Query("DELETE FROM question_tags WHERE tagId IN (:ids)")
+    suspend fun deleteLinksForTags(ids: List<Long>)
+
+    @Query("DELETE FROM tags WHERE id IN (:ids)")
+    suspend fun deleteTagsByIds(ids: List<Long>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putTagMergeUndo(record: TagMergeUndo)
+
+    @Query("SELECT * FROM tag_merge_undo WHERE id=1")
+    suspend fun tagMergeUndoOnce(): TagMergeUndo?
+
+    @Query("DELETE FROM tag_merge_undo")
+    suspend fun clearTagMergeUndo()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReviews(list: List<Review>)
@@ -491,12 +525,16 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
-@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = false)
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) { db.execSQL(TagMergeSchema.CREATE) }
+}
+
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class, TagMergeUndo::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
 
     companion object {
-        const val SCHEMA_VERSION = 10
+        const val SCHEMA_VERSION = 11
 
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -511,7 +549,7 @@ abstract class AppDatabase : RoomDatabase() {
                         context.applicationContext,
                         AppDatabase::class.java,
                         "study_assistant.db"
-                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build().also { INSTANCE = it }
+                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build().also { INSTANCE = it }
                 }
             }
 
@@ -521,15 +559,16 @@ abstract class AppDatabase : RoomDatabase() {
             if (!dbFile.exists()) return
             val old = android.database.sqlite.SQLiteDatabase.openDatabase(
                 dbFile.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)
-            old.use { database ->
+            val sourceVersion = old.use { database ->
                 if (database.version >= SCHEMA_VERSION) return
                 database.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { cursor ->
                     check(cursor.moveToFirst() && cursor.getInt(0) == 0 && cursor.getInt(1) == cursor.getInt(2)) {
                         "Cannot checkpoint database before migration"
                     }
                 }
+                database.version
             }
-            val target = java.io.File(dbFile.path + ".pre-v10-" + System.currentTimeMillis())
+            val target = java.io.File(dbFile.path + ".pre-v${SCHEMA_VERSION}-from-v${sourceVersion}-" + System.currentTimeMillis())
             check(!target.exists())
             dbFile.inputStream().use { input ->
                 java.io.FileOutputStream(target).use { output ->

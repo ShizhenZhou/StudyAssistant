@@ -85,7 +85,7 @@ jobs:
           chmod +x ./gradlew
           ./gradlew testDebugUnitTest assembleRelease --console=plain
 
-      - name: 校验 DB v10 迁移与 Room 表结构
+      - name: 校验数据库迁移与 Room 表结构
         run: python3 tools/verify-identity-migration.py
 
       # AGP 的 signingConfig 不支持 lineage → 构建后用 apksigner 补上（v3-only）

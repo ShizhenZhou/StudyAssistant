@@ -177,12 +177,13 @@ fun SettingsTab(vm: MainViewModel) {
         AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { page = AppNav.SettingsPages.parent(page) }) { LanguageSettings(vm) }
         AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { page = AppNav.SettingsPages.parent(page) }) { ThemeSettings(vm) { page = it } }
         AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { page = AppNav.SettingsPages.parent(page) }) { NotifyBackgroundSettings() }
-        // ★ 2026-10-17 再拆：数据管理 = 备份管理 / 自动备份 / 崩溃日志 / 数据升级·修复 四个子页
+        // 数据管理：备份管理 / 自动备份 / 崩溃日志 / 数据升级·修复 / 标签整理
         AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { page = AppNav.SettingsPages.parent(page) }) { DataMenu(vm) { page = it } }
         AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm) }
         AppNav.SettingsPages.DATA_AUTO -> SettingsSubPage(s["data.autoBackup"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm, "auto") }
         AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm, "crash") }
         AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { page = AppNav.SettingsPages.parent(page) }) { DataUpgradePage(vm) }
+        AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { page = AppNav.SettingsPages.parent(page) }) { TagMergePage(vm) }
         AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { page = AppNav.SettingsPages.parent(page) }) { UpdatePage() }
         AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { page = AppNav.SettingsPages.parent(page) }) { AboutPage() }
         else -> SettingsMain { page = it }
@@ -722,6 +723,7 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     DataMenuRow(s["data.autoBackup"], s["data.autoBackupDesc"]) { go("data.auto") }
     DataMenuRow(s["data.crash"], s["data.crashLogDesc"]) { go("data.crash") }
     DataMenuRow(s["data.upgradePage"], s["data.upgradeDesc"]) { go("data.upgrade") }
+    DataMenuRow(s["tagMerge.title"], s["tagMerge.description"]) { go(AppNav.SettingsPages.DATA_TAG_MERGE) }
 
     // ★ 2026-10-17（用户要求）：清空所有数据**从「备份管理」挪到这一级菜单**上
     Spacer(Modifier.height(10.dp))

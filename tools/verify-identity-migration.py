@@ -11,6 +11,7 @@ import sqlite3
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = json.loads((ROOT / "app/build/identity-work/migration-plan.json").read_text(encoding="utf-8"))
 GENERATED = (ROOT / "app/build/generated/source/kapt/debug/com/zsz/studyassistant/data/AppDatabase_Impl.java").read_text(encoding="utf-8")
+TAG_MIGRATION = (ROOT / "app/build/identity-work/tag-merge-schema.sql").read_text(encoding="utf-8")
 
 
 def old_database():
@@ -51,6 +52,7 @@ def migrate(db, statements):
 def verify_preservation_and_schema():
     db = old_database()
     migrate(db, PLAN)
+    migrate(db, [TAG_MIGRATION])
     rows = {r[1]: r for r in db.execute("SELECT id,text,createdAt,imageBytes,deleted,categoryId FROM questions")}
     assert len(rows) == 3
     assert rows["one"][2:] == (10000, b"\x01\x02", 0, 1)
@@ -73,11 +75,28 @@ def verify_preservation_and_schema():
     assert len(statements) >= 8
     for sql in statements:
         fresh.execute(sql)
-    for table in ("questions","question_tags","review","question_images","solve_sessions","categories","tags"):
+    for table in ("questions","question_tags","review","question_images","solve_sessions","categories","tags","tag_merge_undo"):
         assert db.execute(f"PRAGMA table_info({table})").fetchall() == fresh.execute(f"PRAGMA table_info({table})").fetchall(), table
         assert db.execute(f"PRAGMA index_list({table})").fetchall() == fresh.execute(f"PRAGMA index_list({table})").fetchall(), table
     db.close()
     fresh.close()
+
+
+def verify_v11_addition_rolls_back_without_touching_v10_data():
+    db = old_database()
+    migrate(db, PLAN)
+    before = db.execute("SELECT * FROM questions ORDER BY id").fetchall()
+    try:
+        migrate(db, [TAG_MIGRATION, "INSERT INTO table_that_does_not_exist VALUES(1)"])
+        raise AssertionError("Injected migration failure did not abort")
+    except sqlite3.OperationalError:
+        pass
+    assert not db.execute("SELECT name FROM sqlite_master WHERE name='tag_merge_undo'").fetchall()
+    assert db.execute("SELECT * FROM questions ORDER BY id").fetchall() == before
+    migrate(db, [TAG_MIGRATION])
+    assert db.execute("SELECT COUNT(*) FROM tag_merge_undo").fetchone()[0] == 0
+    assert db.execute("SELECT * FROM questions ORDER BY id").fetchall() == before
+    db.close()
 
 
 def verify_failed_migration_rolls_back():
@@ -97,4 +116,5 @@ def verify_failed_migration_rolls_back():
 if __name__ == "__main__":
     verify_preservation_and_schema()
     verify_failed_migration_rolls_back()
-    print("PASS: actual Kotlin migration plan preserves records/bytes/associations, matches Room v10 schema, and rolls back on mismatch.")
+    verify_v11_addition_rolls_back_without_touching_v10_data()
+    print("PASS: actual Kotlin v9-v10-v11 migrations preserve records/bytes/associations, match Room v11 schema, and roll back on injected failures.")

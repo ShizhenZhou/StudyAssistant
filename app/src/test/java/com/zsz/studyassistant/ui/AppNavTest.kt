@@ -49,6 +49,7 @@ class AppNavTest {
         assertEquals(sp.DATA, sp.parent(sp.DATA_AUTO))
         assertEquals(sp.DATA, sp.parent(sp.DATA_CRASH))
         assertEquals(sp.DATA, sp.parent(sp.DATA_UPGRADE))
+        assertEquals(sp.DATA, sp.parent(sp.DATA_TAG_MERGE))
         assertEquals(sp.MAIN, sp.parent(sp.DATA))
         for (p in listOf(sp.AI, sp.LANG, sp.THEME, sp.NOTIFY, sp.UPDATE, sp.ABOUT)) {
             assertEquals("$p 的上一级应为设置主页", sp.MAIN, sp.parent(p))
@@ -61,7 +62,7 @@ class AppNavTest {
         val sp = AppNav.SettingsPages
         val secondLevel = listOf(
             sp.AI, sp.LANG, sp.THEME, sp.NOTIFY, sp.DATA,
-            sp.DATA_BACKUP, sp.DATA_AUTO, sp.DATA_CRASH, sp.DATA_UPGRADE,
+            sp.DATA_BACKUP, sp.DATA_AUTO, sp.DATA_CRASH, sp.DATA_UPGRADE, sp.DATA_TAG_MERGE,
             sp.UPDATE, sp.ABOUT
         )
         for (p in secondLevel) assertNotEquals("$p 的上一级是它自己", p, sp.parent(p))

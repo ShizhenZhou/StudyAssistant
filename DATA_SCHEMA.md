@@ -22,14 +22,24 @@
 
 ## 1. Room 数据库 `study_assistant.db`
 
-- 当前 **schema version = 10**（`AppDatabase.SCHEMA_VERSION`），自 App v0.6.6.3 起；v0.6.6.2 使用 DB v9。
-- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10`，全部用 `Migration` + `addMigrations(...)`。
-- 保留 v9 到 v10 的原地升级；历史 migration 链仍保留。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。
-- 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v10-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。旧 `.pre-v9` 文件不删除。
+- 当前 **schema version = 11**（`AppDatabase.SCHEMA_VERSION`），自 App v0.6.6.5 起；v0.6.6.3 / v0.6.6.4 使用 DB v10，v0.6.6.2 使用 DB v9。
+- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10 → v11`，全部用 `Migration` + `addMigrations(...)`。
+- 保留 v9 → v10 → v11 的原地升级；历史 migration 链仍保留。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。v10 → v11 只加撤销表，不重写既有题目。
+- 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v<目标版本>-from-v<原版本>-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。此前 `.pre-v9` / `.pre-v10-*` 文件不删除。
 - 界面“一键升级”负责检查/补全，不是 Room 主键迁移的前置条件。升级提示仍按 DB 版本管理。
 - `settings.data_upgrade_confirmed_schema: Int` 单独记录用户成功执行“一键升级”检查并确认的结构版本。当前结构已触发升级提示且尚未确认时，即使启动自动迁移已完成、无需补图，首次检查成功仍显示“升级成功”；之后无变更时显示“无需升级”。失败不更新确认记录，“修复数据”不消费升级确认。此标记不替代每次完整性检查。
 - 数据升级 / 修复页底部展示应用支持的 `DB v{SCHEMA_VERSION} · Bak v{BackupFile.VERSION}`，下一行使用实际打开数据库的 `user_version` 展示当前结构版本。SQLite 每个数据库只有一个结构版本，不为错题伪造逐条 DB 版本。
 - 第三行仅在完整性扫描发现仍可补全的旧格式原图数据时显示橙黄色“存在旧版本数据”；不按题目创建时间判断，不把无可恢复原图的旧题判为待升级。页面打开时重新检查，升级 / 修复事务成功后清除警示。
+
+### v0.6.6.5：标签合并与持久撤销
+
+- 新表 `tag_merge_undo`：`id INTEGER NOT NULL PRIMARY KEY`（固定为 1，最多一份最近批次）、`createdAt INTEGER NOT NULL`、`beforeJson TEXT NOT NULL`、`afterJson TEXT NOT NULL`。
+- 两个 JSON 使用内部 `version=1`，包含该批次涉及的标签定义（ID、名称、原 createdAt）与题目标签关联；字段完整性和已知版本均需核对，坏记录只拒绝撤销，不猜测修复。无记录视为无可撤销批次。
+- 合并前校验完整标签 / 关联预览指纹，核对全部组的来源、目标名、交叉冲突与题目存在性；合并及日志更新在同一事务内完成。目标标签可复用或新建，来源标签关联迁移后去重并删除不再使用的来源定义。
+- 撤销仅恢复该批次涉及的标签与关联；当前相关状态必须与合并后快照一致，且原名称未在组外被重新创建。不相关后续编辑保留。撤销成功后清空日志；新合并覆盖旧日志，仅支持最近一次，不是多步撤销栈。
+- 备份仍为 v3，导出合并后的正常业务数据，不导出本机撤销日志。成功导入（包括未新增题目的导入）或清空全部数据时，在同一事务中清除旧撤销日志。
+- AI 标签整理是新增联网场景：用户主动分析时发送完整标签 ID、名称、关联题数；不发送题目 ID、正文、答案、图片或对话。与解题会话独立，AI 输出只作为可编辑候选，无法直接写库。
+- `QuestionDao` 的单条 / 批量标签关联写入在事务内核对标签是否存在；过期选择会报错并回滚，不能写入已被合并删除的标签 ID。单题标签重置也改为事务，避免先清空后写入失败。
 
 ### v0.6.6.4：备份与搜题记录写入保障（格式不变）
 
@@ -147,6 +157,7 @@
 | `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(...)` |
 | `MIGRATION_8_9` | v0.6.6 | 新建表 `question_images`（一题多图，二进制、有序）+ 索引；**旧 `imageBytes` 搬成 `position=0`** | `CREATE TABLE question_images(...)`；`CREATE INDEX index_question_images_questionId_position ...`；`INSERT INTO question_images(questionId,position,bytes,source,createdAt) SELECT id,0,imageBytes,'migrate',createdAt FROM questions WHERE imageBytes IS NOT NULL` |
 | `MIGRATION_9_10` | v0.6.6.3 | 题目及所有题目引用改为 TEXT 永久编号；补齐旧时间 | 迁移前备份；映射复制五表；数量校验；事务回滚保护 |
+| `MIGRATION_10_11` | v0.6.6.5 | 新增本机标签合并撤销表 | 仅执行 `TagMergeSchema.CREATE`；原业务表不变；迁移前备份，失败回滚 |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
 > 与 `data/SolveSession.kt`（`SolveSession` 实体）、`data/SolveSessionPrune.kt`（裁剪纯函数）。
