@@ -58,3 +58,16 @@ build-logs/
 
 # Python project tools
 __pycache__/
+
+# Local user data must never become source or CI input
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+study-assistant-*.json
+study-assistant-crash-*.txt
+private-data/
+device-dumps/
+exports/

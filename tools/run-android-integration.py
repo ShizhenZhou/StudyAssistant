@@ -18,7 +18,21 @@ def require_emulator_serial(serial):
     if not re.fullmatch(r"emulator-[0-9]+", serial):
         raise ValueError("Only a local emulator serial is accepted.")
 
+def expected_test_count():
+    # This project uses ordinary JUnit4 @Test methods, not parameterized suites.
+    count = 0
+    for path in (ROOT / "app/src/androidTest").rglob("*.kt"):
+        source = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
+        source = re.sub(r"//[^\n]*", "", source)
+        count += len(re.findall(r"(?m)^\s*@Test\b", source))
+    if count < 1:
+        raise RuntimeError("No source Android tests discovered.")
+    return count
+
 def passed_count(text, expected):
+    declared = {int(n) for n in re.findall(r"INSTRUMENTATION_STATUS: numtests=([0-9]+)", text)}
+    if declared and declared != {expected}:
+        raise RuntimeError("Runner discovery does not match the expected test suite.")
     match = re.search(r"^OK \(([1-9][0-9]*) tests?\)$", text, re.MULTILINE)
     if not match or re.search(r"FAILURES!!!|INSTRUMENTATION_FAILED|INSTRUMENTATION_ABORTED", text):
         raise RuntimeError("Android tests failed or returned no passing summary.")
@@ -59,12 +73,13 @@ def run(serial, expected):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", required=True)
-    parser.add_argument("--expected-tests", required=True, type=int)
+    parser.add_argument("--expected-tests", type=int, help="Override ordinary JUnit4 source discovery")
     args = parser.parse_args()
     try:
-        if args.expected_tests < 1:
+        expected = args.expected_tests if args.expected_tests is not None else expected_test_count()
+        if expected < 1:
             raise ValueError("Expected test count must be positive.")
-        run(args.serial, args.expected_tests)
+        run(args.serial, expected)
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         print(str(error), file=sys.stderr)
         return 1

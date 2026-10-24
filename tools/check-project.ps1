@@ -1,11 +1,21 @@
-﻿#Requires -Version 5.1
-# Run from any directory. Builds/tests only; never re-signs for release, pushes, installs or publishes.
-param([switch]$Release, [switch]$CompileAndroidTests)
+#Requires -Version 5.1
+# Basic is the normal local entry. Full is explicit diagnosis, never automatic release signing.
+param(
+    [ValidateSet('Basic','Full')][string]$Mode = 'Basic',
+    [string[]]$TestClass = @(),
+    [string]$BaseRef = 'origin/main',
+    [switch]$Release,
+    [switch]$CompileAndroidTests
+)
 $ErrorActionPreference = 'Stop'
+if ($Mode -ne 'Full' -and ($Release -or $CompileAndroidTests)) {
+    throw 'Release and CompileAndroidTests require -Mode Full; normal releases build in CI.'
+}
+if ($BaseRef.StartsWith('-')) { throw 'Invalid base reference.' }
 $checkRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $checkFolder = Join-Path $checkRoot ('app\build\checks\' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 [IO.Directory]::CreateDirectory($checkFolder) | Out-Null
-$checkReport = [ordered]@{ success = $false; releaseBuild = [bool]$Release; compileAndroidTests = [bool]$CompileAndroidTests; steps = @() }
+$checkReport = [ordered]@{ success = $false; mode = $Mode; credentialScope = 'Git index'; releaseBuild = [bool]$Release; compileAndroidTests = [bool]$CompileAndroidTests; steps = @() }
 
 function Invoke-ProjectCheck([string]$Name, [string]$Executable, [string[]]$Arguments) {
     $stepLog = Join-Path $checkFolder ($Name + '.log')
@@ -28,17 +38,30 @@ function Invoke-ProjectCheck([string]$Name, [string]$Executable, [string[]]$Argu
 
 Push-Location $checkRoot
 try {
-    . (Join-Path $PSScriptRoot 'codex-env.ps1')
     Invoke-ProjectCheck 'diff' 'git' @('diff', '--check')
     Invoke-ProjectCheck 'diff-staged' 'git' @('diff', '--cached', '--check')
     Invoke-ProjectCheck 'credentials' 'python' @('-B', 'tools/check-secrets.py', '--tracked')
     Invoke-ProjectCheck 'tool-tests' 'python' @('-B', '-m', 'unittest', 'discover', '-s', 'tools/tests', '-p', 'test_*.py')
-    $gradleTasks = @('testDebugUnitTest')
+    $changed = @(& git diff --name-only; & git diff --cached --name-only; & git ls-files --others --exclude-standard)
+    & git rev-parse --verify --quiet $BaseRef *> $null
+    if ($LASTEXITCODE -eq 0) { $changed += @(& git diff --name-only ($BaseRef + '...HEAD')) }
+    $changed = @($changed | Sort-Object -Unique)
+    $checkReport.changedFiles = $changed
+    $gradleTasks = @()
+    if ($Mode -eq 'Full' -or $TestClass.Count -gt 0) { $gradleTasks += 'testDebugUnitTest' }
+    elseif ($changed -match '^(app/|gradle/|build.gradle.kts$|settings.gradle.kts$|gradle.properties$)') { $gradleTasks += 'compileDebugKotlin' }
     if ($Release) { $gradleTasks += 'assembleRelease' }
     if ($CompileAndroidTests) { $gradleTasks += @('assembleIntegration', 'assembleIntegrationAndroidTest') }
-    $gradleArguments = $gradleTasks + @('--console=plain', '-Pkotlin.compiler.execution.strategy=in-process')
-    Invoke-ProjectCheck 'gradle' (Join-Path $checkRoot 'gradlew.bat') $gradleArguments
-    Invoke-ProjectCheck 'sqlite' 'python' @('-B', 'tools/verify-identity-migration.py')
+    if ($gradleTasks.Count -gt 0) {
+        . (Join-Path $PSScriptRoot 'codex-env.ps1')
+        $gradleArguments = $gradleTasks + @('--console=plain', '-Pkotlin.compiler.execution.strategy=in-process')
+        foreach ($testFilter in $TestClass) { $gradleArguments += @('--tests', $testFilter) }
+        Invoke-ProjectCheck 'gradle' (Join-Path $checkRoot 'gradlew.bat') $gradleArguments
+    }
+    # A selected test suite may not emit the migration plan. Never validate stale outputs as a fresh full run.
+    if ($Mode -eq 'Full' -and $TestClass.Count -eq 0) {
+        Invoke-ProjectCheck 'sqlite' 'python' @('-B', 'tools/verify-identity-migration.py')
+    }
     $checkReport.success = $true
 } catch {
     $checkReport.error = $_.Exception.Message
@@ -49,5 +72,5 @@ try {
 }
 Write-Host ('Report: ' + (Join-Path $checkFolder 'summary.json'))
 if (-not $checkReport.success) { exit 1 }
-Write-Host 'All project checks passed. No release re-signing, installation or publication performed.'
+Write-Host 'Checks passed. No signing, installation, push or publication performed.'
 exit 0

@@ -2,6 +2,7 @@
 import argparse
 import codecs
 import fnmatch
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -13,8 +14,8 @@ CONTENT_PATTERNS = [re.compile(p) for p in (
     r"gh[pousr]_[A-Za-z0-9]{30,}", r"github_pat_[A-Za-z0-9_]{20,}",
     r"xox[baprs]-[A-Za-z0-9\-]{10,}", r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
 )]
-PRIVATE_DIRS = {"keys", ".keys", ".secrets", ".adb-keys"}
-PRIVATE_SUFFIXES = {".jks", ".keystore", ".pem", ".p12", ".pfx", ".key", ".secret"}
+PRIVATE_DIRS = {"keys", ".keys", ".secrets", ".adb-keys", ".local-notes", "private-data", "device-dumps", "exports", "crashes", "pending-saves-v1"}
+PRIVATE_SUFFIXES = {".jks", ".keystore", ".pem", ".p12", ".pfx", ".key", ".secret", ".db", ".sqlite", ".sqlite3", ".apk", ".aab", ".log"}
 PRIVATE_NAMES = {"secrets.properties", "local.properties", "local_secret", "adbkey", "adbkey.pub"}
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".apk", ".aab",
                    ".jar", ".aar", ".so", ".woff", ".woff2", ".ttf", ".otf", ".zip"}
@@ -33,7 +34,10 @@ def private_name(name):
     return (bool(set(path.parts) & PRIVATE_DIRS) or path.suffix in PRIVATE_SUFFIXES
             or path.name in PRIVATE_NAMES or path.name == ".env" or path.name.startswith(".env.")
             or path.name.startswith(("local_secrets", "api_key"))
-            or fnmatch.fnmatchcase(path.name, "lineage*.bin"))
+            or fnmatch.fnmatchcase(path.name, "lineage*.bin")
+            or path.name.endswith((".db-wal", ".db-shm", ".db-journal"))
+            or fnmatch.fnmatchcase(path.name, "study-assistant-*.json")
+            or fnmatch.fnmatchcase(path.name, "study-assistant-crash-*.txt"))
 
 
 def decode_text(data):
@@ -57,7 +61,19 @@ def scan(repo, tracked=False):
         if Path(name).suffix.lower() in BINARY_SUFFIXES:
             continue
         # Read staged bytes, not the possibly different working copy. Do not skip large text.
-        text = decode_text(git(repo, "show", ":" + name))
+        data = git(repo, "show", ":" + name)
+        if data.startswith(b"SQLite format 3\0"):
+            problems.append(f"Database content: {name!r}")
+            continue
+        text = decode_text(data)
+        if Path(name).suffix.lower() == ".json":
+            try:
+                document = json.loads(text)
+                if isinstance(document, dict) and document.get("format") in {"study-assistant-backup", "study-assistant-pending-saves"}:
+                    problems.append(f"Private data export: {name!r}")
+                    continue
+            except (ValueError, RecursionError):
+                pass
         if any(pattern.search(text) for pattern in CONTENT_PATTERNS):
             problems.append(f"Credential pattern: {name!r}")
     return names, problems

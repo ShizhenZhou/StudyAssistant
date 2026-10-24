@@ -74,6 +74,16 @@ class SecretScanTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 SCANNER.scan(Path(folder) / "missing-directory")
 
+    def test_user_data_names_are_blocked_before_binary_skip(self):
+        for name in ["private-data/photo.jpg", "question.db", "question.db-wal", ".local-notes/notes.md", "study-assistant-auto-example.json", "app-release.apk"]:
+            self.stage(name, b"synthetic private fixture")
+        self.assertEqual(len(SCANNER.scan(self.repo)[1]), 6)
+
+    def test_renamed_database_and_backup_json_are_blocked(self):
+        self.stage("renamed.txt", b"SQLite format 3\0synthetic")
+        self.stage("renamed.json", b'{"format":"study-assistant-backup","questions":[]}')
+        self.assertEqual(len(SCANNER.scan(self.repo)[1]), 2)
+
     def test_empty_file_and_binary_asset(self):
         self.stage("empty.txt", b"")
         self.stage("picture.png", b"synthetic binary asset")

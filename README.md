@@ -471,26 +471,20 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 开发约定见 [AGENTS.md](AGENTS.md)，CI、缓存与 GitHub 操作见 [开发流程](docs/development.md)，隔离 Android 测试见 [测试说明](docs/testing/reliability.md)。建议使用英文路径。
 
 ```powershell
-. ./tools/codex-env.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
-# 需要正式构建及独立 Android 测试包编译时：
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Release -CompileAndroidTests
+# 只在明确需要完整本地回归时：
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Mode Full
 ```
 
-统一入口把缓存、临时文件与日志留在项目内，不安装应用、不推送或发布。当前 JVM 回归 231 项 / 26 类，另有独立 Android 集成测试；实际执行状态与限制见测试说明。旧环境专用脚本已退役；使用上述统一检查入口或标准 Gradle 命令。
+默认做基础检查，相关单测用 -TestClass 指定；缓存和报告留在项目内。当前JVM回归231项/26类，设备测试只用独立包和人工数据，具体限制见测试说明。
 
 ## 密钥与发布
 
-本仓库公开，任何 API Key、令牌、签名材料或本地配置均不得提交。启用提交前扫描：`git config core.hooksPath .githooks`。模式扫描不能替代差异审阅。
+本仓库公开，API Key、令牌、签名材料、本地配置、真实题库与备份不得提交或作为CI附件。提交前扫描入口为 .githooks；扫描不能替代差异审阅。
 
-发布签名路径与口令配置在被忽略的 `secrets.properties`，真实材料放在仓库外。正式 APK 需使用原证书和 lineage 重签，不直接发布 AGP 的 `app-release.apk`；保留签名材料才能维持覆盖升级链。
+正式流程：**本地基础检查 → 合并main → 一次完整CI → 本地签名 → 发布与下载校验归档**。CI只编译未签名候选包并运行人工数据测试；签名私钥及口令仅在本机使用，不上传GitHub。签名沿用原证书与lineage，不重编译，并校验代码资源与候选包一致。
 
-```powershell
-./gradlew.bat assembleRelease --console=plain -Pkotlin.compiler.execution.strategy=in-process
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/sign-release.ps1 -OutDir app/build/identity-work/signed
-```
-
-main 为发布线，Develop 为日常开发线。正式发版按“本地基础检查 → 合并 main → 一次完整 CI（release_build=true）→ 发布该 CI 的签名 APK”执行；main 推送和标签不重复构建。Beta 和安装按当次安排执行，不移动已有标签。设计、排查与逐版本过程记录仅作本地归档，不再堆放仓库根目录；对外更新说明见 GitHub Releases。
+通用入口 tools/release.ps1 提供 start/status/verify/publish，记录本地进度并支持续跑；main推送和tag不重复构建，不移动已有标签，不自动替换已发布版本。详细命令、上传边界和Git/API分工见[开发流程](docs/development.md)。内部设计、排查及逐版本过程只在本地归档。
 
 ## API Key 与权限
 

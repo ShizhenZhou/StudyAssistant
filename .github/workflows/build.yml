@@ -1,7 +1,6 @@
 name: build
-
-# Develop/PR: ordinary checks. Manual release_build: one complete release candidate.
-# main fast-forward and tags do not rebuild; publish the exact verified artifact.
+run-name: "${{ github.event_name == 'workflow_dispatch' && format('{0}: {1}', inputs.mode, github.sha) || format('check: {0}', github.ref_name) }}"
+# main/tag do not trigger duplicate builds. CI never receives local signing materials.
 on:
   push:
     branches: [Develop]
@@ -9,23 +8,20 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      release_build:
-        description: Build signed release APK and run the complete emulator suite
-        type: boolean
-        default: false
-      android_tests:
-        description: Run isolated Android tests on a CI emulator
-        type: boolean
-        default: false
-
+      mode:
+        description: check, device, or an unsigned release candidate
+        type: choice
+        options: [check, device, release]
+        default: check
+      expected_sha:
+        description: Optional immutable source commit required by the release coordinator
+        type: string
+        default: ''
 permissions:
   contents: read
-
-# Supersede ordinary checks; release candidates have their own non-cancelling group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_build && 'release' || 'check' }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.release_build) }}
-
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode == 'release' && 'release' || 'check' }}
+  cancel-in-progress: ${{ inputs.mode != 'release' }}
 jobs:
   windows-tools:
     name: Windows tool tests
@@ -36,80 +32,63 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Windows PowerShell 与开发工具回归（不编译 Android）
-        run: python -B -m unittest discover -s tools/tests -p 'test_*.py'
-
+      - run: python -B -m unittest discover -s tools/tests -p 'test_*.py'
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      RELEASE_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
+      MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'check' }}
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - name: Check immutable source and clean CI inputs
+        run: |
+          if [[ -n "$EXPECTED_SHA" && "$EXPECTED_SHA" != "$GITHUB_SHA" ]]; then
+            echo "::error::Source moved after dispatch"; exit 1
+          fi
+          if [[ "$MODE" == release && "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "::error::Release candidates must use main"; exit 1
+          fi
+          test ! -e secrets.properties
+          test ! -e keys
+          test ! -e .secrets
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-
-      - name: 配置 Gradle 缓存
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          # Trusted main/Develop checks may save caches; PRs and other refs are read-only.
           cache-read-only: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/Develop') }}
-
-      - name: 扫描跟踪文件中的密钥与校验开发工具
+      - name: Credential boundary and tool regression
         run: |
           python3 -B tools/check-secrets.py --tracked
           python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
-
-      # ── 发布签名材料（自有证书 + key rotation lineage） ─────────────────────
-      # 见 README「发布签名（自有证书 + key rotation）」。仓库 Secrets 里存三样：
-      #   RELEASE_KEYSTORE_BASE64 / RELEASE_LINEAGE_BASE64 / RELEASE_STORE_PASSWORD
-      # Only an explicit manual release candidate reads signing secrets; ordinary checks need none.
-      # ⚠️ 注意：`secrets` 上下文**不能**出现在 `if:` / `with:` 表达式里（工作流校验会直接判失败，
-      #    表现为 run 在 0 秒内 failure）→ 这里改成"步骤内判断 + 写 $GITHUB_ENV 标记"。
-      - name: 解码签名材料（仅手动正式候选）
-        if: env.RELEASE_BUILD == 'true'
-        env:
-          KS_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          LN_B64: ${{ secrets.RELEASE_LINEAGE_BASE64 }}
-          KS_PW: ${{ secrets.RELEASE_STORE_PASSWORD }}
-        run: |
-          if [ -z "$KS_B64" ] || [ -z "$LN_B64" ] || [ -z "$KS_PW" ]; then
-            echo "::error::发布签名 Secrets 不完整，停止 tag 构建，禁止生成替代签名附件"
-            exit 1
-          fi
-          mkdir -p keys
-          printf '%s' "$KS_B64" | base64 -d > keys/release.p12
-          printf '%s' "$LN_B64" | base64 -d > keys/lineage.bin
-          # ⚠️ 路径必须用正斜杠：Java Properties 会把反斜杠当转义符，路径会失效并**静默回退**到 debug 签名
-          cat > secrets.properties <<EOF
-          RELEASE_STORE_FILE=$GITHUB_WORKSPACE/keys/release.p12
-          RELEASE_STORE_PASSWORD=$KS_PW
-          RELEASE_KEY_ALIAS=studyassistant
-          RELEASE_LINEAGE_FILE=$GITHUB_WORKSPACE/keys/lineage.bin
-          EOF
-          echo "SIGNED_READY=1" >> "$GITHUB_ENV"
-          echo "OK 签名材料已就绪"
-
-      # Single invocation; only a manual release candidate adds release/R8/vital lint.
-      - name: 单测与测试包编译（正式候选同时构建 release）
+      - name: Full JVM tests and required compilation (one Gradle invocation)
         run: |
           chmod +x ./gradlew
-          tasks=(testDebugUnitTest assembleIntegration assembleIntegrationAndroidTest)
-          if [[ "$RELEASE_BUILD" == "true" ]]; then
-            tasks+=(assembleRelease)
+          tasks=(testDebugUnitTest)
+          if [[ "$MODE" == device || "$MODE" == release ]]; then
+            tasks+=(assembleIntegration assembleIntegrationAndroidTest)
           fi
+          if [[ "$MODE" == release ]]; then tasks+=(assembleRelease); fi
           ./gradlew "${tasks[@]}" --console=plain
-
-      - name: 校验数据库迁移与 Room 表结构
-        run: python3 tools/verify-identity-migration.py
-
-      - name: 提供独立测试 APK（正式候选或手动设备检查）
-        if: env.RELEASE_BUILD == 'true' || (github.event_name == 'workflow_dispatch' && inputs.android_tests)
+      - name: SQLite migration verification
+        run: python3 -B tools/verify-identity-migration.py
+      - name: Prepare unsigned candidate and public manifest
+        if: env.MODE == 'release'
+        run: python3 -B tools/ci-release.py
+      - name: Upload candidate allowlist
+        if: env.MODE == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: |
+            app/build/release-candidate/*-candidate.apk
+            app/build/release-candidate/release-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload isolated test APK allowlist
+        if: env.MODE == 'device' || env.MODE == 'release'
         uses: actions/upload-artifact@v4
         with:
           name: integration-apks
@@ -118,61 +97,18 @@ jobs:
             app/build/outputs/apk/androidTest/integration/app-integration-androidTest.apk
           if-no-files-found: error
           retention-days: 3
-
-      # AGP 的 signingConfig 不支持 lineage → 构建后用 apksigner 补上（v3-only）
-      # ★ 2026-10-13：必须同时要求"是 tag 推送"——分支推送按 A 方案不再编译 release，
-      #   只判断 SIGNED_READY 会让这一步去找不存在的 app-release.apk 而报 FileNotFoundException（曾真实发生）。
-      - name: 用新证书 + lineage 重签（APK Signature Scheme v3 轮换签名）
-        if: env.RELEASE_BUILD == 'true' && env.SIGNED_READY == '1'
-        env:
-          KS_PASS: ${{ secrets.RELEASE_STORE_PASSWORD }}
-        run: |
-          set -e
-          VER=$(grep -oP 'val appVersionName = "\K[^"]+' app/build.gradle.kts)
-          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          mkdir -p signed
-          STAMP=$(unzip -p app/build/outputs/apk/release/app-release.apk assets/build-time-utc.txt)
-          [[ "$STAMP" =~ ^[0-9]{14}$ ]] || { echo "::error::Invalid APK UTC build identity"; exit 1; }
-          OUT="signed/StudyAssistant-${VER}-${STAMP}.apk"
-          "$BT/apksigner" sign \
-            --ks keys/release.p12 --ks-key-alias studyassistant \
-            --ks-pass env:KS_PASS --key-pass env:KS_PASS \
-            --lineage keys/lineage.bin \
-            --rotation-min-sdk-version 28 --min-sdk-version 28 \
-            --v1-signing-enabled false --v2-signing-enabled false --v3-signing-enabled true \
-            --out "$OUT" app/build/outputs/apk/release/app-release.apk
-          "$BT/apksigner" verify --print-certs "$OUT"
-          echo "SIGNED_APK=$OUT" >> "$GITHUB_ENV"
-          echo "OK 轮换签名完成：$OUT"
-
-      # ★ 2026-10-13：构件只在 tag 推送时才有（分支推送按 A 方案不再编译 release），
-      #   所以这一步也只在 tag 上跑，避免分支推送出现"没有文件可上传"的空步骤。
-      - name: 上传正式候选 APK（保留 30 天）
-        if: env.RELEASE_BUILD == 'true'
+      - name: Preserve small JVM reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          # 有轮换签名包时**只传它**：AGP 那一份（无 lineage）与它同名，同传会让构件里出现
-          # 两个同名但签名不同的 APK，容易拿错
-          path: signed/*.apk
-          retention-days: 30
-          if-no-files-found: error
-
-      - name: 失败时保留 JVM 测试报告
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-report-${{ github.run_id }}
-          path: |
-            app/build/reports/tests/testDebugUnitTest/
-            app/build/test-results/testDebugUnitTest/
+          name: jvm-test-reports
+          path: app/build/test-results/testDebugUnitTest/TEST-*.xml
           if-no-files-found: ignore
           retention-days: 7
-
   android-device:
     name: Android emulator tests
     needs: build
-    if: github.event_name == 'workflow_dispatch' && (inputs.release_build || inputs.android_tests)
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'device' || inputs.mode == 'release')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -181,13 +117,12 @@ jobs:
         with:
           name: integration-apks
           path: app/build/outputs/apk
-      - name: Enable KVM on the disposable CI runner
+      - name: Enable KVM on disposable runner
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Execute isolated tests on Android 35
-        uses: reactivecircus/android-emulator-runner@v2
+      - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           target: google_apis
@@ -196,8 +131,8 @@ jobs:
           disable-animations: true
           script: |
             "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" >/dev/null
-            python3 -B tools/run-android-integration.py --serial emulator-5554 --expected-tests 16
-      - name: Save Android test log
+            python3 -B tools/run-android-integration.py --serial emulator-5554
+      - name: Preserve synthetic-data test log
         if: always()
         uses: actions/upload-artifact@v4
         with:

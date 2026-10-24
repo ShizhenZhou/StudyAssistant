@@ -51,20 +51,16 @@ val generateBuildStamp = tasks.register<GenerateBuildStamp>("generateBuildStamp"
 //      路径里的非 ASCII 字符（例如中文目录名）会被搞坏 → 签名材料判定为"无效"而悄悄回退到 debug 签名
 val signingProps = Properties().apply {
     val f = rootProject.file("secrets.properties")
-    if (f.exists()) f.reader(Charsets.UTF_8).use { load(it) }
+    if (System.getenv("CI") != "true" && f.exists()) f.reader(Charsets.UTF_8).use { load(it) }
 }
 val releaseStorePath = signingProps.getProperty("RELEASE_STORE_FILE")?.takeIf { it.isNotBlank() }
 val releaseStorePass = signingProps.getProperty("RELEASE_STORE_PASSWORD")?.takeIf { it.isNotBlank() }
 val releaseKeyAlias = signingProps.getProperty("RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() }
 val hasReleaseSigning = releaseStorePath != null && releaseStorePass != null &&
         releaseKeyAlias != null && file(releaseStorePath).exists()
-// 配置期打一行日志：签名材料没吃到时最容易"悄悄回退"，导致打出来的包装不上去
-if (hasReleaseSigning) {
-    logger.lifecycle("[签名] 使用自有证书 alias=$releaseKeyAlias（${file(releaseStorePath!!).name}）")
-} else {
-    logger.lifecycle("[签名] ⚠️ 未启用自有证书签名（secrets.properties 缺失或路径无效）→ 回退 debug 签名；" +
-            "产出的包无法覆盖已安装的新证书版本。解析到的 RELEASE_STORE_FILE=${releaseStorePath ?: "(空)"}")
-}
+// Only local debug builds may use the existing local identity. Release signing is a separate local operation.
+logger.lifecycle(if (hasReleaseSigning) "[Signing] Local debug identity available; release candidate is unsigned."
+    else "[Signing] Temporary debug identity only; release candidate is unsigned.")
 
 android {
     namespace = "com.zsz.studyassistant"
@@ -109,10 +105,8 @@ android {
             // R8 代码裁剪/混淆 + 资源压缩（仅 release 变体；debug 保持可调试）
             isMinifyEnabled = true
             isShrinkResources = true
-            // 有自有证书就用它（最终发布还要用 tools/sign-release.ps1 补 lineage）；
-            // 没有则回退到 debug 签名，保证构建不中断
-            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release")
-                            else signingConfigs.getByName("debug")
+            // CI/local builds produce an unsigned candidate; official keys are used only by the local signing step.
+            signingConfig = null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -212,10 +206,12 @@ tasks.whenTaskAdded {
         doLast {
             try {
                 val variant = if (name == "assembleDebug") "debug" else "release"
-                val src = layout.buildDirectory.file("outputs/apk/$variant/app-$variant.apk").get().asFile
+                val fileName = if (variant == "release") "app-release-unsigned.apk" else "app-debug.apk"
+                val src = layout.buildDirectory.file("outputs/apk/$variant/$fileName").get().asFile
                 if (src.exists()) {
                     val ts = buildStampDirectory.get().file("build-time-utc.txt").asFile.readText().trim()
-                    val newName = "StudyAssistant-$appVersionName-$ts.apk"
+                    val suffix = if (variant == "release") "-candidate" else ""
+                    val newName = "StudyAssistant-$appVersionName-$ts$suffix.apk"
                     src.copyTo(src.parentFile.resolve(newName), overwrite = true)
                     println("APK named: $variant/$newName")
                 }

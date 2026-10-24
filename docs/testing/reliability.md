@@ -12,7 +12,7 @@
 ## 运行入口
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Release -CompileAndroidTests
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Mode Full -Release -CompileAndroidTests
 # 仅编译 APK，不连接/安装设备。
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/run-android-tests.ps1 -Serial emulator-5554
@@ -40,4 +40,4 @@ Android 集成测试覆盖：真实 Room v9→v10 升级、备份往返/UUID 去
 ## v0.6.6.7 检查
 
 新增恢复记录故障回放、元数据保留、冲突/删除保护和损坏记录保留等5项 Android 场景，共16项。JVM严格模式231项/26类，工具测试17项。本地已通过正式构建、测试包编译与签名；Android实际结果以最终 main 手动发版CI为准。
-正式流程：本地基础检查后合并 main，再运行一次 release_build=true CI；其签名APK通过全套验证后直接发布，不在main/tag重复构建。模拟器只使用独立包、随机数据库和人工题目；真实手机界面仍需用户补测。
+v0.6.6.7当时的发版CI已实际通过16项模拟器测试。现行流程已改为CI产未签名候选、本地签名，统一说明见 docs/development.md；本节保留该版本历史验证结果。真实手机界面仍需用户补测。

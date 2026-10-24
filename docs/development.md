@@ -1,27 +1,37 @@
 # 开发检查与 GitHub 操作
 
-## 检查入口
+## 本地检查
 
-- 本地：`tools/check-project.ps1` 检查差异、暂存版本的密钥、工具回归、全部 JVM 单测及隔离 SQLite 迁移。修改后应先审阅并暂存，再运行凭据检查；扫描器读取 Git 索引，不读取未暂存内容。
-- `-CompileAndroidTests` 额外编译独立集成测试包；`-Release` 额外构建 release。两个开关可同时使用，所有 Gradle 任务合并为一次调用。
-- 排查某个用例时，可先运行 `./gradlew.bat testDebugUnitTest --tests "完整测试类名"`；该结果只代表选中的测试，合并/发版前仍需完整检查。
-- 缓存命中可以复用结果，不强制 clean 或 rerun-tasks。测试直接读取的 README、构建脚本与公式资源显式声明为输入；迁移校验所需文件显式声明为输出。
-- JVM 单测禁止 Android 桩方法静默返回默认值；意外框架调用直接失败，文件、Room 和 SAF 场景由隔离 Android 集成测试实际验证。
+- 默认 tools/check-project.ps1：检查差异、Git索引中的凭据和私有数据、工具回归；应用或构建配置变化时编译debug。测试所需数据均为人工夹具，不读取手机、真实备份或真实Key。
+- 已知相关用例通过 -TestClass 指定。只有这些用例通过时，不称为完整回归；不使用旧迁移输出冒充本轮校验。
+- -Mode Full 显式运行全部JVM与SQLite校验；只有明确诊断需要时才加 -Release / -CompileAndroidTests。本地不默认R8打正式包。
+- 缓存、临时文件和日志在项目内。凭据扫描读取索引，修改必须审阅、暂存后才能对实际提交版本检查；提交前hook再次扫描。
 
-## CI
+## 唯一CI工作流
 
-只有 `.github/workflows/build.yml` 一份工作流：
+- Develop push / main PR 自动 mode=check：全量JVM、工具回归、SQLite校验；不编译设备测试包或正式包。
+- 手动 mode=device：上述检查加独立测试包和Android35模拟器运行。
+- 手动 mode=release：上述完整检查与模拟器，加一次R8 release编译；产物是未签名候选APK及公开清单，不读取本机凭据或GitHub签名Secrets。
+- main push / tag不重复触发CI。正式候选只允许main，可提供expected_sha防止触发时源码漂移。发布准备提交使用[skip ci]避免Develop重复检查。
+- 候选包附件仅允许*-candidate.apk与release-manifest.json；清单含提交、版本、UTC时间、摘要、代码资源摘要、公开证书指纹与测试数量，不含本机路径或凭据。
+- 集成测试APK只在device/release上传，复用构建产物不重复编译。测试数量从普通JUnit4测试源生成，与框架发现及执行数量核对；零测试/失败/数量不符均失败。
+- JVM小型XML报告与人工数据设备日志保留7天，候选包保留30天。缓存来自CI自己生成的Gradle数据；绝不上传本机缓存或整个工作区。
+- Windows工具检查并行，正式候选不被普通提交取消。不强制clean、不重复测试同一个未变化的构件。
 
-- 普通 Develop push / main PR：工具检查、严格 JVM 单测、测试包编译和 SQLite 校验。main push 和 v* tag 不触发重复构建。
-- 正式发版：本地针对性检查后先快进 main，再在 main 手动触发 release_build=true。一次 CI 同时完成 JVM/跨平台工具检查、release/R8/vital lint、原证书及 lineage 重签、16 项独立模拟器测试。
-- 全部通过后，建立新 tag 并直接发布该 run 的 release-apk 构件；不重新编译、不重新签名，下载复核 SHA 和签名后归档。未通过不能发布。普通检查或 android_tests=true 不自动发布。
-- 发版准备提交可明确使用 [skip ci] 抑制 Develop push 的重复检查，然后手动触发 main 发版 CI；workflow_dispatch 不受该提交标记跳过。不得借此跳过最后一次完整 CI。
-- 构建一次 Gradle 调用；Windows 工具检查并行；设备任务复用构建产出的两个独立 APK，不重复编译。设备与包名双重隔离，不安装用户手机。
-- main / Develop 的可信检查可保存 Gradle 缓存，PR 和其他 ref 只读。缓存不能代替必要验证；跨分支不会自动共享所有分支缓存。
-- 普通过期检查可取消，正式候选使用独立不取消组。构建/设备任务超时20分钟，Windows工具任务8分钟；失败保留报告。
-- 16 项 Android 测试在独立 Android 35 模拟器执行，并检查完整通过数量；可单独手动 android_tests=true。本机入口只接受已有模拟器。
+## 本地签名和可续跑发布
 
-当前配置不再监听 multi_questions。旧分支按用户要求保持原样：若以后向它推送代码，GitHub 使用该分支自身旧工作流，它仍可能触发旧 CI；需要改旧分支时再单独处理。
+使用tools/release.ps1；它只设置当前进程JDK/SDK/项目内缓存。命令由协作开发者在用户授权的版本范围内执行：
+
+- start --version VERSION：要求版本已准备、工作区干净、发布提交含[skip ci]；执行本地基础检查，快进main与Develop，派发一次main release CI。存在标签时拒绝自动替换。
+- status --version VERSION：只查询已记录的CI。请求超时也先查询匹配提交的run，不重复派发。
+- verify --run RUN_ID：只接受成功的main完整release CI；下载候选白名单，校验源码/摘要，在本地使用原私钥和lineage签名，再验证证书及代码资源逐项摘要未变。重复调用复用已签名文件，不重编译、不重签。
+- publish --run RUN_ID：从本机版本说明只取“更新内容”，再次扫描该节凭据；建立新标签、草稿及上传一个最终APK，核对摘要后发布，再下载核对并归档。已有版本/异源标签拒绝覆盖。
+
+状态与私有操作日志存 .local-notes/release-state/，故障后续跑同一个run。编译输入、代码资源摘要和候选摘要必须匹配；签名后的APK摘要与候选摘要不同是正常现象。签名只允许改变签名信息，代码、资源和构建时间不变。
+
+CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、备份JSON、恢复副本、崩溃日志、内部笔记或签名材料。Git/gh必要鉴权按用户授权使用已有凭据，不将凭据作为文件上传。模式扫描、文件名与格式拦截、上传白名单和人工差异审阅共同约束上传范围。
+
+旧功能分支保持原样；若将来推送旧分支，其自身历史工作流仍可能执行，另行处理。
 
 ## Git 与 GitHub API 的选择
 
