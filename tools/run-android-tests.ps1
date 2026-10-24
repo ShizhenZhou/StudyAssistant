@@ -2,6 +2,8 @@
 # Explicit emulator serial required. Never installs anything to a physical phone.
 param([Parameter(Mandatory = $true)][string]$Serial)
 $ErrorActionPreference = 'Stop'
+# Reject invalid targets before JDK/SDK discovery or creating cache directories.
+if ($Serial -notmatch '^emulator-\d+$') { throw 'Only a local emulator serial is accepted.' }
 function Invoke-AndroidTestTool([string]$Executable, [string[]]$Arguments) {
     Get-Command $Executable -ErrorAction Stop | Out-Null
     $savedPreference = $ErrorActionPreference
@@ -17,7 +19,6 @@ $androidTestRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $androidTestRoot
 try {
     . (Join-Path $PSScriptRoot 'codex-env.ps1')
-    if ($Serial -notmatch '^emulator-\d+$') { throw 'Only a local emulator serial is accepted.' }
     $adb = Join-Path $env:ANDROID_HOME 'platform-tools\adb.exe'
     $emulator = Invoke-AndroidTestTool $adb @('-s', $Serial, 'shell', 'getprop', 'ro.kernel.qemu')
     if (($emulator -join '').Trim() -ne '1') {
