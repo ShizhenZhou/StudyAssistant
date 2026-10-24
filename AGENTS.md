@@ -1,6 +1,6 @@
 # StudyAssistant 开发约定
 
-先读 `DEV_ENV_NOTES.md`；改数据层时读 `DATA_SCHEMA.md`。上一级 CodexWorkSpace/AGENTS.md 的通用约定同时适用。
+开发入口见 `README.md`；改数据层时读 `DATA_SCHEMA.md`。本机环境笔记（如存在）位于 `.local-notes/environment/DEV_ENV_NOTES.md`。上一级 CodexWorkSpace/AGENTS.md 的通用约定同时适用。
 
 ## 当前流程
 
@@ -18,6 +18,6 @@
 - 导航统一走 ui/AppNav.kt；公式 HTML 裁剪需保留上下 padding，KaTeX display 不重复套层。
 - 永久题目编号在错题、首次搜题记录及备份之间保持一致；从错题本打开不新增搜题记录，记录按最早时间排序。
 - 合并标签必须先让用户预览确认，事务内重新校验；保留最近一次合并的独立持久撤销。
-- 正式 APK 使用现有自有证书及 lineage；不得重新生成替代签名。发布后下载核对 SHA，并归档到 history_apk。发布说明取 RELEASE 文档的“更新内容”。
+- 正式 APK 使用现有自有证书及 lineage；不得重新生成替代签名。发布后下载核对 SHA，并归档到 history_apk。发布说明取 `.local-notes/releases/RELEASE-v<版本>.md` 的“更新内容”。设计、排查、逐版本发布过程只在 `.local-notes/` 本地归档，不在仓库根目录新增此类 MD、不提交到 GitHub。必要的代码维护/测试说明可以保留在 docs/。
 
-`docs/legacy-deepseek/` 是本机历史档案，其中的旧版本、旧路径、只交补丁或禁止构建等陈述不代表当前工作流程。仅在追溯特定历史问题时读取。
+`.local-notes/legacy-deepseek/` 是本机历史档案，其中的旧版本、旧路径、只交补丁或禁止构建等陈述不代表当前工作流程。仅在追溯特定历史问题时读取。

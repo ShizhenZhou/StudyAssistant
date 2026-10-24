@@ -1,6 +1,8 @@
 package com.zsz.studyassistant.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -28,6 +30,11 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
     var editingKey by remember { mutableStateOf<Long?>(null) }
     var replaceConfirm by remember { mutableStateOf(false) }
     var undoConfirm by remember { mutableStateOf(false) }
+    var discardDraftConfirm by remember { mutableStateOf(false) }
+    var clearDiagnosticsConfirm by remember { mutableStateOf(false) }
+    val diagnosticExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) {
+        if (it != null) model.exportDiagnostics(it)
+    }
     LaunchedEffect(model) { model.load() }
     DisposableEffect(model) { onDispose { model.cancelAnalysis() } }
     LaunchedEffect(model.changeRevision) { if (model.changeRevision > 0) main.onNotebookTagsChanged() }
@@ -42,6 +49,14 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
             if (model.drafts.isNotEmpty()) replaceConfirm = true else model.analyze(language)
         }, enabled = !model.busy && (base?.tags?.size ?: 0) >= 2, modifier = Modifier.weight(1f)) { Text(s["tagMerge.analyze"]) }
         OutlinedButton(onClick = { model.load() }, enabled = !model.busy, modifier = Modifier.weight(1f)) { Text(s["tagMerge.reload"]) }
+    }
+    model.draftStatusKey?.let { key ->
+        Text(s[key], style = MaterialTheme.typography.bodySmall,
+            color = if (key in setOf("tagMerge.draftSaveFailed", "tagMerge.draftStale", "tagMerge.draftUnreadable"))
+                MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
+    }
+    if (model.drafts.isNotEmpty() || model.draftStatusKey != null) {
+        TextButton(onClick = { discardDraftConfirm = true }, enabled = !model.busy) { Text(s["tagMerge.discardDraft"]) }
     }
     if (model.busy) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -104,6 +119,25 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
     Text(s[if (!model.undoPresent) "tagMerge.undoNone" else if (!model.undoAllowed) "tagMerge.undoUnavailable" else "tagMerge.undoHint"],
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(16.dp))
+
+    Text(s["tagMerge.diagnosticPrivacy"], style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline)
+    model.diagnosticId?.let { Text(s.format("tagMerge.diagnosticId", "id" to it), style = MaterialTheme.typography.bodySmall) }
+    Column {
+        TextButton(onClick = { diagnosticExport.launch("study-assistant-tag-analysis.json") },
+            enabled = model.diagnosticCount > 0 && !model.busy) { Text(s["tagMerge.exportDiagnostics"]) }
+        TextButton(onClick = { clearDiagnosticsConfirm = true }, enabled = !model.busy) { Text(s["tagMerge.clearDiagnostics"]) }
+    }
+    model.diagnosticStatusKey?.let { Text(s[it], style = MaterialTheme.typography.bodySmall) }
+    if (clearDiagnosticsConfirm) AlertDialog(onDismissRequest = { clearDiagnosticsConfirm = false },
+        title = { Text(s["tagMerge.clearDiagnostics"]) }, text = { Text(s["tagMerge.clearDiagnosticsConfirm"]) },
+        confirmButton = { TextButton(onClick = { clearDiagnosticsConfirm = false; model.clearDiagnostics() }) { Text(s["common.ok"]) } },
+        dismissButton = { TextButton(onClick = { clearDiagnosticsConfirm = false }) { Text(s["common.cancel"]) } })
+
+    if (discardDraftConfirm) AlertDialog(onDismissRequest = { discardDraftConfirm = false },
+        title = { Text(s["tagMerge.discardDraft"]) }, text = { Text(s["tagMerge.discardDraftConfirm"]) },
+        confirmButton = { TextButton(onClick = { discardDraftConfirm = false; model.discardDraft() }) { Text(s["common.ok"]) } },
+        dismissButton = { TextButton(onClick = { discardDraftConfirm = false }) { Text(s["common.cancel"]) } })
 
     if (replaceConfirm) AlertDialog(onDismissRequest = { replaceConfirm = false },
         title = { Text(s["tagMerge.analyze"]) }, text = { Text(s["tagMerge.replaceDrafts"]) },

@@ -47,6 +47,13 @@ exit 0
         result = self.invoke(script)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
 
+    def test_android_entry_rejects_physical_serial_before_adb(self):
+        result = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",
+                                 "-File", str(ROOT / "tools/run-android-tests.ps1"),
+                                 "-Serial", "physical-fixture"], capture_output=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"Only a local emulator serial", result.stderr)
+
     def test_invalid_explicit_jdk_is_rejected(self):
         script = "try { . " + quote(ROOT / "tools/codex-env.ps1") + " -JavaHome 'Z:/missing-jdk'; exit 9 } catch { exit 0 }"
         self.assertEqual(self.invoke(script).returncode, 0)

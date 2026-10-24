@@ -2,6 +2,7 @@ package com.zsz.studyassistant.ui
 
 import android.Manifest
 import android.content.Intent
+import androidx.compose.runtime.DisposableEffect
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -198,6 +199,12 @@ private fun AboutPage() {
     Spacer(Modifier.height(8.dp))
     AboutSettings()
     Spacer(Modifier.height(20.dp))
+    Text(s["about.tech"], style = MaterialTheme.typography.titleMedium)
+    val aboutContext = LocalContext.current
+    Text(s.format("about.tech.body", "api" to "${aboutContext.applicationInfo.minSdkVersion}",
+        "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
+        "bak" to "${com.zsz.studyassistant.data.BackupFile.VERSION}"), style = MaterialTheme.typography.bodySmall)
+    Spacer(Modifier.height(20.dp))
     Text(s["about.features"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
@@ -314,6 +321,7 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
     ) {
         Text(s["settings.title"], style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(12.dp))
+        BackupHealthEntry(onOpen)
 
         // ── 通用 ──
         SettingGroupTitle(s["settings.group.general"])
@@ -334,6 +342,28 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
         SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen("update") }
         SettingEntry(s["settings.about"]) { onOpen("about") }
+    }
+}
+
+/** Surface failed automatic backups on settings home, without a startup dialog. */
+@Composable
+private fun BackupHealthEntry(onOpen: (String) -> Unit) {
+    val context = LocalContext.current
+    val s = LocalStrings.current
+    var failure by remember { mutableStateOf(AutoBackup.lastFailure(context)) }
+    DisposableEffect(context) {
+        val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key?.startsWith("auto_backup_") == true) failure = AutoBackup.lastFailure(context)
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    failure?.takeIf { AutoBackup.treeUri(context) != null }?.let {
+        Text(s.format("data.autoBackup.healthWarning", "t" to formatCheckTime(it.at), "reason" to s[it.key]),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_AUTO) }) { Text(s["data.autoBackup"]) }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -979,6 +1009,18 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
     var autoCount by remember { mutableStateOf(AutoBackup.listBackups(context).size) }
     var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
+    var autoFailure by remember { mutableStateOf(AutoBackup.lastFailure(context)) }
+    DisposableEffect(context) {
+        val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key?.startsWith("auto_backup_") == true) {
+                autoLast = AutoBackup.lastBackupAt(context)
+                autoFailure = AutoBackup.lastFailure(context)
+            }
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var autoMessage by remember { mutableStateOf<String?>(null) }
     var autoWriting by remember { mutableStateOf(false) }
 
@@ -987,6 +1029,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         if (autoWriting || vm.dataBusy || vm.preparedBackup != null) return
         autoWriting = true
         autoMessage = null
+        val expectedTree = AutoBackup.treeUri(context)
         vm.exportBackup(onReady = { json ->
             // ⚠️ SAF 写盘 + 裁剪是 IO，必须在协程里做，否则阻塞主线程
             scope.launch {
@@ -1002,7 +1045,10 @@ private fun AutoBackupSettings(vm: MainViewModel) {
                 }
                 } finally { autoWriting = false }
             }
-        }, onError = { msg -> autoWriting = false; autoMessage = s.format("data.autoBackup.failed", "msg" to msg) })
+        }, onError = { msg ->
+            AutoBackup.recordFailure(context, "data.autoBackup.snapshotFailed", expectedTree = expectedTree)
+            autoWriting = false; autoMessage = s.format("data.autoBackup.failed", "msg" to msg)
+        })
     }
 
     val folderLauncher = rememberLauncherForActivityResult(
@@ -1039,11 +1085,18 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
+    autoFailure?.takeIf { AutoBackup.treeUri(context) != null }?.let { failure ->
+        Spacer(Modifier.height(6.dp))
+        Text(s.format("data.autoBackup.healthWarning", "t" to formatCheckTime(failure.at),
+            "reason" to s[failure.key]), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error)
+    }
     Spacer(Modifier.height(8.dp))
 
     OutlinedButton(
         shape = smoothPill(),
         onClick = { folderLauncher.launch(null) },
+        enabled = !autoWriting && !vm.dataBusy,
         modifier = Modifier.fillMaxWidth().height(44.dp)
     ) { Text(if (autoFolder == null) s["data.autoBackup.pick"] else s["data.autoBackup.change"]) }
 

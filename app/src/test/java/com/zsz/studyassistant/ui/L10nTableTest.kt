@@ -83,6 +83,9 @@ class L10nTableTest {
         assertTrue("自动备份副标题未转繁体：${tw["data.autoBackupDesc"]}", tw["data.autoBackupDesc"].contains("自動備份"))
         assertTrue("崩溃日志副标题未转繁体：${tw["data.crashLogDesc"]}", tw["data.crashLogDesc"].contains("崩潰"))
 
+        assertTrue(tw["tagMerge.diagnosticPrivacy"].contains("診斷"))
+        assertTrue(tw["about.features.body"].contains("診斷"))
+
         // v0.6.5「关于」页功能说明重写（新文案必须过繁体：隐私/矩阵/校验/趋势 的繁体写法已在表里）
         assertTrue("隐私未转繁體：${tw["about.privacy"]}", tw["about.privacy"].contains("隱私"))
         assertTrue("矩阵未转繁體：${tw["about.features.body"]}", tw["about.features.body"].contains("矩陣"))

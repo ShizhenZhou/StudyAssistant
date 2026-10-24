@@ -16,7 +16,7 @@ plugins {
 //   · `0.x.x`   —— 每次都要在 README「版本记录」+ App 内「更新内容」记一次
 //   · `0.x.x.x` —— 同系列小修补（patch），也要在 README + App 四语言「更新内容」记录
 //   · `versionCode` **每次发版必须 +1**（Android 判定版本高低/能否覆盖安装的权威是 versionCode，不是 versionName）
-val appVersionName = "0.6.6.5"
+val appVersionName = "0.6.6.6"
 
 // ── 发布签名材料（自有证书 + key rotation）──────────────────────────────────
 // 从 secrets.properties（已 gitignore）读取；**文件缺失时回退到默认 debug 签名**，
@@ -52,8 +52,9 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 62
+        versionCode = 63
         versionName = appVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -67,7 +68,14 @@ android {
         }
     }
 
+    testBuildType = "integration"
     buildTypes {
+        create("integration") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".integration"
+            versionNameSuffix = "-integration"
+            matchingFallbacks += listOf("debug")
+        }
         debug {
             // ★ debug 变体也使用同一份自有证书：这样 debug / release 可以**互相覆盖安装**。
             //   2026-09-25 起 release 已轮换到自有证书，若 debug 还用 debug 证书就会装不上去
@@ -157,6 +165,8 @@ dependencies {
 
     // 单元测试（纯 JVM）：答案解析、版本比较、文案表 —— 见 app/src/test
     testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.junit)
 }
 
 // APK naming: StudyAssistant-<version>-<yyyyMMddHHmm>.apk（debug / release 各自目录）

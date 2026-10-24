@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.6
+· ℹ️ 校准关于页与项目介绍：最低 Android 9，快速/思考均使用 deepseek-flash；准确说明题干和图片直发官方 API、标签分析范围及本地导出
+· 💾 自动备份失败在设置页保留原因与时间，成功写入并读回校验后清除警示；切换文件夹重置状态，启动不增加弹窗
+· 📝 标签整理草稿自动保存在本机；恢复时核对当前标签与关联，仍须重新预览后确认合并；保存失败有提示，可明确放弃草稿
+· 🔎 AI 标签分析保留最近 20 条本机诊断，可手动导出或清空；仅记录耗时、模式、状态与数量，不含标签名称、题目、响应原文或密钥
+· 🧪 增加独立包名的 Android 数据库与文件测试，开发检查统一入口；保持 DB v10 / Bak v3，无新增主库迁移
+
 v0.6.6.5
 · 🛠 同版本附件修正：修正思考模式标签分析立即返回 HTTP 422 的参数问题；分析失败显示具体原因与状态码，版本号与数据格式不变
 · 🏷 标签建议读取修正：使用 JSON 输出，保留可编辑的有效候选，区分截断、空结果与格式错误；候选默认不勾选，合并前仍严格检查冲突
@@ -377,6 +384,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.6
+· ℹ️ Update About and project documentation: Android 9 minimum, fast/thinking modes share deepseek-flash, and clarify direct AI requests, label analysis scope and local exports
+· 💾 Backup failures retain a reason and time in settings; a verified successful write clears the warning. Changing folders resets status, with no new startup dialog
+· 📝 Label organization drafts save locally and restore only against matching labels and links; preview is required again before merging. Save failures are shown and drafts can be explicitly discarded
+· 🔎 Keep the last 20 local AI analysis diagnostics, with manual export and clearing; only timing, mode, status and counts, without label names, questions, raw responses or keys
+· 🧪 Add Android database and file checks in an independent app package and a unified developer check entry; DB v10 / Bak v3 remain unchanged
+
 v0.6.6.5
 · 🛠 Updated APK under the same version: correct thinking-mode label analysis parameters that caused immediate HTTP 422 errors; show specific failure reasons and status codes, with version and data formats unchanged
 · 🏷 Improved label suggestion parsing: request JSON output, retain valid editable candidates, and distinguish truncated, empty and malformed responses; candidates start unselected and conflicts are still checked before merging
@@ -749,6 +763,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.6
+· ℹ️ アプリ情報と説明を更新。最低Android 9、高速/思考共にdeepseek-flashを使用し、AIへの直接送信・タグ分析範囲・ローカル出力を明記
+· 💾 バックアップ失敗の理由と時刻を設定に保持。書き込みと読み戻し検証に成功すると警告を解除。保存先変更で状態をリセットし、起動時のダイアログは追加なし
+· 📝 タグ整理の下書きを端末に自動保存。現在のタグ・関連と一致する場合のみ復元し、統合前に再度プレビューが必要。保存失敗を表示し、明示的に破棄可能
+· 🔎 AI 分析の診断を端末に直近20件保持し、手動出力・消去に対応。時間・モード・状態・件数のみで、タグ名・問題・応答原文・キーは含まない
+· 🧪 独立パッケージで Android データベース・ファイル検証を追加し、開発チェックを統一。DB v10 / Bak v3 は変更なし
+
 v0.6.6.5
 · 🛠 同一バージョンの APK を修正。思考モードのタグ分析で即座に HTTP 422 となるパラメータを修正し、失敗理由と状態コードを表示。バージョンとデータ形式は変更なし
 · 🏷 タグ候補の読み取りを修正。JSON 出力を使用し、編集可能な有効候補を保持。途中切れ・空の結果・形式エラーを区別。候補は初期状態で未選択とし、統合前の競合確認は維持
@@ -1121,6 +1142,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.6
+· ℹ️ 앱 정보와 설명 갱신: 최소 Android 9, 빠른/사고 모드의 deepseek-flash 공유 및 AI 직접 전송·태그 분석 범위·로컬 내보내기를 명확히 안내
+· 💾 백업 실패 원인과 시간을 설정에 유지하고 쓰기·읽기 검증 성공 후 경고를 해제. 폴더 변경 시 상태를 초기화하며 시작 팝업은 추가하지 않음
+· 📝 태그 정리 초안을 로컬에 자동 저장하고 현재 태그·연결과 일치할 때만 복원. 병합 전 미리보기를 다시 실행해야 하며 저장 실패 표시 및 명시적 초안 폐기 지원
+· 🔎 최근 20회 AI 분석 진단을 로컬에 보관하고 수동 내보내기·지우기 지원. 시간·모드·상태·수만 기록하며 태그 이름·문제·응답 원문·키는 제외
+· 🧪 독립 패키지의 Android 데이터베이스·파일 검사와 통합 개발 검사 추가. DB v10 / Bak v3 유지, 주 DB 마이그레이션 없음
+
 v0.6.6.5
 · 🛠 같은 버전의 APK 수정: 사고 모드 태그 분석에서 즉시 HTTP 422가 발생하는 매개변수를 수정하고 실패 원인·상태 코드를 표시. 버전과 데이터 형식은 유지
 · 🏷 태그 제안 읽기 개선: JSON 출력을 요청하고 편집 가능한 유효 후보를 유지하며 잘림·빈 결과·형식 오류를 구분. 후보는 기본 미선택이며 병합 전 충돌 검사는 유지

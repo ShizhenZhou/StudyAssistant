@@ -4,57 +4,39 @@
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
 ![CI](https://github.com/ShizhenZhou/StudyAssistant/actions/workflows/build.yml/badge.svg)
-![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2028)-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/Android-9%2B%20(API%2028)-3DDC84?logo=android&logoColor=white)
 
-个人自用安卓应用：**拍照搜题 → AI 解答 → 错题整理 → 艾宾浩斯复习**（面向理工科大学题目）。
+个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek-V4/V4.1 与 GPT-6.1 Sol 辅助编写。
-错题、搜题记录及复习进度保存在本机；AI 推理所需题目、图片和对话直接发往 DeepSeek 官方 API，使用用户自备 Key，不经过自有服务器。主动点击“标签整理 → AI 分析”时，另发送完整标签的编号、名称与关联题数，该分析不发送题目正文、答案或图片。检查更新访问 GitHub Releases 接口。
-
-**入口一览**：底栏三页签 —— 📚 学习（主页）/ 📊 统计 / ⚙️ 设置；主页五个入口 —— 📷 拍照搜题、✏️ 图文提问、📚 错题本、📖 复习、🕘 搜题记录（0.6.5 新增）。
+安装包和已发布版本以 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) 为准。
 
 ## 功能
 
-- 📷 **拍照解答**：相机拍照 → **自动预框选 + 手动框选**题目区域 → DeepSeek 视觉模型识别并解答
-- ✏️ **图文提问**：主页入口，空会话直接给**大输入框**，可用**文字 + 1~3 张图**提问，不必先拍照
-- 📝 **题目以文字为主**：拍题 / 图文提问的题干由 AI **忠实转写**，公式用 **KaTeX 精确排版**（分式/积分/矩阵/希腊字母）；**原图默认折叠**成「📷 查看原题图片」点击展开；复习仍以原图自测
-- 🤖 **AI 解答**：分步推导，公式用 **LaTeX/KaTeX** 渲染（积分、分式、矩阵等正确排版）；答案底部附**核心知识点/难点**；无输出时也有「思考中…」气泡，流式生成中可随时**中止**，中止后可点蓝色**「继续生成」**
-- 🧠 **AI 思考流**：思考过程用**浅灰小字**显示在回答气泡**顶端**（流式逐字增长、可随时折叠，展开/折叠状态**全应用记忆**）；设置 → 🤖 AI 管理 的 **🧠 解题模式**可选 **Flash（快 / 省）** 或 **Reasoner（慢 / 准）**
-- 🔄 **重新生成** / 💬 **接续提问**：可重新生成，也可多轮追问（**支持附带图片**）；可**编辑多选删除**消息
-- ✂️ **框选（含自动预框选）**：进入框选页**自动框出题目范围**——本地投影算法与 AI 视觉并行（AI 超时自动回落本地算法/默认框；**AI 框选时限可在设置里调**，默认 500ms，可 100ms~5s）；四条边可单独拖动、双指缩放、长按跳过，也可整张图直接识别；多张图可逐张框选
-- ✏️ **批改题目**：拍照页右上角开关切换；单张或两张拍摄（题目 + 手写答案），AI 判断正误、指出错误步骤并针对性讲解
-- 📚 **错题本**：本地保存（Room），**两列瀑布流**、**全文搜索**、**科目分类 + 知识点标签（多 tag）**、按分类/标签筛选、长按批量改分类/删除
-- 🗂 **自动归类（含旧题补齐）**：保存错题时 **AI 自动判定科目与知识点标签并预选**（**优先复用已有科目**，近义/上下位也算，可手动改；删除入口在分类对话框左下角）；**旧错题打开时自动补齐并写入数据库**
-- 📚 **列表预览轻量排版**：复习 / 错题本列表里的题干会把 LaTeX 转成可读符号（∫ ∮ ∑ ≤ √ ρ …），不再是符号堆
-- 🕘 **搜题记录**：解答过的题目**自动留下**（没点「存错题本」就退出也不会丢）—— 按天分组、点开可**继续追问**、长按**多选删除**，行尾标注「已存错题本 / 未存错题本」；保留**最近 200 条 / 30 天**，**原图一并保留**
-- 📖 **复习（艾宾浩斯）**：新存错题自动进入按 `0/1/2/4/7/15/30` 天排期的复习队列；**今天/本周**选项卡、按科目→知识点分组；点「熟悉/模糊/忘记」自动跳下一题；可**练同类题**（AI 出题、可互动、点「查看答案」）
-- 📊 **学习统计**：今日复习、近 7 天、连续天数、待复习、掌握度分布、新增趋势（近 7 天 / 近 1 个月可切换，带纵坐标）、科目分布
-- 🔔 **复习提醒通知**：设置页可开每日提醒（自定义滚轮时间），到点通知「今天/本周还有 xx 道错题」；点击通知直达复习页
-- 🔑 **API Key 应用内填写**：在 设置 → **🤖 AI 管理** → 顶部的 **🔑 API 管理** 里填自己的 DeepSeek Key（**Android Keystore 加密**存储）；AI 管理里还可开关 **✂️ AI 切图**（关掉就完全不跑 AI、只用本地算法框选）、设 **AI 框选时限**、**自定义要求（Prompt）**（会附加到解题/批改/同类题的每次请求）与 **🧠 解题模式**；API 管理里可看累计调用次数与 token 用量
-- 🌐 **AI 生成语言可选**：设置 → 语言设置 → AI 生成语言（跟随系统 / 跟随题目 / 简繁中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский）
-- 🌐 **界面多语言**：设置 → 语言设置 → 应用语言（跟随系统 / 简体中文 / 繁體中文 / English / 日本語 / 한국어），切换立即生效
-- 💾 **数据管理**（设置 → 💾 数据管理）：导出/导入 JSON 备份（含图片）、**自动备份**（选一个文件夹后每天首次打开应用备份一次，只保留最近 3 份）、**崩溃日志**导出（只存本机）、清空数据；启动时自动清理已删除题目与孤儿记录、并按保留策略裁剪搜题记录（数据库不会无限增长）。**当前备份 v3 包含搜题记录，按永久题目编号恢复与去重。**
+- 📷 拍照或图文提问，最多 3 张图；自动/手动框选，支持题目与手写作答批改。
+- 🤖 流式解答、附图追问、中止与继续生成、同类题练习，支持 KaTeX 公式显示。
+- 🧠 快速模式与思考模式均使用 `deepseek-flash`，分别关闭/开启思考；可配置自定义要求和输出语言。
+- 📚 错题本支持分类、标签、搜索、排序及批量处理。
+- 🕘 搜题记录只记首次搜题/图文提问，保留最近 **200 条且不超过 30 天**；后续追问更新同一条，按首次时间排序，从错题本/复习打开不新增记录。
+- 🏷 标签整理支持 AI 建议和手动分组，预览确认后才合并，可撤销最近一次合并。
+- 📝 标签整理草稿自动保存；AI 分析可手动导出最近 20 条本机诊断。
+- 📖 按 `0/1/2/4/7/15/30` 天排期复习，提供学习统计及每日提醒。
+- 🌐 支持简体/繁体中文、英文、日文、韩文界面，以及主题和全局字号调整；AI 输出语言单独配置。
+- 💾 JSON 备份包含原图和搜题记录，按永久题目编号去重；自动备份每天首次启动写到所选文件夹，只保留最近 **3 份**；失败会在设置中提示，校验成功后解除警示。
+- ⬆️ 应用内检查和下载更新，核对签名证书，并在 GitHub 提供摘要时核对 SHA-256。
+
+## 数据与隐私
+
+错题、搜题记录与复习数据库保存在本机。AI 功能将必要的题干、图片、上下文、自定义要求、相关分类/标签名和参数直接发往 **DeepSeek 官方 API**，使用用户自备 Key 鉴权，不经过开发者服务器。Key 以 Android Keystore 加密保存在本机。
+
+主动点击“标签整理 → AI 分析”会发送完整标签的编号、名称与关联题数，不发送题目正文、答案或图片。检查更新及下载安装包访问 GitHub，不携带题目内容。无统计上报。
+
+自动备份仅写入用户通过系统文件选择器（SAF）选定的文件夹，本应用不主动云同步；若选择网盘目录，网盘应用可能自行同步。崩溃日志和 AI 分析诊断仅在手动导出时写入用户选择的位置。
 
 ## 技术栈
 
-Kotlin · Jetpack Compose（Material3）· MVVM · Room（当前开发 v10；已发布 v0.6.6.2 为 v9）· Retrofit/OkHttp（SSE 流式）· kotlinx.serialization · CameraX · WebView + KaTeX（公式渲染）· Navigation Compose · AlarmManager（复习提醒，精确闹钟不可用时自动降级）· Android Keystore（Key 加密）· 阿里云 Maven 镜像
+Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · AlarmManager · Android Keystore。
 
-构建环境：AGP 8.13 · Kotlin 2.2 · compileSdk / targetSdk **37** · minSdk **28**（build-tools 36.0.0）
-
-数据库表 / 字段与迁移历史见 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
-
-## 永久题目编号（v0.6.6.3 起）
-
-- DB v10：题目数字主键升级为 UUID＋首次输入时间，错题本、原图、标签、复习记录同步迁移；迁移前强制保存数据库副本。
-- 首次拍题/提交图文提问才建搜题记录；从错题本或复习打开不新增历史，追问和重新生成不改变首次时间及排序。
-- 备份 v3：按永久编号去重并维护关联，保留本机已有内容；重复导入不重复加题。按本次约定不再导入 v1/v2 老备份，升级后需重新导出。
-- 方案及时间补齐规则见 [DESIGN-question-identity.md](DESIGN-question-identity.md)，字段和迁移细节见 [DATA_SCHEMA.md](DATA_SCHEMA.md)。当前代码版本 0.6.6.5，versionCode 62；线上发布状态以 GitHub Release 为准。
-
-## 标签整理（v0.6.6.5 起）
-
-- 设置 → 数据管理 → 标签整理：AI 提出同义 / 近义标签的合并建议，也可手动分组、改名、调整来源标签。建议默认不勾选，预览并确认后才执行。
-- 题目永久编号保持不变，仅事务修改标签和关联，并去除重复关系；预览过期或存在重名 / 交叉组时需重新调整。
-- 主库保持 DB v10，最近一次撤销记录保存在独立的本机辅助库；Bak v3 不包含撤销日志。新合并成功后覆盖旧记录，失败保留上次撤销；相关数据变化时阻止直接撤销，保留后续编辑。开始导入或清空数据前清除日志，导入失败也不恢复日志。
-- 设计、隐私范围和撤销限制见 [DESIGN-ai-tag-merge.md](DESIGN-ai-tag-merge.md)。
+构建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **28**（Android **9+**）、build-tools **36.0.0**。当前备份格式 v3，数据兼容细节见 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
 
 ## 版本记录
 
@@ -62,6 +44,13 @@ Kotlin · Jetpack Compose（Material3）· MVVM · Room（当前开发 v10；已
 > 下面 v0.6.3 / v0.6.3.1 / v0.6.3.2 / v0.6.3.3 中与导出有关的条目**只是历史记录**，代码已全部删除。
 >
 > 📌 **版本号约定（现行）**：`0.x.x`（三段）与 `0.x.x.x`（四段）**都要**在 README「版本记录」+ App 内「更新内容」（简 / 英 / 日 / 韩 4 份，繁體由简体自动转换）各记一次；`versionCode` **每次发版 +1**。更早小节里「`0.x.x.x` 不改更新内容、只发 Release」的说法**已作废**。
+
+### v0.6.6.6（待发布）
+- ℹ️ **说明同步**：修正最低 Android 版本、AI 模式及联网表述，同步四语言关于页；清理根目录内部文档，完整过程记录保留在本地。
+- 💾 **备份健康状态**：自动备份失败在设置页保留原因和时间；写入并读回校验成功后解除警示，切换文件夹重置状态，不增加启动弹窗。
+- 📝 **整理草稿**：标签分组与勾选自动保存到本机，恢复时核对标签和关联；重新预览后才能确认合并，保存失败有提示，可明确放弃草稿。
+- 🔎 **分析诊断**：保留最近 20 条固定字段记录，可手动导出/清空，不含标签名称、题目、响应原文或 Key。
+- 🧪 **验证增强**：独立包名 Android 数据库/文件测试与统一开发检查入口；DB v10、备份 v3 不变，无新增主库迁移。versionCode **63**。
 
 ### v0.6.6.5
 - 🛠 **标签建议读取修正**：AI 分析使用 JSON 输出，保留可编辑的有效候选；区分截断、空结果与格式错误。候选默认不勾选，确认合并前仍严格检查冲突。
@@ -470,112 +459,38 @@ Kotlin · Jetpack Compose（Material3）· MVVM · Room（当前开发 v10；已
 ### v0.1（项目建立）
 - 🆕 项目搭建：**百度智能云 OCR 识别图像 + DeepSeek 解题**，拍照搜题、AI 解答、错题整理雏形
 
-## 开发入口
+## 开发与测试
 
-先读 `AGENTS.md` 和 `DEV_ENV_NOTES.md`。在项目根目录的 PowerShell 中：
+开发约定见 [AGENTS.md](AGENTS.md)，隔离 Android 测试见 [测试说明](docs/testing/reliability.md)。建议使用英文路径。
 
 ```powershell
-# 仅设置当前终端；JDK 21、SDK 使用现有安装，缓存和临时文件留在项目内
 . ./tools/codex-env.ps1
-
-# 日常检查：差异、密钥、工具测试、JVM 单测、隔离 SQLite 校验
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/check-project.ps1
-
-# 需要检查正式构建时，额外执行 assembleRelease；不会执行发布重签、推送或发布
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/check-project.ps1 -Release
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
+# 需要正式构建及独立 Android 测试包编译时：
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Release -CompileAndroidTests
 ```
 
-检查日志及 JSON 结果位于 `app/build/checks/`。任一步骤失败即返回非零退出码。
-环境入口优先使用有效的 JDK 21 / Android SDK，也可显式传入 `-JavaHome`、`-SdkRoot`；不会修改系统环境变量。
+统一入口把缓存、临时文件与日志留在项目内，不安装应用、不推送或发布。当前 JVM 回归 219 项 / 24 类，另有独立 Android 集成测试；实际执行状态与限制见测试说明。`tools/run-unit-tests.ps1` 保留作历史中文路径的备选，不是默认流程。
 
-也可单独使用标准命令：
+## 密钥与发布
+
+本仓库公开，任何 API Key、令牌、签名材料或本地配置均不得提交。启用提交前扫描：`git config core.hooksPath .githooks`。模式扫描不能替代差异审阅。
+
+发布签名路径与口令配置在被忽略的 `secrets.properties`，真实材料放在仓库外。正式 APK 需使用原证书和 lineage 重签，不直接发布 AGP 的 `app-release.apk`；保留签名材料才能维持覆盖升级链。
 
 ```powershell
-./gradlew.bat testDebugUnitTest --console=plain -Pkotlin.compiler.execution.strategy=in-process
-./gradlew.bat assembleDebug --console=plain -Pkotlin.compiler.execution.strategy=in-process
+./gradlew.bat assembleRelease --console=plain -Pkotlin.compiler.execution.strategy=in-process
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/sign-release.ps1 -OutDir app/build/identity-work/signed
 ```
 
-当前 JVM 单测 207 项、21 个测试类。迁移后的英文路径可直接运行标准 Gradle 单测；`tools/run-unit-tests.ps1` 保留作确有中文路径问题时的备选，不再是默认流程。
+main 为发布线，Develop 为日常开发线。分支运行自动检查，v* 标签构建发布候选；发布、同版本附件替换和安装按明确授权执行，不自动移动已有标签。设计、排查与逐版本过程记录仅作本地归档，不再堆放仓库根目录；对外更新说明见 GitHub Releases。
 
-## 密钥与安全约定
+## API Key 与权限
 
-- 仓库为公开仓库。API Key、令牌、签名私钥、密码、手机数据与本地配置不提交；`.gitignore` 只是一层防误操作，仍需检查差异。
-- 手机填写的 Key 在本机加密保存，只用于必要的 DeepSeek API 鉴权；开发用测试 Key 同样不得输出或提交。
-- 本地签名材料保存在仓库外，由忽略的 `secrets.properties` 引用；当前电脑的存放说明见 DEV_ENV_NOTES，不把私密材料纳入 Git。
-- 启用提交钩子：`git config core.hooksPath .githooks`。需有 Python 3；手动扫描暂存区用 `python -B tools/check-secrets.py`，扫描全部已跟踪的暂存版本用 `python -B tools/check-secrets.py --tracked`。
-- 本地钩子与 CI 使用同一扫描器。它检查敏感文件名和已知凭据特征，不打印匹配值；支持中文 / 空格路径、较大文本及 UTF-16 文本；Git 读取失败也会阻止检查通过。模式扫描不能识别所有秘密，仍需人工复核。
+在 设置 → AI 管理 → API 管理 填写自己的 DeepSeek Key，获取和账户管理见 [DeepSeek 官方控制台](https://platform.deepseek.com)。
 
-### Git 工作方式
+按功能使用联网、相机、旧版相册读取（Android 12 及以下）、通知、复习闹钟/开机恢复、后台运行与应用安装权限；Android 13+ 选图使用系统照片选择器。无需位置、通讯录或麦克风权限。通知、精确闹钟和后台保活受系统授权及省电策略影响。
 
-先查看 `git status` / `git diff`，仅暂存本次相关文件，再提交。推送与发布按用户授权范围执行，避免把本地检查、提交和外部发布绑成一次不可审阅的操作。
+## 许可证
 
-常规 Git / GitHub CLI 优先。`tools/git-sync.ps1` 为旧受限环境保留，不再默认自动切代理或使用其中的旧环境假设；遇到网络问题根据实际错误处理，不关闭 TLS 校验。
-
-## 分支与 CI
-
-- **`main` = 发布线**（只做合并与发布，始终保持「随时可发版」）；**`Develop` = 日常开发线**（2026-10-14 起，常规小版本在这里改代码 / 编译 / 真机测试 / 推送）。发版时把 `Develop` 合进 `main`，再在 `main` 上打 `v*` tag。
-- `.github/workflows/build.yml` **按触发分流**：
-  - **分支 / PR** 扫描已跟踪文件、运行开发工具测试、JVM 单测和隔离 SQLite 校验；不读取发布签名材料、不编译 release 或产出 APK；
-  - **只有推 `v*` tag** 才额外构建 release，补 lineage 重签、上传正式构件并建草稿 Release；缺少签名材料或正式附件时失败，不回退发布 debug 签名包。当前工作流修改需推送后由 GitHub 实际运行验证。
-- 发布顺序：`Develop` → 合进 `main` → 打并推 `v*` tag → 等 CI 变绿 → 补 Release 说明并发布那个草稿。**可安装的 APK 只在 `v*` tag 的 run 里产出**。
-
-## 发布签名（自有证书 + key rotation）
-
-> 2026-09-25 起：release 签名从 **Android debug 证书**轮换到**自有证书**。
-
-- 轮换靠 **APK Signature Scheme v3 的 SigningCertificateLineage**（`lineage.bin`）实现：
-  由**旧（debug）私钥签名授权**新证书 → 已经装了旧证书版本的设备（含朋友的手机）**可以直接覆盖升级，不需要卸载**，错题本数据保留。
-- keystore（`studyassistant-release.p12`）、旧 debug keystore 与 `lineage.bin` **都放在仓库之外**（本机总工作区 `.secrets/StudyAssistant/`），
-  `.gitignore` 另有一层兜底（`*.p12` / `*.keystore` / `*.jks` / `lineage*.bin` / `keys/`）；口令走 `secrets.properties`（已被忽略）。
-- ⚠️ **签名不是 `assembleRelease` 的产物**：AGP 的 `signingConfig` 不支持 lineage，必须再补一步：
-
-  ```powershell
-  . ./tools/codex-env.ps1
-  ./gradlew.bat assembleRelease --console=plain -Pkotlin.compiler.execution.strategy=in-process
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/sign-release.ps1 -OutDir app/build/identity-work/signed
-  # 使用 signed 目录中通过证书及 lineage 检查的 APK
-  ```
-
-  （AGP 用 `signingConfig` 签出的 `app-release.apk` **不带 lineage**，会被这一步**替换签名**；不要直接发布它。）
-- `debug` 变体**也用同一份自有证书**（`secrets.properties` 存在时）：否则 debug 与 release 无法互相覆盖安装（`INSTALL_FAILED_UPDATE_INCOMPATIBLE`）。
-- ⚠️ **三条铁律**：
-  1. 以后**每一版都必须带同一条 lineage**（不带的话，还停在旧证书版本的设备就装不上，只能卸载重装）
-  2. `lineage.bin` 与 keystore **必须永久备份**（在仓库之外的本地凭据备份里存了 base64 + 口令 + 证书指纹，并另存了一份 CI 用的 GitHub Secrets）
-  3. 丢失 keystore = 再也签不出可安装的包；丢失 lineage = 升级链断，**只能卸载重装**
-
-## 配置 API Key（应用内）
-
-1. 打开 App → 底栏右侧 **⚙️ 设置** → **🤖 AI 管理** → 顶部的 **🔑 API 管理**
-2. 粘贴 DeepSeek API Key（sk- 开头）→ 保存
-3. Key 用 **Android Keystore 加密** 存于本机，不写入代码、不提交仓库
-
-Key 获取：https://platform.deepseek.com（账号需开通视觉模型权限）
-
-## 权限说明
-
-- `INTERNET`：调用 DeepSeek API（解答 / 批改 / 框选）与 GitHub Releases（检查更新）
-- `CAMERA`：拍照搜题、拍照批改
-- `READ_EXTERNAL_STORAGE`（仅 Android 12 及以下）：旧系统上从相册选图；Android 13+ 走系统照片选择器，**不需要**相册权限
-- `POST_NOTIFICATIONS`（Android 13+）：复习提醒通知
-- `SCHEDULE_EXACT_ALARM`：复习提醒按精确时间触发；未授予时**自动降级**为非精确闹钟
-- `RECEIVE_BOOT_COMPLETED`：开机后恢复每日提醒
-- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`：设置页「后台运行」引导，避免提醒被系统省电策略杀掉
-- `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC`：生成答案时的前台服务通知（切到后台不中断）
-- `REQUEST_INSTALL_PACKAGES`：应用内更新，下载完成后唤起系统安装器
-
-App 不申请位置、通讯录、麦克风等权限；题目 / 图片 / 会话 / 统计 / 崩溃日志 / API Key 全部只存本机。
-
-## 环境要求
-
-- JDK 17+（建议 JDK 21，CI 用 JDK 21）
-- Android SDK：**compileSdk / targetSdk 37**（需已安装 android-37.0 平台 + build-tools 36.0.0），**minSdk 28**
-
-## 许可证（License）
-
-本项目采用 **[MIT License](LICENSE)**：
-
-- ✅ **允许**：任何人**免费**使用、复制、修改、合并、发布、分发、再授权、**并可用于商业目的**
-- ✅ 唯一条件：**保留版权声明与许可证声明**（随源码或分发物一起提供）
-- ❌ 不提供任何担保：软件按"现状（AS IS）"提供，作者不承担使用产生的责任
-
-Copyright © 2026 ShizhenZhou
+[MIT License](LICENSE) · Copyright © 2026 ShizhenZhou

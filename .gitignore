@@ -48,6 +48,13 @@ adbkey.pub
 *.log
 build-logs/
 
+# Local working notes and per-version process records
+.local-notes/
+/RELEASE-*.md
+/FIX-*.md
+/DESIGN-*.md
+/DEV_ENV_NOTES.md
+
 
 # Python project tools
 __pycache__/

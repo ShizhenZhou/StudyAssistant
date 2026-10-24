@@ -1,0 +1,17 @@
+CREATE TABLE questions(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,text TEXT NOT NULL,answer TEXT NOT NULL,createdAt INTEGER NOT NULL,imageBytes BLOB,conversationJson TEXT,deleted INTEGER NOT NULL,categoryId INTEGER);
+    CREATE TABLE categories(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,name TEXT NOT NULL,createdAt INTEGER NOT NULL);
+    CREATE TABLE tags(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,name TEXT NOT NULL,createdAt INTEGER NOT NULL);
+    CREATE TABLE question_tags(questionId INTEGER NOT NULL,tagId INTEGER NOT NULL,PRIMARY KEY(questionId,tagId));
+    CREATE TABLE review(questionId INTEGER PRIMARY KEY NOT NULL,intervalStep INTEGER NOT NULL,nextReviewAt INTEGER NOT NULL,lastReviewedAt INTEGER NOT NULL,reviewCount INTEGER NOT NULL);
+    CREATE TABLE question_images(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,questionId INTEGER NOT NULL,position INTEGER NOT NULL,bytes BLOB NOT NULL,source TEXT,createdAt INTEGER NOT NULL);
+    CREATE INDEX index_question_images_questionId_position ON question_images(questionId,position);
+    CREATE TABLE solve_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,createdAt INTEGER NOT NULL,updatedAt INTEGER NOT NULL,source TEXT NOT NULL,text TEXT NOT NULL,answer TEXT NOT NULL,conversationJson TEXT,imageBytes BLOB,imagesJson TEXT,savedQuestionId INTEGER);
+    INSERT INTO categories VALUES(1,'Math',10000);
+    INSERT INTO tags VALUES(2,'Tag',10000);
+    INSERT INTO questions VALUES(1,'one','answer one',10000,X'0102','[]',0,1);
+    INSERT INTO questions VALUES(2,'two','answer two',0,NULL,'[]',0,1);
+    INSERT INTO questions VALUES(3,'three','answer three',20000,NULL,'[]',1,NULL);
+    INSERT INTO question_tags VALUES(2,2),(99,2);
+    INSERT INTO review VALUES(2,3,30000,20000,7);
+    INSERT INTO question_images VALUES(1,1,0,X'0102','camera',10000),(2,1,1,X'00FF42','camera',10000);
+    INSERT INTO solve_sessions VALUES(7,0,50000,'camera','leftover','answer','[]',X'0102',NULL,1);

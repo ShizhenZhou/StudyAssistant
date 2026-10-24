@@ -2,6 +2,7 @@ package com.zsz.studyassistant.ui
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /**
  * 「更新内容」的**排版规则**（2026-10-20 用户明确要求，且已经踩过两次）：
@@ -75,10 +76,14 @@ class ChangelogFormatTest {
 
     @Test
     fun `四语言都能取到更新内容`() {
+        val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
+            .first { File(it, "settings.gradle.kts").isFile }
+        val version = Regex("val appVersionName = \"([^\"]+)\"")
+            .find(File(root, "app/build.gradle.kts").readText())!!.groupValues[1]
         for (lang in listOf(UiLang.ZH_CN, UiLang.ZH_TW, UiLang.EN, UiLang.JA, UiLang.KO)) {
             val text = changelogText(lang)
             assertTrue("$lang 的更新内容为空", text.trim().isNotEmpty())
-            assertTrue("$lang 少了当前版本 v0.6.6.5", text.trim().startsWith("v0.6.6.5"))
+            assertTrue("$lang 少了当前版本 v$version", text.lineSequence().first { it.isNotBlank() } == "v$version")
         }
     }
 }

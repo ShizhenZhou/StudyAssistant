@@ -91,6 +91,9 @@ jobs:
           chmod +x ./gradlew
           ./gradlew testDebugUnitTest assembleRelease --console=plain
 
+      - name: 编译独立 Android 集成测试包（不连接设备）
+        run: ./gradlew assembleIntegration assembleIntegrationAndroidTest --console=plain
+
       - name: 校验数据库迁移与 Room 表结构
         run: python3 tools/verify-identity-migration.py
 

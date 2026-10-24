@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Run the project's JVM unit tests (app/src/test) on this machine.
@@ -166,6 +166,8 @@ $testClasses = @(
     'com.zsz.studyassistant.data.HistoryWriteQueueTest',
     'com.zsz.studyassistant.data.TagMergeEngineTest',
     'com.zsz.studyassistant.data.TagMergeSuggestionsTest',
+    'com.zsz.studyassistant.data.TagDraftCodecTest',
+    'com.zsz.studyassistant.data.AnalysisDiagnosticCodecTest',
     'com.zsz.studyassistant.data.NotebookSortingTest',
     'com.zsz.studyassistant.data.DuplicateCheckTest',
     'com.zsz.studyassistant.data.AutoExposureTest',
@@ -177,6 +179,7 @@ $testClasses = @(
     'com.zsz.studyassistant.ui.CategoryLabelStyleTest',
     'com.zsz.studyassistant.ui.CropMathTest',
     'com.zsz.studyassistant.ui.L10nTableTest',
+    'com.zsz.studyassistant.ui.AboutDocumentationTest',
     'com.zsz.studyassistant.ui.AppNavTest',
     'com.zsz.studyassistant.ui.ChangelogFormatTest',
     'com.zsz.studyassistant.ui.MathRenderAssetTest'

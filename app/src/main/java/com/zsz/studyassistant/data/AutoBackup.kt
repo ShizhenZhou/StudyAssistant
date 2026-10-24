@@ -43,7 +43,29 @@ object AutoBackup {
     private const val KEY_ENABLED = "auto_backup_enabled"
     private const val KEY_LAST_DAY = "auto_backup_last_day"
     private const val KEY_LAST_AT = "auto_backup_last_at"
+    private const val KEY_ATTEMPT_AT = "auto_backup_attempt_at"
+    private const val KEY_FAILURE_KEY = "auto_backup_failure_key"
     private val writeMutex = Mutex()
+
+    data class Failure(val at: Long, val key: String)
+    private val failureKeys = setOf("data.autoBackup.folderMissing", "data.autoBackup.createFailed",
+        "data.autoBackup.writeFailed", "data.autoBackup.verifyFailed", "data.autoBackup.storageFailed",
+        "data.autoBackup.permissionFailed", "data.autoBackup.snapshotFailed")
+
+    fun lastFailure(context: Context): Failure? {
+        val stored = prefs(context).getString(KEY_FAILURE_KEY, null) ?: return null
+        return Failure(prefs(context).getLong(KEY_ATTEMPT_AT, 0L),
+            stored.takeIf { it in failureKeys } ?: "data.autoBackup.storageFailed")
+    }
+
+    /** Store only an allowlisted reason; never persist exception text, paths or backup content. */
+    @Synchronized
+    fun recordFailure(context: Context, key: String, at: Long = System.currentTimeMillis(),
+        expectedTree: Uri? = treeUri(context)) {
+        if (treeUri(context) != expectedTree) return
+        prefs(context).edit().putLong(KEY_ATTEMPT_AT, at)
+            .putString(KEY_FAILURE_KEY, key.takeIf { it in failureKeys } ?: "data.autoBackup.storageFailed").apply()
+    }
 
     // ── 纯逻辑（单元测试覆盖，见 AutoBackupTest）─────────────────────────────
 
@@ -82,8 +104,11 @@ object AutoBackup {
         prefs(context).getString(KEY_TREE, null)?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
 
     /** 保存文件夹（调用方需先 takePersistableUriPermission；传 null = 清除） */
+    @Synchronized
     fun setTreeUri(context: Context, uri: Uri?) {
+        if (treeUri(context) == uri) return
         prefs(context).edit().apply {
+            remove(KEY_LAST_DAY); remove(KEY_LAST_AT); remove(KEY_ATTEMPT_AT); remove(KEY_FAILURE_KEY)
             if (uri == null) remove(KEY_TREE) else putString(KEY_TREE, uri.toString())
         }.apply()
     }
@@ -95,10 +120,14 @@ object AutoBackup {
     fun lastBackupDay(context: Context): String? =
         prefs(context).getString(KEY_LAST_DAY, null)?.takeIf { it.isNotBlank() }
 
-    private fun markBackedUp(context: Context, at: Long) {
+    @Synchronized
+    private fun markBackedUp(context: Context, at: Long, expectedTree: Uri?) {
+        if (treeUri(context) != expectedTree) return
         prefs(context).edit()
             .putString(KEY_LAST_DAY, dayKey(at))
             .putLong(KEY_LAST_AT, at)
+            .putLong(KEY_ATTEMPT_AT, at)
+            .remove(KEY_FAILURE_KEY)
             .apply()
     }
 
@@ -175,13 +204,15 @@ object AutoBackup {
         return writeMutex.withLock {
             val now = System.currentTimeMillis()
             if (!isDue(context, now)) return@withLock null
+            val expectedTree = treeUri(context)
             val json = try { jsonProvider() }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) {
                 Log.w(TAG, "build backup json failed")
-                return@withLock null
+                recordFailure(context, "data.autoBackup.snapshotFailed", now, expectedTree)
+                return@withLock Result(false, null, errorKey = "data.autoBackup.snapshotFailed")
             }
-            if (!isDue(context, now)) return@withLock null
+            if (!isDue(context, now) || treeUri(context) != expectedTree) return@withLock null
             runBackupLocked(context, json, now)
         }
     }
@@ -196,7 +227,9 @@ object AutoBackup {
     private suspend fun runBackupLocked(context: Context, json: String, now: Long): Result = withContext(Dispatchers.IO) {
         val tree = treeUri(context)
         val parent = treeDocUri(context, tree)
-            ?: return@withContext Result(false, null, errorKey = "data.autoBackup.folderMissing")
+            ?: return@withContext Result(false, null, errorKey = "data.autoBackup.folderMissing").also {
+                recordFailure(context, "data.autoBackup.folderMissing", now, tree)
+            }
         var created: Uri? = null
         var verified = false
         try {
@@ -224,13 +257,16 @@ object AutoBackup {
                 jobContext.ensureActive()
                 if (runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }.getOrDefault(false)) pruned++
             }
-            if (treeUri(context) == tree) markBackedUp(context, now)
+            markBackedUp(context, now, tree)
             Result(true, mine.firstOrNull { DocumentsContract.getDocumentId(it.second) == documentId }?.first ?: name, pruned)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "backup write or verification failed")
-            Result(false, null, errorKey = (e as? BackupWriteException)?.messageKey ?: "data.autoBackup.storageFailed")
+            val key = if (e is SecurityException) "data.autoBackup.permissionFailed"
+                else (e as? BackupWriteException)?.messageKey ?: "data.autoBackup.storageFailed"
+            recordFailure(context, key, now, tree)
+            Result(false, null, errorKey = key)
         } finally {
             val failedDocument = created
             if (!verified && failedDocument != null) withContext(NonCancellable + Dispatchers.IO) {

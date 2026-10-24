@@ -75,9 +75,9 @@ private val B0_ZH = mapOf(
     "settings.customPrompt" to "✍️ 自定义要求（Prompt）",
     "settings.customPrompt.desc" to "写在这里的要求会附加到每次 AI 提问中。例如：只给思路不要直接给答案 / 步骤编号并写清依据 / 用更简洁的语言 / 优先用我课本的符号习惯…（留空即不生效）",
     "settings.solveModel" to "🧠 解题模式",
-    "settings.solveModel.desc" to "Flash：快且省，日常首选；Reasoner：先推理再作答，难题更准但更慢、更耗 token",
-    "settings.solveModel.flash" to "Flash（快 / 省）",
-    "settings.solveModel.reasoner" to "Reasoner（慢 / 准）",
+    "settings.solveModel.desc" to "快速模式关闭思考；思考模式先思考再作答，可能耗时更长、消耗更多 token。两种模式都使用 deepseek-flash。",
+    "settings.solveModel.flash" to "快速模式（关闭思考）",
+    "settings.solveModel.reasoner" to "思考模式（开启思考）",
     "settings.aiCrop.desc" to "进框选页后等 AI 自动框选的上限；超过这个时间还没返回，就改用本地算法框选。",
     "settings.aiCrop.snapHint" to "磁吸点：500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 语言设置",
@@ -162,9 +162,9 @@ private val B0_EN = mapOf(
     "settings.customPrompt" to "✍️ Custom instructions",
     "settings.customPrompt.desc" to "Anything written here is appended to every AI request. For example: give hints only, no full answer / number the steps and state the reasoning / use more concise language … (leave empty to disable)",
     "settings.solveModel" to "🧠 Solve mode",
-    "settings.solveModel.desc" to "Flash: fast and cheap, best for daily use; Reasoner: thinks first, more accurate on hard problems but slower and costs more tokens",
-    "settings.solveModel.flash" to "Flash (fast / cheap)",
-    "settings.solveModel.reasoner" to "Reasoner (slow / accurate)",
+    "settings.solveModel.desc" to "Fast mode disables thinking. Thinking mode reasons before answering and may take longer and use more tokens. Both use deepseek-flash.",
+    "settings.solveModel.flash" to "Fast mode (thinking off)",
+    "settings.solveModel.reasoner" to "Thinking mode (thinking on)",
     "settings.aiCrop.desc" to "How long to wait for AI auto-crop after opening the crop screen. If it does not return in time, the local algorithm is used.",
     "settings.aiCrop.snapHint" to "Snap points: 500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 Language",
@@ -249,9 +249,9 @@ private val B0_JA = mapOf(
     "settings.customPrompt" to "✍️ カスタム指示",
     "settings.customPrompt.desc" to "ここに書いた内容は毎回の AI 質問に追加されます。例：考え方だけ／手順に番号と根拠／より簡潔に…（空欄なら無効）",
     "settings.solveModel" to "🧠 解答モード",
-    "settings.solveModel.desc" to "Flash：速くて安い（普段向け）；Reasoner：先に推論するので難問に強いが遅くトークン消費も多い",
-    "settings.solveModel.flash" to "Flash（速い / 安い）",
-    "settings.solveModel.reasoner" to "Reasoner（遅い / 高精度）",
+    "settings.solveModel.desc" to "高速モードは思考を無効化。思考モードは推論後に回答し、時間とトークンが増える場合があります。どちらも deepseek-flash を使用。",
+    "settings.solveModel.flash" to "高速モード（思考オフ）",
+    "settings.solveModel.reasoner" to "思考モード（思考オン）",
     "settings.aiCrop.desc" to "切り抜き画面を開いた後、AI の自動切り抜きを待つ上限。時間内に返らない場合はローカルアルゴリズムで切り抜きます。",
     "settings.aiCrop.snapHint" to "スナップ点：500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 言語設定",
@@ -336,9 +336,9 @@ private val B0_KO = mapOf(
     "settings.customPrompt" to "✍️ 사용자 지정 지시",
     "settings.customPrompt.desc" to "여기에 쓴 내용은 모든 AI 질문에 추가됩니다. 예: 풀이 방향만/단계 번호와 근거/더 간결하게… (비우면 적용 안 됨)",
     "settings.solveModel" to "🧠 풀이 모드",
-    "settings.solveModel.desc" to "Flash: 빠르고 저렴(일상용); Reasoner: 먼저 추론해 어려운 문제에 강하지만 느리고 토큰 소모가 큼",
-    "settings.solveModel.flash" to "Flash (빠름 / 저렴)",
-    "settings.solveModel.reasoner" to "Reasoner (느림 / 정확)",
+    "settings.solveModel.desc" to "빠른 모드는 사고를 끕니다. 사고 모드는 추론 후 답하며 시간과 토큰 사용이 늘 수 있습니다. 모두 deepseek-flash를 사용합니다.",
+    "settings.solveModel.flash" to "빠른 모드(사고 끔)",
+    "settings.solveModel.reasoner" to "사고 모드(사고 켬)",
     "settings.aiCrop.desc" to "자르기 화면을 연 뒤 AI 자동 자르기를 기다리는 상한. 시간 안에 오지 않으면 로컬 알고리즘으로 자릅니다.",
     "settings.aiCrop.snapHint" to "스냅 지점: 500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 언어 설정",
@@ -1085,6 +1085,9 @@ private val B6_KO = mapOf(
 // 批次 7：设置重构（API 管理 / 数据管理 / 关于） + 复习折叠 + 搜索 + 公式条
 // ===========================================================================
 private val B7_ZH = mapOf(
+    "data.autoBackup.snapshotFailed" to "无法生成备份快照，请稍后重试。",
+    "data.autoBackup.permissionFailed" to "备份文件夹的访问权限已失效，请重新选择文件夹。",
+    "data.autoBackup.healthWarning" to "最近一次备份失败（{t}）：{reason} 成功备份后此警示会消失。",
     "settings.data" to "💾 数据管理",
     "about.changelog" to "更新内容",
     "about.info" to "应用信息",
@@ -1215,6 +1218,9 @@ private val B7_ZH = mapOf(
 )
 
 private val B7_EN = mapOf(
+    "data.autoBackup.snapshotFailed" to "Could not prepare a backup snapshot. Please retry.",
+    "data.autoBackup.permissionFailed" to "Backup folder access was denied. Please select the folder again.",
+    "data.autoBackup.healthWarning" to "Last backup attempt failed ({t}): {reason} This warning clears after a successful backup.",
     "settings.data" to "💾 Data",
     "about.changelog" to "What's new",
     "about.info" to "App info",
@@ -1345,6 +1351,9 @@ private val B7_EN = mapOf(
 )
 
 private val B7_JA = mapOf(
+    "data.autoBackup.snapshotFailed" to "バックアップのスナップショットを作成できません。再試行してください。",
+    "data.autoBackup.permissionFailed" to "バックアップ先へのアクセスが拒否されました。フォルダーを選び直してください。",
+    "data.autoBackup.healthWarning" to "直近のバックアップに失敗しました（{t}）：{reason} 成功するとこの警告は消えます。",
     "settings.data" to "💾 データ管理",
     "about.changelog" to "更新内容",
     "about.info" to "アプリ情報",
@@ -1474,6 +1483,9 @@ private val B7_JA = mapOf(
 )
 
 private val B7_KO = mapOf(
+    "data.autoBackup.snapshotFailed" to "백업 스냅샷을 만들 수 없습니다. 다시 시도하세요.",
+    "data.autoBackup.permissionFailed" to "백업 폴더 접근이 거부되었습니다. 폴더를 다시 선택하세요.",
+    "data.autoBackup.healthWarning" to "최근 백업 실패({t}): {reason} 백업에 성공하면 이 경고가 사라집니다.",
     "settings.data" to "💾 데이터 관리",
     "about.changelog" to "업데이트 내역",
     "about.info" to "앱 정보",
@@ -1762,31 +1774,24 @@ private val B10_ZH = mapOf(
     "about.features" to "📋 功能",
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
-        "· 📷 拍照搜题：自动预框选（本地 + AI 并行，可在「AI 管理」里关掉）+ 手动框选 / 双指缩放\n" +
-        "· ✏️ 图文提问：文字 + 最多 3 张图直接提问，不必先拍照\n" +
-        "· ✍️ 批改题目：拍题目 + 手写作答，AI 判断正误并针对性讲解\n" +
-        "· 🕘 搜题记录：解答过的题自动留存（最近 200 条 / 30 天），点开可续答、长按可多选删除\n" +
-        "· 🧠 AI 思考流：浅灰小字展示思考过程，可折叠、流式跟随\n" +
-        "· 📐 KaTeX 公式排版：积分 / 分式 / 矩阵等正确渲染；列表里也会转成可读符号\n" +
-        "· 💬 多轮追问：可带图追问，支持中止与继续生成\n" +
-        "· 🎛 解题模式：Flash（快、省）/ Reasoner（慢、准）随需切换\n" +
-        "· 🎯 练同类题：AI 出题并给出答案\n" +
-        "· 📚 错题本：两列瀑布流、全文搜索、科目 + 知识点标签、排序、长按批量处理\n" +
-        "· 🗂 自动归类：AI 判定科目与知识点（优先复用已有科目），打开旧题自动补齐；存题时查重\n" +
-        "· 📖 艾宾浩斯复习：0/1/2/4/7/15/30 天排期，熟悉 / 模糊 / 忘记，可筛选、可手写重做\n" +
-        "· 📊 学习统计：复习量、连续天数、掌握度、新增趋势（7 天 / 1 个月）、科目分布\n" +
-        "· 🔔 复习提醒：每日定时通知，点击直达复习\n" +
-        "· 🎨 主题与字号：浅色 / 深色 / 跟随系统，多套配色与自定义取色，全局字号可调\n" +
-        "· 🌐 多语言界面：简体 / 繁體 / English / 日本語 / 한국어（AI 生成语言另有更多选择）\n" +
-        "· 🔑 API Key 应用内填写：Android Keystore 加密，仅存本机；可看调用次数与 token 用量\n" +
-        "· 💾 数据管理：导出 / 导入 JSON 备份、自动备份（每日首次启动写入自选文件夹，保留最近 3 份）、清空数据\n" +
-        "· ⬆️ 应用更新：应用内检查、下载并校验（SHA-256 + 签名）"
+        "· 拍照或图文提问，最多 3 张图片；自动/手动框选与作答批改\n" +
+        "· 流式解答、附图追问、中止与继续生成、同类题练习；支持 KaTeX 公式（含矩阵）\n" +
+        "· 快速/思考模式均使用 deepseek-flash，分别关闭/开启思考\n" +
+        "· 错题本支持分类、标签、搜索、排序和批量处理\n" +
+        "· 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
+        "· 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
+        "· 间隔复习、学习统计（含新增趋势）与每日提醒；界面语言、主题和字号可调整\n" +
+        "· JSON 备份含原图和搜题记录，按题目编号去重；自动备份每天首次启动写到所选文件夹，保留最近 3 份，失败在设置中提示\n" +
+        "· AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
+        "· 应用内更新校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
-        "· 所有数据（题目、图片、会话、统计、崩溃日志）**只存在本机**：数据库用 Room，API Key 用 Android Keystore 加密\n" +
-        "· 应用**不接入任何自有服务器**，也不上传内容 —— 联网只用于调用你自己填写的 DeepSeek API，以及检查更新时访问 GitHub Releases 接口\n" +
-        "· 可随时在「数据管理」里导出 JSON 备份或清空全部数据"
+        "· 无账号、自有服务器或统计上报；错题、搜题记录和复习数据库保存在本机\n" +
+        "· AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
+        "· 标签整理 AI 分析发送完整标签的编号、名称与关联题数，不发送题目正文、答案或图片\n" +
+        "· 检查更新和下载安装包访问 GitHub，不携带题目内容；Key 在本机以 Android Keystore 加密，不经过开发者服务器\n" +
+        "· 自动备份只写入所选 SAF 文件夹，本应用不主动云同步；网盘文件夹可能由网盘应用自行同步。崩溃日志和分析诊断仅在手动导出时写到所选位置"
         ),
     "update.current" to "当前版本",
     "update.check" to "检查更新",
@@ -1823,31 +1828,24 @@ private val B10_EN = mapOf(
     "about.features" to "📋 Features",
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
-        "· 📷 Solve by photo: automatic pre-crop (local + AI in parallel, can be turned off in AI management) plus manual crop and pinch zoom\n" +
-        "· ✏️ Ask with text/image: text plus up to 3 photos, no camera needed\n" +
-        "· ✍️ Grading: photo of the question + your handwritten answer; the AI marks it and explains\n" +
-        "· 🕘 Search history: solved questions are kept automatically (latest 200 / 30 days); tap to continue asking, long-press to delete several\n" +
-        "· 🧠 Thinking stream: the model's reasoning in small grey text, collapsible and streaming\n" +
-        "· 📐 KaTeX rendering: integrals, fractions, matrices and more, plus readable symbols in lists\n" +
-        "· 💬 Follow-up questions with images; stop and continue generation\n" +
-        "· 🎛 Solve mode: switch between Flash (fast, cheap) and Reasoner (slow, accurate)\n" +
-        "· 🎯 Similar-question practice: the AI generates a question and its answer\n" +
-        "· 📚 Mistake notebook: two-column grid, full-text search, subjects + knowledge tags, sorting, long-press batch actions\n" +
-        "· 🗂 Auto categorising: the AI assigns subject and tags (reusing existing subjects); older entries are filled in on open; duplicate check on save\n" +
-        "· 📖 Spaced repetition: 0/1/2/4/7/15/30-day schedule with familiar / vague / forgot, filter by subject, redo by handwriting\n" +
-        "· 📊 Study stats: review counts, streaks, mastery, new-item trend (7 days / 1 month), subject breakdown\n" +
-        "· 🔔 Review reminders: a daily notification that opens review directly\n" +
-        "· 🎨 Theme & font size: light / dark / system, several palettes with a custom colour picker, global font scale\n" +
-        "· 🌐 Multi-language UI: 简体 / 繁體 / English / 日本語 / 한국어 (more AI output languages)\n" +
-        "· 🔑 API key entered in-app, encrypted with Android Keystore, stored locally only; call and token counters\n" +
-        "· 💾 Data management: export / import JSON backup, automatic backup (first launch of the day, keeps the latest 3), wipe data\n" +
-        "· ⬆️ App update: check, download and verify in-app (SHA-256 + signature)"
+        "· Ask by photo or text with up to 3 images; automatic/manual cropping and answer grading\n" +
+        "· Stream solutions, attach images to follow-ups, stop/resume, practise similar questions and render KaTeX formulas including matrices\n" +
+        "· Fast and thinking modes both use deepseek-flash, with thinking disabled/enabled respectively\n" +
+        "· Categorise, tag, search, sort and batch-manage notebook entries\n" +
+        "· History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
+        "· Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
+        "· Spaced review, study statistics including new-item trends and daily reminders; adjustable language, theme and font size\n" +
+        "· JSON backups include images and history and deduplicate by question ID; daily automatic backups use the selected folder, keep the latest 3 and show failures in settings\n" +
+        "· Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
+        "· In-app updates verify the signing certificate and SHA-256 when GitHub provides a digest"
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
-        "· All data (questions, images, conversations, stats, crash logs) **stays on this device**: Room for the database, Android Keystore for the API key\n" +
-        "· There is **no server of our own** and nothing is uploaded — the network is only used for the DeepSeek API you configured and for checking updates via the GitHub Releases API\n" +
-        "· Export a JSON backup or wipe everything at any time from Data management"
+        "· No accounts, developer backend or analytics reporting; notebook, history and review databases are stored locally\n" +
+        "· AI features send necessary question text, images, context, custom instructions, relevant category/label names and options directly to the official DeepSeek API, authenticated with your own key\n" +
+        "· AI label analysis sends the complete label IDs, names and linked-question counts, without question text, answers or images\n" +
+        "· Update checks and APK downloads access GitHub without question content. Keys are encrypted locally with Android Keystore and never routed through a developer server\n" +
+        "· Automatic backups only write to the chosen SAF folder; this app does not perform cloud sync. A cloud-drive app may sync its own folder. Crash logs and analysis diagnostics are written to a chosen location only on manual export"
         ),
     "update.current" to "Current version",
     "update.check" to "Check for updates",
@@ -1884,31 +1882,24 @@ private val B10_JA = mapOf(
     "about.features" to "📋 機能",
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
-        "· 📷 撮影検索：自動プリクロップ（ローカル＋AI 並列、AI 管理でオフ可）＋手動の枠取り・ピンチズーム\n" +
-        "· ✏️ 文字・画像で質問：テキスト＋最大 3 枚の写真（撮影不要）\n" +
-        "· ✍️ 添削：問題＋手書き解答の写真から AI が正誤を判定し解説\n" +
-        "· 🕘 検索履歴：解いた問題を自動保存（直近 200 件 / 30 日）。タップで続けて質問、長押しで複数削除\n" +
-        "· 🧠 思考ストリーム：薄いグレーの小文字で思考過程を表示（折りたたみ可・逐次表示）\n" +
-        "· 📐 KaTeX による数式組版：積分・分数・行列など。一覧でも読みやすい記号に変換\n" +
-        "· 💬 画像付きの追加質問／生成の中止と再開\n" +
-        "· 🎛 解答モード：Flash（速い・安い）/ Reasoner（遅い・正確）を切り替え\n" +
-        "· 🎯 類似問題演習：AI が出題し解答も提示\n" +
-        "· 📚 誤答ノート：2 列レイアウト・全文検索・科目＋知識タグ・並べ替え・長押しで一括操作\n" +
-        "· 🗂 自動分類：AI が科目とタグを判定（既存の科目を優先）。古い問題は開いた時に補完。保存時に重複チェック\n" +
-        "· 📖 間隔反復：0/1/2/4/7/15/30 日のスケジュール（熟悉 / 模糊 / 忘记）、科目で絞り込み、手書きで再挑戦\n" +
-        "· 📊 学習統計：復習数・連続日数・習熟度・新規推移（7 日 / 1 か月）・科目分布\n" +
-        "· 🔔 復習リマインダー：毎日通知、タップで復習へ\n" +
-        "· 🎨 テーマと文字サイズ：ライト / ダーク / システム、複数パレットとカスタムカラー、全体の文字サイズ\n" +
-        "· 🌐 多言語 UI：简体 / 繁體 / English / 日本語 / 한국어（AI の出力言語はさらに選択可）\n" +
-        "· 🔑 API キーはアプリ内で入力し Android Keystore に暗号化保存（呼び出し回数と token 使用量を表示）\n" +
-        "· 💾 データ管理：JSON のエクスポート / インポート、自動バックアップ（当日初回起動時に指定フォルダへ直近 3 件）、全消去\n" +
-        "· ⬆️ アプリ更新：アプリ内で確認・ダウンロード・検証（SHA-256＋署名）"
+        "· 撮影・文字と最大3枚の画像で質問。自動/手動の切り抜きと解答添削\n" +
+        "· 逐次解答、画像付き追加質問、生成の中止・再開、類似問題演習、KaTeX数式（行列など）\n" +
+        "· 高速/思考モードは共に deepseek-flash を使用し、思考を無効/有効に切り替え\n" +
+        "· 誤答ノートの分類・タグ・検索・並べ替え・一括操作\n" +
+        "· 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
+        "· AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
+        "· 間隔復習・学習統計（新規推移）・毎日の通知。言語・テーマ・文字サイズを変更可能\n" +
+        "· 画像と履歴を含むJSONバックアップを問題番号で重複排除。自動保存は当日初回起動時に選択先へ直近3件を保持し、失敗を設定に表示\n" +
+        "· AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
+        "· 更新時に署名を検証し、GitHubがダイジェストを提供する場合はSHA-256も照合"
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
-        "· すべてのデータ（問題・画像・会話・統計・クラッシュログ）は**端末内のみ**に保存：DB は Room、API キーは Android Keystore で暗号化\n" +
-        "· **独自のサーバーは持たず**、内容をアップロードしません —— 通信はご自身で設定した DeepSeek API と、更新確認の GitHub Releases API のみに使います\n" +
-        "· 「データ管理」からいつでも JSON バックアップの書き出しや全データ削除ができます"
+        "· アカウント・開発者サーバー・解析データ送信なし。ノート・履歴・復習のDBは端末に保存\n" +
+        "· AI機能は必要な問題文・画像・文脈・カスタム指示・関連する分類/タグ名・設定をDeepSeek公式APIへ直接送信し、自分のキーで認証\n" +
+        "· タグ分析では全タグの番号・名称・関連問題数を送信。問題本文・解答・画像は送信しない\n" +
+        "· 更新確認とAPK取得はGitHubにアクセスし、問題内容は送信しない。キーはAndroid Keystoreで端末に暗号化保存し、開発者サーバーを経由しない\n" +
+        "· 自動バックアップは選択したSAFフォルダーへの書き込みのみで、本アプリはクラウド同期しない。クラウドアプリ側が同期する場合あり。クラッシュログと分析診断は手動出力時のみ選択先に書き込む"
         ),
     "update.current" to "現在のバージョン",
     "update.check" to "更新を確認",
@@ -1945,31 +1936,24 @@ private val B10_KO = mapOf(
     "about.features" to "📋 기능",
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
-        "· 📷 사진으로 질문: 자동 사전 크롭(로컬 + AI 병렬, AI 관리에서 끄기 가능) + 수동 크롭·핀치 줌\n" +
-        "· ✏️ 글·이미지 질문: 글 + 최대 3장의 사진(촬영 불필요)\n" +
-        "· ✍️ 첨삭: 문제 + 손글씨 답안 사진으로 AI가 정오를 판단하고 설명\n" +
-        "· 🕘 검색 기록: 푼 문제를 자동 보관(최근 200건 / 30일). 탭하면 이어서 질문, 길게 누르면 여러 개 삭제\n" +
-        "· 🧠 사고 과정: 연한 회색 작은 글씨로 추론 과정 표시(접기 가능, 실시간)\n" +
-        "· 📐 KaTeX 수식 조판: 적분·분수·행렬 등. 목록에서도 읽기 쉬운 기호로 변환\n" +
-        "· 💬 이미지 첨부 추가 질문 / 생성 중지와 재개\n" +
-        "· 🎛 풀이 모드: Flash(빠름·저렴) / Reasoner(느림·정확) 전환\n" +
-        "· 🎯 유사 문제 연습: AI가 출제하고 해답 제시\n" +
-        "· 📚 오답노트: 2열 배치·전체 검색·과목 + 지식 태그·정렬·길게 눌러 일괄 처리\n" +
-        "· 🗂 자동 분류: AI가 과목과 태그를 판정(기존 과목 우선), 오래된 문제는 열 때 보완, 저장 시 중복 확인\n" +
-        "· 📖 간격 반복: 0/1/2/4/7/15/30일 일정(익숙 / 애매 / 모름), 과목 필터, 손글씨로 다시 풀기\n" +
-        "· 📊 학습 통계: 복습 수·연속 일수·숙련도·신규 추이(7일 / 1개월)·과목 분포\n" +
-        "· 🔔 복습 알림: 매일 알림, 탭하면 복습으로 이동\n" +
-        "· 🎨 테마와 글자 크기: 라이트 / 다크 / 시스템, 여러 팔레트와 사용자 색, 전체 글자 크기\n" +
-        "· 🌐 다국어 UI: 简体 / 繁體 / English / 日本語 / 한국어 (AI 출력 언어는 더 많이 선택 가능)\n" +
-        "· 🔑 API 키는 앱 내 입력, Android Keystore로 암호화해 기기에만 저장(호출 횟수와 token 사용량 표시)\n" +
-        "· 💾 데이터 관리: JSON 내보내기 / 가져오기, 자동 백업(그날 첫 실행 시 지정 폴더에 최근 3개), 전체 삭제\n" +
-        "· ⬆️ 앱 업데이트: 앱 내 확인·다운로드·검증(SHA-256 + 서명)"
+        "· 사진 또는 글과 최대 3장의 이미지로 질문. 자동/수동 자르기와 답안 채점\n" +
+        "· 스트리밍 풀이, 이미지 후속 질문, 생성 중지·계속, 유사 문제 연습 및 KaTeX 수식(행렬 등)\n" +
+        "· 빠른/사고 모드는 모두 deepseek-flash를 사용하며 사고를 각각 끄거나 켬\n" +
+        "· 오답의 분류·태그·검색·정렬·일괄 관리\n" +
+        "· 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
+        "· AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
+        "· 간격 복습·학습 통계(신규 추이)·매일 알림. 언어·테마·글꼴 크기 조정\n" +
+        "· 이미지와 기록을 포함하는 JSON 백업을 문제 번호로 중복 제거. 자동 백업은 매일 첫 실행 때 선택한 폴더에 최근 3개를 유지하고 실패를 설정에 표시\n" +
+        "· 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
+        "· 업데이트의 서명 인증서를 확인하고 GitHub가 해시를 제공하면 SHA-256도 대조"
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (
-        "· 모든 데이터(문제, 이미지, 대화, 통계, 크래시 로그)는 **기기에만** 저장됩니다: DB는 Room, API 키는 Android Keystore로 암호화\n" +
-        "· **자체 서버가 없고** 내용을 업로드하지 않습니다 —— 네트워크는 직접 입력한 DeepSeek API와 업데이트 확인을 위한 GitHub Releases API에만 사용됩니다\n" +
-        "· 「데이터 관리」에서 언제든 JSON 백업을 내보내거나 모든 데이터를 삭제할 수 있습니다"
+        "· 계정·개발자 서버·분석 정보 전송이 없으며 오답·기록·복습 DB는 기기에 저장\n" +
+        "· AI 기능은 필요한 문제 글·이미지·문맥·사용자 지시·관련 분류/태그 이름·설정을 DeepSeek 공식 API로 직접 보내고 본인의 키로 인증\n" +
+        "· 태그 분석은 전체 태그 번호·이름·연결 문제 수를 보내며 문제 본문·답안·이미지는 보내지 않음\n" +
+        "· 업데이트 확인과 APK 다운로드는 문제 내용을 보내지 않고 GitHub에 접근. 키는 Android Keystore로 로컬 암호화하며 개발자 서버를 거치지 않음\n" +
+        "· 자동 백업은 선택한 SAF 폴더에만 쓰며 앱 자체는 클라우드 동기화를 하지 않음. 클라우드 앱이 자체 폴더를 동기화할 수 있음. 크래시 로그와 분석 진단은 수동 내보내기 때만 선택한 위치에 기록"
         ),
     "update.current" to "현재 버전",
     "update.check" to "업데이트 확인",
@@ -2263,7 +2247,87 @@ private val B11_KO = mapOf(
     "tagMerge.applied" to "병합 반영 완료: 태그 {n}개 감소, 문제 {q}개에 적용.",
     "tagMerge.undone" to "마지막 병합을 취소하고 문제 {q}개의 태그 연결을 복원했습니다."
 )
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO
+private val B12_ZH = mapOf(
+    "about.tech" to "技术与兼容",
+    "about.tech.body" to "最低 Android API {api} · DB v{db} · 备份 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "tagMerge.diagnosticPrivacy" to "本机仅保留最近 20 次分析的编号、耗时、模式、状态码及分组数量等诊断；不含标签名称、题目、响应原文或密钥。只有手动导出才写到所选位置。",
+    "tagMerge.diagnosticId" to "最近诊断编号：{id}",
+    "tagMerge.exportDiagnostics" to "导出分析诊断",
+    "tagMerge.clearDiagnostics" to "清空分析诊断",
+    "tagMerge.clearDiagnosticsConfirm" to "只删除分析诊断，不修改草稿、标签或错题。确定清空？",
+    "tagMerge.diagnosticUnavailable" to "诊断记录无法读取或保存，分析结果不受影响。可清空诊断后重试。",
+    "tagMerge.diagnosticExported" to "分析诊断已导出。",
+    "tagMerge.diagnosticExportFailed" to "诊断导出失败，请检查所选位置的空间与权限。",
+    "tagMerge.draftSaving" to "正在保存草稿…",
+    "tagMerge.draftSaved" to "草稿已保存在本机。",
+    "tagMerge.draftRestored" to "已恢复本机草稿；请重新预览后再合并。",
+    "tagMerge.draftSaveFailed" to "草稿保存失败，当前修改仅留在内存中，请勿关闭应用。",
+    "tagMerge.draftStale" to "当前标签已变化，旧草稿未恢复；重新编辑保存将覆盖旧草稿。",
+    "tagMerge.draftUnreadable" to "无法读取旧草稿，文件已保留；重新编辑保存将覆盖旧草稿。",
+    "tagMerge.discardDraft" to "放弃草稿",
+    "tagMerge.discardDraftConfirm" to "只删除整理草稿，不修改错题或标签。确定放弃？"
+)
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH
+private val B12_EN = mapOf(
+    "about.tech" to "Technology & compatibility",
+    "about.tech.body" to "Minimum Android API {api} · DB v{db} · Backup v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "tagMerge.diagnosticPrivacy" to "Only the last 20 local diagnostics are kept: ID, duration, mode, HTTP status and group counts. No label names, questions, raw responses or keys. Files leave app storage only through manual export.",
+    "tagMerge.diagnosticId" to "Latest diagnostic ID: {id}",
+    "tagMerge.exportDiagnostics" to "Export analysis diagnostics",
+    "tagMerge.clearDiagnostics" to "Clear analysis diagnostics",
+    "tagMerge.clearDiagnosticsConfirm" to "Remove diagnostics only? Drafts, labels and questions will not change.",
+    "tagMerge.diagnosticUnavailable" to "Diagnostics could not be read or saved. Analysis results are unaffected. Clear diagnostics to retry.",
+    "tagMerge.diagnosticExported" to "Analysis diagnostics exported.",
+    "tagMerge.diagnosticExportFailed" to "Export failed. Check free space and access at the selected location.",
+    "tagMerge.draftSaving" to "Saving draft…",
+    "tagMerge.draftSaved" to "Draft saved on this device.",
+    "tagMerge.draftRestored" to "Local draft restored. Preview again before merging.",
+    "tagMerge.draftSaveFailed" to "Draft could not be saved. Current edits are only in memory; keep the app open.",
+    "tagMerge.draftStale" to "Labels have changed. The old draft was not restored; saving new edits will replace it.",
+    "tagMerge.draftUnreadable" to "The old draft could not be read and was retained. Saving new edits will replace it.",
+    "tagMerge.discardDraft" to "Discard draft",
+    "tagMerge.discardDraftConfirm" to "Only the draft will be removed. Questions and labels stay unchanged. Discard it?"
+)
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN
+private val B12_JA = mapOf(
+    "about.tech" to "技術と互換性",
+    "about.tech.body" to "最低 Android API {api} · DB v{db} · バックアップ v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "tagMerge.diagnosticPrivacy" to "端末に直近20回の番号・所要時間・モード・状態コード・候補数などのみを保持。タグ名・問題・応答原文・キーは含みません。手動出力時のみ選択先へ書き込みます。",
+    "tagMerge.diagnosticId" to "直近の診断番号：{id}",
+    "tagMerge.exportDiagnostics" to "分析診断を出力",
+    "tagMerge.clearDiagnostics" to "分析診断を消去",
+    "tagMerge.clearDiagnosticsConfirm" to "診断のみ削除します。下書き・タグ・問題は変更しません。消去しますか？",
+    "tagMerge.diagnosticUnavailable" to "診断を読み取り・保存できません。分析結果には影響しません。診断を消去して再試行できます。",
+    "tagMerge.diagnosticExported" to "分析診断を出力しました。",
+    "tagMerge.diagnosticExportFailed" to "出力に失敗しました。保存先の空き容量と権限を確認してください。",
+    "tagMerge.draftSaving" to "下書きを保存中…",
+    "tagMerge.draftSaved" to "下書きを端末に保存しました。",
+    "tagMerge.draftRestored" to "下書きを復元しました。統合前に再度プレビューしてください。",
+    "tagMerge.draftSaveFailed" to "下書きを保存できません。編集はメモリ内のみです。アプリを閉じないでください。",
+    "tagMerge.draftStale" to "タグが変更されたため旧下書きは復元していません。新しい編集を保存すると上書きされます。",
+    "tagMerge.draftUnreadable" to "旧下書きを読めません。ファイルは保持しています。新しい編集の保存で上書きされます。",
+    "tagMerge.discardDraft" to "下書きを破棄",
+    "tagMerge.discardDraftConfirm" to "整理の下書きだけを削除し、問題やタグは変更しません。破棄しますか？"
+)
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA
+private val B12_KO = mapOf(
+    "about.tech" to "기술 및 호환성",
+    "about.tech.body" to "최소 Android API {api} · DB v{db} · 백업 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "tagMerge.diagnosticPrivacy" to "기기에 최근 20회 진단 번호·시간·모드·상태 코드·그룹 수만 보관합니다. 태그 이름·문제·응답 원문·키는 포함하지 않으며 수동 내보내기 때만 선택한 위치에 씁니다.",
+    "tagMerge.diagnosticId" to "최근 진단 번호: {id}",
+    "tagMerge.exportDiagnostics" to "분석 진단 내보내기",
+    "tagMerge.clearDiagnostics" to "분석 진단 지우기",
+    "tagMerge.clearDiagnosticsConfirm" to "진단만 삭제하며 초안·태그·문제는 변경하지 않습니다. 지울까요?",
+    "tagMerge.diagnosticUnavailable" to "진단을 읽거나 저장하지 못했습니다. 분석 결과에는 영향이 없습니다. 진단을 지우고 다시 시도할 수 있습니다.",
+    "tagMerge.diagnosticExported" to "분석 진단을 내보냈습니다.",
+    "tagMerge.diagnosticExportFailed" to "내보내기 실패. 선택한 위치의 공간과 권한을 확인하세요.",
+    "tagMerge.draftSaving" to "초안 저장 중…",
+    "tagMerge.draftSaved" to "이 기기에 초안을 저장했습니다.",
+    "tagMerge.draftRestored" to "로컬 초안을 복원했습니다. 병합 전에 다시 미리 보세요.",
+    "tagMerge.draftSaveFailed" to "초안을 저장하지 못했습니다. 편집은 메모리에만 있으므로 앱을 닫지 마세요.",
+    "tagMerge.draftStale" to "태그가 변경되어 이전 초안을 복원하지 않았습니다. 새 편집을 저장하면 덮어씁니다.",
+    "tagMerge.draftUnreadable" to "이전 초안을 읽지 못해 파일을 유지했습니다. 새 편집을 저장하면 덮어씁니다.",
+    "tagMerge.discardDraft" to "초안 버리기",
+    "tagMerge.discardDraftConfirm" to "정리 초안만 삭제하며 문제나 태그는 변경하지 않습니다. 버릴까요?"
+)
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO

@@ -1,11 +1,11 @@
 ﻿#Requires -Version 5.1
 # Run from any directory. Builds/tests only; never re-signs for release, pushes, installs or publishes.
-param([switch]$Release)
+param([switch]$Release, [switch]$CompileAndroidTests)
 $ErrorActionPreference = 'Stop'
 $checkRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $checkFolder = Join-Path $checkRoot ('app\build\checks\' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 [IO.Directory]::CreateDirectory($checkFolder) | Out-Null
-$checkReport = [ordered]@{ success = $false; releaseBuild = [bool]$Release; steps = @() }
+$checkReport = [ordered]@{ success = $false; releaseBuild = [bool]$Release; compileAndroidTests = [bool]$CompileAndroidTests; steps = @() }
 
 function Invoke-ProjectCheck([string]$Name, [string]$Executable, [string[]]$Arguments) {
     $stepLog = Join-Path $checkFolder ($Name + '.log')
@@ -35,6 +35,7 @@ try {
     Invoke-ProjectCheck 'tool-tests' 'python' @('-B', '-m', 'unittest', 'discover', '-s', 'tools/tests', '-p', 'test_*.py')
     $gradleTasks = @('testDebugUnitTest')
     if ($Release) { $gradleTasks += 'assembleRelease' }
+    if ($CompileAndroidTests) { $gradleTasks += @('assembleIntegration', 'assembleIntegrationAndroidTest') }
     $gradleArguments = $gradleTasks + @('--console=plain', '-Pkotlin.compiler.execution.strategy=in-process')
     Invoke-ProjectCheck 'gradle' (Join-Path $checkRoot 'gradlew.bat') $gradleArguments
     Invoke-ProjectCheck 'sqlite' 'python' @('-B', 'tools/verify-identity-migration.py')
