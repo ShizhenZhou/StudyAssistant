@@ -103,7 +103,16 @@ if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDi
 
 $verLine = Select-String -Path (Join-Path $repoRoot 'app\build.gradle.kts') -Pattern 'val appVersionName\s*=\s*"([^"]+)"'
 $ver = if ($verLine) { $verLine.Matches[0].Groups[1].Value } else { 'unknown' }
-$ts = (Get-Date).ToString('yyyyMMddHHmm')
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$stampArchive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($InApk))
+try {
+    $stampEntry = $stampArchive.GetEntry('assets/build-time-utc.txt')
+    if (-not $stampEntry) { throw 'APK has no UTC build identity. Rebuild before signing.' }
+    $stampReader = [IO.StreamReader]::new($stampEntry.Open())
+    try { $ts = $stampReader.ReadToEnd().Trim() } finally { $stampReader.Dispose() }
+    if ($ts -notmatch '^[0-9]{14}$') { throw 'Invalid APK UTC build identity.' }
+    [DateTime]::ParseExact($ts, 'yyyyMMddHHmmss', [Globalization.CultureInfo]::InvariantCulture) | Out-Null
+} finally { $stampArchive.Dispose() }
 $out = Join-Path $OutDir ("StudyAssistant-$ver-$ts.apk")
 
 Write-Step "输入：$InApk"

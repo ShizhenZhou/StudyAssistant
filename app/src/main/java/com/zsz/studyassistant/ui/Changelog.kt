@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.7
+· 💾 保存失败保留待保存副本，支持重启恢复、重试及手动导出；恢复冲突不覆盖，明确放弃才清除副本
+· 🛠 退出错题页仅保存题干、答案和对话，保留当前分类、标签与复习状态；导入或清空前先处理未保存内容
+· 🔒 移除 AI 原始响应调试日志
+· ⬆️ 同版本更新按 APK 的 UTC 构建时间比较，附件命名与内嵌时间统一；旧包使用摘要兜底，相同内容不重复提示
+· 🧪 严格 JVM 单测，标签发版与手动检查可在独立模拟器实际运行 Android 数据测试；DB v10 / Bak v3 不变
+
 v0.6.6.6
 · ℹ️ 校准关于页与项目介绍：最低 Android 9，快速/思考均使用 deepseek-flash；准确说明题干和图片直发官方 API、标签分析范围及本地导出
 · 💾 自动备份失败在设置页保留原因与时间，成功写入并读回校验后清除警示；切换文件夹重置状态，启动不增加弹窗
@@ -384,6 +391,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.7
+· 💾 Retain recovery copies after save failures; restart recovery, retry and manual export preserve conflicting edits until explicitly discarded
+· 🛠 Leaving a notebook entry saves answer content only, preserving current category, tags and review state; resolve pending saves before import or clearing
+· 🔒 Remove raw AI response debug logging
+· ⬆️ Compare same-version APKs by embedded UTC build time matching their filenames; digest fallback supports legacy APKs and avoids identical-content prompts
+· 🧪 Strict JVM tests and isolated emulator data tests on release tags or manual checks; DB v10 / Bak v3 unchanged
+
 v0.6.6.6
 · ℹ️ Update About and project documentation: Android 9 minimum, fast/thinking modes share deepseek-flash, and clarify direct AI requests, label analysis scope and local exports
 · 💾 Backup failures retain a reason and time in settings; a verified successful write clears the warning. Changing folders resets status, with no new startup dialog
@@ -763,6 +777,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.7
+· 💾 保存失敗時のコピーを保持し、再起動後の復元・再試行・手動書き出しに対応。競合を上書きせず、明示的な破棄まで保持
+· 🛠 ノート終了時は問題・解答・会話のみ保存し、分類・タグ・復習状態を維持。インポートや全消去前に未保存内容を処理
+· 🔒 AI応答原文のデバッグログを削除
+· ⬆️ 同一バージョンはAPK内のUTCビルド時刻で比較し、添付名と統一。旧APKはハッシュで判定し、同じ内容を再通知しない
+· 🧪 厳密なJVMテストと、リリースタグ・手動確認時の独立エミュレータによるデータテスト。DB v10 / Bak v3は変更なし
+
 v0.6.6.6
 · ℹ️ アプリ情報と説明を更新。最低Android 9、高速/思考共にdeepseek-flashを使用し、AIへの直接送信・タグ分析範囲・ローカル出力を明記
 · 💾 バックアップ失敗の理由と時刻を設定に保持。書き込みと読み戻し検証に成功すると警告を解除。保存先変更で状態をリセットし、起動時のダイアログは追加なし
@@ -1142,6 +1163,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.7
+· 💾 저장 실패 시 복구 사본을 보관하고 재시작 복구·재시도·수동 내보내기를 지원. 충돌하는 편집은 덮어쓰지 않으며 명시적으로 버릴 때만 사본 삭제
+· 🛠 오답 화면 종료 시 문제·답변·대화만 저장하여 현재 분류·태그·복습 상태 유지. 가져오기·전체 삭제 전에 미저장 내용 처리
+· 🔒 AI 응답 원문 디버그 로그 제거
+· ⬆️ 같은 버전은 APK에 내장된 UTC 빌드 시각으로 비교하고 파일명과 통일. 기존 APK는 해시로 판단하며 같은 내용은 다시 알리지 않음
+· 🧪 엄격한 JVM 테스트 및 릴리스 태그·수동 검사 시 독립 에뮬레이터 데이터 테스트. DB v10 / Bak v3 유지
+
 v0.6.6.6
 · ℹ️ 앱 정보와 설명 갱신: 최소 Android 9, 빠른/사고 모드의 deepseek-flash 공유 및 AI 직접 전송·태그 분석 범위·로컬 내보내기를 명확히 안내
 · 💾 백업 실패 원인과 시간을 설정에 유지하고 쓰기·읽기 검증 성공 후 경고를 해제. 폴더 변경 시 상태를 초기화하며 시작 팝업은 추가하지 않음

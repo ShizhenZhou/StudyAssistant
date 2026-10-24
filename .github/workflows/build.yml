@@ -12,6 +12,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      android_tests:
+        description: Run isolated Android tests on a CI emulator
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -104,6 +109,17 @@ jobs:
       - name: 校验数据库迁移与 Room 表结构
         run: python3 tools/verify-identity-migration.py
 
+      - name: 提供独立测试 APK（tag 或手动设备检查）
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.android_tests)
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-apks
+          path: |
+            app/build/outputs/apk/integration/app-integration.apk
+            app/build/outputs/apk/androidTest/integration/app-integration-androidTest.apk
+          if-no-files-found: error
+          retention-days: 3
+
       # AGP 的 signingConfig 不支持 lineage → 构建后用 apksigner 补上（v3-only）
       # ★ 2026-10-13：必须同时要求"是 tag 推送"——分支推送按 A 方案不再编译 release，
       #   只判断 SIGNED_READY 会让这一步去找不存在的 app-release.apk 而报 FileNotFoundException（曾真实发生）。
@@ -116,7 +132,9 @@ jobs:
           VER=$(grep -oP 'val appVersionName = "\K[^"]+' app/build.gradle.kts)
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           mkdir -p signed
-          OUT="signed/StudyAssistant-${VER}-$(date -u +%Y%m%d%H%M).apk"
+          STAMP=$(unzip -p app/build/outputs/apk/release/app-release.apk assets/build-time-utc.txt)
+          [[ "$STAMP" =~ ^[0-9]{14}$ ]] || { echo "::error::Invalid APK UTC build identity"; exit 1; }
+          OUT="signed/StudyAssistant-${VER}-${STAMP}.apk"
           "$BT/apksigner" sign \
             --ks keys/release.p12 --ks-key-alias studyassistant \
             --ks-pass env:KS_PASS --key-pass env:KS_PASS \
@@ -163,5 +181,42 @@ jobs:
           path: |
             app/build/reports/tests/testDebugUnitTest/
             app/build/test-results/testDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  android-device:
+    name: Android emulator tests
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.android_tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: integration-apks
+          path: app/build/outputs/apk
+      - name: Enable KVM on the disposable CI runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Execute isolated tests on Android 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          emulator-port: 5554
+          disable-animations: true
+          script: |
+            "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" >/dev/null
+            python3 -B tools/run-android-integration.py --serial emulator-5554 --expected-tests 16
+      - name: Save Android test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-log
+          path: app/build/android-integration/instrumentation.log
           if-no-files-found: ignore
           retention-days: 7

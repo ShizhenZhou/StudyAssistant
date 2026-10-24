@@ -6,7 +6,7 @@
 - `-CompileAndroidTests` 额外编译独立集成测试包；`-Release` 额外构建 release。两个开关可同时使用，所有 Gradle 任务合并为一次调用。
 - 排查某个用例时，可先运行 `./gradlew.bat testDebugUnitTest --tests "完整测试类名"`；该结果只代表选中的测试，合并/发版前仍需完整检查。
 - 缓存命中可以复用结果，不强制 clean 或 rerun-tasks。测试直接读取的 README、构建脚本与公式资源显式声明为输入；迁移校验所需文件显式声明为输出。
-- `unitTests.isReturnDefaultValues` 目前仍开启，纯 JVM 检查不证明真实 Android API 行为正确；文件、Room 和 SAF 场景另由隔离 Android 集成测试覆盖。
+- JVM 单测禁止 Android 桩方法静默返回默认值；意外框架调用直接失败，文件、Room 和 SAF 场景由隔离 Android 集成测试实际验证。
 
 ## CI
 
@@ -18,7 +18,7 @@
 - main / Develop 的可信 push 可以保存 Gradle 缓存，PR / tag 只读。默认分支缓存可供其他 ref 恢复；Develop 缓存主要供 Develop 后续构建使用，不能保证 main 直接命中它。
 - 同一分支的过期 run 可以取消；不同分支与 tag 不互相取消，tag 不中途取消。构建超时 20 分钟，Windows 工具检查 8 分钟；失败保留 JVM 报告 7 天。
 - 保留 main、Develop 与 tag 各自的完整检查；本轮不做跨分支跳测。PR 的合并测试提交也不等同于分支原提交。
-- 集成测试包“可编译”和 11 项 Android 测试“已运行”是两回事；目前没有自动启动模拟器的 CI。设备执行使用 `tools/run-android-tests.ps1 -Serial emulator-...`，只接收已运行的本机模拟器。
+- v* 标签或手动输入 android_tests=true 时，在独立 Android 35 模拟器实际执行 16 项集成测试。复用 build 任务产出的两个 APK，不重复编译；检查设备、包名、instrumentation target 和通过数量。普通分支仅编译测试包。本机入口 tools/run-android-tests.ps1 只接受模拟器，禁止用户手机作为夹具。
 
 当前配置不再监听 multi_questions。旧分支按用户要求保持原样：若以后向它推送代码，GitHub 使用该分支自身旧工作流，它仍可能触发旧 CI；需要改旧分支时再单独处理。
 

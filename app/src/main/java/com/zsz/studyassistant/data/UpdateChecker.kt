@@ -108,22 +108,15 @@ object UpdateChecker {
         null
     }
 
-    /**
-     * **同一版本的新构建**判定（2026-09-25 用户要求：替换同名附件后也要能被发现）。
-     * 条件（保守，避免误报）：
-     *   ① 发布物上传时间**晚于**本机安装时间（多留 60s 余量，规避时钟误差）；
-     *   ② 若 API 给了 digest 且能算出本机 APK 的 SHA-256，则**内容必须确实不同**；
-     *      两者都拿不到时退化为"仅按时间判断"。
-     * 这样：替换附件后能被发现；而正常安装（APK 内容与发布物一致）不会反复提示更新。
-     */
-    fun sameVersionNewBuild(context: Context, rel: ReleaseInfo): Boolean {
-        val installedAt = installedLastUpdateTime(context)
-        if (installedAt <= 0L) return false
-        if (rel.assetUploadedAt > 0L && rel.assetUploadedAt <= installedAt + 60_000L) return false
-        val mine = installedApkSha256(context)
-        if (mine != null && rel.assetSha256 != null) return !mine.equals(rel.assetSha256, ignoreCase = true)
-        return true
-    }
+    /** New APKs embed the same UTC timestamp used in their attachment name. Legacy APKs use digest fallback. */
+    fun installedBuildTime(context: Context): Long = try {
+        context.assets.open("build-time-utc.txt").bufferedReader(Charsets.UTF_8).use { BuildIdentity.parseStamp(it.readText().trim()) }
+    } catch (_: Exception) { 0L }
+
+    fun sameVersionNewBuild(context: Context, rel: ReleaseInfo): Boolean = BuildIdentity.isReplacement(
+        installedBuildTime(context), BuildIdentity.assetTime(rel.assetName, rel.version),
+        installedApkSha256(context), rel.assetSha256
+    )
 
     /** 是否有更新：**版本更高**，或**同一版本但发布物是更晚的新构建** */
     fun hasUpdate(context: Context, rel: ReleaseInfo): Boolean {
@@ -225,9 +218,10 @@ object UpdateChecker {
                 // 附件：优先 StudyAssistant-*.apk，其次任意 .apk
                 val assets = root["assets"]?.jsonArray ?: return@withContext null
                 val objs = assets.mapNotNull { it as? JsonObject }
-                val asset = objs.firstOrNull { it["name"]?.jsonPrimitive?.content?.startsWith("StudyAssistant-") == true }
-                    ?: objs.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
-                    ?: return@withContext null
+                val apks = objs.filter { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
+                val asset = apks.filter { it["name"]?.jsonPrimitive?.content?.startsWith("StudyAssistant-") == true }
+                    .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, normalizeVersion(tag)) }
+                    ?: apks.firstOrNull() ?: return@withContext null
                 val name = asset["name"]?.jsonPrimitive?.content.orEmpty()
                 val url = asset["browser_download_url"]?.jsonPrimitive?.content.orEmpty()
                 val size = asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L

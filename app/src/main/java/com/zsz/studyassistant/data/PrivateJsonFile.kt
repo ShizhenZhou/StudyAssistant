@@ -10,15 +10,17 @@ internal class PrivateJsonFile(private val path: File, private val maxBytes: Int
         val atomic = AtomicFile(path)
         if (!path.exists() && !File(path.path + ".bak").exists()) return@synchronized null
         atomic.openRead().use { input ->
-            val bytes = ByteArray(maxBytes + 1)
+            val bytes = ByteArray(8192)
+            val output = java.io.ByteArrayOutputStream(minOf(maxBytes, 8192))
             var count = 0
-            while (count < bytes.size) {
-                val read = input.read(bytes, count, bytes.size - count)
+            while (true) {
+                val read = input.read(bytes)
                 if (read < 0) break
                 count += read
+                require(count <= maxBytes) { "Local metadata too large" }
+                output.write(bytes, 0, read)
             }
-            require(count <= maxBytes) { "Local metadata too large" }
-            String(bytes, 0, count, Charsets.UTF_8)
+            output.toString(Charsets.UTF_8.name())
         }
     }
     fun write(text: String) = synchronized(lock) {

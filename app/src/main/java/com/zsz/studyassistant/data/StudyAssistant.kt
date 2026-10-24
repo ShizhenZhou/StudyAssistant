@@ -307,7 +307,6 @@ object StudyAssistant {
             )
         )
         val sb = StringBuilder()
-        var rawLogged = 0
         var usage: DeepSeekUsage? = null
         activeStreamBody = body
         try {
@@ -320,7 +319,6 @@ object StudyAssistant {
                     if (line.isEmpty() || !line.startsWith("data:")) continue
                     val payload = line.substring(5).trim()
                     if (payload == "[DONE]") break
-                    runCatching { if (rawLogged < 6) { rawLogged++; android.util.Log.d("dsh-raw", payload) } }
                     val chunk = runCatching { streamJson.decodeFromString<StreamChunk>(payload) }.getOrNull() ?: continue
                     chunk.usage?.let { usage = it }
                     val d = chunk.choices.firstOrNull()?.delta

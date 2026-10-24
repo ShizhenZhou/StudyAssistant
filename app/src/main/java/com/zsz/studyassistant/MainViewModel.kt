@@ -329,6 +329,134 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var retryingHistoryWrites by mutableStateOf(false)
         private set
+    private val pendingSaveStore = com.zsz.studyassistant.data.PendingSaveStore(app)
+    private val pendingSaveRepository = com.zsz.studyassistant.data.PendingSaveRepository(AppDatabase.get(app), pendingSaveStore)
+    private val pendingNotebookContent = linkedMapOf<QuestionId, com.zsz.studyassistant.data.SavePayload>()
+    var hasSaveActivity by mutableStateOf(false)
+        private set
+    var saveRecoveryReady by mutableStateOf(false)
+        private set
+    var pendingSaveCount by mutableStateOf(0)
+        private set
+    var saveJournalIssue by mutableStateOf(false)
+        private set
+    var saveOperations by mutableStateOf(0)
+        private set
+    var saveRevision by mutableStateOf(0L)
+        private set
+    var saveFeedback by mutableStateOf<String?>(null)
+        private set
+
+    init {
+        viewModelScope.launch {
+            solveSessionWriteMutex.withLock {
+                try {
+                    val scan = withContext(Dispatchers.IO) { pendingSaveStore.scan() }
+                    hasSaveActivity = scan.entries.isNotEmpty() || scan.unreadable > 0
+                    pendingSaveRepository.retryAll(historyCutoff())
+                }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { saveJournalIssue = true }
+                refreshPendingSaveState()
+            }
+        }
+    }
+
+    private fun historyCutoff() = System.currentTimeMillis() - SOLVE_SESSION_KEEP_DAYS * DAY_MS
+    private suspend fun refreshPendingSaveState() {
+        try {
+            val scan = withContext(Dispatchers.IO) { pendingSaveStore.scan() }
+            val durable = scan.entries.map { "${it.target}:${it.payload.id}" }.toSet()
+            val keys = durable.toMutableSet()
+            historyWriteQueue.failedTickets().forEach { keys += "HISTORY:${it.row.id}" }
+            pendingNotebookContent.keys.forEach { keys += "NOTEBOOK:$it" }
+            pendingSaveCount = keys.size
+            val copies = scan.entries.associateBy { "${it.target}:${it.payload.id}" }
+            val memory = historyWriteQueue.failedTickets().associate { "HISTORY:${it.row.id}" to
+                com.zsz.studyassistant.data.SavePayload.history(it.row) } +
+                pendingNotebookContent.values.associate { "NOTEBOOK:${it.id}" to it }
+            saveRecoveryReady = scan.unreadable == 0 && memory.all { (key, payload) ->
+                copies[key]?.payload == payload
+            }
+            saveJournalIssue = scan.unreadable > 0
+        } catch (_: Exception) { saveJournalIssue = true }
+        saveRevision++
+    }
+
+    private fun queueNotebookSave(payload: com.zsz.studyassistant.data.SavePayload) {
+        hasSaveActivity = true
+        pendingNotebookContent[payload.id] = payload
+        viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            withContext(kotlinx.coroutines.NonCancellable) { persistNotebookContent(payload) }
+        }
+    }
+    private suspend fun persistNotebookContent(payload: com.zsz.studyassistant.data.SavePayload) {
+        saveOperations++
+        try {
+            solveSessionWriteMutex.withLock {
+                if (pendingNotebookContent[payload.id] !== payload) return@withLock
+                try {
+                    pendingSaveRepository.saveNotebook(payload)
+                    if (pendingNotebookContent[payload.id] === payload) pendingNotebookContent.remove(payload.id)
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { /* Preserve the in-memory snapshot even if journal creation failed. */ }
+                refreshPendingSaveState()
+            }
+        } finally { saveOperations-- }
+    }
+
+    fun exportPendingSaves(uri: android.net.Uri) {
+        viewModelScope.launch {
+            solveSessionWriteMutex.withLock {
+                try {
+                    val entries = withContext(Dispatchers.IO) { pendingSaveStore.scan().entries }.toMutableList()
+                    historyWriteQueue.failedTickets().forEach { ticket ->
+                        entries.removeAll { it.target == com.zsz.studyassistant.data.SaveTarget.HISTORY && it.payload.id == ticket.row.id }
+                        entries += com.zsz.studyassistant.data.PendingSave(com.zsz.studyassistant.data.SaveTarget.HISTORY,
+                            com.zsz.studyassistant.data.SavePayload.history(ticket.row), null)
+                    }
+                    pendingNotebookContent.values.forEach { payload ->
+                        entries.removeAll { it.target == com.zsz.studyassistant.data.SaveTarget.NOTEBOOK && it.payload.id == payload.id }
+                        entries += com.zsz.studyassistant.data.PendingSave(com.zsz.studyassistant.data.SaveTarget.NOTEBOOK, payload, null)
+                    }
+                    withContext(Dispatchers.IO) {
+                        val resolver = getApplication<Application>().contentResolver
+                        checkNotNull(resolver.openOutputStream(uri, "wt")).bufferedWriter(Charsets.UTF_8).use {
+                            it.write(com.zsz.studyassistant.data.PendingSaveCodec.export(entries))
+                        }
+                    }
+                    saveFeedback = com.zsz.studyassistant.ui.stringsFor(uiLang)["save.exportDone"]
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { saveFeedback = com.zsz.studyassistant.ui.stringsFor(uiLang)["save.exportFailed"] }
+            }
+        }
+    }
+    fun discardPendingSaves() {
+        if (saveOperations > 0 || retryingHistoryWrites) return
+        viewModelScope.launch {
+            solveSessionWriteMutex.withLock {
+                if (saveOperations > 0 || retryingHistoryWrites) return@withLock
+                try {
+                    withContext(Dispatchers.IO) { pendingSaveStore.discardAll() }
+                    historyWriteQueue.clear()
+                    pendingNotebookContent.clear()
+                    failedHistoryWrites = 0
+                    saveFeedback = null
+                    hasSaveActivity = false
+                    refreshPendingSaveState()
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { saveJournalIssue = true }
+            }
+        }
+    }
+
+    private suspend fun requireNoPendingSaves() {
+        refreshPendingSaveState()
+        check(pendingSaveCount == 0 && !saveJournalIssue && historyWriteQueue.pendingTickets().isEmpty()) {
+            com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]
+        }
+    }
+
     private val notebookWriteMutex = kotlinx.coroutines.sync.Mutex()
     private val dataMaintenanceMutex = kotlinx.coroutines.sync.Mutex()
 
@@ -581,19 +709,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }) else null,
             savedQuestionId = savedQuestionId
         )
+        hasSaveActivity = true
         val ticket = historyWriteQueue.enqueue(row, create)
         failedHistoryWrites = historyWriteQueue.failedTickets().size
-        viewModelScope.launch { persistHistoryTicket(ticket) }
+        viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            withContext(kotlinx.coroutines.NonCancellable) { persistHistoryTicket(ticket) }
+        }
     }
 
     private suspend fun persistHistoryTicket(ticket: com.zsz.studyassistant.data.HistoryWriteQueue.Ticket) {
-        solveSessionWriteMutex.withLock {
+        saveOperations++
+        try { solveSessionWriteMutex.withLock {
             if (!historyWriteQueue.isCurrent(ticket)) return@withLock
             try {
-                AppDatabase.get(getApplication()).withTransaction {
-                    com.zsz.studyassistant.data.persistHistoryWrite(dao, ticket.row, historyWriteQueue.canCreate(ticket),
-                        System.currentTimeMillis() - SOLVE_SESSION_KEEP_DAYS * DAY_MS)
-                }
+                pendingSaveRepository.saveHistory(ticket.row, historyWriteQueue.canCreate(ticket), historyCutoff())
                 historyWriteQueue.complete(ticket)
             } catch (e: CancellationException) {
                 historyWriteQueue.fail(ticket)
@@ -603,8 +732,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 historyWriteQueue.fail(ticket)
             } finally {
                 failedHistoryWrites = historyWriteQueue.failedTickets().size
+                refreshPendingSaveState()
             }
-        }
+        } } finally { saveOperations-- }
     }
 
     fun retryFailedHistoryWrites() {
@@ -612,8 +742,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         retryingHistoryWrites = true
         val tickets = historyWriteQueue.failedTickets()
         viewModelScope.launch {
-            try { tickets.forEach { persistHistoryTicket(it) } }
-            finally { retryingHistoryWrites = false }
+            try {
+                tickets.forEach { persistHistoryTicket(it) }
+                pendingNotebookContent.values.toList().forEach { persistNotebookContent(it) }
+                solveSessionWriteMutex.withLock {
+                    try { pendingSaveRepository.retryAll(historyCutoff()) }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { saveJournalIssue = true }
+                    refreshPendingSaveState()
+                }
+            } finally { retryingHistoryWrites = false }
         }
     }
 
@@ -621,6 +759,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             solveSessionWriteMutex.withLock {
                 try {
+                    withContext(Dispatchers.IO) { pendingSaveStore.invalidateHistory(ids) }
                     dao.deleteSolveSessionsByIds(ids)
                     dropCurrentSessionIfPruned(ids)
                 } catch (e: CancellationException) { throw e }
@@ -630,9 +769,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 记录被裁剪掉时要顺手把 [currentSessionId] 松开，否则后续 UPDATE 会写进一条不存在的行 */
-    private fun dropCurrentSessionIfPruned(deleted: List<QuestionId>) {
+    private suspend fun dropCurrentSessionIfPruned(deleted: List<QuestionId>) {
         historyWriteQueue.forget(deleted)
         failedHistoryWrites = historyWriteQueue.failedTickets().size
+        refreshPendingSaveState()
         if (currentSessionId in deleted) sessionRecordBinding.historyAllowed = false
     }
 
@@ -642,7 +782,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             solveSessionWriteMutex.withLock { runCatching {
                 val cutoff = System.currentTimeMillis() - SOLVE_SESSION_KEEP_DAYS * DAY_MS
                 val ids = solveSessionsToDelete(dao.solveSessionsLightOnce(), cutoff, SOLVE_SESSION_KEEP)
-                if (ids.isNotEmpty()) dao.deleteSolveSessionsByIds(ids)
+                if (ids.isNotEmpty()) {
+                    withContext(Dispatchers.IO) { pendingSaveStore.invalidateHistory(ids) }
+                    dao.deleteSolveSessionsByIds(ids)
+                }
                 dropCurrentSessionIfPruned(ids)
             } }
         }
@@ -1325,7 +1468,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 // Backup v3: validate identity/references/images before a transactional merge.
-                val r = com.zsz.studyassistant.data.BackupManager.importFile(AppDatabase.get(getApplication()), file)
+                val r = solveSessionWriteMutex.withLock {
+                    requireNoPendingSaves()
+                    com.zsz.studyassistant.data.BackupManager.importFile(AppDatabase.get(getApplication()), file)
+                }
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
                     "data.importDone",
                     "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}"
@@ -1488,6 +1634,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             dataBusy = true
             try {
                 solveSessionWriteMutex.withLock {
+                    requireNoPendingSaves()
                     com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
                     historyWriteQueue.clear()
                     failedHistoryWrites = 0
@@ -2479,7 +2626,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         // 在启动任何异步任务之前捕获记录快照，而不是写库结束后再读取 VM。
         recordSolveSession(currentSource())
-        if (snapshot != null) viewModelScope.launch { dao.update(snapshot) }
+        if (snapshot != null && !snapshot.deleted) queueNotebookSave(com.zsz.studyassistant.data.SavePayload.notebook(snapshot))
     }
 
     /** 从解题页软删除当前已存的这条错题（可恢复） */

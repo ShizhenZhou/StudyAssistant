@@ -72,6 +72,9 @@ data class Review(
 
 @Dao
 interface QuestionDao {
+    @Query("UPDATE questions SET text = :text, answer = :answer, conversationJson = :conversation WHERE id = :id AND deleted = 0")
+    suspend fun updateAnswerContent(id: QuestionId, text: String, answer: String, conversation: String?)
+
     @Query("SELECT * FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
     fun getAll(): Flow<List<Question>>
 

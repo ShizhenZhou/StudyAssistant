@@ -1,5 +1,6 @@
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -16,7 +17,29 @@ plugins {
 //   · `0.x.x`   —— 每次都要在 README「版本记录」+ App 内「更新内容」记一次
 //   · `0.x.x.x` —— 同系列小修补（patch），也要在 README + App 四语言「更新内容」记录
 //   · `versionCode` **每次发版必须 +1**（Android 判定版本高低/能否覆盖安装的权威是 versionCode，不是 versionName）
-val appVersionName = "0.6.6.6"
+val appVersionName = "0.6.6.7"
+
+// Generated only when build inputs change; one UTC identity is shared by embedded metadata and APK names.
+abstract class GenerateBuildStamp : DefaultTask() {
+    @get:org.gradle.api.tasks.InputFiles
+    @get:org.gradle.api.tasks.PathSensitive(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    abstract val sourceFiles: ConfigurableFileCollection
+    @get:org.gradle.api.tasks.OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+    @org.gradle.api.tasks.TaskAction
+    fun generate() {
+        val directory = outputDirectory.get().asFile.apply { mkdirs() }
+        val stamp = DateTimeFormatter.ofPattern("uuuuMMddHHmmss")
+            .withZone(ZoneOffset.UTC).format(Instant.now())
+        directory.resolve("build-time-utc.txt").writeText(stamp, Charsets.UTF_8)
+    }
+}
+val buildStampDirectory = layout.buildDirectory.dir("generated/build-stamp/assets")
+val generateBuildStamp = tasks.register<GenerateBuildStamp>("generateBuildStamp") {
+    sourceFiles.from(fileTree("src/main"), file("build.gradle.kts"), rootProject.file("gradle/libs.versions.toml"),
+        rootProject.file("gradle.properties"), rootProject.file("build.gradle.kts"), rootProject.file("settings.gradle.kts"))
+    outputDirectory.set(buildStampDirectory)
+}
 
 // ── 发布签名材料（自有证书 + key rotation）──────────────────────────────────
 // 从 secrets.properties（已 gitignore）读取；**文件缺失时回退到默认 debug 签名**，
@@ -52,7 +75,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 63
+        versionCode = 64
         versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -112,8 +135,14 @@ android {
 
     testOptions {
         // 单元测试是纯 JVM 的：只测解析/版本比较/文案表这类**不碰 Android 实现**的纯逻辑。
-        // 万一某条路径碰到 android.* 的桩方法，返回默认值而不是抛 "not mocked"，避免测试假失败。
-        unitTests.isReturnDefaultValues = true
+        // Unexpected Android calls must fail; framework behavior belongs in isolated device tests.
+        unitTests.isReturnDefaultValues = false
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(generateBuildStamp) { it.outputDirectory }
     }
 }
 
@@ -185,7 +214,7 @@ tasks.whenTaskAdded {
                 val variant = if (name == "assembleDebug") "debug" else "release"
                 val src = layout.buildDirectory.file("outputs/apk/$variant/app-$variant.apk").get().asFile
                 if (src.exists()) {
-                    val ts = SimpleDateFormat("yyyyMMddHHmm").format(Date())
+                    val ts = buildStampDirectory.get().file("build-time-utc.txt").asFile.readText().trim()
                     val newName = "StudyAssistant-$appVersionName-$ts.apk"
                     src.copyTo(src.parentFile.resolve(newName), overwrite = true)
                     println("APK named: $variant/$newName")

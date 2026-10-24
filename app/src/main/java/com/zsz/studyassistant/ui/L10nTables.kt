@@ -15,6 +15,19 @@ package com.zsz.studyassistant.ui
 // 批次 0：底部导航 / 主页 / 设置主页 / 语言设置页
 // ===========================================================================
 private val B0_ZH = mapOf(
+    "save.pending" to "{n} 项内容尚未存入数据库。",
+    "save.recoverable" to "待保存副本已写入本机，重启后会尝试恢复；内容冲突时不会覆盖。",
+    "save.keepOpen" to "部分内容尚未写入恢复文件。请先重试或导出，再关闭应用。",
+    "save.issue" to "部分恢复记录无法读取，已保留原文件；导出仅包含可读内容。",
+    "save.busy" to "正在保存…",
+    "save.done" to "已保存",
+    "save.export" to "导出待保存内容",
+    "save.exportNotice" to "导出包含题目、答案及可能的图片，仅写入你选择的位置；不是普通备份。",
+    "save.exportDone" to "已导出可读的待保存内容。",
+    "save.exportFailed" to "导出失败，原内容仍保留，请重试。",
+    "save.discard" to "放弃待保存内容",
+    "save.discardConfirm" to "只放弃未保存的副本，不删除数据库内已有内容。此操作不可撤销，建议先导出。",
+    "save.resolveFirst" to "请先重试保存，或导出后明确放弃待保存内容，再导入或清空数据。",
     "nav.home" to "主页",
     "nav.learn" to "学习",
     "nav.stats" to "统计",
@@ -103,6 +116,19 @@ private val B0_ZH = mapOf(
 )
 
 private val B0_EN = mapOf(
+    "save.pending" to "{n} items have not been saved to the database.",
+    "save.recoverable" to "Recovery copies are stored locally and retried after restart. Conflicting edits will not be overwritten.",
+    "save.keepOpen" to "Some recovery copies could not be written. Retry or export before closing the app.",
+    "save.issue" to "Some recovery records cannot be read and are retained. Export includes readable content only.",
+    "save.busy" to "Saving…",
+    "save.done" to "Saved",
+    "save.export" to "Export unsaved content",
+    "save.exportNotice" to "Export includes questions, answers and possibly images, only at your chosen location. It is not a normal backup.",
+    "save.exportDone" to "Readable unsaved content exported.",
+    "save.exportFailed" to "Export failed. The original content is retained; retry.",
+    "save.discard" to "Discard unsaved content",
+    "save.discardConfirm" to "Discard unsaved copies only; existing database content stays. This cannot be undone. Export first if needed.",
+    "save.resolveFirst" to "Retry saving, or export then explicitly discard unsaved content before importing or clearing data.",
     "nav.home" to "Home",
     "nav.learn" to "Learn",
     "nav.stats" to "Stats",
@@ -190,6 +216,19 @@ private val B0_EN = mapOf(
 )
 
 private val B0_JA = mapOf(
+    "save.pending" to "{n} 件の内容がデータベースに未保存です。",
+    "save.recoverable" to "復元用コピーは端末内に保存済みです。再起動後に再試行し、競合する編集は上書きしません。",
+    "save.keepOpen" to "一部の復元用コピーを書き込めませんでした。終了前に再試行または書き出してください。",
+    "save.issue" to "読めない復元記録は保持しています。書き出し対象は読める内容のみです。",
+    "save.busy" to "保存中…",
+    "save.done" to "保存済み",
+    "save.export" to "未保存内容を書き出す",
+    "save.exportNotice" to "問題・解答・画像を含む場合があります。選んだ場所にのみ書き出します。通常のバックアップではありません。",
+    "save.exportDone" to "読み取り可能な未保存内容を書き出しました。",
+    "save.exportFailed" to "書き出しに失敗しました。元の内容は保持しています。",
+    "save.discard" to "未保存内容を破棄",
+    "save.discardConfirm" to "未保存のコピーだけを破棄し、既存のデータベース内容は削除しません。取り消せないため、必要なら先に書き出してください。",
+    "save.resolveFirst" to "インポートや全消去の前に保存を再試行するか、書き出した後で未保存内容を破棄してください。",
     "nav.home" to "ホーム",
     "nav.learn" to "学習",
     "nav.stats" to "統計",
@@ -277,6 +316,19 @@ private val B0_JA = mapOf(
 )
 
 private val B0_KO = mapOf(
+    "save.pending" to "{n}개 항목이 데이터베이스에 저장되지 않았습니다.",
+    "save.recoverable" to "복구 사본은 기기에 저장되었으며 재시작 후 재시도합니다. 충돌하는 편집은 덮어쓰지 않습니다.",
+    "save.keepOpen" to "일부 복구 사본을 기록하지 못했습니다. 앱을 닫기 전에 재시도하거나 내보내세요.",
+    "save.issue" to "읽을 수 없는 복구 기록은 보관됩니다. 내보내기에는 읽을 수 있는 내용만 포함됩니다.",
+    "save.busy" to "저장 중…",
+    "save.done" to "저장됨",
+    "save.export" to "미저장 내용 내보내기",
+    "save.exportNotice" to "문제, 답변, 이미지가 포함될 수 있으며 선택한 위치에만 기록합니다. 일반 백업이 아닙니다.",
+    "save.exportDone" to "읽을 수 있는 미저장 내용을 내보냈습니다.",
+    "save.exportFailed" to "내보내기에 실패했습니다. 원본은 유지됩니다. 다시 시도하세요.",
+    "save.discard" to "미저장 내용 버리기",
+    "save.discardConfirm" to "미저장 사본만 버리고 기존 데이터베이스 내용은 삭제하지 않습니다. 되돌릴 수 없으니 필요하면 먼저 내보내세요.",
+    "save.resolveFirst" to "가져오기나 전체 삭제 전에 저장을 재시도하거나 내보낸 후 미저장 내용을 명시적으로 버리세요.",
     "nav.home" to "홈",
     "nav.learn" to "학습",
     "nav.stats" to "통계",
@@ -1782,6 +1834,7 @@ private val B10_ZH = mapOf(
         "· 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
         "· 间隔复习、学习统计（含新增趋势）与每日提醒；界面语言、主题和字号可调整\n" +
         "· JSON 备份含原图和搜题记录，按题目编号去重；自动备份每天首次启动写到所选文件夹，保留最近 3 份，失败在设置中提示\n" +
+        "· 保存失败可重试，已落盘副本可重启恢复；冲突不覆盖，未保存内容可导出\n" +
         "· AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
         "· 应用内更新校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
         ),
@@ -1836,6 +1889,7 @@ private val B10_EN = mapOf(
         "· Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
         "· Spaced review, study statistics including new-item trends and daily reminders; adjustable language, theme and font size\n" +
         "· JSON backups include images and history and deduplicate by question ID; daily automatic backups use the selected folder, keep the latest 3 and show failures in settings\n" +
+        "· Retry failed saves, recover durable copies after restart and export unsaved content without overwriting conflicts\n" +
         "· Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
         "· In-app updates verify the signing certificate and SHA-256 when GitHub provides a digest"
         ),
@@ -1890,6 +1944,7 @@ private val B10_JA = mapOf(
         "· AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
         "· 間隔復習・学習統計（新規推移）・毎日の通知。言語・テーマ・文字サイズを変更可能\n" +
         "· 画像と履歴を含むJSONバックアップを問題番号で重複排除。自動保存は当日初回起動時に選択先へ直近3件を保持し、失敗を設定に表示\n" +
+        "· 保存失敗を再試行し、保存済みコピーを再起動後に復元。競合を上書きせず未保存内容を書き出せる\n" +
         "· AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
         "· 更新時に署名を検証し、GitHubがダイジェストを提供する場合はSHA-256も照合"
         ),
@@ -1944,6 +1999,7 @@ private val B10_KO = mapOf(
         "· AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
         "· 간격 복습·학습 통계(신규 추이)·매일 알림. 언어·테마·글꼴 크기 조정\n" +
         "· 이미지와 기록을 포함하는 JSON 백업을 문제 번호로 중복 제거. 자동 백업은 매일 첫 실행 때 선택한 폴더에 최근 3개를 유지하고 실패를 설정에 표시\n" +
+        "· 저장 실패 재시도, 저장된 사본의 재시작 복구, 충돌을 덮어쓰지 않는 미저장 내용 내보내기\n" +
         "· 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
         "· 업데이트의 서명 인증서를 확인하고 GitHub가 해시를 제공하면 SHA-256도 대조"
         ),

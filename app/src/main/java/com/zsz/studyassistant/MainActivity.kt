@@ -201,19 +201,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Column(Modifier.fillMaxSize()) {
-                        if (viewModel.failedHistoryWrites > 0) {
-                            Surface(color = MaterialTheme.colorScheme.errorContainer) {
-                                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically) {
-                                    Text(strings.format("history.saveFailed", "n" to "${viewModel.failedHistoryWrites}"),
-                                        modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                                    androidx.compose.material3.TextButton(
-                                        onClick = { viewModel.retryFailedHistoryWrites() },
-                                        enabled = !viewModel.retryingHistoryWrites
-                                    ) { Text(strings[if (viewModel.retryingHistoryWrites) "history.saveRetrying" else "history.saveRetry"]) }
-                                }
-                            }
-                        }
+                        com.zsz.studyassistant.ui.SaveStatusBanner(viewModel)
                         Box(Modifier.weight(1f)) {
                             NavHost(
                                 nav,

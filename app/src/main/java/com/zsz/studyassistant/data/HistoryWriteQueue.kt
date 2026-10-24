@@ -16,6 +16,7 @@ internal class HistoryWriteQueue {
     fun canCreate(ticket: Ticket): Boolean = ticket.row.id in creationPending
     fun fail(ticket: Ticket) { if (isCurrent(ticket)) failed[ticket.row.id] = ticket }
     fun complete(ticket: Ticket) { if (isCurrent(ticket)) forget(listOf(ticket.row.id)) }
+    fun pendingTickets(): List<Ticket> = latest.values.toList()
     fun failedTickets(): List<Ticket> = failed.values.toList()
     fun clear() { latest.clear(); failed.clear(); creationPending.clear() }
     fun forget(ids: Collection<QuestionId>) {
