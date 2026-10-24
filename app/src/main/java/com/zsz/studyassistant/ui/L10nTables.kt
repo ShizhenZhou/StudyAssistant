@@ -1753,6 +1753,7 @@ private val B9_ZH = mapOf(
     "think.state.expand" to "（点击展开）",
     "think.fold" to "折叠思考区",
     "think.unfold" to "展开思考区",
+    "conversation.viewImages" to "查看图片",
     "review.titleProgress" to "复习 {i}/{n}",
     "review.nextQuestion" to "下一题"
 )
@@ -1773,6 +1774,7 @@ private val B9_EN = mapOf(
     "think.state.expand" to " (tap to expand)",
     "think.fold" to "Collapse thinking",
     "think.unfold" to "Expand thinking",
+    "conversation.viewImages" to "View images",
     "review.titleProgress" to "Review {i}/{n}",
     "review.nextQuestion" to "Next"
 )
@@ -1793,6 +1795,7 @@ private val B9_JA = mapOf(
     "think.state.expand" to "（タップで展開）",
     "think.fold" to "思考を折りたたむ",
     "think.unfold" to "思考を展開する",
+    "conversation.viewImages" to "画像を見る",
     "review.titleProgress" to "復習 {i}/{n}",
     "review.nextQuestion" to "次の問題"
 )
@@ -1813,6 +1816,7 @@ private val B9_KO = mapOf(
     "think.state.expand" to " (탭하여 펼치기)",
     "think.fold" to "사고 과정 접기",
     "think.unfold" to "사고 과정 펼치기",
+    "conversation.viewImages" to "이미지 보기",
     "review.titleProgress" to "복습 {i}/{n}",
     "review.nextQuestion" to "다음 문제"
 )

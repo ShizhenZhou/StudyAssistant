@@ -15,6 +15,24 @@ import org.junit.Test
 class VisionOutputParserTest {
 
     @Test
+    fun `结论与过程之间的分隔线和重复小题编号均保留`() {
+        val body = """
+            结论：
+            （1）结果为 2。
+            （2）结果为 4。
+
+            ---
+
+            详细过程：
+            （1）由 1+1 得 2。
+            （2）由 2+2 得 4。
+        """.trimIndent()
+        val out = "① 题目：分别计算两题\n② 分类：数学\n③ 知识点：加法\n④ 解答：\n$body"
+        assertEquals(body, StudyAssistant.parseVisionOutput(out).answer)
+        assertEquals(body, StudyAssistant.stripMetaLines(body))
+    }
+
+    @Test
     fun `标准四段输出 —— 题目 分类 知识点 解答 都能取到`() {
         val out = """
             ① 题目：求定积分 ∫₀¹ x² dx

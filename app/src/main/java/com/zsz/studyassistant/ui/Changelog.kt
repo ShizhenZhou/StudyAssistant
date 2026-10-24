@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.8
+· 💾 去掉保存成功后的“已保存”顶栏提示，保留保存中及失败恢复提醒
+· 🖼 对话附图按钮改为“查看图片”，适用于原题和追问附图，补齐四语言
+· 📝 解答结论与详细过程之间加入分隔线；保留原题小题编号，结论与推导逐题对应，允许正常步骤编号
+· 💬 简短追问和概念解释不强制套完整解题结构；已有答案不变，DB v10 / Bak v3 不变
+
 v0.6.6.7
 · 💾 保存失败保留待保存副本，支持重启恢复、重试及手动导出；恢复冲突不覆盖，明确放弃才清除副本
 · 🛠 退出错题页仅保存题干、答案和对话，保留当前分类、标签与复习状态；导入或清空前先处理未保存内容
@@ -391,6 +397,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.8
+· 💾 Remove the saved-success banner; retain saving and recovery alerts
+· 🖼 Use “View images” for both original-question and follow-up attachments, localized in four languages
+· 📝 Request a divider between conclusions and detailed solutions; preserve original subquestion numbers and match each result to its derivation, allowing normal step numbers
+· 💬 Short follow-ups and concept explanations need no full solution template; existing answers and DB v10 / Bak v3 remain unchanged
+
 v0.6.6.7
 · 💾 Retain recovery copies after save failures; restart recovery, retry and manual export preserve conflicting edits until explicitly discarded
 · 🛠 Leaving a notebook entry saves answer content only, preserving current category, tags and review state; resolve pending saves before import or clearing
@@ -777,6 +789,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.8
+· 💾 保存成功時の通知を非表示にし、保存中と失敗時の復旧通知は維持
+· 🖼 元の問題と追加質問の添付画像ボタンを「画像を見る」に統一、4言語に対応
+· 📝 結論と詳しい解説の間に区切り線を指定。元の小問番号を保ち、結論と導出を対応付け、通常の手順番号も使用可能
+· 💬 短い追加質問や概念の説明には解答全体の形式を強制しない。既存の解答、DB v10 / Bak v3 は変更なし
+
 v0.6.6.7
 · 💾 保存失敗時のコピーを保持し、再起動後の復元・再試行・手動書き出しに対応。競合を上書きせず、明示的な破棄まで保持
 · 🛠 ノート終了時は問題・解答・会話のみ保存し、分類・タグ・復習状態を維持。インポートや全消去前に未保存内容を処理
@@ -1163,6 +1181,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.8
+· 💾 저장 성공 알림을 숨기고 저장 중 및 실패 복구 알림은 유지
+· 🖼 원래 문제와 추가 질문의 첨부 이미지 버튼을 “이미지 보기”로 통일하고 4개 언어 지원
+· 📝 결론과 상세 풀이 사이에 구분선을 요청. 원래 소문항 번호를 유지하고 결과와 풀이를 대응시키며 일반 단계 번호도 허용
+· 💬 짧은 추가 질문과 개념 설명에는 전체 풀이 형식을 강제하지 않음. 기존 답변과 DB v10 / Bak v3 유지
+
 v0.6.6.7
 · 💾 저장 실패 시 복구 사본을 보관하고 재시작 복구·재시도·수동 내보내기를 지원. 충돌하는 편집은 덮어쓰지 않으며 명시적으로 버릴 때만 사본 삭제
 · 🛠 오답 화면 종료 시 문제·답변·대화만 저장하여 현재 분류·태그·복습 상태 유지. 가져오기·전체 삭제 전에 미저장 내용 처리

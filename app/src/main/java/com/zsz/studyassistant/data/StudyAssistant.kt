@@ -46,7 +46,7 @@ object StudyAssistant {
      * ★ 2026-10-13 改写（用户要求「看看有没有冗余或自相矛盾」）：
      *   · 去掉自相矛盾：原来写「**每行开头都必须带对应序号**」又说「④ 解答：<…可以多行>」→
      *     模型给解答的每一行都加 ④（项目里 `stripLeakedSectionMarks` 就是在给这句擦屁股）。现在明确
-     *     「只有解答可多行，解答里不要再加序号」。
+     *     仅禁止模板圈码泄漏；题目本身的小题编号必须保留。
      *   · 空列表时不再出现悬空句（原来固定拼「若题目属于其中某一个…」，列表为空时这句没有指代对象）。
      *   · 借用了 `classifyQuestion` 里那句治「重复分类」的措辞（沾边就必须选、宁可粗一点）。
      *   · 去掉文案里的 `**`：那等于在教模型输出 markdown 加粗（也顺带减少误加粗）。
@@ -69,15 +69,23 @@ object StudyAssistant {
         return catLine + "\n" + tagLine
     }
 
+    /** 解题/批改共用；模板节号不应影响原题编号，也不限制正常的推导步骤编号。 */
+    private fun answerLayoutInstruction(): String =
+        "保留题目原有的所有小题编号（如（1）（2）、(a)(b)、①②），题干转写、结论和详细过程均按原编号逐一对应，不合并或漏答。" +
+            "模板的①②③④只标记题目、分类、知识点、解答这几个字段，不得重复加在正文每一行；详细推导可以使用步骤编号。\n" +
+            "完整解答先写「结论」段，按原小题编号简要列出结果；随后空一行，单独输出一行 Markdown 分隔线 ---，" +
+            "再空一行，写「详细过程」段，按原小题编号逐题推导。批改时结论说明正误和错误位置，详细过程给出正确解法与讲解。" +
+            "分隔线不要放进公式或代码块；标题使用回答语言。简短追问、概念解释或只问某一步时直接回答，不强制重复完整结构。\n"
+
     fun solvePrompt(categories: List<String>, tags: List<String>): String {
         return "请识别图片中的题目并给出详细的分步解答。所有公式用 LaTeX（行内 $...$、独立成行 $$...$$），" +
             "上下标、分式、积分、矩阵、希腊字母要写对。\n" +
-            "按下面模板输出，每项只写一次、各占一行；只有「④ 解答」可以多行，解答里不要再加序号、也不要重复抄题干：\n" +
+            "按下面模板输出，每项只写一次、各占一行；只有「④ 解答」可以多行，不要在解答中重复抄题干：\n" +
             "① 题目：<逐字照录题干，不改写、不省略>\n" +
             "② 分类：<所属科目>\n" +
             "③ 知识点：<知识点1、知识点2、知识点3>\n" +
             "④ 解答：<先给结论，再写详细步骤>\n" +
-            solveKnownHint(categories, tags)
+            answerLayoutInstruction() + solveKnownHint(categories, tags)
     }
 
     /** 视觉模型首条用户消息（文字 + 图片）；带已有分类名，让模型优先归入已有分类 */
@@ -111,12 +119,12 @@ object StudyAssistant {
             "user",
             JsonPrimitive(
                 "请解答下面这道题目并给出详细的分步解答。所有公式用 LaTeX（行内 $...$、独立成行 $$...$$）。\n" +
-                    "按下面模板输出，每项只写一次、各占一行；只有「④ 解答」可以多行，解答里不要再加序号：\n" +
+                    "按下面模板输出，每项只写一次、各占一行；只有「④ 解答」可以多行：\n" +
                     "① 题目：$text\n" +
                     "② 分类：<所属科目>\n" +
                     "③ 知识点：<知识点1、知识点2、知识点3>\n" +
                     "④ 解答：<先给结论，再写详细步骤>\n" +
-                    solveKnownHint(categories, tags)
+                    answerLayoutInstruction() + solveKnownHint(categories, tags)
             )
         )
     }
@@ -223,7 +231,8 @@ object StudyAssistant {
         "system",
         JsonPrimitive(
             "你是一名理工科大学解题助手。请给出清晰、分步的解答过程，包含必要的公式推导，" +
-                "数学公式请用 LaTeX 书写（$...$ 或 $$...$$），最后明确给出结论。" +
+                "数学公式请用 LaTeX 书写（$...$ 或 $$...$$）。" +
+                "\n" + answerLayoutInstruction() +
                 "\n" + languageInstruction(lang) +
                 if (customPrompt.isBlank()) "" else "\n\n用户自定义要求（请务必遵守）：\n$customPrompt"
         )
@@ -240,7 +249,7 @@ object StudyAssistant {
      * @param customPrompt 用户自定义要求原文（空串 = 没设置）
      */
     fun languageSystemMessage(lang: AiLang, customPrompt: String = ""): DeepSeekMessage {
-        val langLine = languageInstruction(lang)
+        val langLine = answerLayoutInstruction() + languageInstruction(lang)
         val text = if (customPrompt.isBlank()) langLine
         else "$langLine\n\n用户自定义要求（请务必遵守，与上面的固定格式冲突时以本条为准）：\n$customPrompt"
         return DeepSeekMessage("system", JsonPrimitive(text))
@@ -353,7 +362,7 @@ object StudyAssistant {
         val fmtWithAnswer =
             "① 分类：<所属科目>\n" +
             "② 知识点：<知识点1、知识点2、知识点3>\n" +
-            "③ 解答：先写一行「结论：<正确/错误，错在哪一步>」，再写「讲解：<正确解法与针对性讲解，可多行>」"
+            "③ 解答：<结论、分隔线、详细过程，按下方排版要求输出>"
         // 只拍了题目（无作答）：与拍题一致，含 ① 题目
         val fmtNoAnswer =
             "① 题目：<忠实转写的题干>\n" +
@@ -367,9 +376,9 @@ object StudyAssistant {
             "请识别图片中的题目，并给出完整、分步的解答过程，用 LaTeX 写公式。") +
             // ★ 2026-10-13：原句「每行开头都必须带对应序号」与「解答可多行」自相矛盾（模型会给解答每一行都加序号，
             //   项目里的 stripLeakedSectionMarks 就是给这句擦屁股的），且去掉了文案里的 `**`。
-            "\n按下面模板输出，每项只写一次、各占一行，开头带对应序号；只有「解答」可以多行，解答里不要再加序号：\n" +
+            "\n按下面模板输出，每项只写一次、各占一行，开头带对应序号；只有「解答」可以多行：\n" +
             (if (answerBytes != null) fmtWithAnswer else fmtNoAnswer) + "\n" +
-            solveKnownHint(categories, tags) + "\n" +
+            answerLayoutInstruction() + solveKnownHint(categories, tags) + "\n" +
             languageInstruction(lang)
     }
 

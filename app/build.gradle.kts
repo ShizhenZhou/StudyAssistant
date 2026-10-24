@@ -17,7 +17,7 @@ plugins {
 //   · `0.x.x`   —— 每次都要在 README「版本记录」+ App 内「更新内容」记一次
 //   · `0.x.x.x` —— 同系列小修补（patch），也要在 README + App 四语言「更新内容」记录
 //   · `versionCode` **每次发版必须 +1**（Android 判定版本高低/能否覆盖安装的权威是 versionCode，不是 versionName）
-val appVersionName = "0.6.6.7"
+val appVersionName = "0.6.6.8"
 
 // Generated only when build inputs change; one UTC identity is shared by embedded metadata and APK names.
 abstract class GenerateBuildStamp : DefaultTask() {
@@ -71,7 +71,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 64
+        versionCode = 65
         versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

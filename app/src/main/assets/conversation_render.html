@@ -31,6 +31,7 @@
   .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:calc(15px * var(--k));line-height:1.6;}
   .bubble.assistant{background:var(--bubble-ai);color:var(--fg);align-self:flex-start;border:1px solid var(--bubble-ai-border);}
   .bubble.user{background:var(--bubble-user);color:var(--fg);align-self:flex-end;border:1px solid var(--bubble-user-border);}
+  .bubble hr{border:0;border-top:1px solid var(--pick-border);margin:16px 0;}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}
   /* 宽公式：容器内横向滚动。
@@ -328,7 +329,7 @@ function bubbleHtml(m, idx){
     // 只有当气泡正文存在时才折叠（拍题/图文提问：文字为主）；
     // 正文为空说明该气泡只以图为准（复习模式）→ 直接显示图片，避免什么都看不到。
     var hasText = !!(m.content && m.content.length);
-    imgHtml = (m.role === 'assistant' || !hasText) ? imgs : ('<details class="origimg"><summary>📷 查看原题图片</summary>' + imgs + '</details>');
+    imgHtml = (m.role === 'assistant' || !hasText) ? imgs : ('<details class="origimg"><summary>📷 ' + esc(TL().viewImages) + '</summary>' + imgs + '</details>');
   }
   // 末尾的「继续生成」标记：[[CONTINUE|文案]] → 蓝色可点一行（生成中断时由原生追加）
   var text = m.content || '';
@@ -426,7 +427,8 @@ var THINK_DEFAULT = {
   collapse: '（点击折叠）',
   expand: '（点击展开）',
   fold: '折叠思考区',
-  unfold: '展开思考区'
+  unfold: '展开思考区',
+  viewImages: '查看图片'
 };
 function TL(){
   var L = window.THINK_LABELS;
@@ -438,7 +440,8 @@ function TL(){
     collapse: L.collapse || THINK_DEFAULT.collapse,
     expand: L.expand || THINK_DEFAULT.expand,
     fold: L.fold || THINK_DEFAULT.fold,
-    unfold: L.unfold || THINK_DEFAULT.unfold
+    unfold: L.unfold || THINK_DEFAULT.unfold,
+    viewImages: L.viewImages || THINK_DEFAULT.viewImages
   };
 }
 function thinkLabel(open, done){

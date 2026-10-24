@@ -134,7 +134,8 @@ fun ConversationWebView(
             ",\"collapse\":\"" + esc(s["think.state.collapse"]) + "\"" +
             ",\"expand\":\"" + esc(s["think.state.expand"]) + "\"" +
             ",\"fold\":\"" + esc(s["think.fold"]) + "\"" +
-            ",\"unfold\":\"" + esc(s["think.unfold"]) + "\"}"
+            ",\"unfold\":\"" + esc(s["think.unfold"]) + "\"" +
+            ",\"viewImages\":\"" + esc(s["conversation.viewImages"]) + "\"}"
     }
 
     // 回到顶部：同时暂停流式跟随，避免又被自动拉回底部
