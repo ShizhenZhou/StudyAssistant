@@ -5,9 +5,7 @@ import androidx.compose.ui.geometry.Rect
 /**
  * 框选页的**纯数学**（从 `CropScreen.kt` 抽出来单独放一个文件）。
  *
- * 为什么单独一个文件：`CropScreen.kt` 顶层有 `DIM`/`BORDER` 这类 `Color` 常量，它的 `<clinit>` 会拉起
- * `androidx.compose.ui.graphics.ColorKt` —— 而本机单测是 `tools\run-unit-tests.ps1` 手工拼的精简 classpath，
- * 只放了几个 Compose 类的 jar。把纯函数放这里，单测就只需加载本文件（依赖仅 `Rect`）。
+ * 独立于框选页面的 UI 初始化；纯函数只依赖 `Rect`，便于在 JVM 单测中验证几何边界。
  */
 internal const val MIN_SIZE = 60f  // 选框最小尺寸(px)
 

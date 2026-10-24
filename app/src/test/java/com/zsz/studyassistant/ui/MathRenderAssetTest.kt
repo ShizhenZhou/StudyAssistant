@@ -7,7 +7,7 @@ import java.io.File
 /**
  * 公式渲染的**排版防回归**（2026-10-21 用户反馈「分式里字母的顶部被削掉」）。
  *
- * 两个渲染页（对话页 `conversation_render.html` / 题干等 `latex_render.html`）都用
+ * 当前对话渲染页 `conversation_render.html` 使用
  * `.katex-display{overflow-x:auto;overflow-y:hidden;…}` 来实现「宽公式在容器里横向滚动」。
  * ⚠️ `overflow:hidden` 的裁剪边界是 **padding 盒**：KaTeX 会把分式 / 上下标画到内容盒外一点点，
  * 若没有上下 `padding`，这点"溢出"的墨迹就被贴着字形裁掉 —— 表现就是分式顶部/底部被削。
@@ -18,7 +18,7 @@ import java.io.File
  */
 class MathRenderAssetTest {
 
-    private val assets = listOf("conversation_render.html", "latex_render.html")
+    private val assets = listOf("conversation_render.html")
 
     /** 从当前工作目录向上找 `app/src/main/assets`（Gradle 单测的 CWD 可能是工程根，也可能是 app/） */
     private fun findAsset(name: String): File? {
@@ -79,7 +79,7 @@ class MathRenderAssetTest {
     }
 
     @Test
-    fun `两个渲染页都还在用 KaTeX 的 displayMode`() {
+    fun `当前渲染页仍使用 KaTeX 的 displayMode`() {
         for (name in assets) {
             val text = findAsset(name)?.readText() ?: continue
             assertTrue("$name 里没有 displayMode 渲染调用", text.contains("displayMode:display"))

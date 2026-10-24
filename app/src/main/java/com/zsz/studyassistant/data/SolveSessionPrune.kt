@@ -3,14 +3,10 @@ package com.zsz.studyassistant.data
 /**
  * 搜题记录（`solve_sessions`）的**裁剪策略** —— 纯函数，单独一个文件。
  *
- * ⚠️ **为什么单独放一个文件、而不是写在 `Question.kt` 里**：
- *   本机的单元测试是**纯 JVM**（没有 room-testing / Robolectric），测试 classpath 是
- *   `tools/run-unit-tests.ps1` 手工拼的，**不含 Room 的 jar**。纯函数一旦和 `@Entity`/`@Dao`/
- *   `Migration` 放在同一个文件（同一个 `*Kt` 类），加载它就会去加载 `androidx.room.migration.Migration`
- *   → `NoClassDefFoundError`，测试全挂。同类坑还有 `CropScreenKt` 会因 `Color` 拉起 `ui-graphics`。
- *   所以：**这个文件只允许依赖基本类型**（不要加 Android / Room / Compose 的 import）。
+ * 独立于数据库和界面，只依赖基本类型，便于在 JVM 单测中验证裁剪边界。
+ * 不要引入 Android / Room / Compose 依赖。
  *
- * 设计取舍（见 DESIGN-20261013 §2.6 用户拍板：保留最近 200 条 / 30 天，保留原图）：
+ * 设计取舍：保留最近 200 条 / 30 天，保留原图：
  *  - 记录里有 `imageBytes`(BLOB) 与 `conversationJson`（`ChatItem.images` 是 base64），不裁剪就是数据库无限膨胀；
  *  - 判定逻辑抽成纯函数 → 有回归网，"以后调参/改规则"不会把用户记录误删光。
  */

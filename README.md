@@ -470,7 +470,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Release -CompileAndroidTests
 ```
 
-统一入口把缓存、临时文件与日志留在项目内，不安装应用、不推送或发布。当前 JVM 回归 219 项 / 24 类，另有独立 Android 集成测试；实际执行状态与限制见测试说明。`tools/run-unit-tests.ps1` 保留作历史中文路径的备选，不是默认流程。
+统一入口把缓存、临时文件与日志留在项目内，不安装应用、不推送或发布。当前 JVM 回归 219 项 / 24 类，另有独立 Android 集成测试；实际执行状态与限制见测试说明。旧环境专用脚本已退役；使用上述统一检查入口或标准 Gradle 命令。
 
 ## 密钥与发布
 
