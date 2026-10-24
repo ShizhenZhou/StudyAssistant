@@ -7,6 +7,7 @@ package com.zsz.studyassistant.ui
 internal val CHANGELOG_ZH: String = """
 v0.6.6.5
 · 🛠 同版本附件修正：修正思考模式标签分析立即返回 HTTP 422 的参数问题；分析失败显示具体原因与状态码，版本号与数据格式不变
+· 🏷 标签建议读取修正：使用 JSON 输出，保留可编辑的有效候选，区分截断、空结果与格式错误；候选默认不勾选，合并前仍严格检查冲突
 · 🏷 新增标签整理：AI 根据完整标签名单和关联题数提出近义标签建议；可手动分组、改名与调整来源标签，预览确认后才合并
 · ↩️ 合并按事务迁移关联并去重，保留题目永久编号；支持重启后撤销最近一次合并，相关数据再次变化时停止撤销以保留后续编辑
 · 🔒 AI 分析只发送标签编号、名称及题数，不发送题目正文、答案或图片；与解题会话独立，可取消
@@ -378,6 +379,7 @@ v0.1（项目建立）
 internal val CHANGELOG_EN: String = """
 v0.6.6.5
 · 🛠 Updated APK under the same version: correct thinking-mode label analysis parameters that caused immediate HTTP 422 errors; show specific failure reasons and status codes, with version and data formats unchanged
+· 🏷 Improved label suggestion parsing: request JSON output, retain valid editable candidates, and distinguish truncated, empty and malformed responses; candidates start unselected and conflicts are still checked before merging
 · 🏷 Organize labels with AI suggestions based on the full label list and usage counts; edit source groups and names manually, then preview and confirm merges
 · ↩️ Merge and deduplicate links transactionally while preserving problem IDs; undo the latest merge after restart, with conflict checks that preserve later edits
 · 🔒 Analysis sends only label IDs, names and question counts, excluding question text, answers and images; it is separate from solve sessions and can be canceled
@@ -749,6 +751,7 @@ v0.1 (project start)
 internal val CHANGELOG_JA: String = """
 v0.6.6.5
 · 🛠 同一バージョンの APK を修正。思考モードのタグ分析で即座に HTTP 422 となるパラメータを修正し、失敗理由と状態コードを表示。バージョンとデータ形式は変更なし
+· 🏷 タグ候補の読み取りを修正。JSON 出力を使用し、編集可能な有効候補を保持。途中切れ・空の結果・形式エラーを区別。候補は初期状態で未選択とし、統合前の競合確認は維持
 · 🏷 タグ一覧と関連問題数を使った AI 整理候補を追加。統合元・名称を手動編集でき、プレビューと確認後に統合
 · ↩️ 問題番号を維持し関連付けをトランザクションで統合・重複排除。再起動後も直前の統合を取り消せ、後の関連編集は競合チェックで保護
 · 🔒 分析で送るのはタグ番号・名称・問題数のみ。問題本文・解答・画像は送らず、解題会話と独立してキャンセル可能
@@ -1120,6 +1123,7 @@ v0.1（プロジェクト開始）
 internal val CHANGELOG_KO: String = """
 v0.6.6.5
 · 🛠 같은 버전의 APK 수정: 사고 모드 태그 분석에서 즉시 HTTP 422가 발생하는 매개변수를 수정하고 실패 원인·상태 코드를 표시. 버전과 데이터 형식은 유지
+· 🏷 태그 제안 읽기 개선: JSON 출력을 요청하고 편집 가능한 유효 후보를 유지하며 잘림·빈 결과·형식 오류를 구분. 후보는 기본 미선택이며 병합 전 충돌 검사는 유지
 · 🏷 전체 태그 목록과 연결 문제 수를 바탕으로 AI 정리 제안. 원본 그룹과 이름을 직접 수정하고 미리 보기·확인 후 병합
 · ↩️ 문제 번호를 유지하며 연결을 트랜잭션으로 병합·중복 제거. 재시작 후 마지막 병합 취소 지원, 이후 관련 편집은 충돌 검사로 보존
 · 🔒 분석 시 태그 번호·이름·문제 수만 전송하며 문제 본문·답변·이미지는 제외. 풀이 대화와 별개로 실행하고 취소 가능
