@@ -127,6 +127,14 @@ kotlin {
 // task cache so a cached successful test run also restores the files it produced.
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     if (name == "testDebugUnitTest") {
+        // These tests read files directly instead of through the runtime classpath.
+        // Declare them so README/HTML-only changes invalidate cached test results.
+        inputs.files(rootProject.file("README.md"), project.file("build.gradle.kts"))
+            .withPropertyName("documentationInputs")
+            .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+        inputs.dir(layout.projectDirectory.dir("src/main/assets"))
+            .withPropertyName("renderAssets")
+            .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
         outputs.file(layout.buildDirectory.file("identity-work/migration-plan.json"))
             .withPropertyName("identityMigrationPlan")
         outputs.file(layout.buildDirectory.file("identity-work/tag-merge-schema.sql"))

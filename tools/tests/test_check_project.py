@@ -55,9 +55,17 @@ exit 0
         self.assertIn(b"Only a local emulator serial", result.stderr)
 
     def test_invalid_explicit_jdk_is_rejected(self):
-        script = "try { . " + quote(ROOT / "tools/codex-env.ps1") + " -JavaHome 'Z:/missing-jdk'; exit 9 } catch { exit 0 }"
+        script = "try { . " + quote(ROOT / "tools/codex-env.ps1") + " -JavaHome (Join-Path $PSScriptRoot 'missing-jdk'); exit 9 } catch { if ($_.Exception.Message -like 'JDK 21 not found*') { exit 0 }; exit 8 }"
         self.assertEqual(self.invoke(script).returncode, 0)
 
     def test_invalid_explicit_sdk_is_rejected(self):
-        script = "try { . " + quote(ROOT / "tools/codex-env.ps1") + " -SdkRoot 'Z:/missing-sdk'; exit 9 } catch { exit 0 }"
+        # Supply a valid discovery fixture so a missing JDK cannot masquerade as SDK rejection.
+        script = r"""
+$fixtureJdk = Join-Path $PSScriptRoot 'jdk'
+New-Item -ItemType Directory -Path (Join-Path $fixtureJdk 'bin') -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $fixtureJdk 'bin/java.exe') -Value ''
+Set-Content -LiteralPath (Join-Path $fixtureJdk 'release') -Value 'JAVA_VERSION="21.0.1"'
+try { . SCRIPT_PATH -JavaHome $fixtureJdk -SdkRoot (Join-Path $PSScriptRoot 'missing-sdk'); exit 9 }
+catch { if ($_.Exception.Message -like 'Android SDK not found*') { exit 0 }; exit 8 }
+""".replace("SCRIPT_PATH", quote(ROOT / "tools/codex-env.ps1"))
         self.assertEqual(self.invoke(script).returncode, 0)

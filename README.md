@@ -461,7 +461,7 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 
 ## 开发与测试
 
-开发约定见 [AGENTS.md](AGENTS.md)，隔离 Android 测试见 [测试说明](docs/testing/reliability.md)。建议使用英文路径。
+开发约定见 [AGENTS.md](AGENTS.md)，CI、缓存与 GitHub 操作见 [开发流程](docs/development.md)，隔离 Android 测试见 [测试说明](docs/testing/reliability.md)。建议使用英文路径。
 
 ```powershell
 . ./tools/codex-env.ps1
