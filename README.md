@@ -490,7 +490,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/sign-release.ps1 -OutDir app/build/identity-work/signed
 ```
 
-main 为发布线，Develop 为日常开发线。分支运行自动检查，v* 标签构建发布候选；正式版本在 CI 通过后按维护者持续授权完成签名、发布与归档；Beta 和安装按当次安排执行，不移动已有标签。设计、排查与逐版本过程记录仅作本地归档，不再堆放仓库根目录；对外更新说明见 GitHub Releases。
+main 为发布线，Develop 为日常开发线。正式发版按“本地基础检查 → 合并 main → 一次完整 CI（release_build=true）→ 发布该 CI 的签名 APK”执行；main 推送和标签不重复构建。Beta 和安装按当次安排执行，不移动已有标签。设计、排查与逐版本过程记录仅作本地归档，不再堆放仓库根目录；对外更新说明见 GitHub Releases。
 
 ## API Key 与权限
 

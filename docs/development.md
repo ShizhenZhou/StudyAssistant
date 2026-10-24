@@ -12,13 +12,14 @@
 
 只有 `.github/workflows/build.yml` 一份工作流：
 
-- main / Develop push、main PR、手动触发：完整 JVM/工具检查、集成测试包编译和 SQLite 校验。
-- v* tag：上述检查加 release/R8/vital lint、原证书及 lineage 重签、上传 APK 和创建草稿。整个工作流通过后按维护者授权发布，不自动移动旧标签。
-- Ubuntu 构建任务将单测及所有变体编译合并为一次 Gradle 调用；轻量 Windows 工具回归并行运行，不重复 Android 构建。Linux 工具测试会跳过仅限 Windows 的 4 项检查。
-- main / Develop 的可信 push 可以保存 Gradle 缓存，PR / tag 只读。默认分支缓存可供其他 ref 恢复；Develop 缓存主要供 Develop 后续构建使用，不能保证 main 直接命中它。
-- 同一分支的过期 run 可以取消；不同分支与 tag 不互相取消，tag 不中途取消。构建超时 20 分钟，Windows 工具检查 8 分钟；失败保留 JVM 报告 7 天。
-- 保留 main、Develop 与 tag 各自的完整检查；本轮不做跨分支跳测。PR 的合并测试提交也不等同于分支原提交。
-- v* 标签或手动输入 android_tests=true 时，在独立 Android 35 模拟器实际执行 16 项集成测试。复用 build 任务产出的两个 APK，不重复编译；检查设备、包名、instrumentation target 和通过数量。普通分支仅编译测试包。本机入口 tools/run-android-tests.ps1 只接受模拟器，禁止用户手机作为夹具。
+- 普通 Develop push / main PR：工具检查、严格 JVM 单测、测试包编译和 SQLite 校验。main push 和 v* tag 不触发重复构建。
+- 正式发版：本地针对性检查后先快进 main，再在 main 手动触发 release_build=true。一次 CI 同时完成 JVM/跨平台工具检查、release/R8/vital lint、原证书及 lineage 重签、16 项独立模拟器测试。
+- 全部通过后，建立新 tag 并直接发布该 run 的 release-apk 构件；不重新编译、不重新签名，下载复核 SHA 和签名后归档。未通过不能发布。普通检查或 android_tests=true 不自动发布。
+- 发版准备提交可明确使用 [skip ci] 抑制 Develop push 的重复检查，然后手动触发 main 发版 CI；workflow_dispatch 不受该提交标记跳过。不得借此跳过最后一次完整 CI。
+- 构建一次 Gradle 调用；Windows 工具检查并行；设备任务复用构建产出的两个独立 APK，不重复编译。设备与包名双重隔离，不安装用户手机。
+- main / Develop 的可信检查可保存 Gradle 缓存，PR 和其他 ref 只读。缓存不能代替必要验证；跨分支不会自动共享所有分支缓存。
+- 普通过期检查可取消，正式候选使用独立不取消组。构建/设备任务超时20分钟，Windows工具任务8分钟；失败保留报告。
+- 16 项 Android 测试在独立 Android 35 模拟器执行，并检查完整通过数量；可单独手动 android_tests=true。本机入口只接受已有模拟器。
 
 当前配置不再监听 multi_questions。旧分支按用户要求保持原样：若以后向它推送代码，GitHub 使用该分支自身旧工作流，它仍可能触发旧 CI；需要改旧分支时再单独处理。
 

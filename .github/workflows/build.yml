@@ -1,18 +1,18 @@
 name: build
 
-# 触发：
-#  1) 每次 push 到 main / Develop → 跑测试，不编译 release
-#     · Develop = 日常开发线（2026-10-14 起），推上去就跑单测，发版前就有信号
-#  2) 推 v* 标签 → 编译并把 APK 自动挂到同名 Release
-#  3) 手动触发（Actions 页面 Run workflow）
+# Develop/PR: ordinary checks. Manual release_build: one complete release candidate.
+# main fast-forward and tags do not rebuild; publish the exact verified artifact.
 on:
   push:
-    branches: [main, Develop]
-    tags: ['v*']
+    branches: [Develop]
   pull_request:
     branches: [main]
   workflow_dispatch:
     inputs:
+      release_build:
+        description: Build signed release APK and run the complete emulator suite
+        type: boolean
+        default: false
       android_tests:
         description: Run isolated Android tests on a CI emulator
         type: boolean
@@ -21,10 +21,10 @@ on:
 permissions:
   contents: read
 
-# 同一分支的新提交取消旧检查；不同分支/tag 不互相取消，tag 构建不中途取消。
+# Supersede ordinary checks; release candidates have their own non-cancelling group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_build && 'release' || 'check' }}
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.release_build) }}
 
 jobs:
   windows-tools:
@@ -42,8 +42,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: write
+    env:
+      RELEASE_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -57,8 +57,8 @@ jobs:
       - name: 配置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v4
         with:
-          # Trusted development pushes may save caches; PR/tag runs only read them.
-          cache-read-only: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/Develop') }}
+          # Trusted main/Develop checks may save caches; PRs and other refs are read-only.
+          cache-read-only: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/Develop') }}
 
       - name: 扫描跟踪文件中的密钥与校验开发工具
         run: |
@@ -68,11 +68,11 @@ jobs:
       # ── 发布签名材料（自有证书 + key rotation lineage） ─────────────────────
       # 见 README「发布签名（自有证书 + key rotation）」。仓库 Secrets 里存三样：
       #   RELEASE_KEYSTORE_BASE64 / RELEASE_LINEAGE_BASE64 / RELEASE_STORE_PASSWORD
-      # 只在 tag 构建读取签名 Secrets；缺少材料时停止生成发布附件。分支 / PR 无需密钥。
+      # Only an explicit manual release candidate reads signing secrets; ordinary checks need none.
       # ⚠️ 注意：`secrets` 上下文**不能**出现在 `if:` / `with:` 表达式里（工作流校验会直接判失败，
       #    表现为 run 在 0 秒内 failure）→ 这里改成"步骤内判断 + 写 $GITHUB_ENV 标记"。
-      - name: 解码签名材料（仅 tag）
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: 解码签名材料（仅手动正式候选）
+        if: env.RELEASE_BUILD == 'true'
         env:
           KS_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           LN_B64: ${{ secrets.RELEASE_LINEAGE_BASE64 }}
@@ -95,13 +95,12 @@ jobs:
           echo "SIGNED_READY=1" >> "$GITHUB_ENV"
           echo "OK 签名材料已就绪"
 
-      # One Gradle invocation shares configuration and task execution across variants.
-      # Release/R8/vital lint still run on every v* tag; device tests are not executed.
-      - name: 单测与测试包编译（tag 额外构建 release）
+      # Single invocation; only a manual release candidate adds release/R8/vital lint.
+      - name: 单测与测试包编译（正式候选同时构建 release）
         run: |
           chmod +x ./gradlew
           tasks=(testDebugUnitTest assembleIntegration assembleIntegrationAndroidTest)
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          if [[ "$RELEASE_BUILD" == "true" ]]; then
             tasks+=(assembleRelease)
           fi
           ./gradlew "${tasks[@]}" --console=plain
@@ -109,8 +108,8 @@ jobs:
       - name: 校验数据库迁移与 Room 表结构
         run: python3 tools/verify-identity-migration.py
 
-      - name: 提供独立测试 APK（tag 或手动设备检查）
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.android_tests)
+      - name: 提供独立测试 APK（正式候选或手动设备检查）
+        if: env.RELEASE_BUILD == 'true' || (github.event_name == 'workflow_dispatch' && inputs.android_tests)
         uses: actions/upload-artifact@v4
         with:
           name: integration-apks
@@ -124,7 +123,7 @@ jobs:
       # ★ 2026-10-13：必须同时要求"是 tag 推送"——分支推送按 A 方案不再编译 release，
       #   只判断 SIGNED_READY 会让这一步去找不存在的 app-release.apk 而报 FileNotFoundException（曾真实发生）。
       - name: 用新证书 + lineage 重签（APK Signature Scheme v3 轮换签名）
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNED_READY == '1'
+        if: env.RELEASE_BUILD == 'true' && env.SIGNED_READY == '1'
         env:
           KS_PASS: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
@@ -148,8 +147,8 @@ jobs:
 
       # ★ 2026-10-13：构件只在 tag 推送时才有（分支推送按 A 方案不再编译 release），
       #   所以这一步也只在 tag 上跑，避免分支推送出现"没有文件可上传"的空步骤。
-      - name: 上传 APK（仅 tag 推送；构建产物保留 30 天）
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: 上传正式候选 APK（保留 30 天）
+        if: env.RELEASE_BUILD == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
@@ -158,20 +157,6 @@ jobs:
           path: signed/*.apk
           retention-days: 30
           if-no-files-found: error
-
-      # 标签推送先建草稿并上传签名 APK；整个工作流通过后，
-      #   按维护者持续授权补齐更新说明、校验附件并正式发布。
-      #   这样 Release 说明与历史版本保持同一种格式（中文、emoji 分组）。
-      #   若想改成 GitHub 自动生成说明：draft 改 false，generate_release_notes 改 true。
-      # 只挂已重签的正式包；缺少签名材料时前面的 tag 步骤已经失败。
-      - name: 若是标签推送 → 建草稿 Release 并挂上 APK
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: signed/*.apk
-          draft: true
-          generate_release_notes: false
-          fail_on_unmatched_files: true
 
       - name: 失败时保留 JVM 测试报告
         if: failure()
@@ -187,7 +172,7 @@ jobs:
   android-device:
     name: Android emulator tests
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.android_tests)
+    if: github.event_name == 'workflow_dispatch' && (inputs.release_build || inputs.android_tests)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
