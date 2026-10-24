@@ -22,6 +22,7 @@ secrets.properties
 lineage*.bin
 keys/
 .keys/
+.secrets/
 local_secrets*
 LOCAL_SECRETS.txt
 local_secrets.txt
@@ -47,3 +48,6 @@ adbkey.pub
 *.log
 build-logs/
 
+
+# Python project tools
+__pycache__/

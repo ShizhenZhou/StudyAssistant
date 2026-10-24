@@ -1,7 +1,7 @@
 name: build
 
 # 触发：
-#  1) 每次 push 到 main / Develop / multi_questions → 跑测试（main 另编译 release 作校验）
+#  1) 每次 push 到 main / Develop / multi_questions → 跑测试，不编译 release
 #     · Develop = 日常开发线（2026-10-14 起），推上去就跑单测，发版前就有信号
 #  2) 推 v* 标签 → 编译并把 APK 自动挂到同名 Release
 #  3) 手动触发（Actions 页面 Run workflow）
@@ -37,21 +37,27 @@ jobs:
       - name: 配置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v4
 
+      - name: 扫描跟踪文件中的密钥与校验开发工具
+        run: |
+          python3 -B tools/check-secrets.py --tracked
+          python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
+
       # ── 发布签名材料（自有证书 + key rotation lineage） ─────────────────────
       # 见 README「发布签名（自有证书 + key rotation）」。仓库 Secrets 里存三样：
       #   RELEASE_KEYSTORE_BASE64 / RELEASE_LINEAGE_BASE64 / RELEASE_STORE_PASSWORD
-      # 未配置时（PR / fork / 本地克隆）自动跳过 → 退回 debug 签名，构建仍可通过。
+      # 只在 tag 构建读取签名 Secrets；缺少材料时停止生成发布附件。分支 / PR 无需密钥。
       # ⚠️ 注意：`secrets` 上下文**不能**出现在 `if:` / `with:` 表达式里（工作流校验会直接判失败，
       #    表现为 run 在 0 秒内 failure）→ 这里改成"步骤内判断 + 写 $GITHUB_ENV 标记"。
-      - name: 解码签名材料（若配置了 Secrets）
+      - name: 解码签名材料（仅 tag）
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           KS_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           LN_B64: ${{ secrets.RELEASE_LINEAGE_BASE64 }}
           KS_PW: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
           if [ -z "$KS_B64" ] || [ -z "$LN_B64" ] || [ -z "$KS_PW" ]; then
-            echo "未配置签名 Secrets → 跳过解码，本次退回 debug 签名"
-            exit 0
+            echo "::error::发布签名 Secrets 不完整，停止 tag 构建，禁止生成替代签名附件"
+            exit 1
           fi
           mkdir -p keys
           printf '%s' "$KS_B64" | base64 -d > keys/release.p12
@@ -121,20 +127,20 @@ jobs:
           name: release-apk
           # 有轮换签名包时**只传它**：AGP 那一份（无 lineage）与它同名，同传会让构件里出现
           # 两个同名但签名不同的 APK，容易拿错
-          path: ${{ env.SIGNED_READY == '1' && 'signed/*.apk' || 'app/build/outputs/apk/release/*.apk' }}
+          path: signed/*.apk
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
 
       # 标签推送 → 只负责「编译 + 挂附件」：
       #   建 draft Release（草稿），发布者补充图文分组说明后再点发布，
       #   这样 Release 说明与历史版本保持同一种格式（中文、emoji 分组）。
       #   若想改成 GitHub 自动生成说明：draft 改 false，generate_release_notes 改 true。
-      # 附件优先挂「带 lineage 的轮换签名包」（signed/），没有签名材料时才挂 AGP 产物。
+      # 只挂已重签的正式包；缺少签名材料时前面的 tag 步骤已经失败。
       - name: 若是标签推送 → 建草稿 Release 并挂上 APK
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.SIGNED_READY == '1' && 'signed/*.apk' || 'app/build/outputs/apk/release/*.apk' }}
+          files: signed/*.apk
           draft: true
           generate_release_notes: false
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true

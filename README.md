@@ -470,66 +470,53 @@ Kotlin · Jetpack Compose（Material3）· MVVM · Room（当前开发 v10；已
 ### v0.1（项目建立）
 - 🆕 项目搭建：**百度智能云 OCR 识别图像 + DeepSeek 解题**，拍照搜题、AI 解答、错题整理雏形
 
+## 开发入口
+
+先读 `AGENTS.md` 和 `DEV_ENV_NOTES.md`。在项目根目录的 PowerShell 中：
+
+```powershell
+# 仅设置当前终端；JDK 21、SDK 使用现有安装，缓存和临时文件留在项目内
+. ./tools/codex-env.ps1
+
+# 日常检查：差异、密钥、工具测试、JVM 单测、隔离 SQLite 校验
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/check-project.ps1
+
+# 需要检查正式构建时，额外执行 assembleRelease；不会执行发布重签、推送或发布
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/check-project.ps1 -Release
+```
+
+检查日志及 JSON 结果位于 `app/build/checks/`。任一步骤失败即返回非零退出码。
+环境入口优先使用有效的 JDK 21 / Android SDK，也可显式传入 `-JavaHome`、`-SdkRoot`；不会修改系统环境变量。
+
+也可单独使用标准命令：
+
+```powershell
+./gradlew.bat testDebugUnitTest --console=plain -Pkotlin.compiler.execution.strategy=in-process
+./gradlew.bat assembleDebug --console=plain -Pkotlin.compiler.execution.strategy=in-process
+```
+
+当前 JVM 单测 207 项、21 个测试类。迁移后的英文路径可直接运行标准 Gradle 单测；`tools/run-unit-tests.ps1` 保留作确有中文路径问题时的备选，不再是默认流程。
+
 ## 密钥与安全约定
 
-- **仓库里绝不出现任何密钥**（本地钩子 + 人工复核是唯一防线）。`.gitignore` 已覆盖各类密钥与凭据文件：`*.key`、`*.jks`、`*.keystore`、`*.p12`、`*.pem`、`secrets.properties`、`local.properties`、`.env`，以及 adb 调试私钥与签名 lineage 相关模式。
-- **调试/签名用的私钥一律不入库**：它们保存在**仓库之外的本地目录**里（`.gitignore` 里那几条是防御性忽略，防的是手滑把它们拷进来）。
-- **应用内的 API Key**：运行时由使用者在本 App 设置页填写，用 Android Keystore 加密存于手机；代码与仓库中不含任何真实 Key（`git grep` 全量扫描过 `sk-`/`AKID` 等模式，为空）。
-- **提交前本地扫描（建议一次性开启）**：
+- 仓库为公开仓库。API Key、令牌、签名私钥、密码、手机数据与本地配置不提交；`.gitignore` 只是一层防误操作，仍需检查差异。
+- 手机填写的 Key 在本机加密保存，只用于必要的 DeepSeek API 鉴权；开发用测试 Key 同样不得输出或提交。
+- 本地签名材料保存在仓库外，由忽略的 `secrets.properties` 引用；当前电脑的存放说明见 DEV_ENV_NOTES，不把私密材料纳入 Git。
+- 启用提交钩子：`git config core.hooksPath .githooks`。需有 Python 3；手动扫描暂存区用 `python -B tools/check-secrets.py`，扫描全部已跟踪的暂存版本用 `python -B tools/check-secrets.py --tracked`。
+- 本地钩子与 CI 使用同一扫描器。它检查敏感文件名和已知凭据特征，不打印匹配值；支持中文 / 空格路径、较大文本及 UTF-16 文本；Git 读取失败也会阻止检查通过。模式扫描不能识别所有秘密，仍需人工复核。
 
-  ```bash
-  git config core.hooksPath .githooks
-  ```
+### Git 工作方式
 
-  之后每次 `git commit` 都会先扫描暂存区：文件名命中密钥名单、或内容里出现 `sk-…`、私钥头、各类云厂商 AK 模式时**直接拦下**（确认不是密钥可用 `git commit --no-verify` 绕过）。
+先查看 `git status` / `git diff`，仅暂存本次相关文件，再提交。推送与发布按用户授权范围执行，避免把本地检查、提交和外部发布绑成一次不可审阅的操作。
 
-  手动运行（不提交也能查）：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-secrets.ps1`
-
-- **GitHub 端说明**：本仓库是**私有仓库**，GitHub 的 secret scanning / push protection 属于付费的 *GitHub Secret Protection*，免费版开不了（实测 REST API 返回 `422 Secret scanning is not available for this repository`），所以用上面的本地钩子兜底。（实测：升级到 GitHub Education/Pro 后**依然不可用**——私有仓库的 Secret Protection 是单独付费的附加项，2026-09-20 用 REST API 复测仍返回 `422`；所以本项目**继续依赖本地钩子**兜底）
-
-### 一键提交并推送：`tools/git-sync.ps1`
-
-```powershell
-# 扫描密钥 → 提交 → 推送 → 核对（一步到位）
-.\tools\git-sync.ps1 -Message "feat(v0.5.3): 说明本次改动"
-
-.\tools\git-sync.ps1 -Message "docs: 只提交不推送" -NoPush
-.\tools\git-sync.ps1 -NoCommit                      # 工作区已提交，只推送
-.\tools\git-sync.ps1 -Message "..." -Branch main    # 显式推别的分支（不传 -Branch = 推当前分支）
-```
-
-它解决的问题（在受限/无 `sh` 的环境里尤其有用）：
-
-1. **提交前先跑 `tools/check-secrets.ps1`** —— 于是沙箱等环境里 `sh` 型 git 钩子跑不起来也不影响安全兜底；
-2. **凭据走 `GIT_ASKPASS`**（原生 `.cmd`，不经 `sh`），token 只在环境变量中，**不进入命令行**（因此无需 `https://<token>@…` 那种写法，也不会写进 shell 历史）；
-3. **传输自动选路**：直连优先，失败自动切本地代理（`-ProxyPort`，默认 12450），并**记住上次成功的方式**（`.git/dsh-transport`），下次直接用它；
-4. 推送后自动同步 `refs/remotes/<remote>/<branch>`，并打印「本地 HEAD / 远端 HEAD / 是否一致」；
-5. **不传 `-Branch` 时推的就是当前所在分支**（2026-10-14 起；此前默认 `main`，在 `Develop` 上忘传 `-Branch` 会把提交静默留在本地）。
-
-退出码：`0` 成功；`1` 失败（扫描未过 / 提交失败 / 推送失败）。
-
-## 构建
-
-```bash
-# 首次构建会自动下载依赖（走阿里云镜像加速）
-gradlew.bat assembleDebug
-# 产物: app/build/outputs/apk/debug/app-debug.apk
-```
-
-单元测试（现 **84** 个用例，纯 JVM）：
-
-```powershell
-.\tools\run-unit-tests.ps1
-```
-
-> ⚠️ 本机特有：工程路径含非 ASCII（`文档`）时 `gradlew testDebugUnitTest` 会因测试 worker 的 classpath 乱码而失败，请改用上面的脚本；本机所有 Gradle 调用还要加 `-Pkotlin.compiler.execution.strategy=in-process`，否则 Kotlin 编译守护进程会被沙箱拒绝。
+常规 Git / GitHub CLI 优先。`tools/git-sync.ps1` 为旧受限环境保留，不再默认自动切代理或使用其中的旧环境假设；遇到网络问题根据实际错误处理，不关闭 TLS 校验。
 
 ## 分支与 CI
 
 - **`main` = 发布线**（只做合并与发布，始终保持「随时可发版」）；**`Develop` = 日常开发线**（2026-10-14 起，常规小版本在这里改代码 / 编译 / 真机测试 / 推送）。发版时把 `Develop` 合进 `main`，再在 `main` 上打 `v*` tag。
 - `.github/workflows/build.yml` **按触发分流**：
-  - **分支推送**（`main` / `Develop` / `multi_questions`）**只跑单元测试**（`testDebugUnitTest`）—— 不编译 release、**不产出 APK 构件**；
-  - **只有推 `v*` tag** 才跑 `testDebugUnitTest assembleRelease`，再补 lineage 重签、上传构件，并建一个**草稿** Release（说明由发布者补写后再点发布）。
+  - **分支 / PR** 扫描已跟踪文件、运行开发工具测试、JVM 单测和隔离 SQLite 校验；不读取发布签名材料、不编译 release 或产出 APK；
+  - **只有推 `v*` tag** 才额外构建 release，补 lineage 重签、上传正式构件并建草稿 Release；缺少签名材料或正式附件时失败，不回退发布 debug 签名包。当前工作流修改需推送后由 GitHub 实际运行验证。
 - 发布顺序：`Develop` → 合进 `main` → 打并推 `v*` tag → 等 CI 变绿 → 补 Release 说明并发布那个草稿。**可安装的 APK 只在 `v*` tag 的 run 里产出**。
 
 ## 发布签名（自有证书 + key rotation）
@@ -538,13 +525,15 @@ gradlew.bat assembleDebug
 
 - 轮换靠 **APK Signature Scheme v3 的 SigningCertificateLineage**（`lineage.bin`）实现：
   由**旧（debug）私钥签名授权**新证书 → 已经装了旧证书版本的设备（含朋友的手机）**可以直接覆盖升级，不需要卸载**，错题本数据保留。
-- keystore（`studyassistant-release.p12`）与 `lineage.bin` **都放在仓库之外**（工作区 `keys\`），
+- keystore（`studyassistant-release.p12`）、旧 debug keystore 与 `lineage.bin` **都放在仓库之外**（本机总工作区 `.secrets/StudyAssistant/`），
   `.gitignore` 另有一层兜底（`*.p12` / `*.keystore` / `*.jks` / `lineage*.bin` / `keys/`）；口令走 `secrets.properties`（已被忽略）。
 - ⚠️ **签名不是 `assembleRelease` 的产物**：AGP 的 `signingConfig` 不支持 lineage，必须再补一步：
 
   ```powershell
-  .\gradlew.bat assembleRelease
-  .\tools\sign-release.ps1     # 输出 StudyAssistant-<版本>-<时间>.apk ← 这个才是要发布的包
+  . ./tools/codex-env.ps1
+  ./gradlew.bat assembleRelease --console=plain -Pkotlin.compiler.execution.strategy=in-process
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/sign-release.ps1 -OutDir app/build/identity-work/signed
+  # 使用 signed 目录中通过证书及 lineage 检查的 APK
   ```
 
   （AGP 用 `signingConfig` 签出的 `app-release.apk` **不带 lineage**，会被这一步**替换签名**；不要直接发布它。）

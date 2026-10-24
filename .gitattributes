@@ -1,0 +1,9 @@
+# Keep cross-platform tools executable after Windows checkout.
+.gitattributes text eol=lf
+.githooks/* text eol=lf
+.github/workflows/*.yml text eol=lf
+tools/*.py text eol=lf
+tools/tests/*.py text eol=lf
+tools/*.ps1 text eol=crlf
+AGENTS.md text eol=lf
+DEV_ENV_NOTES.md text eol=lf

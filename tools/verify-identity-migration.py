@@ -1,6 +1,6 @@
 """Verify actual Kotlin-emitted migration SQL using disposable in-memory SQLite only.
 
-Run tools/run-unit-tests.ps1 first; QuestionIdentityTest emits the real migration plan.
+Run Gradle testDebugUnitTest first; QuestionIdentityTest emits the real migration plan.
 No Android device, user database, or backup file is read or changed.
 """
 import json
