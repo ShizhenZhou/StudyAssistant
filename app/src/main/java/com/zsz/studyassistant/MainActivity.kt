@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -120,7 +119,8 @@ class MainActivity : ComponentActivity() {
                         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !dark
                     }
                 }
-                Surface(modifier = Modifier.fillMaxSize()) {
+                com.zsz.studyassistant.ui.AppFeedbackLayout(viewModel) {
+                    val feedback = com.zsz.studyassistant.ui.LocalAppFeedback.current
                     val nav = rememberNavController()
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
@@ -132,12 +132,17 @@ class MainActivity : ComponentActivity() {
 
                     // 自动备份（设置 → 数据管理）：**每天第一次打开应用**时写一份 JSON 到用户选的文件夹，
                     // 只保留最近 3 份。未设置文件夹/开关关闭/今天已备份过 → 什么都不做；
-                    // 任何失败都静默（自动备份不该在启动时弹提示），要结果就手动点「立即备份」。
+                    // 只对本次实际备份的结果显示悬浮气泡；跳过时不提示，不改变页面高度。
                     LaunchedEffect(Unit) {
-                        runCatching {
+                        try {
                             com.zsz.studyassistant.data.AutoBackup.runIfDue(applicationContext) {
                                 viewModel.buildBackupJson()
-                            }
+                            }?.let { feedback.backupResult(it, strings) }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            feedback.show(strings.format("data.autoBackup.failed", "msg" to
+                                strings["data.autoBackup.storageFailed"]), isError = true, source = "backup")
                         }
                     }
 
@@ -201,7 +206,6 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Column(Modifier.fillMaxSize()) {
-                        com.zsz.studyassistant.ui.SaveStatusBanner(viewModel)
                         Box(Modifier.weight(1f)) {
                             NavHost(
                                 nav,

@@ -6,7 +6,8 @@ package com.zsz.studyassistant.ui
  */
 internal val CHANGELOG_ZH: String = """
 v0.6.6.8
-· 💾 去掉保存成功后的“已保存”顶栏提示，保留保存中及失败恢复提醒
+· 💾 日常保存保持静默；备份和操作结果使用官方 Material 3 悬浮胶囊气泡，不挤动页面，失败红字并延长停留
+· 🛠 保存失败可从气泡或数据管理进入重试、导出；备份导出在实际写入文件后才提示成功
 · 🖼 对话附图按钮改为“查看图片”，适用于原题和追问附图，补齐四语言
 · 📝 解答结论与详细过程之间加入分隔线；保留原题小题编号，结论与推导逐题对应，允许正常步骤编号
 · 💬 简短追问和概念解释不强制套完整解题结构；已有答案不变，DB v10 / Bak v3 不变
@@ -398,7 +399,8 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.6.6.8
-· 💾 Remove the saved-success banner; retain saving and recovery alerts
+· 💾 Keep routine saves silent; show backup and operation results in floating Material 3 capsule snackbars without resizing pages, with longer red failure messages
+· 🛠 Failed saves remain accessible for retry/export from the snackbar or Data management; report backup export success only after writing the file
 · 🖼 Use “View images” for both original-question and follow-up attachments, localized in four languages
 · 📝 Request a divider between conclusions and detailed solutions; preserve original subquestion numbers and match each result to its derivation, allowing normal step numbers
 · 💬 Short follow-ups and concept explanations need no full solution template; existing answers and DB v10 / Bak v3 remain unchanged
@@ -790,7 +792,8 @@ v0.1 (project start)
 
 internal val CHANGELOG_JA: String = """
 v0.6.6.8
-· 💾 保存成功時の通知を非表示にし、保存中と失敗時の復旧通知は維持
+· 💾 通常の保存は通知せず、バックアップなどの結果は公式 Material 3 のカプセル型スナックバーで表示。画面を押し下げず、失敗は赤字で長めに表示
+· 🛠 未保存内容は通知またはデータ管理から再試行・エクスポート可能。バックアップは実際の書き込み完了後に成功を通知
 · 🖼 元の問題と追加質問の添付画像ボタンを「画像を見る」に統一、4言語に対応
 · 📝 結論と詳しい解説の間に区切り線を指定。元の小問番号を保ち、結論と導出を対応付け、通常の手順番号も使用可能
 · 💬 短い追加質問や概念の説明には解答全体の形式を強制しない。既存の解答、DB v10 / Bak v3 は変更なし
@@ -1182,7 +1185,8 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.6.6.8
-· 💾 저장 성공 알림을 숨기고 저장 중 및 실패 복구 알림은 유지
+· 💾 일반 저장은 조용히 처리하고 백업 및 작업 결과는 공식 Material 3 캡슐형 스낵바로 표시. 화면을 밀지 않으며 실패는 빨간 글씨로 더 오래 표시
+· 🛠 미저장 내용은 스낵바 또는 데이터 관리에서 재시도·내보내기 가능. 백업은 실제 파일 쓰기 완료 후 성공을 알림
 · 🖼 원래 문제와 추가 질문의 첨부 이미지 버튼을 “이미지 보기”로 통일하고 4개 언어 지원
 · 📝 결론과 상세 풀이 사이에 구분선을 요청. 원래 소문항 번호를 유지하고 결과와 풀이를 대응시키며 일반 단계 번호도 허용
 · 💬 짧은 추가 질문과 개념 설명에는 전체 풀이 형식을 강제하지 않음. 기존 답변과 DB v10 / Bak v3 유지

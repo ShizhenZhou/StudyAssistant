@@ -128,7 +128,6 @@ fun SettingsTab(vm: MainViewModel) {
             val savePrompt = {
                 com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
                 cpDirty = false
-                android.widget.Toast.makeText(ctx, s["common.save"], android.widget.Toast.LENGTH_SHORT).show()
             }
             // 键盘弹出时贴在键盘上方的那颗「保存」（没改动时置灰）
             val promptSaveBar: @Composable () -> Unit = {
@@ -677,7 +676,6 @@ private fun ApiSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
     var input by remember { mutableStateOf("") }
-    var saved by remember { mutableStateOf(false) }
     var hasKey by remember { mutableStateOf(ApiKeyStore.hasKey(context)) }
 
     if (hasKey) {
@@ -692,7 +690,7 @@ private fun ApiSettings(vm: MainViewModel) {
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(
         value = input,
-        onValueChange = { input = it; saved = false },
+        onValueChange = { input = it },
         modifier = Modifier.fillMaxWidth(),
         label = { Text("API Key") },
         placeholder = { Text("sk-...") },
@@ -706,14 +704,11 @@ private fun ApiSettings(vm: MainViewModel) {
         onClick = {
             if (input.isNotBlank()) {
                 ApiKeyStore.saveKey(context, input.trim())
-                saved = true; hasKey = true; input = ""
+                hasKey = true; input = ""
             }
         },
         enabled = input.isNotBlank()
     ) { Text(s["common.save"]) }
-    if (saved) {
-        Text(s["settings.api.saved"], color = MaterialTheme.colorScheme.primary)
-    }
 
     Spacer(Modifier.height(24.dp))
     LaunchedEffect(Unit) { vm.refreshUsage() }
@@ -738,6 +733,7 @@ private fun ApiSettings(vm: MainViewModel) {
 @Composable
 private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     val s = LocalStrings.current
+    val feedback = LocalAppFeedback.current
     var showClearConfirm by remember { mutableStateOf(false) }
     // 一级页只显示自己的结果（清空）；导出/导入、升级/修复的文案分别归各自子页（不再串页显示）
     LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearMenuMessage() }
@@ -749,6 +745,11 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     )
     Spacer(Modifier.height(8.dp))
     // ⚠️ 标题文案本身已带 emoji（「🗂 备份管理」「🛠 数据升级 / 修复」），这里**不要再传 emoji**，否则会画两个
+    if (vm.pendingSaveCount > 0 || vm.saveJournalIssue) {
+        DataMenuRow(s["feedback.unsaved"], s["save.resolveFirst"], danger = true) {
+            feedback.saveRecoveryRequested = true
+        }
+    }
     DataMenuRow(s["data.backup"], "") { go("data.backup") }
     DataMenuRow(s["data.autoBackup"], s["data.autoBackupDesc"]) { go("data.auto") }
     DataMenuRow(s["data.crash"], s["data.crashLogDesc"]) { go("data.crash") }
@@ -759,10 +760,7 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     Spacer(Modifier.height(10.dp))
     DataMenuRow("🗑 " + s["data.clear"], s["data.clear.desc"], danger = true) { showClearConfirm = true }
 
-    vm.menuMessage?.let { msg ->
-        Spacer(Modifier.height(10.dp))
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-    }
+    FeedbackMessage(vm.menuMessage, vm.menuMessageIsError) { vm.clearMenuMessage() }
 
     if (showClearConfirm) {
         val n = summary?.first ?: 0
@@ -874,10 +872,7 @@ private fun DataUpgradePage(vm: MainViewModel) {
         modifier = Modifier.fillMaxWidth()
     ) { Text(s["data.repairBtn"], fontSize = BTN_LABEL) }
 
-    vm.upgradeMessage?.let {
-        Spacer(Modifier.height(16.dp))
-        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-    }
+    FeedbackMessage(vm.upgradeMessage, vm.upgradeMessageIsError) { vm.clearUpgradeMessage() }
     Spacer(Modifier.height(24.dp))
     Text(
         s.format("data.supportedVersions",
@@ -919,6 +914,7 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
 private fun BackupSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
+    val feedback = LocalAppFeedback.current
 
     // 本页只显示自己的结果（导出 / 导入）；升级与清空的文案归各自页面，避免串页
     LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearDataMessage() }
@@ -939,11 +935,12 @@ private fun BackupSettings(vm: MainViewModel) {
         if (uri != null) {
             vm.exportBackup(onReady = { json ->
                 try {
-                    context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
-                } catch (e: Exception) {
-                    android.widget.Toast.makeText(context, e.message ?: "export failed", android.widget.Toast.LENGTH_LONG).show()
+                    checkNotNull(context.contentResolver.openOutputStream(uri)).use { it.write(json.toByteArray()) }
+                    feedback.show(s["feedback.exportDone"])
+                } catch (_: Exception) {
+                    feedback.show(s["feedback.writeFailed"], isError = true)
                 }
-            }, onError = { })
+            }, onError = { feedback.show(it, isError = true) })
         }
     }
     Button(shape = smoothPill(), onClick = { exportLauncher.launch("study-assistant-backup.json") },
@@ -975,10 +972,7 @@ private fun BackupSettings(vm: MainViewModel) {
         androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Text(s[vm.dataProgressKey ?: "data.exporting"], style = MaterialTheme.typography.bodySmall)
     }
-    vm.dataMessage?.let { msg ->
-        Spacer(Modifier.height(12.dp))
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-    }
+    FeedbackMessage(vm.dataMessage, vm.dataMessageIsError) { vm.clearDataMessage() }
 
     if (vm.preparedBackup != null) {
         AlertDialog(
@@ -1000,6 +994,7 @@ private fun BackupSettings(vm: MainViewModel) {
 private fun AutoBackupSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
+    val feedback = LocalAppFeedback.current
     val scope = rememberCoroutineScope()
 
     // ── 自动备份（B8）：每天第一次打开应用时写一份 JSON 到用户选的文件夹，只留最近 3 份 ──
@@ -1021,14 +1016,12 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         preferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    var autoMessage by remember { mutableStateOf<String?>(null) }
     var autoWriting by remember { mutableStateOf(false) }
 
-    /** 备份一次（按钮与"刚选完文件夹"共用）：生成 JSON → 写盘 + 裁剪，结果写进 autoMessage */
+    /** 备份一次（按钮与"刚选完文件夹"共用）：写入并校验后才显示悬浮结果。 */
     fun backupNow() {
         if (autoWriting || vm.dataBusy || vm.preparedBackup != null) return
         autoWriting = true
-        autoMessage = null
         val expectedTree = AutoBackup.treeUri(context)
         vm.exportBackup(onReady = { json ->
             // ⚠️ SAF 写盘 + 裁剪是 IO，必须在协程里做，否则阻塞主线程
@@ -1037,17 +1030,13 @@ private fun AutoBackupSettings(vm: MainViewModel) {
                 val r = AutoBackup.runBackup(context, json)
                 autoCount = AutoBackup.listBackups(context).size
                 autoLast = AutoBackup.lastBackupAt(context)
-                autoMessage = if (r.ok) {
-                    s.format("data.autoBackup.done", "name" to (r.fileName ?: "")) +
-                        if (r.pruned > 0) "（" + s.format("data.autoBackup.pruned", "n" to "${r.pruned}") + "）" else ""
-                } else {
-                    s.format("data.autoBackup.failed", "msg" to (r.errorKey?.let { s[it] } ?: r.error.orEmpty()))
-                }
+                feedback.backupResult(r, s)
                 } finally { autoWriting = false }
             }
         }, onError = { msg ->
             AutoBackup.recordFailure(context, "data.autoBackup.snapshotFailed", expectedTree = expectedTree)
-            autoWriting = false; autoMessage = s.format("data.autoBackup.failed", "msg" to msg)
+            autoWriting = false
+            feedback.show(s.format("data.autoBackup.failed", "msg" to msg), isError = true, source = "backup")
         })
     }
 
@@ -1065,7 +1054,6 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             AutoBackup.setTreeUri(context, uri)
             autoFolder = AutoBackup.folderName(context) ?: uri.lastPathSegment
             autoCount = AutoBackup.listBackups(context).size
-            autoMessage = null
             // 选完文件夹立刻备份一次：既确认权限可用，也让用户马上有一份可用的备份
             backupNow()
         }
@@ -1109,7 +1097,6 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             onCheckedChange = { on ->
                 AutoBackup.setEnabled(context, on)
                 autoEnabled = on
-                autoMessage = null
             }
         )
     }
@@ -1124,10 +1111,6 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     Spacer(Modifier.height(4.dp))
     Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
 
-    autoMessage?.let { msg ->
-        Spacer(Modifier.height(8.dp))
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-    }
 
     Spacer(Modifier.height(16.dp))
 }
@@ -1137,11 +1120,11 @@ private fun AutoBackupSettings(vm: MainViewModel) {
 private fun CrashLogSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
+    val feedback = LocalAppFeedback.current
 
     // ── 崩溃日志：崩溃时自动记到本机（data/CrashLogger.kt），这里只做「导出 / 清空」 ──
     // 设计取舍：不做自动上传（隐私 + 自用无服务端），导出走系统「保存到文件」，用户自己决定发给谁。
     var crashCount by remember { mutableStateOf(CrashLogger.count(context)) }
-    var crashMessage by remember { mutableStateOf<String?>(null) }
     var showCrashClearConfirm by remember { mutableStateOf(false) }
 
     // 子页标题由 SettingsSubPage 的顶栏提供，页面内不再重复画一遍「🐞 崩溃日志」
@@ -1156,13 +1139,12 @@ private fun CrashLogSettings(vm: MainViewModel) {
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri ->
         if (uri != null) {
-            crashMessage = try {
+            try {
                 val text = CrashLogger.dumpText(context)
-                context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
-                    ?: throw IllegalStateException("无法写入所选位置")
-                s["data.crash.exportDone"]
-            } catch (e: Exception) {
-                s.format("data.crash.failed", "msg" to (e.message ?: "?"))
+                checkNotNull(context.contentResolver.openOutputStream(uri)).use { it.write(text.toByteArray()) }
+                feedback.show(s["data.crash.exportDone"])
+            } catch (_: Exception) {
+                feedback.show(s.format("data.crash.failed", "msg" to s["feedback.writeFailed"]), isError = true)
             }
         }
     }
@@ -1185,10 +1167,6 @@ private fun CrashLogSettings(vm: MainViewModel) {
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
     ) { Text(s["data.crash.clear"]) }
 
-    crashMessage?.let { msg ->
-        Spacer(Modifier.height(8.dp))
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-    }
 
     if (showCrashClearConfirm) {
         AlertDialog(
@@ -1199,7 +1177,7 @@ private fun CrashLogSettings(vm: MainViewModel) {
                 TextButton(shape = smoothPill(), onClick = {
                     CrashLogger.clear(context)
                     crashCount = 0
-                    crashMessage = s["data.crash.clearDone"]
+                    feedback.show(s["data.crash.clearDone"])
                     showCrashClearConfirm = false
                 }) { Text(s["common.ok"]) }
             },

@@ -120,6 +120,7 @@ fun SolveScreen(
     }
     val cfg = sessionConfig(sessionMode)
     val s = LocalStrings.current
+    val feedback = LocalAppFeedback.current
     var followUp by remember { mutableStateOf("") }
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -842,7 +843,7 @@ fun SolveScreen(
             val onReviewFinished: () -> Unit = {
                 vm.exitReviewMode()
                 AppNav.switchTab(nav, AppNav.HOME)
-                android.widget.Toast.makeText(context, s["solve.reviewDone"], android.widget.Toast.LENGTH_SHORT).show()
+                feedback.show(s["solve.reviewDone"])
             }
 
             // B6 重做：批改完成 → 显示"已按批改结果更新掌握度"，并可继续下一题

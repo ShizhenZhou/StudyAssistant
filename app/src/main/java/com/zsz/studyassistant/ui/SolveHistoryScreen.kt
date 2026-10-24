@@ -63,6 +63,7 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
+    val feedback = LocalAppFeedback.current
     val context = LocalContext.current
     // Dao 直接取（与 Reminder.kt 同一写法）；MainViewModel 的 dao 是 private，不改 VM
     val dao = remember(context) { AppDatabase.get(context).questionDao() }
@@ -238,7 +239,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                     exitSelection()
                     if (ids.isNotEmpty()) {
                         vm.deleteHistoryRecords(ids) {
-                            android.widget.Toast.makeText(context, s["history.deleteFailed"], android.widget.Toast.LENGTH_LONG).show()
+                            feedback.show(s["history.deleteFailed"], isError = true)
                         }
                     }
                 }) { Text(s["common.delete"]) }

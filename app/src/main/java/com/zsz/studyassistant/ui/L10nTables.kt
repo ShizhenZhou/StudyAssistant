@@ -15,6 +15,12 @@ package com.zsz.studyassistant.ui
 // 批次 0：底部导航 / 主页 / 设置主页 / 语言设置页
 // ===========================================================================
 private val B0_ZH = mapOf(
+    "feedback.handle" to "处理",
+    "feedback.unsaved" to "待保存内容",
+    "feedback.noPending" to "当前没有待保存内容。",
+    "feedback.backupDone" to "自动备份已完成。",
+    "feedback.exportDone" to "备份已导出。",
+    "feedback.writeFailed" to "无法保存到所选位置，请检查可用空间和文件权限。",
     "save.pending" to "{n} 项内容尚未存入数据库。",
     "save.recoverable" to "待保存副本已写入本机，重启后会尝试恢复；内容冲突时不会覆盖。",
     "save.keepOpen" to "部分内容尚未写入恢复文件。请先重试或导出，再关闭应用。",
@@ -116,6 +122,12 @@ private val B0_ZH = mapOf(
 )
 
 private val B0_EN = mapOf(
+    "feedback.handle" to "Resolve",
+    "feedback.unsaved" to "Unsaved content",
+    "feedback.noPending" to "There is no unsaved content.",
+    "feedback.backupDone" to "Automatic backup completed.",
+    "feedback.exportDone" to "Backup exported.",
+    "feedback.writeFailed" to "Could not save to the selected location. Check available space and file access.",
     "save.pending" to "{n} items have not been saved to the database.",
     "save.recoverable" to "Recovery copies are stored locally and retried after restart. Conflicting edits will not be overwritten.",
     "save.keepOpen" to "Some recovery copies could not be written. Retry or export before closing the app.",
@@ -216,6 +228,12 @@ private val B0_EN = mapOf(
 )
 
 private val B0_JA = mapOf(
+    "feedback.handle" to "対処する",
+    "feedback.unsaved" to "未保存の内容",
+    "feedback.noPending" to "未保存の内容はありません。",
+    "feedback.backupDone" to "自動バックアップが完了しました。",
+    "feedback.exportDone" to "バックアップをエクスポートしました。",
+    "feedback.writeFailed" to "選択した場所に保存できません。空き容量とファイルへのアクセス権を確認してください。",
     "save.pending" to "{n} 件の内容がデータベースに未保存です。",
     "save.recoverable" to "復元用コピーは端末内に保存済みです。再起動後に再試行し、競合する編集は上書きしません。",
     "save.keepOpen" to "一部の復元用コピーを書き込めませんでした。終了前に再試行または書き出してください。",
@@ -316,6 +334,12 @@ private val B0_JA = mapOf(
 )
 
 private val B0_KO = mapOf(
+    "feedback.handle" to "문제 해결",
+    "feedback.unsaved" to "저장되지 않은 내용",
+    "feedback.noPending" to "저장되지 않은 내용이 없습니다.",
+    "feedback.backupDone" to "자동 백업을 완료했습니다.",
+    "feedback.exportDone" to "백업을 내보냈습니다.",
+    "feedback.writeFailed" to "선택한 위치에 저장할 수 없습니다. 여유 공간과 파일 접근 권한을 확인하세요.",
     "save.pending" to "{n}개 항목이 데이터베이스에 저장되지 않았습니다.",
     "save.recoverable" to "복구 사본은 기기에 저장되었으며 재시작 후 재시도합니다. 충돌하는 편집은 덮어쓰지 않습니다.",
     "save.keepOpen" to "일부 복구 사본을 기록하지 못했습니다. 앱을 닫기 전에 재시도하거나 내보내세요.",

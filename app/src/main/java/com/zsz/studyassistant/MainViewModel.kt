@@ -346,6 +346,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var saveFeedback by mutableStateOf<String?>(null)
         private set
+    var saveFeedbackIsError by mutableStateOf(false)
+        private set
+    fun clearSaveFeedback() { saveFeedback = null }
 
     init {
         viewModelScope.launch {
@@ -425,9 +428,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             it.write(com.zsz.studyassistant.data.PendingSaveCodec.export(entries))
                         }
                     }
+                    saveFeedbackIsError = false
                     saveFeedback = com.zsz.studyassistant.ui.stringsFor(uiLang)["save.exportDone"]
                 } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { saveFeedback = com.zsz.studyassistant.ui.stringsFor(uiLang)["save.exportFailed"] }
+                catch (_: Exception) {
+                    saveFeedbackIsError = true
+                    saveFeedback = com.zsz.studyassistant.ui.stringsFor(uiLang)["save.exportFailed"]
+                }
             }
         }
     }
@@ -1352,14 +1359,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 备份管理子页自己的结果文案（导出 / 导入） */
     var dataMessage by mutableStateOf<String?>(null)
         private set
+    var dataMessageIsError by mutableStateOf(false)
+        private set
     /**
      * 数据升级 / 修复子页的结果文案 —— ★ 2026-10-17（用户反馈）**与备份页分开**：
      * 原来和 [dataMessage] 共用一个，导致「一键升级完成」的提示串到「备份管理」页面上显示。
      */
     var upgradeMessage by mutableStateOf<String?>(null)
         private set
+    var upgradeMessageIsError by mutableStateOf(false)
+        private set
     /** 「数据管理」一级页的结果文案（清空所有数据 —— 2026-10-17 从备份管理挪到一级页） */
     var menuMessage by mutableStateOf<String?>(null)
+        private set
+    var menuMessageIsError by mutableStateOf(false)
         private set
 
     fun clearDataMessage() { dataMessage = null }
@@ -1411,14 +1424,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val json = com.zsz.studyassistant.data.BackupManager.export(AppDatabase.get(getApplication()))
-                val n = dao.countQuestions()
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.exportDone", "n" to "$n")
+                // JSON generation is not a successful export; the caller reports only after writing.
                 onReady(json)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
                 val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else (e.message ?: "")
                 val m = s.format("data.failed", "msg" to detail)
-                dataMessage = m
                 onError(m)
             } finally {
                 dataBusy = false
@@ -1450,6 +1463,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                dataMessageIsError = true
                 dataMessage = s.format("data.failed", "msg" to
                     if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else s["data.importReadFailed"])
             } finally {
@@ -1472,6 +1486,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     requireNoPendingSaves()
                     com.zsz.studyassistant.data.BackupManager.importFile(AppDatabase.get(getApplication()), file)
                 }
+                dataMessageIsError = false
                 dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
                     "data.importDone",
                     "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}"
@@ -1482,6 +1497,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
                 val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else (e.message ?: "")
+                dataMessageIsError = true
                 dataMessage = s.format("data.failed", "msg" to detail)
             } finally {
                 dataBusy = false
@@ -1614,12 +1630,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 currentDatabaseVersion = schema
                 databaseVersionReadFailed = false
                 hasLegacyData = false
+                upgradeMessageIsError = false
                 upgradeMessage = if (needed || (isUpgrade && confirmationNeeded)) {
                     s.format(if (isUpgrade) "data.upgradeDone" else "data.repairDone", "n" to "$count")
                 } else s[if (isUpgrade) "data.upgradeNotNeeded" else "data.repairNotNeeded"]
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                upgradeMessageIsError = true
                 upgradeMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)
                     .format("data.failed", "msg" to (e.message ?: ""))
             } finally {
@@ -1640,8 +1658,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     failedHistoryWrites = 0
                     sessionRecordBinding.historyAllowed = false
                 }
+                menuMessageIsError = false
                 menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]
             } catch (e: Exception) {
+                menuMessageIsError = true
                 menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
             } finally {
                 dataBusy = false
