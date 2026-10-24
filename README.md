@@ -45,7 +45,7 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 >
 > 📌 **版本号约定（现行）**：`0.x.x`（三段）与 `0.x.x.x`（四段）**都要**在 README「版本记录」+ App 内「更新内容」（简 / 英 / 日 / 韩 4 份，繁體由简体自动转换）各记一次；`versionCode` **每次发版 +1**。更早小节里「`0.x.x.x` 不改更新内容、只发 Release」的说法**已作废**。
 
-### v0.6.6.6（待发布）
+### v0.6.6.6
 - ℹ️ **说明同步**：修正最低 Android 版本、AI 模式及联网表述，同步四语言关于页；清理根目录内部文档，完整过程记录保留在本地。
 - 💾 **备份健康状态**：自动备份失败在设置页保留原因和时间；写入并读回校验成功后解除警示，切换文件夹重置状态，不增加启动弹窗。
 - 📝 **整理草稿**：标签分组与勾选自动保存到本机，恢复时核对标签和关联；重新预览后才能确认合并，保存失败有提示，可明确放弃草稿。
@@ -483,7 +483,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/sign-release.ps1 -OutDir app/build/identity-work/signed
 ```
 
-main 为发布线，Develop 为日常开发线。分支运行自动检查，v* 标签构建发布候选；发布、同版本附件替换和安装按明确授权执行，不自动移动已有标签。设计、排查与逐版本过程记录仅作本地归档，不再堆放仓库根目录；对外更新说明见 GitHub Releases。
+main 为发布线，Develop 为日常开发线。分支运行自动检查，v* 标签构建发布候选；正式版本在 CI 通过后按维护者持续授权完成签名、发布与归档；Beta 和安装按当次安排执行，不移动已有标签。设计、排查与逐版本过程记录仅作本地归档，不再堆放仓库根目录；对外更新说明见 GitHub Releases。
 
 ## API Key 与权限
 
