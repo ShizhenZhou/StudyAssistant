@@ -47,3 +47,10 @@ adbkey.pub
 *.log
 build-logs/
 
+
+# Internal working records stay local, not in the repository root
+.local-notes/
+/RELEASE-*.md
+/FIX-*.md
+/DESIGN-*.md
+/DEV_ENV_NOTES.md
