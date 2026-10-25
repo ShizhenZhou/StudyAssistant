@@ -418,7 +418,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun writeDraft(value: com.zsz.studyassistant.data.ConversationDraft,
         baseline: com.zsz.studyassistant.data.SavePayload?) {
         try {
-            val saved=draftWriteMutex.withLock { withContext(kotlinx.coroutines.NonCancellable+Dispatchers.IO) { conversationDrafts.write(value,baseline) } }
+            val saved=withContext(kotlinx.coroutines.NonCancellable) { draftWriteMutex.withLock { withContext(Dispatchers.IO) { conversationDrafts.write(value,baseline) } } }
             if(activeDraft?.generation==value.generation) activeDraft=activeDraft?.copy(baseline=saved.baseline)
         } catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] }
     }

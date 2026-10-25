@@ -1888,7 +1888,7 @@ private val B10_ZH = mapOf(
         "· 错题本支持分类、标签、搜索、排序和批量处理；删除后 3 秒内可撤销\n" +
         "· 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
         "· 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
-        "· 间隔复习、每日提醒与学习统计（复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
+        "· 间隔复习、每日提醒与学习统计（含新增趋势，复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
         "· JSON 备份含原图和搜题记录，按题目编号去重；自动备份每天首次启动写到所选文件夹，保留最近 3 份，失败在设置中提示\n" +
         "· 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
         "· AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
@@ -1943,7 +1943,7 @@ private val B10_EN = mapOf(
         "· Categorise, tag, search, sort and batch-manage notebook entries; undo deletion within 3 seconds\n" +
         "· History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
         "· Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
-        "· Spaced review, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
+        "· Spaced review, new-question trends, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
         "· JSON backups include images and history and deduplicate by question ID; daily automatic backups use the selected folder, keep the latest 3 and show failures in settings\n" +
         "· Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
         "· Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
@@ -1998,7 +1998,7 @@ private val B10_JA = mapOf(
         "· 誤答ノートの分類・タグ・検索・並べ替え・一括操作。削除は3秒以内に取り消し可能\n" +
         "· 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
         "· AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
-        "· 間隔復習・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
+        "· 間隔復習・新規問題の推移・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
         "· 画像と履歴を含むJSONバックアップを問題番号で重複排除。自動保存は当日初回起動時に選択先へ直近3件を保持し、失敗を設定に表示\n" +
         "· 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
         "· AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
@@ -2053,7 +2053,7 @@ private val B10_KO = mapOf(
         "· 오답의 분류·태그·검색·정렬·일괄 관리. 삭제는 3초 안에 취소 가능\n" +
         "· 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
         "· AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
-        "· 간격 복습·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
+        "· 간격 복습·신규 문제 추이·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
         "· 이미지와 기록을 포함하는 JSON 백업을 문제 번호로 중복 제거. 자동 백업은 매일 첫 실행 때 선택한 폴더에 최근 3개를 유지하고 실패를 설정에 표시\n" +
         "· 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
         "· 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +

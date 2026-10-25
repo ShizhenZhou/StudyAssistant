@@ -15,6 +15,7 @@ class CloseoutSafetyTest {
         assertEquals(0,GradeVerdict.suggestion("Incorrect. Fix the sign."))
         assertEquals(2,GradeVerdict.suggestion("Correct. No errors."))
         assertEquals(0,GradeVerdict.suggestion("不正确，但第二步正确"))
+        assertEquals(0,GradeVerdict.suggestion("解答：答案错误。讲解：后续分析"))
         assertEquals(2,GradeVerdict.suggestion("正しいです。誤りはありません"))
         assertEquals(2,GradeVerdict.suggestion("정답입니다"))
         assertNull(GradeVerdict.suggestion("推导中会讨论正确和错误的两种情况"))

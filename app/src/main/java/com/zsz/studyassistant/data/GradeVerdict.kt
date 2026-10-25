@@ -16,6 +16,7 @@ object GradeVerdict {
         }
         val line = reply.lineSequence().map { it.trim() }.firstOrNull { it.isNotBlank() } ?: return null
         val head = line.replace(Regex("^(?:[①-⑳]\\s*)?(?:结论|結論|Conclusion|Result|결론|解答|答案)\\s*[:：]\\s*", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("^(?:答案|作答|回答)\\s*(?:是|为|為)?\\s*"), "")
         if (Regex("^(?:不正确|不正確|错误|錯誤|不正解|誤り|incorrect\\b|wrong\\b|틀림|오답|❌|✗|×)", RegexOption.IGNORE_CASE).containsMatchIn(head)) return FORGOT
         if (Regex("^(?:正确|正確|答对|答對|正しい|正解|correct\\b|right\\b|정답|맞음|✅|✓)", RegexOption.IGNORE_CASE).containsMatchIn(head)) return FAMILIAR
         return null
