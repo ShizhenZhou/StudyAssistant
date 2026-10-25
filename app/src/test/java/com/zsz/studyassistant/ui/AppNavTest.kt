@@ -60,7 +60,7 @@ class AppNavTest {
     @Test
     fun `设置子页的上一级`() {
         val sp = AppNav.SettingsPages
-        for (p in listOf(sp.AI_API, sp.AI_CROP, sp.AI_SOLVE)) assertEquals(sp.AI, sp.parent(p))
+        for (p in listOf(sp.AI_API, sp.AI_CROP, sp.AI_SOLVE, sp.AI_PROMPT)) assertEquals(sp.AI, sp.parent(p))
         assertEquals(sp.DATA, sp.parent(sp.DATA_BACKUP))
         assertEquals(sp.DATA, sp.parent(sp.DATA_CRASH))
         assertEquals(sp.DATA, sp.parent(sp.DATA_UPGRADE))
@@ -76,7 +76,7 @@ class AppNavTest {
     fun `二级页的上一级不能是它自己（否则返回键原地卡住）`() {
         val sp = AppNav.SettingsPages
         val secondLevel = listOf(
-            sp.AI, sp.AI_API, sp.AI_CROP, sp.AI_SOLVE, sp.LANG, sp.THEME, sp.NOTIFY, sp.DATA,
+            sp.AI, sp.AI_API, sp.AI_CROP, sp.AI_SOLVE, sp.AI_PROMPT, sp.LANG, sp.THEME, sp.NOTIFY, sp.DATA,
             sp.DATA_BACKUP, sp.DATA_CRASH, sp.DATA_UPGRADE, sp.DATA_TAG_MERGE,
             sp.UPDATE, sp.ABOUT
         )
@@ -86,7 +86,7 @@ class AppNavTest {
     @Test
     fun `AI 和数据子页沿父节点返回设置主页且不存在环`() {
         val sp = AppNav.SettingsPages
-        val children = listOf(sp.AI_API, sp.AI_CROP, sp.AI_SOLVE,
+        val children = listOf(sp.AI_API, sp.AI_CROP, sp.AI_SOLVE, sp.AI_PROMPT,
             sp.DATA_BACKUP, sp.DATA_CRASH, sp.DATA_UPGRADE, sp.DATA_TAG_MERGE)
         assertEquals(children.size, children.toSet().size)
         for (child in children) assertEquals(sp.MAIN, sp.parent(sp.parent(child)))

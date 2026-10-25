@@ -114,7 +114,8 @@ object AppNav {
      * 设置(main)
      * ├── ai          AI 管理 ──┬── ai.api     API 管理（含用量统计）
      * │                        ├── ai.crop    AI 切图
-     * │                        └── ai.solve   解题设置
+     * │                        ├── ai.solve   解题设置
+     * │                        └── ai.prompt  自定义要求
      * ├── lang        语言设置
      * ├── theme       应用主题
      * ├── notify      通知与后台
@@ -132,6 +133,7 @@ object AppNav {
         const val AI_API = "ai.api"
         const val AI_CROP = "ai.crop"
         const val AI_SOLVE = "ai.solve"
+        const val AI_PROMPT = "ai.prompt"
         const val LANG = "lang"
         const val THEME = "theme"
         const val NOTIFY = "notify"
@@ -144,13 +146,13 @@ object AppNav {
         const val ABOUT = "about"
 
         /** Complete registry, including leaf settings pages without children. */
-        val all = setOf(MAIN, AI, AI_API, AI_CROP, AI_SOLVE, LANG, THEME, NOTIFY,
+        val all = setOf(MAIN, AI, AI_API, AI_CROP, AI_SOLVE, AI_PROMPT, LANG, THEME, NOTIFY,
             DATA, DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT)
 
         /** 所有设置页的唯一父节点：AI 子页 → AI 管理，数据子页 → 数据管理，其余 → 设置主页。 */
         fun parent(page: String): String = when (page) {
             MAIN -> MAIN
-            AI_API, AI_CROP, AI_SOLVE -> AI
+            AI_API, AI_CROP, AI_SOLVE, AI_PROMPT -> AI
             DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
             else -> MAIN
         }

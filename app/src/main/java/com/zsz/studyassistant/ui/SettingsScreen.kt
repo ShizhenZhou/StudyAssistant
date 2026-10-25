@@ -117,6 +117,7 @@ fun SettingsTab(vm: MainViewModel) {
             SettingEntry(s["settings.api"]) { page = AppNav.SettingsPages.AI_API }
             SettingEntry(s["settings.aiCropPage"]) { page = AppNav.SettingsPages.AI_CROP }
             SettingEntry(s["settings.solveSettings"]) { page = AppNav.SettingsPages.AI_SOLVE }
+            SettingEntry(s["settings.customPrompt"]) { page = AppNav.SettingsPages.AI_PROMPT }
         }
         AppNav.SettingsPages.AI_API -> SettingsSubPage(s["settings.api"], { page = AppNav.SettingsPages.parent(page) }) {
             ApiSettings(vm)
@@ -133,7 +134,10 @@ fun SettingsTab(vm: MainViewModel) {
                 AiCropTimeoutSettings()
             }
         }
-        AppNav.SettingsPages.AI_SOLVE -> {
+        AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { page = AppNav.SettingsPages.parent(page) }) {
+            AiSolveModelSettings()
+        }
+        AppNav.SettingsPages.AI_PROMPT -> {
             val ctx = LocalContext.current
             // ★ 2026-10-13（用户要求 · 第 2 版）：自定义要求的文本 + "是否已修改"状态提到页面这一层，
             //   把「保存」做成**跟着键盘出现**的按钮：
@@ -153,12 +157,11 @@ fun SettingsTab(vm: MainViewModel) {
                 Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
             }
             SettingsSubPage(
-                title = s["settings.solveSettings"],
+                title = s["settings.customPrompt"],
                 onBack = { page = AppNav.SettingsPages.parent(page) },
                 // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
                 bottomBar = promptSaveBar.takeIf { imeVisible }
             ) {
-                AiSolveModelSettings()
                 AiCustomPromptSettings(cpText, onText = { cpText = it; cpDirty = true })
                 // 键盘收起时：保存按钮留在输入框下面（原来的位置）—— 与浮动底栏二选一，绝不同时出现
                 if (!imeVisible) {
@@ -198,9 +201,13 @@ private fun AboutPage() {
     Spacer(Modifier.height(20.dp))
     Text(s["about.tech"], style = MaterialTheme.typography.titleMedium)
     val aboutContext = LocalContext.current
-    Text(s.format("about.tech.body", "api" to "${aboutContext.applicationInfo.minSdkVersion}",
-        "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
-        "bak" to "${com.zsz.studyassistant.data.BackupFile.VERSION}"), style = MaterialTheme.typography.bodySmall)
+    Spacer(Modifier.height(8.dp))
+    Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(s.format("about.tech.body", "api" to "${aboutContext.applicationInfo.minSdkVersion}",
+            "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
+            "bak" to "${com.zsz.studyassistant.data.BackupFile.VERSION}"),
+            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
+    }
     Spacer(Modifier.height(20.dp))
     Text(s["about.features"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
@@ -495,9 +502,6 @@ private fun AiSolveModelSettings() {
 @Composable
 private fun AiCustomPromptSettings(text: String, onText: (String) -> Unit) {
     val s = LocalStrings.current
-    Spacer(Modifier.height(22.dp))
-    Text(s["settings.customPrompt"], style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(4.dp))
     Text(s["settings.customPrompt.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(
@@ -648,21 +652,22 @@ private fun SliderTicks(fmt: (Float) -> String, msToT: (Float) -> Float, values:
 }
 
 @Composable
-private fun SettingEntry(title: String, badge: Boolean = false, onClick: () -> Unit) {
+private fun SettingEntry(title: String, badge: Boolean = false, danger: Boolean = false, onClick: () -> Unit) {
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick)) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = MaterialTheme.typography.bodyLarge,
+                color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (badge) {
                     // 红色消息气泡「1」：有可用更新时显示（Canvas 精确居中，见 UpdateBadgeDot）
                     UpdateBadgeDot()
                     Spacer(Modifier.size(6.dp))
                 }
-                Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+                if (!danger) Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
             }
         }
     }
@@ -744,24 +749,24 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     Spacer(Modifier.height(8.dp))
     // ⚠️ 标题文案本身已带 emoji（「🗂 备份管理」「🛠 数据升级 / 修复」），这里**不要再传 emoji**，否则会画两个
     if (vm.pendingSaveCount > 0 || vm.saveJournalIssue) {
-        DataMenuRow(s["feedback.unsaved"], s["save.resolveFirst"], danger = true) {
+        SettingEntry(s["feedback.unsaved"], danger = true) {
             feedback.saveRecoveryRequested = true
         }
     }
     if (vm.draftSummaries.isNotEmpty() || vm.draftIssue) {
-        DataMenuRow(s["draft.title"], s["draft.notice"]) {
+        SettingEntry(s["draft.title"]) {
             feedback.draftOrigin=AppNav.Origin.SETTINGS
             feedback.draftRecoveryRequested=true
         }
     }
-    DataMenuRow(s["data.backup"], "") { go(AppNav.SettingsPages.DATA_BACKUP) }
-    DataMenuRow(s["data.crash"], s["data.crashLogDesc"]) { go(AppNav.SettingsPages.DATA_CRASH) }
-    DataMenuRow(s["data.upgradePage"], s["data.upgradeDesc"]) { go(AppNav.SettingsPages.DATA_UPGRADE) }
-    DataMenuRow(s["tagMerge.title"], s["tagMerge.description"]) { go(AppNav.SettingsPages.DATA_TAG_MERGE) }
+    SettingEntry(s["data.backup"]) { go(AppNav.SettingsPages.DATA_BACKUP) }
+    SettingEntry(s["data.crash"]) { go(AppNav.SettingsPages.DATA_CRASH) }
+    SettingEntry(s["data.upgradePage"]) { go(AppNav.SettingsPages.DATA_UPGRADE) }
+    SettingEntry(s["tagMerge.title"]) { go(AppNav.SettingsPages.DATA_TAG_MERGE) }
 
     // ★ 2026-10-17（用户要求）：清空所有数据**从「备份管理」挪到这一级菜单**上
     Spacer(Modifier.height(10.dp))
-    DataMenuRow("🗑 " + s["data.clear"], s["data.clear.desc"], danger = true) { showClearConfirm = true }
+    SettingEntry("🗑 " + s["data.clear"], danger = true) { showClearConfirm = true }
 
     FeedbackMessage(vm.menuMessage, vm.menuMessageIsError) { vm.clearMenuMessage() }
 
@@ -811,43 +816,6 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     }
 }
 
-@Composable
-private fun DataMenuRow(
-    title: String,
-    subtitle: String,
-    danger: Boolean = false,
-    onClick: () -> Unit
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified
-            )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        // 危险操作（清空所有数据）不画「›」—— 点它是弹确认框，不是进下一页
-        if (!danger) {
-            Text("›", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.outline)
-        }
-    }
-    Spacer(Modifier.height(2.dp))
-}
 
 /**
  * 🛠 数据升级 / 修复；展示应用支持版本与实际数据库结构版本。
@@ -1140,6 +1108,8 @@ private fun CrashLogSettings(vm: MainViewModel) {
     var crashCount by remember { mutableStateOf(CrashLogger.count(context)) }
     var showCrashClearConfirm by remember { mutableStateOf(false) }
 
+    Text(s["data.crashLogDesc"], style = MaterialTheme.typography.bodyMedium)
+    Spacer(Modifier.height(10.dp))
     // 子页标题由 SettingsSubPage 的顶栏提供，页面内不再重复画一遍「🐞 崩溃日志」
     Text(
         if (crashCount == 0) s["data.crash.none"] else s.format("data.crash.count", "n" to "$crashCount"),

@@ -1882,25 +1882,25 @@ private val B10_ZH = mapOf(
     "about.features" to "📋 功能",
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
-        "· 拍照或图文提问，最多 3 张图片；自动/手动框选与作答批改\n" +
-        "· 流式解答、附图追问、中止与继续生成、同类题练习；支持 KaTeX 公式（含矩阵）\n" +
-        "· 快速/思考模式均使用 deepseek-flash，分别关闭/开启思考\n" +
-        "· 错题本支持分类、标签、搜索、排序和批量处理；删除后 3 秒内可撤销\n" +
-        "· 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
-        "· 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
-        "· 间隔复习、每日提醒与学习统计（含新增趋势，复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
-        "· JSON 备份含原图和搜题记录，按题目编号去重；自动备份每天首次启动写到所选文件夹，保留最近 3 份，失败在设置中提示\n" +
-        "· 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
-        "· AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
-        "· 应用内更新校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
+        "· 📷 拍照或图文提问，最多 3 张图片；自动/手动框选与作答批改\n" +
+        "· 💬 流式解答、附图追问、中止与继续生成、同类题练习；支持 KaTeX 公式（含矩阵）\n" +
+        "· 🧠 快速/思考模式均使用 deepseek-flash，分别关闭/开启思考\n" +
+        "· 📚 错题本支持分类、标签、搜索、排序和批量处理；删除后 3 秒内可撤销\n" +
+        "· 🕘 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
+        "· 🏷️ 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
+        "· 📖 间隔复习、每日提醒与学习统计（含新增趋势，复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
+        "· 🗄️ JSON 备份含原图和搜题记录，按题目编号去重；自动备份每天首次启动写到所选文件夹，保留最近 3 份，失败在设置中提示\n" +
+        "· 💾 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
+        "· 🔎 AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
+        "· ⬆️ 应用内更新校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
-        "· 无账号、自有服务器或统计上报；错题、搜题记录和复习数据库保存在本机\n" +
-        "· AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
-        "· 标签整理 AI 分析发送完整标签的编号、名称与关联题数，不发送题目正文、答案或图片\n" +
-        "· 检查更新和下载安装包访问 GitHub，不携带题目内容；Key 在本机以 Android Keystore 加密，不经过开发者服务器\n" +
-        "· 自动备份只写入所选 SAF 文件夹，本应用不主动云同步；网盘文件夹可能由网盘应用自行同步。崩溃日志和分析诊断仅在手动导出时写到所选位置"
+        "· 📱 无账号、自有服务器或统计上报；错题、搜题记录和复习数据库保存在本机\n" +
+        "· 🤖 AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
+        "· 🏷️ 标签整理 AI 分析发送完整标签的编号、名称与关联题数，不发送题目正文、答案或图片\n" +
+        "· 🔐 检查更新和下载安装包访问 GitHub，不携带题目内容；Key 在本机以 Android Keystore 加密，不经过开发者服务器\n" +
+        "· 🗄️ 自动备份只写入所选 SAF 文件夹，本应用不主动云同步；网盘文件夹可能由网盘应用自行同步。崩溃日志和分析诊断仅在手动导出时写到所选位置"
         ),
     "update.current" to "当前版本",
     "update.check" to "检查更新",
@@ -1937,25 +1937,25 @@ private val B10_EN = mapOf(
     "about.features" to "📋 Features",
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
-        "· Ask by photo or text with up to 3 images; automatic/manual cropping and answer grading\n" +
-        "· Stream solutions, attach images to follow-ups, stop/resume, practise similar questions and render KaTeX formulas including matrices\n" +
-        "· Fast and thinking modes both use deepseek-flash, with thinking disabled/enabled respectively\n" +
-        "· Categorise, tag, search, sort and batch-manage notebook entries; undo deletion within 3 seconds\n" +
-        "· History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
-        "· Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
-        "· Spaced review, new-question trends, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
-        "· JSON backups include images and history and deduplicate by question ID; daily automatic backups use the selected folder, keep the latest 3 and show failures in settings\n" +
-        "· Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
-        "· Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
-        "· In-app updates verify the signing certificate and SHA-256 when GitHub provides a digest"
+        "· 📷 Ask by photo or text with up to 3 images; automatic/manual cropping and answer grading\n" +
+        "· 💬 Stream solutions, attach images to follow-ups, stop/resume, practise similar questions and render KaTeX formulas including matrices\n" +
+        "· 🧠 Fast and thinking modes both use deepseek-flash, with thinking disabled/enabled respectively\n" +
+        "· 📚 Categorise, tag, search, sort and batch-manage notebook entries; undo deletion within 3 seconds\n" +
+        "· 🕘 History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
+        "· 🏷️ Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
+        "· 📖 Spaced review, new-question trends, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
+        "· 🗄️ JSON backups include images and history and deduplicate by question ID; daily automatic backups use the selected folder, keep the latest 3 and show failures in settings\n" +
+        "· 💾 Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
+        "· 🔎 Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
+        "· ⬆️ In-app updates verify the signing certificate and SHA-256 when GitHub provides a digest"
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
-        "· No accounts, developer backend or analytics reporting; notebook, history and review databases are stored locally\n" +
-        "· AI features send necessary question text, images, context, custom instructions, relevant category/label names and options directly to the official DeepSeek API, authenticated with your own key\n" +
-        "· AI label analysis sends the complete label IDs, names and linked-question counts, without question text, answers or images\n" +
-        "· Update checks and APK downloads access GitHub without question content. Keys are encrypted locally with Android Keystore and never routed through a developer server\n" +
-        "· Automatic backups only write to the chosen SAF folder; this app does not perform cloud sync. A cloud-drive app may sync its own folder. Crash logs and analysis diagnostics are written to a chosen location only on manual export"
+        "· 📱 No accounts, developer backend or analytics reporting; notebook, history and review databases are stored locally\n" +
+        "· 🤖 AI features send necessary question text, images, context, custom instructions, relevant category/label names and options directly to the official DeepSeek API, authenticated with your own key\n" +
+        "· 🏷️ AI label analysis sends the complete label IDs, names and linked-question counts, without question text, answers or images\n" +
+        "· 🔐 Update checks and APK downloads access GitHub without question content. Keys are encrypted locally with Android Keystore and never routed through a developer server\n" +
+        "· 🗄️ Automatic backups only write to the chosen SAF folder; this app does not perform cloud sync. A cloud-drive app may sync its own folder. Crash logs and analysis diagnostics are written to a chosen location only on manual export"
         ),
     "update.current" to "Current version",
     "update.check" to "Check for updates",
@@ -1992,25 +1992,25 @@ private val B10_JA = mapOf(
     "about.features" to "📋 機能",
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
-        "· 撮影・文字と最大3枚の画像で質問。自動/手動の切り抜きと解答添削\n" +
-        "· 逐次解答、画像付き追加質問、生成の中止・再開、類似問題演習、KaTeX数式（行列など）\n" +
-        "· 高速/思考モードは共に deepseek-flash を使用し、思考を無効/有効に切り替え\n" +
-        "· 誤答ノートの分類・タグ・検索・並べ替え・一括操作。削除は3秒以内に取り消し可能\n" +
-        "· 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
-        "· AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
-        "· 間隔復習・新規問題の推移・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
-        "· 画像と履歴を含むJSONバックアップを問題番号で重複排除。自動保存は当日初回起動時に選択先へ直近3件を保持し、失敗を設定に表示\n" +
-        "· 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
-        "· AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
-        "· 更新時に署名を検証し、GitHubがダイジェストを提供する場合はSHA-256も照合"
+        "· 📷 撮影・文字と最大3枚の画像で質問。自動/手動の切り抜きと解答添削\n" +
+        "· 💬 逐次解答、画像付き追加質問、生成の中止・再開、類似問題演習、KaTeX数式（行列など）\n" +
+        "· 🧠 高速/思考モードは共に deepseek-flash を使用し、思考を無効/有効に切り替え\n" +
+        "· 📚 誤答ノートの分類・タグ・検索・並べ替え・一括操作。削除は3秒以内に取り消し可能\n" +
+        "· 🕘 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
+        "· 🏷️ AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
+        "· 📖 間隔復習・新規問題の推移・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
+        "· 🗄️ 画像と履歴を含むJSONバックアップを問題番号で重複排除。自動保存は当日初回起動時に選択先へ直近3件を保持し、失敗を設定に表示\n" +
+        "· 💾 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
+        "· 🔎 AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
+        "· ⬆️ 更新時に署名を検証し、GitHubがダイジェストを提供する場合はSHA-256も照合"
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
-        "· アカウント・開発者サーバー・解析データ送信なし。ノート・履歴・復習のDBは端末に保存\n" +
-        "· AI機能は必要な問題文・画像・文脈・カスタム指示・関連する分類/タグ名・設定をDeepSeek公式APIへ直接送信し、自分のキーで認証\n" +
-        "· タグ分析では全タグの番号・名称・関連問題数を送信。問題本文・解答・画像は送信しない\n" +
-        "· 更新確認とAPK取得はGitHubにアクセスし、問題内容は送信しない。キーはAndroid Keystoreで端末に暗号化保存し、開発者サーバーを経由しない\n" +
-        "· 自動バックアップは選択したSAFフォルダーへの書き込みのみで、本アプリはクラウド同期しない。クラウドアプリ側が同期する場合あり。クラッシュログと分析診断は手動出力時のみ選択先に書き込む"
+        "· 📱 アカウント・開発者サーバー・解析データ送信なし。ノート・履歴・復習のDBは端末に保存\n" +
+        "· 🤖 AI機能は必要な問題文・画像・文脈・カスタム指示・関連する分類/タグ名・設定をDeepSeek公式APIへ直接送信し、自分のキーで認証\n" +
+        "· 🏷️ タグ分析では全タグの番号・名称・関連問題数を送信。問題本文・解答・画像は送信しない\n" +
+        "· 🔐 更新確認とAPK取得はGitHubにアクセスし、問題内容は送信しない。キーはAndroid Keystoreで端末に暗号化保存し、開発者サーバーを経由しない\n" +
+        "· 🗄️ 自動バックアップは選択したSAFフォルダーへの書き込みのみで、本アプリはクラウド同期しない。クラウドアプリ側が同期する場合あり。クラッシュログと分析診断は手動出力時のみ選択先に書き込む"
         ),
     "update.current" to "現在のバージョン",
     "update.check" to "更新を確認",
@@ -2047,25 +2047,25 @@ private val B10_KO = mapOf(
     "about.features" to "📋 기능",
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
-        "· 사진 또는 글과 최대 3장의 이미지로 질문. 자동/수동 자르기와 답안 채점\n" +
-        "· 스트리밍 풀이, 이미지 후속 질문, 생성 중지·계속, 유사 문제 연습 및 KaTeX 수식(행렬 등)\n" +
-        "· 빠른/사고 모드는 모두 deepseek-flash를 사용하며 사고를 각각 끄거나 켬\n" +
-        "· 오답의 분류·태그·검색·정렬·일괄 관리. 삭제는 3초 안에 취소 가능\n" +
-        "· 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
-        "· AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
-        "· 간격 복습·신규 문제 추이·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
-        "· 이미지와 기록을 포함하는 JSON 백업을 문제 번호로 중복 제거. 자동 백업은 매일 첫 실행 때 선택한 폴더에 최근 3개를 유지하고 실패를 설정에 표시\n" +
-        "· 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
-        "· 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
-        "· 업데이트의 서명 인증서를 확인하고 GitHub가 해시를 제공하면 SHA-256도 대조"
+        "· 📷 사진 또는 글과 최대 3장의 이미지로 질문. 자동/수동 자르기와 답안 채점\n" +
+        "· 💬 스트리밍 풀이, 이미지 후속 질문, 생성 중지·계속, 유사 문제 연습 및 KaTeX 수식(행렬 등)\n" +
+        "· 🧠 빠른/사고 모드는 모두 deepseek-flash를 사용하며 사고를 각각 끄거나 켬\n" +
+        "· 📚 오답의 분류·태그·검색·정렬·일괄 관리. 삭제는 3초 안에 취소 가능\n" +
+        "· 🕘 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
+        "· 🏷️ AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
+        "· 📖 간격 복습·신규 문제 추이·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
+        "· 🗄️ 이미지와 기록을 포함하는 JSON 백업을 문제 번호로 중복 제거. 자동 백업은 매일 첫 실행 때 선택한 폴더에 최근 3개를 유지하고 실패를 설정에 표시\n" +
+        "· 💾 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
+        "· 🔎 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
+        "· ⬆️ 업데이트의 서명 인증서를 확인하고 GitHub가 해시를 제공하면 SHA-256도 대조"
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (
-        "· 계정·개발자 서버·분석 정보 전송이 없으며 오답·기록·복습 DB는 기기에 저장\n" +
-        "· AI 기능은 필요한 문제 글·이미지·문맥·사용자 지시·관련 분류/태그 이름·설정을 DeepSeek 공식 API로 직접 보내고 본인의 키로 인증\n" +
-        "· 태그 분석은 전체 태그 번호·이름·연결 문제 수를 보내며 문제 본문·답안·이미지는 보내지 않음\n" +
-        "· 업데이트 확인과 APK 다운로드는 문제 내용을 보내지 않고 GitHub에 접근. 키는 Android Keystore로 로컬 암호화하며 개발자 서버를 거치지 않음\n" +
-        "· 자동 백업은 선택한 SAF 폴더에만 쓰며 앱 자체는 클라우드 동기화를 하지 않음. 클라우드 앱이 자체 폴더를 동기화할 수 있음. 크래시 로그와 분석 진단은 수동 내보내기 때만 선택한 위치에 기록"
+        "· 📱 계정·개발자 서버·분석 정보 전송이 없으며 오답·기록·복습 DB는 기기에 저장\n" +
+        "· 🤖 AI 기능은 필요한 문제 글·이미지·문맥·사용자 지시·관련 분류/태그 이름·설정을 DeepSeek 공식 API로 직접 보내고 본인의 키로 인증\n" +
+        "· 🏷️ 태그 분석은 전체 태그 번호·이름·연결 문제 수를 보내며 문제 본문·답안·이미지는 보내지 않음\n" +
+        "· 🔐 업데이트 확인과 APK 다운로드는 문제 내용을 보내지 않고 GitHub에 접근. 키는 Android Keystore로 로컬 암호화하며 개발자 서버를 거치지 않음\n" +
+        "· 🗄️ 자동 백업은 선택한 SAF 폴더에만 쓰며 앱 자체는 클라우드 동기화를 하지 않음. 클라우드 앱이 자체 폴더를 동기화할 수 있음. 크래시 로그와 분석 진단은 수동 내보내기 때만 선택한 위치에 기록"
         ),
     "update.current" to "현재 버전",
     "update.check" to "업데이트 확인",

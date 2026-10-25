@@ -5,20 +5,25 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.11
+· 🎨 数据管理入口与 AI 管理共用标题卡片，去掉按钮下方说明并保留于子页；关于页“技术与兼容”补齐背景框
+· ✍️ 自定义要求独立为 AI 管理下的子页，保留键盘上方保存按钮，更新页面树与返回路径
+· 📝 补回 v0.6.6.9、v0.6.6.10 更新内容及关于页功能、隐私条目的 emoji
+
 v0.6.6.10
-· 自动备份并入备份管理；AI 管理拆分为 API 管理、AI 切图、解题设置，统一返回路径
-· 删除错题、记录或分类后可在 3 秒内撤销，之后才实际删除
-· 重新生成成功前保留旧答案，完成追问及时保存；中断对话独立保存在本机，可恢复草稿
-· 复习固定本轮筛选范围，保存成功才进入下一题；AI 批改由用户确认，修正自然日计算，统计标明估算口径
-· 重复导入只为新错题引入所需分类和标签；明确救援导出用途
-· 列表图片按需读取，大对话分段加载，备份超出安全内存范围时停止并保留原数据
-· 请求独立中止；完善提醒点击与排期，以及更新下载取消、临时文件和后台校验
+· ⚙️ 自动备份并入备份管理；AI 管理拆分为 API 管理、AI 切图、解题设置，统一返回路径
+· ↩️ 删除错题、记录或分类后可在 3 秒内撤销，之后才实际删除
+· 💬 重新生成成功前保留旧答案，完成追问及时保存；中断对话独立保存在本机，可恢复草稿
+· 📖 复习固定本轮筛选范围，保存成功才进入下一题；AI 批改由用户确认，修正自然日计算，统计标明估算口径
+· 📥 重复导入只为新错题引入所需分类和标签；明确救援导出用途
+· 🛡️ 列表图片按需读取，大对话分段加载，备份超出安全内存范围时停止并保留原数据
+· 🛠️ 请求独立中止；完善提醒点击与排期，以及更新下载取消、临时文件和后台校验
 
 v0.6.6.9
-· 收紧编号清洗规则，保留结论和过程里重复出现的圈号小题编号
-· 备份导出在后台打开、写入并关闭文件，减少卡顿与额外内存占用；完成前保持忙碌状态，防止重复操作
-· 识别 AI 长度上限及异常中断，保留已收到内容并提示手动继续或重试，不自动重复请求
-· 修正本地签名摘要计算依赖，发布失败原因更明确且不显示凭据
+· 📝 收紧编号清洗规则，保留结论和过程里重复出现的圈号小题编号
+· 💾 备份导出在后台打开、写入并关闭文件，减少卡顿与额外内存占用；完成前保持忙碌状态，防止重复操作
+· 💬 识别 AI 长度上限及异常中断，保留已收到内容并提示手动继续或重试，不自动重复请求
+· 🛠️ 修正本地签名摘要计算依赖，发布失败原因更明确且不显示凭据
 
 v0.6.6.8
 · 💾 日常保存保持静默；备份和操作结果使用官方 Material 3 悬浮胶囊气泡，不挤动页面，失败红字并延长停留
@@ -413,20 +418,25 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.11
+· 🎨 Share title-only cards across Data and AI management; move descriptions into subpages and add a matching card for Technology & compatibility
+· ✍️ Give Custom instructions its own AI management subpage, preserving keyboard-aware saving and updating back navigation
+· 📝 Restore emoji in v0.6.6.9/v0.6.6.10 changelogs and About feature/privacy items
+
 v0.6.6.10
-· Move automatic backups into Backup management; split AI settings into API management, AI cropping and Solving settings with consistent back navigation
-· Undo question, history or category deletion within 3 seconds before it is committed
-· Preserve old answers until regeneration succeeds; save completed follow-ups promptly and recover interrupted conversations from local drafts
-· Keep the selected review scope, advance only after saving, require confirmation of AI grading suggestions, fix calendar-day calculations and label estimated statistics
-· Import categories and tags only for new notebook questions; clarify rescue export
-· Load card images on demand and long conversations in chunks; stop backups exceeding safe memory limits without changing existing data
-· Isolate request cancellation; improve reminder intents/scheduling and update cancellation, temporary files and background verification
+· ⚙️ Move automatic backups into Backup management; split AI settings into API management, AI cropping and Solving settings with consistent back navigation
+· ↩️ Undo question, history or category deletion within 3 seconds before it is committed
+· 💬 Preserve old answers until regeneration succeeds; save completed follow-ups promptly and recover interrupted conversations from local drafts
+· 📖 Keep the selected review scope, advance only after saving, require confirmation of AI grading suggestions, fix calendar-day calculations and label estimated statistics
+· 📥 Import categories and tags only for new notebook questions; clarify rescue export
+· 🛡️ Load card images on demand and long conversations in chunks; stop backups exceeding safe memory limits without changing existing data
+· 🛠️ Isolate request cancellation; improve reminder intents/scheduling and update cancellation, temporary files and background verification
 
 v0.6.6.9
-· Tighten number cleanup to preserve circled subquestion numbers repeated across conclusions and derivations
-· Open, write and close backup exports in the background, reducing UI stalls and extra memory; keep operations busy until completion
-· Detect AI output limits and interrupted streams, retaining received content for manual continuation or retry without automatic repeat requests
-· Remove the local signing hash dependency and clarify release failures without exposing credentials
+· 📝 Tighten number cleanup to preserve circled subquestion numbers repeated across conclusions and derivations
+· 💾 Open, write and close backup exports in the background, reducing UI stalls and extra memory; keep operations busy until completion
+· 💬 Detect AI output limits and interrupted streams, retaining received content for manual continuation or retry without automatic repeat requests
+· 🛠️ Remove the local signing hash dependency and clarify release failures without exposing credentials
 
 v0.6.6.8
 · 💾 Keep routine saves silent; show backup and operation results in floating Material 3 capsule snackbars without resizing pages, with longer red failure messages
@@ -821,20 +831,25 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.11
+· 🎨 データ管理と AI 管理を同じ見出しカードに統一。説明は子ページへ移し、技術と互換性にも背景を追加
+· ✍️ カスタム指示を AI 管理の独立した子ページに分離。キーボード上の保存操作を保持し、戻る経路を更新
+· 📝 v0.6.6.9/v0.6.6.10 の更新内容と、機能・プライバシー項目の絵文字を復元
+
 v0.6.6.10
-· 自動バックアップをバックアップ管理へ統合。AI 設定を API 管理・AI 切り抜き・解答設定に分け、戻る経路を統一
-· 問題・履歴・分類の削除は 3 秒以内に取り消し可能。期限後に確定
-· 再生成が成功するまで旧回答を保持。追加回答を速やかに保存し、中断した会話は端末内の下書きから復元
-· 復習範囲を固定し、保存後に次へ移動。AI 判定は手動確認し、暦日の計算と統計の推定表示を修正
-· 新規問題に必要な分類・タグのみ読み込み。救済出力の用途を明確化
-· 画像を必要時に取得し、長い会話を分割読み取り。安全なメモリ上限を超えるバックアップは既存データを保持して停止
-· リクエストごとの中止、通知の遷移と再設定、更新の取消・一時ファイル・バックグラウンド検証を改善
+· ⚙️ 自動バックアップをバックアップ管理へ統合。AI 設定を API 管理・AI 切り抜き・解答設定に分け、戻る経路を統一
+· ↩️ 問題・履歴・分類の削除は 3 秒以内に取り消し可能。期限後に確定
+· 💬 再生成が成功するまで旧回答を保持。追加回答を速やかに保存し、中断した会話は端末内の下書きから復元
+· 📖 復習範囲を固定し、保存後に次へ移動。AI 判定は手動確認し、暦日の計算と統計の推定表示を修正
+· 📥 新規問題に必要な分類・タグのみ読み込み。救済出力の用途を明確化
+· 🛡️ 画像を必要時に取得し、長い会話を分割読み取り。安全なメモリ上限を超えるバックアップは既存データを保持して停止
+· 🛠️ リクエストごとの中止、通知の遷移と再設定、更新の取消・一時ファイル・バックグラウンド検証を改善
 
 v0.6.6.9
-· 番号の除去条件を絞り、結論と解説に繰り返し現れる丸数字の小問番号を保持
-· バックアップのファイル操作をバックグラウンドで実行し、画面停止と追加メモリを軽減。完了前の重複操作を防止
-· AI の長さ上限と異常終了を識別し、受信内容を保持して手動の続行・再試行を案内。自動再送は行わない
-· ローカル署名のハッシュ計算依存を修正し、認証情報を表示せずに公開処理の失敗理由を明確化
+· 📝 番号の除去条件を絞り、結論と解説に繰り返し現れる丸数字の小問番号を保持
+· 💾 バックアップのファイル操作をバックグラウンドで実行し、画面停止と追加メモリを軽減。完了前の重複操作を防止
+· 💬 AI の長さ上限と異常終了を識別し、受信内容を保持して手動の続行・再試行を案内。自動再送は行わない
+· 🛠️ ローカル署名のハッシュ計算依存を修正し、認証情報を表示せずに公開処理の失敗理由を明確化
 
 v0.6.6.8
 · 💾 通常の保存は通知せず、バックアップなどの結果は公式 Material 3 のカプセル型スナックバーで表示。画面を押し下げず、失敗は赤字で長めに表示
@@ -1229,20 +1244,25 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.11
+· 🎨 데이터·AI 관리에 같은 제목 카드를 사용. 설명은 하위 페이지로 옮기고 기술 및 호환성에도 배경 추가
+· ✍️ 사용자 지정 지시를 AI 관리의 독립 하위 페이지로 분리. 키보드 위 저장 버튼을 유지하고 뒤로 가기 경로 갱신
+· 📝 v0.6.6.9/v0.6.6.10 업데이트 내용과 기능·개인정보 항목의 이모지 복원
+
 v0.6.6.10
-· 자동 백업을 백업 관리로 통합. AI 설정을 API 관리·AI 자르기·풀이 설정으로 나누고 뒤로 가기 경로 통일
-· 문제·기록·분류 삭제 후 3초 안에 실행 취소 가능. 이후 삭제 확정
-· 재생성 성공 전까지 이전 답 유지. 후속 응답을 즉시 저장하고 중단된 대화는 기기 내 초안에서 복원
-· 선택한 복습 범위를 유지하고 저장 후 다음 문제로 이동. AI 판정은 사용자가 확인하며 날짜 계산과 추정 통계 표시 개선
-· 새 문제에 필요한 분류·태그만 가져오기. 복구용 내보내기 용도 명시
-· 이미지는 필요할 때 읽고 긴 대화는 나누어 읽기. 안전 메모리 한도를 넘는 백업은 기존 데이터를 유지하며 중단
-· 요청별 취소 처리, 알림 이동·예약 및 업데이트 취소·임시 파일·백그라운드 검증 개선
+· ⚙️ 자동 백업을 백업 관리로 통합. AI 설정을 API 관리·AI 자르기·풀이 설정으로 나누고 뒤로 가기 경로 통일
+· ↩️ 문제·기록·분류 삭제 후 3초 안에 실행 취소 가능. 이후 삭제 확정
+· 💬 재생성 성공 전까지 이전 답 유지. 후속 응답을 즉시 저장하고 중단된 대화는 기기 내 초안에서 복원
+· 📖 선택한 복습 범위를 유지하고 저장 후 다음 문제로 이동. AI 판정은 사용자가 확인하며 날짜 계산과 추정 통계 표시 개선
+· 📥 새 문제에 필요한 분류·태그만 가져오기. 복구용 내보내기 용도 명시
+· 🛡️ 이미지는 필요할 때 읽고 긴 대화는 나누어 읽기. 안전 메모리 한도를 넘는 백업은 기존 데이터를 유지하며 중단
+· 🛠️ 요청별 취소 처리, 알림 이동·예약 및 업데이트 취소·임시 파일·백그라운드 검증 개선
 
 v0.6.6.9
-· 번호 정리 조건을 좁혀 결론과 풀이에 반복되는 원형 소문항 번호를 유지
-· 백업 파일 열기·쓰기·닫기를 백그라운드에서 처리하여 화면 멈춤과 추가 메모리를 줄이고 완료 전 중복 작업 방지
-· AI 길이 제한과 비정상 종료를 감지하고 받은 내용을 보존하여 수동 계속·재시도를 안내. 자동 재요청은 하지 않음
-· 로컬 서명 해시 계산 의존성을 수정하고 자격 증명을 노출하지 않으면서 배포 실패 원인을 명확히 표시
+· 📝 번호 정리 조건을 좁혀 결론과 풀이에 반복되는 원형 소문항 번호를 유지
+· 💾 백업 파일 열기·쓰기·닫기를 백그라운드에서 처리하여 화면 멈춤과 추가 메모리를 줄이고 완료 전 중복 작업 방지
+· 💬 AI 길이 제한과 비정상 종료를 감지하고 받은 내용을 보존하여 수동 계속·재시도를 안내. 자동 재요청은 하지 않음
+· 🛠️ 로컬 서명 해시 계산 의존성을 수정하고 자격 증명을 노출하지 않으면서 배포 실패 원인을 명확히 표시
 
 v0.6.6.8
 · 💾 일반 저장은 조용히 처리하고 백업 및 작업 결과는 공식 Material 3 캡슐형 스낵바로 표시. 화면을 밀지 않으며 실패는 빨간 글씨로 더 오래 표시
