@@ -1090,6 +1090,10 @@ private val B5_KO = mapOf(
 // 批次 6：通知文案 + 错误提示
 // ===========================================================================
 private val B6_ZH = mapOf(
+    "err.streamLength" to "回答达到长度上限，尚未完成。已保留内容，可手动继续生成。",
+    "err.streamInterrupted" to "回答未正常结束，已保留收到的内容，请手动继续生成或重试。",
+    "err.streamFiltered" to "部分回答被服务端限制，内容可能不完整，请调整问题后重试。",
+    "err.streamInvalid" to "回答数据不完整或格式异常，已保留收到的内容，请重试。",
     "notif.review.channel" to "复习提醒",
     "notif.review.text" to "今天还有 {today} 道错题要复习！本周末前还有 {week} 道！",
     "notif.answer.channel" to "生成答案",
@@ -1107,6 +1111,10 @@ private val B6_ZH = mapOf(
 )
 
 private val B6_EN = mapOf(
+    "err.streamLength" to "The answer reached its length limit and is unfinished. Received content was kept; continue manually.",
+    "err.streamInterrupted" to "The answer ended unexpectedly. Received content was kept; continue or retry manually.",
+    "err.streamFiltered" to "The server restricted part of the answer. It may be incomplete; rephrase the question and retry.",
+    "err.streamInvalid" to "Answer data was incomplete or malformed. Received content was kept; please retry.",
     "notif.review.channel" to "Review reminder",
     "notif.review.text" to "You have {today} problems to review today and {week} by the end of this week!",
     "notif.answer.channel" to "Generating answer",
@@ -1124,6 +1132,10 @@ private val B6_EN = mapOf(
 )
 
 private val B6_JA = mapOf(
+    "err.streamLength" to "回答が長さの上限に達し、未完了です。受信内容は保持しています。手動で生成を続けられます。",
+    "err.streamInterrupted" to "回答が正常に終了しませんでした。受信内容は保持しています。手動で続行または再試行してください。",
+    "err.streamFiltered" to "回答の一部がサーバー側で制限されました。不完全な可能性があります。質問を言い換えて再試行してください。",
+    "err.streamInvalid" to "回答データが不完全か、形式が異常です。受信内容は保持しています。再試行してください。",
     "notif.review.channel" to "復習リマインダー",
     "notif.review.text" to "今日の復習は {today} 問、今週末までに {week} 問あります！",
     "notif.answer.channel" to "解答を生成中",
@@ -1141,6 +1153,10 @@ private val B6_JA = mapOf(
 )
 
 private val B6_KO = mapOf(
+    "err.streamLength" to "답변이 길이 제한에 도달하여 완료되지 않았습니다. 받은 내용은 보존했으며 수동으로 생성을 계속할 수 있습니다.",
+    "err.streamInterrupted" to "답변이 정상적으로 끝나지 않았습니다. 받은 내용은 보존했으며 수동으로 계속하거나 재시도할 수 있습니다.",
+    "err.streamFiltered" to "서버가 답변 일부를 제한하여 불완전할 수 있습니다. 질문을 수정한 후 재시도하세요.",
+    "err.streamInvalid" to "답변 데이터가 불완전하거나 형식에 문제가 있습니다. 받은 내용은 보존했습니다. 재시도하세요.",
     "notif.review.channel" to "복습 알림",
     "notif.review.text" to "오늘 복습할 오답 {today}개, 이번 주말까지 {week}개 있습니다!",
     "notif.answer.channel" to "답변 생성 중",

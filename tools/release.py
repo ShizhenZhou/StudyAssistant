@@ -27,7 +27,7 @@ def command(args, *, root=ROOT, data=None, log=None, timeout=120, check=True):
         Path(log).parent.mkdir(parents=True, exist_ok=True)
         Path(log).write_bytes(result.stdout + result.stderr)
     if check and result.returncode:
-        raise ReleaseError(f"{Path(str(args[0])).name} failed; local exit code {result.returncode}. No credentials are printed.")
+        raise ReleaseError(f"{'Local signing' if any(str(a).endswith('sign-release.ps1') for a in args) else Path(str(args[0])).name} failed; local exit code {result.returncode}. Inspect its local log; command arguments are withheld.")
     return result
 
 class GitHub:
@@ -283,7 +283,13 @@ def main():
         elif args.operation == "verify": result = coordinator.verify(args.run)
         else: result = coordinator.publish(args.run, args.notes)
         print(json.dumps(result, ensure_ascii=False)); return 0
-    except (ReleaseError, OSError, ValueError, KeyError, subprocess.TimeoutExpired):
-        print("Release step stopped safely. Check source/state/CI result; no credentials were printed. Resume the same run after resolving the cause.", file=sys.stderr)
+    except ReleaseError as error:
+        # ReleaseError messages are controlled templates; never print native stderr, arguments or OS exceptions.
+        print("Release step stopped safely: " + str(error), file=sys.stderr)
+        print("Resume the same run after resolving the cause; do not redispatch CI.", file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        category = "timeout" if isinstance(error, subprocess.TimeoutExpired) else type(error).__name__
+        print("Release step stopped safely (" + category + "). Inspect local state/logs; no exception values or credentials were printed.", file=sys.stderr)
         return 1
 if __name__ == "__main__": sys.exit(main())

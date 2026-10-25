@@ -32,6 +32,22 @@ class VisionOutputParserTest {
         assertEquals(body, StudyAssistant.stripMetaLines(body))
     }
 
+    @Test fun `圈号小题在结论和过程重复出现也必须保留`() {
+        val body = "结论：\n① 结果为 2\n② 结果为 4\n\n---\n\n详细过程：\n① 计算 1+1\n② 计算 2+2"
+        assertEquals(body, StudyAssistant.parseVisionOutput("④ 解答：\n$body").answer)
+        assertEquals(body, StudyAssistant.stripMetaLines(body))
+    }
+
+    @Test fun `重复圈号本身不是删除正文的证据`() {
+        val body = "④ 第一处结论\n④ 对应推导"
+        assertEquals(body, StudyAssistant.parseVisionOutput("④ 解答：\n$body").answer)
+    }
+
+    @Test fun `小题圈号和内部步骤可以并存`() {
+        val body = "① 1. 第一小题步骤\n② 1. 第二小题步骤"
+        assertEquals(body, StudyAssistant.parseVisionOutput("④ 解答：\n$body").answer)
+    }
+
     @Test
     fun `标准四段输出 —— 题目 分类 知识点 解答 都能取到`() {
         val out = """
@@ -81,7 +97,7 @@ class VisionOutputParserTest {
     }
 
     @Test
-    fun `圈码节标签泄漏到每一行 —— 同一个圈码重复出现就整篇剔掉`() {
+    fun `明确解答节号后接独立数字步骤时仅去掉模板圈码`() {
         val out = """
             ④ 解答：
             ④ 1. 条件：曲面封闭。

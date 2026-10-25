@@ -272,7 +272,6 @@ object StudyAssistant {
 //             ?: throw IllegalStateException("DeepSeek 返回为空")
 //     }
 
-    private val streamJson = Json { ignoreUnknownKeys = true }
 
     /** 正在进行的流式响应体（供「中止生成」立即中断阻塞读取用） */
     @Volatile
@@ -289,7 +288,7 @@ object StudyAssistant {
      *
      * 实现要点：
      * - 走 [ApiClient.deepSeekStream]（无整体 callTimeout），手写 SSE 逐行解析，**不引新依赖**；
-     * - 只认 `data:` 行，`[DONE]` 结束；解析失败的分片直接跳过（服务端偶发心跳/空行不应中断整段）；
+     * - 忽略心跳/空行，读取 finish_reason；非正常结束保留部分内容并由用户决定续写。
      * - 最后一片带 `usage` 时写入 [lastUsage]，保证「API 管理」用量统计不断档。
      *
      * @param onDelta 每收到一段增量调用一次（调用方负责节流，避免频繁重渲染）
@@ -317,6 +316,8 @@ object StudyAssistant {
         )
         val sb = StringBuilder()
         var usage: DeepSeekUsage? = null
+        val completion = StreamCompletion()
+        lastUsage = null
         activeStreamBody = body
         try {
             body.use { b ->
@@ -327,8 +328,9 @@ object StudyAssistant {
                     val line = src.readUtf8Line() ?: break
                     if (line.isEmpty() || !line.startsWith("data:")) continue
                     val payload = line.substring(5).trim()
-                    if (payload == "[DONE]") break
-                    val chunk = runCatching { streamJson.decodeFromString<StreamChunk>(payload) }.getOrNull() ?: continue
+                    val chunk = completion.accept(payload)
+                    if (completion.done) break
+                    if (chunk == null) continue
                     chunk.usage?.let { usage = it }
                     val d = chunk.choices.firstOrNull()?.delta
                     // ★ 推理模型的"思考流"：单独回调，且**不并入**正文（避免污染答案与解析）
@@ -342,8 +344,9 @@ object StudyAssistant {
             }
         } finally {
             activeStreamBody = null
+            lastUsage = usage
         }
-        lastUsage = usage
+        completion.requireComplete()
         return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }
     }
 
@@ -482,42 +485,31 @@ object StudyAssistant {
     /** 圈码后面紧跟数字分点（如 `④ 1. 条件：…`）→ 那个圈码一定是泄漏的节标签 */
     private val CIRC_THEN_NUM = Regex("^\\s*[\\u2460-\\u2473]\\s*(?=\\d+\\s*[.、)）])")
 
-    /**
-     * 去掉模型把**节序号泄漏到每一行**的写法（用户 2026-09-25 截图反馈的「莫名其妙的④」）。
-     * 例：提示词用「④ 解答：…」，模型却写成
-     *   `④ 1. 条件：…` / `④ 2. 坐标形式：…` / `④ 3. 向量形式：…`
-     * —— 每行开头的 ④ 是「节标签」而不是内容（真正的分点是它自己写的 1./2./3.）。
-     * 判据（保守，避免误删模型自己的分点）：
-     *   ① **同一个圈码在 ≥2 行行首重复出现** → 判为泄漏，整篇剔掉；
-     *   ② 圈码后面紧跟数字分点（`④ 1.`）→ 只剔那一个。
-     * 只在某一行出现过一次的圈码**不动**（可能是模型自己有意义的分点编号）。
+    /** Only strip an explicitly identified answer-section mark before a separate numeric step.
+     * Repeated circled subquestion numbers in conclusions/derivations are legitimate content.
      */
-    private fun stripLeakedSectionMarks(text: String): String {
-        if (text.isBlank()) return text
-        val lines = text.lines()
-        val counts = HashMap<String, Int>()
-        for (l in lines) {
-            CIRC_HEAD.find(l)?.groupValues?.get(1)?.let { counts[it] = (counts[it] ?: 0) + 1 }
-        }
-        val leaked = counts.filterValues { it >= 2 }.keys
-        return lines.joinToString("\n") { l ->
-            val m = CIRC_HEAD.find(l)
-            val isLeaked = m != null && m.groupValues[1] in leaked
-            if (isLeaked || CIRC_THEN_NUM.containsMatchIn(l)) CIRC_HEAD.replaceFirst(l, "").trimStart() else l
+    private fun stripLeakedSectionMarks(text: String, sectionMark: String?): String {
+        if (sectionMark == null) return text
+        return text.lines().joinToString("\n") { line ->
+            val mark = CIRC_HEAD.find(line)?.groupValues?.get(1)
+            if (mark == sectionMark && CIRC_THEN_NUM.containsMatchIn(line))
+                CIRC_HEAD.replaceFirst(line, "").trimStart() else line
         }
     }
+
+    private val ANSWER_SECTION_MARK = Regex("(?m)^\\s*([\\u2460-\\u2473])\\s*解答[:：]")
 
     /**
      * 清洗回答里**回显的元信息行**（"答案里又出现题目"的根因）与**泄漏的节序号**。
      * 只按行首标记剔整行 / 剔行首圈码，不做 `.*$` 式截断，因此对追问/口语化回答也安全。
      */
-    fun stripMetaLines(output: String): String {
+    fun stripMetaLines(output: String, sectionMark: String? = null): String {
         val kept = output.replace(Regex("<思考>[\\s\\S]*?</思考>"), "")
             .lines()
             .filterNot { META_LINE.containsMatchIn(it) }
             .joinToString("\n")
             .trim()
-        return stripLeakedSectionMarks(kept)
+        return stripLeakedSectionMarks(kept, sectionMark ?: ANSWER_SECTION_MARK.find(output)?.groupValues?.get(1))
     }
 
     /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
@@ -543,7 +535,7 @@ object StudyAssistant {
         //      用户看到的"正式答案莫名其妙消失"；
         //    · 反之若没被砍空，回显的"题目：…"就会留在答案里 = 之前的"答案里又出现题目"。
         //    现在统一改成**按行**剔元信息（stripMetaLines），只删那些标签行本身，绝不截断正文。
-        answer = stripMetaLines(answer)
+        answer = stripMetaLines(answer, ANSWER_SECTION_MARK.find(output)?.groupValues?.get(1))
         // 兜底①：整段都被当成元信息行剔掉了（模型把题干与解答写在同一行/同一段）→
         //   只去掉开头那一个「① 题目：」标签，**保住正文**（用户截图里的高斯公式那题就是这种写法）
         if (answer.isBlank()) answer = output.trim().replace(META_PREFIX, "").trim()

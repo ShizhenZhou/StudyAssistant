@@ -40,6 +40,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Independent of PowerShell module auto-loading in noninteractive signing subprocesses.
+function Get-ReleaseFileHash([string]$Path) {
+    $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($Path))
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
+}
+
 function Write-Step($t) { Write-Host "-- $t" -ForegroundColor Cyan }
 function Write-Ok($t)   { Write-Host "OK  $t" -ForegroundColor Green }
 function Write-Err2($t) { Write-Host "XX  $t" -ForegroundColor Red }
@@ -170,7 +178,7 @@ if ($vcode -ne 0 -or -not $v3) {
 }
 Write-Ok 'v3 方案 + lineage 校验通过'
 
-$h = (Get-FileHash $out -Algorithm SHA256).Hash.ToLower()
+$h = Get-ReleaseFileHash $out
 $len = (Get-Item $out).Length
 Write-Host ("    文件：{0}" -f (Split-Path -Leaf $out))
 Write-Host ("    大小：{0} bytes" -f $len)

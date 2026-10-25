@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.9
+· 收紧编号清洗规则，保留结论和过程里重复出现的圈号小题编号
+· 备份导出在后台打开、写入并关闭文件，减少卡顿与额外内存占用；完成前保持忙碌状态，防止重复操作
+· 识别 AI 长度上限及异常中断，保留已收到内容并提示手动继续或重试，不自动重复请求
+· 修正本地签名摘要计算依赖，发布失败原因更明确且不显示凭据
+
 v0.6.6.8
 · 💾 日常保存保持静默；备份和操作结果使用官方 Material 3 悬浮胶囊气泡，不挤动页面，失败红字并延长停留
 · 🛠 保存失败可从气泡或数据管理进入重试、导出；备份导出在实际写入文件后才提示成功
@@ -398,6 +404,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.9
+· Tighten number cleanup to preserve circled subquestion numbers repeated across conclusions and derivations
+· Open, write and close backup exports in the background, reducing UI stalls and extra memory; keep operations busy until completion
+· Detect AI output limits and interrupted streams, retaining received content for manual continuation or retry without automatic repeat requests
+· Remove the local signing hash dependency and clarify release failures without exposing credentials
+
 v0.6.6.8
 · 💾 Keep routine saves silent; show backup and operation results in floating Material 3 capsule snackbars without resizing pages, with longer red failure messages
 · 🛠 Failed saves remain accessible for retry/export from the snackbar or Data management; report backup export success only after writing the file
@@ -791,6 +803,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.9
+· 番号の除去条件を絞り、結論と解説に繰り返し現れる丸数字の小問番号を保持
+· バックアップのファイル操作をバックグラウンドで実行し、画面停止と追加メモリを軽減。完了前の重複操作を防止
+· AI の長さ上限と異常終了を識別し、受信内容を保持して手動の続行・再試行を案内。自動再送は行わない
+· ローカル署名のハッシュ計算依存を修正し、認証情報を表示せずに公開処理の失敗理由を明確化
+
 v0.6.6.8
 · 💾 通常の保存は通知せず、バックアップなどの結果は公式 Material 3 のカプセル型スナックバーで表示。画面を押し下げず、失敗は赤字で長めに表示
 · 🛠 未保存内容は通知またはデータ管理から再試行・エクスポート可能。バックアップは実際の書き込み完了後に成功を通知
@@ -1184,6 +1202,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.9
+· 번호 정리 조건을 좁혀 결론과 풀이에 반복되는 원형 소문항 번호를 유지
+· 백업 파일 열기·쓰기·닫기를 백그라운드에서 처리하여 화면 멈춤과 추가 메모리를 줄이고 완료 전 중복 작업 방지
+· AI 길이 제한과 비정상 종료를 감지하고 받은 내용을 보존하여 수동 계속·재시도를 안내. 자동 재요청은 하지 않음
+· 로컬 서명 해시 계산 의존성을 수정하고 자격 증명을 노출하지 않으면서 배포 실패 원인을 명확히 표시
+
 v0.6.6.8
 · 💾 일반 저장은 조용히 처리하고 백업 및 작업 결과는 공식 Material 3 캡슐형 스낵바로 표시. 화면을 밀지 않으며 실패는 빨간 글씨로 더 오래 표시
 · 🛠 미저장 내용은 스낵바 또는 데이터 관리에서 재시도·내보내기 가능. 백업은 실제 파일 쓰기 완료 후 성공을 알림

@@ -935,8 +935,12 @@ private fun BackupSettings(vm: MainViewModel) {
         if (uri != null) {
             vm.exportBackup(onReady = { json ->
                 try {
-                    checkNotNull(context.contentResolver.openOutputStream(uri)).use { it.write(json.toByteArray()) }
+                    com.zsz.studyassistant.data.writeUtf8Document(json) {
+                        context.contentResolver.openOutputStream(uri, "wt")
+                    }
                     feedback.show(s["feedback.exportDone"])
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     feedback.show(s["feedback.writeFailed"], isError = true)
                 }
@@ -1024,15 +1028,13 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         autoWriting = true
         val expectedTree = AutoBackup.treeUri(context)
         vm.exportBackup(onReady = { json ->
-            // ⚠️ SAF 写盘 + 裁剪是 IO，必须在协程里做，否则阻塞主线程
-            scope.launch {
-                try {
+            // Await the whole write/verification so dataBusy also prevents competing exports/imports.
+            try {
                 val r = AutoBackup.runBackup(context, json)
                 autoCount = AutoBackup.listBackups(context).size
                 autoLast = AutoBackup.lastBackupAt(context)
                 feedback.backupResult(r, s)
-                } finally { autoWriting = false }
-            }
+            } finally { autoWriting = false }
         }, onError = { msg ->
             AutoBackup.recordFailure(context, "data.autoBackup.snapshotFailed", expectedTree = expectedTree)
             autoWriting = false

@@ -63,7 +63,8 @@ data class StreamChunk(
 )
 
 @Serializable
-data class StreamChoice(val delta: StreamDelta? = null)
+data class StreamChoice(val delta: StreamDelta? = null,
+    @SerialName("finish_reason") val finishReason: String? = null)
 
 @Serializable
 data class StreamDelta(

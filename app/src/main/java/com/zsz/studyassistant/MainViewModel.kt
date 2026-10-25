@@ -1054,6 +1054,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
         val msg = e.message.orEmpty().lowercase()
         return when {
+            e is com.zsz.studyassistant.data.StreamIncompleteException -> s[e.messageKey]
             msg.contains("timed out") || msg.contains("timeout") || msg.contains("socket") -> s["err.timeout"]
             msg.contains("failed to connect") || msg.contains("unreachable") || msg.contains("connect") -> s["err.connect"]
             msg.contains("api key") || msg.contains("unauthorized") || msg.contains("401") -> s["err.apikey"]
@@ -1275,7 +1276,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val aborted = e is CancellationException || !currentCoroutineContext().isActive
                 val partial = prefix + sb
                 // 有内容 → 保留；零输出但属于「用户主动中止」→ 也保留（气泡不消失）；零输出且是失败 → 走错误分支
-                keepPartial = partial.isNotBlank() || aborted
+                keepPartial = partial.isNotBlank() || aborted || e is com.zsz.studyassistant.data.StreamIncompleteException
                 // 已被新请求取代的旧请求：不改界面状态（否则会把新请求的「思考中…」/内容冲掉）
                 if (mySeq == callSeq) {
                     if (keepPartial) {
@@ -1418,7 +1419,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 生成备份 JSON（IO 在后台线程）；ok 回调在拿到结果后触发 */
-    fun exportBackup(onReady: (String) -> Unit, onError: (String) -> Unit) {
+    fun exportBackup(onReady: suspend (String) -> Unit, onError: (String) -> Unit) {
         if (dataBusy || preparedBackup != null) return
         dataBusy = true
         viewModelScope.launch {
@@ -2404,9 +2405,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     when {
                         partial.isNotBlank() -> similarQuestion = partial          // 中断也保留已生成的题目
                         aborted -> similarQuestion = null                           // 中止且零输出：回到「思考中…」
-                        else -> similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to (e.message ?: ""))
+                        else -> similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to friendlyError(e, ""))
                     }
-                    similarAnswer = null
+                    if (e is com.zsz.studyassistant.data.StreamIncompleteException) {
+                        similarInterrupted = true
+                        val notice = friendlyError(e, "")
+                        val receivedAnswer = Regex("解答[:：]([\\s\\S]+)")
+                            .find(sb.toString())?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() }
+                        similarAnswer = receivedAnswer?.let { it + "\n\n" + notice }
+                        similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", notice)
+                    } else similarAnswer = null
                     similarStreamingText = null
                 }
             }
@@ -2504,8 +2512,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         similarMessages = similarMessages + ChatItem(
                             baseCount.toLong(),
                             "assistant",
-                            if (partial.isNotBlank()) partial
-                            else com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to (e.message ?: ""))
+                            if (partial.isNotBlank()) partial + (if (e is com.zsz.studyassistant.data.StreamIncompleteException) "\n\n" + friendlyError(e, "") else "")
+                            else com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.chatFailed", "msg" to friendlyError(e, ""))
                         )
                     }
                 }
