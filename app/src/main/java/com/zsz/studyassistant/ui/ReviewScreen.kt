@@ -214,9 +214,8 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                         items(g.second, key = { it.id }) { q ->
                             ReviewCard(q, onClick = {
                                 // 记录本轮复习进度（第 i/n 题，n = 今日/本周待复习总数）
-                                vm.startReviewSession(flat.size, flat.indexOf(q))
-                                vm.loadForReview(q)
-                                AppNav.openSolve(nav, AppNav.Origin.REVIEW)
+                                vm.startReviewSession(flat, flat.indexOf(q))
+                                vm.loadForReview(q) { AppNav.openSolve(nav, AppNav.Origin.REVIEW) }
                             })
                         }
                     }
@@ -234,15 +233,7 @@ private fun ReviewCard(q: Question, onClick: () -> Unit) {
     // ★ 2026-10-14（用户报「双图仍会丢」）：复习自测把**全部原图**都显示出来 ——
     //   `imageBytes` 只有一张（主图），其余图在 conversationJson 里；统一用 `mergeImageKeys` 合并去重
     //   （不要用 Bitmap.sameAs 逐像素比较，900px 图上太慢），最多 3 张（拍题上限）。
-    val imgBitmaps = remember(q.id, q.imageBytes, q.conversationJson) {
-        mergeImageKeys(
-            q.imageBytes?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) },
-            questionImageBase64(q.conversationJson)
-        ).mapNotNull { b64 ->
-            runCatching { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }.getOrNull()
-                ?.let { decodeSampledBitmap(it, 900) }
-        }
-    }
+    val imgBitmaps = questionCardBitmaps(q, 400)
     Card(
         modifier = Modifier
             .padding(horizontal = 4.dp)

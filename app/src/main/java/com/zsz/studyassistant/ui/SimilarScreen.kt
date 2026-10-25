@@ -48,6 +48,7 @@ import com.zsz.studyassistant.MainViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
+    androidx.compose.runtime.DisposableEffect(vm) { onDispose { vm.abortSimilar() } }
     val context = androidx.compose.ui.platform.LocalContext.current
     val s = LocalStrings.current
     var input by remember { mutableStateOf("") }

@@ -50,7 +50,7 @@ object AutoBackup {
     data class Failure(val at: Long, val key: String)
     private val failureKeys = setOf("data.autoBackup.folderMissing", "data.autoBackup.createFailed",
         "data.autoBackup.writeFailed", "data.autoBackup.verifyFailed", "data.autoBackup.storageFailed",
-        "data.autoBackup.permissionFailed", "data.autoBackup.snapshotFailed")
+        "data.autoBackup.permissionFailed", "data.autoBackup.snapshotFailed", "data.backupTooLarge")
 
     fun lastFailure(context: Context): Failure? {
         val stored = prefs(context).getString(KEY_FAILURE_KEY, null) ?: return null
@@ -207,10 +207,11 @@ object AutoBackup {
             val expectedTree = treeUri(context)
             val json = try { jsonProvider() }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) {
+            catch (e: Exception) {
                 Log.w(TAG, "build backup json failed")
-                recordFailure(context, "data.autoBackup.snapshotFailed", now, expectedTree)
-                return@withLock Result(false, null, errorKey = "data.autoBackup.snapshotFailed")
+                val key=if(e is BackupValidationException && e.messageKey=="data.backupTooLarge") e.messageKey else "data.autoBackup.snapshotFailed"
+                recordFailure(context,key,now,expectedTree)
+                return@withLock Result(false,null,errorKey=key)
             }
             if (!isDue(context, now) || treeUri(context) != expectedTree) return@withLock null
             runBackupLocked(context, json, now)

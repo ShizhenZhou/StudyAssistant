@@ -3,6 +3,8 @@ package com.zsz.studyassistant.data
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
+import kotlinx.coroutines.async
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -249,45 +251,35 @@ object UpdateChecker {
     }
 
     /** 下载到 [dest]，[onProgress] 回调 0..100（-1 表示总长度未知） */
-    suspend fun download(url: String, dest: File, onProgress: (Int) -> Unit): Boolean =
-        withContext(Dispatchers.IO) {
-            try {
-                dest.parentFile?.mkdirs()
-                if (dest.exists()) dest.delete()
-                val req = Request.Builder().url(url).build()
-                client.newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) {
-                        Log.w(TAG, "download HTTP ${resp.code}")
-                        return@withContext false
+    suspend fun download(url: String, dest: File, onProgress: (Int) -> Unit): Boolean = kotlinx.coroutines.supervisorScope {
+        val call = client.newCall(Request.Builder().url(url).build())
+        val work = async(Dispatchers.IO) {
+            dest.parentFile?.mkdirs()
+            call.execute().use { response ->
+                check(response.isSuccessful)
+                val body = checkNotNull(response.body)
+                val total = body.contentLength()
+                body.byteStream().use { input -> dest.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var done = 0L; var last = -2
+                    while (true) {
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read); done += read
+                        val percent = if(total > 0) ((done * 100) / total).toInt() else -1
+                        if(percent != last) { last = percent; onProgress(percent) }
                     }
-                    val body = resp.body ?: return@withContext false
-                    val total = body.contentLength()
-                    body.byteStream().use { input ->
-                        dest.outputStream().use { output ->
-                            val buf = ByteArray(64 * 1024)
-                            var read: Int
-                            var done = 0L
-                            var lastPct = -2
-                            while (true) {
-                                read = input.read(buf)
-                                if (read <= 0) break
-                                output.write(buf, 0, read)
-                                done += read
-                                val pct = if (total > 0) ((done * 100) / total).toInt() else -1
-                                if (pct != lastPct) { lastPct = pct; onProgress(pct) }
-                            }
-                            output.flush()
-                        }
-                    }
-                }
-                onProgress(100)
-                true
-            } catch (e: Exception) {
-                Log.w(TAG, "download failed: ${e.message}")
-                dest.delete()
-                false
+                    output.flush()
+                } }
             }
+            true
         }
+        try { work.await() }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { false }
+        finally { call.cancel() }
+    }
 
     /** 文件的 SHA-256（小写十六进制） */
     fun sha256(file: File): String? = try {
@@ -327,12 +319,17 @@ object UpdateChecker {
      * 双重校验：SHA-256（有 digest 才查）+ 签名证书。
      * 注意：**签名证书必须匹配**（这是防伪造的关键）；SHA 只在 API 给了 digest 时作为附加校验。
      */
-    fun verify(context: Context, apk: File, expectedSha256: String?): VerifyResult {
+    fun verify(context: Context, apk: File, expectedSha256: String?, expectedVersion: String? = null): VerifyResult {
         val actualSha = sha256(apk)
         val shaOk = expectedSha256 == null || (actualSha != null && actualSha.equals(expectedSha256, true))
         val actualSigner = apkSignerSha256(context, apk)
         val signerOk = actualSigner != null && actualSigner.equals(EXPECTED_CERT_SHA256, true)
-        return VerifyResult(ok = shaOk && signerOk, shaOk = shaOk, signerOk = signerOk, actualSigner = actualSigner)
+        val info = context.packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+        val installed = context.packageManager.getPackageInfo(context.packageName, 0)
+        val identityOk = info != null && info.packageName == context.packageName &&
+            info.longVersionCode >= installed.longVersionCode &&
+            (expectedVersion == null || normalizeVersion(info.versionName.orEmpty()) == expectedVersion)
+        return VerifyResult(ok = shaOk && signerOk && identityOk, shaOk = shaOk, signerOk = signerOk, actualSigner = actualSigner)
     }
 
     /** 下载目录（cacheDir/updates，配合 FileProvider 的 file_paths.xml） */

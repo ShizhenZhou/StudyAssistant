@@ -7,6 +7,18 @@ import org.junit.Test
 
 /** Real SnackbarHostState behavior, with no Activity, phone, filesystem or production data. */
 class AppFeedbackTest {
+    @Test fun `undo stays visible when a backup finishes and a failure waits behind it`() = checkFeedback { state ->
+        var undone=false
+        state.showDeletion("Removed", "Undo") { undone=true }
+        state.show("Backup done")
+        state.show("Backup failed",isError=true)
+        assertEquals("Removed",state.hostState.currentSnackbarData!!.visuals.message)
+        state.hostState.currentSnackbarData!!.performAction()
+        yield()
+        awaitMessage(state,"Backup failed")
+        assertTrue(undone)
+    }
+
     private fun checkFeedback(block: suspend CoroutineScope.(AppFeedbackState) -> Unit) = runBlocking {
         val job = Job()
         try { block(AppFeedbackState(CoroutineScope(coroutineContext + job))) }

@@ -376,8 +376,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                                 if (selectionMode) {
                                     selectedIds = if (selectedIds.contains(q.id)) selectedIds - q.id else selectedIds + q.id
                                 } else {
-                                    vm.loadQuestion(q)
-                                    AppNav.openSolve(nav, AppNav.Origin.NOTEBOOK)
+                                    vm.openNotebookQuestion(q.id) { AppNav.openSolve(nav, AppNav.Origin.NOTEBOOK) }
                                 }
                             },
                             onLongClick = {
@@ -443,15 +442,7 @@ private fun NotebookItem(
     // ★★ 2026-10-14（用户："错题本中只能显示一个图"）：卡片也要显示**全部原图**（最多 3 张，竖向排列）。
     //   以前这里只取一张（`imageBytes` 或会话里的第一张）→ 双图只看得见一张。
     //   统一走 `mergeImageKeys`：主图 + 会话附图，按 base64 去重。
-    val bitmaps = remember(q.id, q.imageBytes, q.conversationJson) {
-        mergeImageKeys(
-            q.imageBytes?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) },
-            questionImageBase64(q.conversationJson)
-        ).mapNotNull { b64 ->
-            runCatching { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }.getOrNull()
-                ?.let { decodeSampledBitmap(it, 400) }
-        }
-    }
+    val bitmaps = questionCardBitmaps(q, 400)
     Card(
         modifier = Modifier
             .padding(horizontal = 4.dp)

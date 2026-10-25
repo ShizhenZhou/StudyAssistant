@@ -118,6 +118,7 @@ object BackupManager {
     suspend fun export(db: AppDatabase): String = withContext(Dispatchers.IO) {
         val dao = db.questionDao()
         val file = db.withTransaction {
+            BackupLimits.checkEstimate(dao.questionBackupSize() + dao.historyBackupSize() + dao.imageBackupSize())
             val cats = dao.allCategoriesOnce()
             val tags = dao.getAllTagsOnce()
             val qs = dao.allQuestionsOnce()
@@ -147,7 +148,7 @@ object BackupManager {
             )
         }
         BackupValidation.validate(file)
-        json.encodeToString(BackupFile.serializer(), file)
+        json.encodeToString(BackupFile.serializer(), file).also { BackupLimits.checkEncoded(it) }
     }
 
     /** v3 only. Validate before writes, then apply all related data atomically. */

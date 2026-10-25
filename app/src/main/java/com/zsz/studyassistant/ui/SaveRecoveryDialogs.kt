@@ -61,6 +61,35 @@ fun SaveRecoveryDialogs(vm: MainViewModel) {
         },
         confirmButton = { TextButton(onClick = { feedback.saveRecoveryRequested = false }) { Text(s["common.ok"]) } }
     )
+    var discardDraftId by remember { mutableStateOf<String?>(null) }
+    if (feedback.draftRecoveryRequested) AlertDialog(
+        onDismissRequest = { feedback.draftRecoveryRequested=false },
+        title = { Text(s["draft.title"]) },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text(s["draft.notice"])
+            if (vm.draftIssue) Text(s["draft.issue"], color=MaterialTheme.colorScheme.error)
+            if (vm.draftSummaries.isEmpty()) Text(s["draft.empty"])
+            vm.draftSummaries.forEach { draft ->
+                Text(draft.title.ifBlank { draft.id }, maxLines=3)
+                Row {
+                    TextButton(enabled = !vm.busy && !vm.reviewBusy, onClick = {
+                        vm.resumeDraft(draft.id,feedback.draftOrigin.key)
+                        feedback.draftRecoveryRequested=false
+                    }) { Text(s["draft.recover"]) }
+                    TextButton(onClick = { discardDraftId=draft.id }) { Text(s["draft.discard"]) }
+                }
+            }
+            TextButton(onClick = { export.launch("study-assistant-rescue-${System.currentTimeMillis()}.json") }) { Text(s["save.export"]) }
+            Text(s["save.exportNotice"], style=MaterialTheme.typography.bodySmall)
+        } },
+        confirmButton = { TextButton(onClick = { feedback.draftRecoveryRequested=false }) { Text(s["common.ok"]) } }
+    )
+    if (discardDraftId!=null) AlertDialog(
+        onDismissRequest = { discardDraftId=null },
+        title = { Text(s["draft.discard"]) }, text = { Text(s["draft.discardConfirm"]) },
+        confirmButton = { TextButton(onClick = { discardDraftId?.let(vm::discardDraft); discardDraftId=null }) { Text(s["draft.discard"]) } },
+        dismissButton = { TextButton(onClick = { discardDraftId=null }) { Text(s["common.cancel"]) } }
+    )
     if (showDiscard) AlertDialog(
         onDismissRequest = { showDiscard = false },
         title = { Text(s["save.discard"]) },

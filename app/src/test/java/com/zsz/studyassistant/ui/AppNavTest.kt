@@ -14,6 +14,21 @@ import org.junit.Test
  * · 设置子页的"上一级"：数据管理四个子页 → 数据管理，其余 → 设置主页，且**父级不能是它自己**。
  */
 class AppNavTest {
+    @Test fun completeSettingsRegistryAlwaysReturnsToRoot() {
+        val pages=AppNav.SettingsPages
+        for (page in pages.all) {
+            var cursor=page
+            val seen=mutableSetOf<String>()
+            while(cursor!=pages.MAIN) {
+                assertTrue(seen.add(cursor))
+                cursor=pages.parent(cursor)
+                assertTrue(cursor in pages.all)
+            }
+        }
+        assertEquals(AppNav.Origin.SETTINGS,AppNav.Origin.of("settings"))
+        assertEquals("solve/settings",AppNav.solve(AppNav.Origin.SETTINGS))
+    }
+
 
     @Test
     fun `解题页路由带上来路`() {
@@ -45,8 +60,8 @@ class AppNavTest {
     @Test
     fun `设置子页的上一级`() {
         val sp = AppNav.SettingsPages
+        for (p in listOf(sp.AI_API, sp.AI_CROP, sp.AI_SOLVE)) assertEquals(sp.AI, sp.parent(p))
         assertEquals(sp.DATA, sp.parent(sp.DATA_BACKUP))
-        assertEquals(sp.DATA, sp.parent(sp.DATA_AUTO))
         assertEquals(sp.DATA, sp.parent(sp.DATA_CRASH))
         assertEquals(sp.DATA, sp.parent(sp.DATA_UPGRADE))
         assertEquals(sp.DATA, sp.parent(sp.DATA_TAG_MERGE))
@@ -61,11 +76,20 @@ class AppNavTest {
     fun `二级页的上一级不能是它自己（否则返回键原地卡住）`() {
         val sp = AppNav.SettingsPages
         val secondLevel = listOf(
-            sp.AI, sp.LANG, sp.THEME, sp.NOTIFY, sp.DATA,
-            sp.DATA_BACKUP, sp.DATA_AUTO, sp.DATA_CRASH, sp.DATA_UPGRADE, sp.DATA_TAG_MERGE,
+            sp.AI, sp.AI_API, sp.AI_CROP, sp.AI_SOLVE, sp.LANG, sp.THEME, sp.NOTIFY, sp.DATA,
+            sp.DATA_BACKUP, sp.DATA_CRASH, sp.DATA_UPGRADE, sp.DATA_TAG_MERGE,
             sp.UPDATE, sp.ABOUT
         )
         for (p in secondLevel) assertNotEquals("$p 的上一级是它自己", p, sp.parent(p))
+    }
+
+    @Test
+    fun `AI 和数据子页沿父节点返回设置主页且不存在环`() {
+        val sp = AppNav.SettingsPages
+        val children = listOf(sp.AI_API, sp.AI_CROP, sp.AI_SOLVE,
+            sp.DATA_BACKUP, sp.DATA_CRASH, sp.DATA_UPGRADE, sp.DATA_TAG_MERGE)
+        assertEquals(children.size, children.toSet().size)
+        for (child in children) assertEquals(sp.MAIN, sp.parent(sp.parent(child)))
     }
 
     @Test

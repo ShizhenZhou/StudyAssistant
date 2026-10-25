@@ -13,6 +13,15 @@ import org.junit.Test
  * 而以前只能装到手机上拍一道题看气泡才知道有没有改坏。现在改完跑 `gradlew test` 几秒出结果。
  */
 class VisionOutputParserTest {
+    @Test fun multilineQuestionPreservesEverySubquestion() {
+        val out="题目：计算下列各题\n（1）1+1\n（2）2+2\n分类：数学\n知识点：加法\n解答：见下"
+        assertEquals("计算下列各题\n（1）1+1\n（2）2+2",StudyAssistant.parseVisionOutput(out).question)
+    }
+    @Test fun fourthSubquestionNumberCannotBeMistakenForFormattingLeak() {
+        val body="④ 1. 定义\n④ 2. 计算"
+        assertEquals(body,StudyAssistant.parseVisionOutput("解答：\n$body").answer)
+    }
+
 
     @Test
     fun `结论与过程之间的分隔线和重复小题编号均保留`() {
@@ -106,7 +115,7 @@ class VisionOutputParserTest {
 
         val r = StudyAssistant.parseVisionOutput(out)
 
-        assertFalse("泄漏的④没被剔掉：${r.answer}", r.answer.contains("④"))
+        assertTrue("无法区分正文圈号时必须保留：${r.answer}", r.answer.contains("④ 1."))
         assertTrue(r.answer.contains("1. 条件：曲面封闭。"))
         assertTrue(r.answer.contains("2. 结论：通量为零。"))
     }

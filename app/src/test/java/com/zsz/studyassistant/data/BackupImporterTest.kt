@@ -67,6 +67,9 @@ class BackupImporterTest {
         assertEquals("new answer",s.questions.getValue(id).answer)
         assertEquals(id,s.sessions.getValue(id).savedQuestionId)
         assertTrue(s.reviews.isEmpty())
+        assertTrue(s.categories.isEmpty())
+        assertTrue(s.tags.isEmpty())
+        assertTrue(s.links.isEmpty())
     }
     @Test fun existingHistoryGainsRestoredNotebookLinkWithoutBeingOverwritten() = runBlocking {
         val s=Store();s.sessions[id]=SolveSession(id,createdAt=10000,updatedAt=99999,text="local history")

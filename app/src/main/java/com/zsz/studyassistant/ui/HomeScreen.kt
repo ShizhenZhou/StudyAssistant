@@ -96,6 +96,13 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             //   → 「🕘 搜题记录」独占一行。
             //   原因：2×2 网格时半宽格子放不下「📷 拍照搜题」，被压成「📷 拍照…」——用户明确不要「…」，
             //   并要求这两个主入口**各占一行**。最外层已有 verticalScroll 兜底，4 行在小屏/大字号下也不会被裁。
+            if (vm.draftSummaries.isNotEmpty() || vm.draftIssue) {
+                val feedback = LocalAppFeedback.current
+                TextButton(onClick = {
+                    feedback.draftOrigin=AppNav.Origin.HOME
+                    feedback.draftRecoveryRequested=true
+                }) { Text(s["draft.title"]) }
+            }
             val gap = 12.dp
             Button(shape = smoothPill(),
                 onClick = { nav.navigate(AppNav.CAMERA) },

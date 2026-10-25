@@ -71,6 +71,7 @@ fun StatsScreen(vm: MainViewModel) {
             StatCard(s["stats.due"], "${st.dueNow}", "⏰", Modifier.weight(1f))
         }
 
+        Text(s["stats.estimateNotice"], style=MaterialTheme.typography.bodySmall, modifier=Modifier.padding(top=8.dp))
         Spacer(Modifier.height(18.dp))
         // ── 掌握度分布（堆叠条） ──
         SectionTitle(s["stats.mastery"])

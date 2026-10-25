@@ -70,6 +70,20 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.refreshClock()
+        com.zsz.studyassistant.data.ReminderScheduler.applySchedule(this)
+    }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("open_review", false)) {
+            intent.removeExtra("open_review")
+            viewModel.requestReviewNavigation()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 启动时清理已删除题目与孤儿记录（定期维护数据库）
@@ -81,7 +95,10 @@ class MainActivity : ComponentActivity() {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
             }
         }
-        val openReview = intent?.getBooleanExtra("open_review", false) ?: false
+        if (intent?.getBooleanExtra("open_review", false) == true) {
+            intent.removeExtra("open_review")
+            viewModel.requestReviewNavigation()
+        }
         enableEdgeToEdge()
         setContent {
             val dark = when (viewModel.theme) {
@@ -257,9 +274,20 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            androidx.compose.runtime.LaunchedEffect(viewModel.draftSolveRequested) {
+                                if (viewModel.draftSolveRequested) {
+                                    AppNav.openSolve(nav, AppNav.Origin.of(viewModel.draftReturnOrigin))
+                                    viewModel.consumeDraftNavigation()
+                                }
+                            }
                             // 从通知点进来 → 直接打开复习页
-                            androidx.compose.runtime.LaunchedEffect(openReview) {
-                                if (openReview) nav.navigate(AppNav.REVIEW)
+                            androidx.compose.runtime.LaunchedEffect(viewModel.reviewOpenRequested) {
+                                if (viewModel.reviewOpenRequested) {
+                                    viewModel.saveSessionOnExit()
+                                    viewModel.stopActiveGeneration()
+                                    AppNav.openReview(nav)
+                                    viewModel.consumeReviewNavigation()
+                                }
                             }
                         }
                         if (showBottomBar) {

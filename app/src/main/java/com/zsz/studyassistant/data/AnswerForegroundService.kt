@@ -21,6 +21,7 @@ class AnswerForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (synchronized(owners) { owners.isEmpty() }) { stopSelf(startId); return START_NOT_STICKY }
         val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(this))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(
@@ -52,13 +53,18 @@ class AnswerForegroundService : Service() {
         private const val CHANNEL_ID = "answer_running"
         private const val NOTI_ID = 2001
 
-        fun start(c: Context) {
+        private val owners = mutableSetOf<String>()
+
+        fun start(c: Context, owner: String) {
+            synchronized(owners) { owners += owner }
             try {
                 ContextCompat.startForegroundService(c, Intent(c, AnswerForegroundService::class.java))
             } catch (_: Exception) { }
         }
 
-        fun stop(c: Context) {
+        fun stop(c: Context, owner: String) {
+            val empty = synchronized(owners) { owners.remove(owner); owners.isEmpty() }
+            if (!empty) return
             try {
                 c.stopService(Intent(c, AnswerForegroundService::class.java))
             } catch (_: Exception) { }

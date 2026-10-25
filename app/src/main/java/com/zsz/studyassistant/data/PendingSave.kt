@@ -36,7 +36,7 @@ data class PendingSave(val target: SaveTarget, val payload: SavePayload, val exp
     val token: String = UUID.randomUUID().toString(), val version: Int = 1)
 @Serializable
 private data class PendingSaveExport(val format: String = "study-assistant-pending-saves", val version: Int = 1,
-    val entries: List<PendingSave>)
+    val entries: List<PendingSave>, val interruptedDrafts: List<ConversationDraft> = emptyList())
 
 data class PendingSaveScan(val entries: List<PendingSave>, val unreadable: Int)
 
@@ -47,7 +47,7 @@ object PendingSaveCodec {
         .joinToString("") { "%02x".format(it) }
     fun encode(value: PendingSave): String { validate(value); return json.encodeToString(value) }
     fun decode(text: String): PendingSave = json.decodeFromString<PendingSave>(text).also(::validate)
-    fun export(entries: List<PendingSave>): String = json.encodeToString(PendingSaveExport(entries = entries))
+    fun export(entries: List<PendingSave>, drafts: List<ConversationDraft> = emptyList()): String = json.encodeToString(PendingSaveExport(entries = entries, interruptedDrafts = drafts))
     private fun validate(value: PendingSave) {
         require(value.version == 1 && QuestionIdentity.valid(value.payload.id))
         require(value.payload.createdAt == QuestionIdentity.time(value.payload.id))
@@ -71,6 +71,7 @@ internal class PendingSaveStore(context: Context) {
         val actual = file.read()?.let(PendingSaveCodec::decode) ?: return@synchronized
         if (actual.token == value.token) file.clear()
     }
+    fun invalidateNotebook(ids: Collection<QuestionId>): Unit = synchronized(lock) { ids.forEach { file(SaveTarget.NOTEBOOK, it).clear() } }
     fun invalidateHistory(ids: Collection<QuestionId>): Unit = synchronized(lock) { ids.forEach { file(SaveTarget.HISTORY, it).clear() } }
     fun scan(): PendingSaveScan = synchronized(lock) {
         if (!directory.exists()) return@synchronized PendingSaveScan(emptyList(), 0)

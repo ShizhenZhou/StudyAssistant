@@ -37,9 +37,9 @@ object BackupValidation {
     @OptIn(ExperimentalSerializationApi::class)
     fun decodeStream(open: () -> InputStream?): BackupFile {
         try {
-            val metadata = (open() ?: throw java.io.IOException("Cannot open backup")).use { json.decodeFromStream<Header>(it) }
+            val metadata = (open() ?: throw java.io.IOException("Cannot open backup")).use { json.decodeFromStream<Header>(LimitedBackupInput(it)) }
             header(metadata)
-            return (open() ?: throw java.io.IOException("Cannot reopen backup")).use { json.decodeFromStream<BackupFile>(it) }.also(::validate)
+            return (open() ?: throw java.io.IOException("Cannot reopen backup")).use { json.decodeFromStream<BackupFile>(LimitedBackupInput(it)) }.also(::validate)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: java.io.IOException) {

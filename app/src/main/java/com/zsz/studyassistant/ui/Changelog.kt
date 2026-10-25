@@ -5,6 +5,15 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.10
+· 自动备份并入备份管理；AI 管理拆分为 API 管理、AI 切图、解题设置，统一返回路径
+· 删除错题、记录或分类后可在 3 秒内撤销，之后才实际删除
+· 重新生成成功前保留旧答案，完成追问及时保存；中断对话独立保存在本机，可恢复草稿
+· 复习固定本轮筛选范围，保存成功才进入下一题；AI 批改由用户确认，修正自然日计算，统计标明估算口径
+· 重复导入只为新错题引入所需分类和标签；明确救援导出用途
+· 列表图片按需读取，大对话分段加载，备份超出安全内存范围时停止并保留原数据
+· 请求独立中止；完善提醒点击与排期，以及更新下载取消、临时文件和后台校验
+
 v0.6.6.9
 · 收紧编号清洗规则，保留结论和过程里重复出现的圈号小题编号
 · 备份导出在后台打开、写入并关闭文件，减少卡顿与额外内存占用；完成前保持忙碌状态，防止重复操作
@@ -404,6 +413,15 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.10
+· Move automatic backups into Backup management; split AI settings into API management, AI cropping and Solving settings with consistent back navigation
+· Undo question, history or category deletion within 3 seconds before it is committed
+· Preserve old answers until regeneration succeeds; save completed follow-ups promptly and recover interrupted conversations from local drafts
+· Keep the selected review scope, advance only after saving, require confirmation of AI grading suggestions, fix calendar-day calculations and label estimated statistics
+· Import categories and tags only for new notebook questions; clarify rescue export
+· Load card images on demand and long conversations in chunks; stop backups exceeding safe memory limits without changing existing data
+· Isolate request cancellation; improve reminder intents/scheduling and update cancellation, temporary files and background verification
+
 v0.6.6.9
 · Tighten number cleanup to preserve circled subquestion numbers repeated across conclusions and derivations
 · Open, write and close backup exports in the background, reducing UI stalls and extra memory; keep operations busy until completion
@@ -803,6 +821,15 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.10
+· 自動バックアップをバックアップ管理へ統合。AI 設定を API 管理・AI 切り抜き・解答設定に分け、戻る経路を統一
+· 問題・履歴・分類の削除は 3 秒以内に取り消し可能。期限後に確定
+· 再生成が成功するまで旧回答を保持。追加回答を速やかに保存し、中断した会話は端末内の下書きから復元
+· 復習範囲を固定し、保存後に次へ移動。AI 判定は手動確認し、暦日の計算と統計の推定表示を修正
+· 新規問題に必要な分類・タグのみ読み込み。救済出力の用途を明確化
+· 画像を必要時に取得し、長い会話を分割読み取り。安全なメモリ上限を超えるバックアップは既存データを保持して停止
+· リクエストごとの中止、通知の遷移と再設定、更新の取消・一時ファイル・バックグラウンド検証を改善
+
 v0.6.6.9
 · 番号の除去条件を絞り、結論と解説に繰り返し現れる丸数字の小問番号を保持
 · バックアップのファイル操作をバックグラウンドで実行し、画面停止と追加メモリを軽減。完了前の重複操作を防止
@@ -1202,6 +1229,15 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.10
+· 자동 백업을 백업 관리로 통합. AI 설정을 API 관리·AI 자르기·풀이 설정으로 나누고 뒤로 가기 경로 통일
+· 문제·기록·분류 삭제 후 3초 안에 실행 취소 가능. 이후 삭제 확정
+· 재생성 성공 전까지 이전 답 유지. 후속 응답을 즉시 저장하고 중단된 대화는 기기 내 초안에서 복원
+· 선택한 복습 범위를 유지하고 저장 후 다음 문제로 이동. AI 판정은 사용자가 확인하며 날짜 계산과 추정 통계 표시 개선
+· 새 문제에 필요한 분류·태그만 가져오기. 복구용 내보내기 용도 명시
+· 이미지는 필요할 때 읽고 긴 대화는 나누어 읽기. 안전 메모리 한도를 넘는 백업은 기존 데이터를 유지하며 중단
+· 요청별 취소 처리, 알림 이동·예약 및 업데이트 취소·임시 파일·백그라운드 검증 개선
+
 v0.6.6.9
 · 번호 정리 조건을 좁혀 결론과 풀이에 반복되는 원형 소문항 번호를 유지
 · 백업 파일 열기·쓰기·닫기를 백그라운드에서 처리하여 화면 멈춤과 추가 메모리를 줄이고 완료 전 중복 작업 방지

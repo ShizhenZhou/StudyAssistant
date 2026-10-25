@@ -14,7 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.zsz.studyassistant.MainActivity
 import java.util.Calendar
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /** 复习提醒：创建通知渠道 + 每天到点用精确闹钟触发 */
 object ReminderScheduler {
@@ -75,59 +75,38 @@ object ReminderScheduler {
 /** 到点发通知 + 重排下一天；开机时恢复闹钟 */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+        if (intent.action in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) {
             ReminderScheduler.applySchedule(c)
             return
         }
-        if (!ReminderScheduler.isEnabled(c)) return
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(c, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            return
+        val result = goAsync()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try { kotlinx.coroutines.withTimeout(7000) {
+                if (!ReminderScheduler.isEnabled(c)) return@withTimeout
+                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(c,
+                        Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return@withTimeout
+                val day = CalendarDay.now()
+                val dao = AppDatabase.get(c).questionDao()
+                val today = dao.dueCount(day.end)
+                val week = dao.dueCount(day.weekEnd)
+                if (today > 0 || week > 0) {
+                    ReminderScheduler.ensureChannel(c)
+                    val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(c))
+                    val text = s.format("notif.review.text", "today" to "$today", "week" to "$week")
+                    val notification = NotificationCompat.Builder(c, ReminderScheduler.CHANNEL_ID)
+                        .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(s["notif.review.channel"])
+                        .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                        .setContentIntent(PendingIntent.getActivity(c, 0,
+                            Intent(c, MainActivity::class.java).putExtra("open_review", true),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+                        .setAutoCancel(true).build()
+                    c.getSystemService(NotificationManager::class.java)?.notify(1001, notification)
+                }
+            } } catch (_: Exception) { /* No private data or exception payload is logged. */ }
+            finally {
+                try { ReminderScheduler.applySchedule(c) } finally { result.finish() }
+            }
         }
-        val dao = AppDatabase.get(c).questionDao()
-        val (today, week) = kotlinx.coroutines.runBlocking {
-            val t = dao.dueQuestions(endOfToday()).first().size
-            val w = dao.dueQuestions(endOfWeek()).first().size
-            t to w
-        }
-        if (today > 0 || week > 0) {
-            ReminderScheduler.ensureChannel(c)
-            val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(c))
-            val text = s.format("notif.review.text", "today" to "$today", "week" to "$week")
-            val nm = c.getSystemService(NotificationManager::class.java) ?: return
-            val n = NotificationCompat.Builder(c, ReminderScheduler.CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle(s["notif.review.channel"])
-                .setContentText(text)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-                .setContentIntent(
-                    PendingIntent.getActivity(
-                        c, 0,
-                        Intent(c, MainActivity::class.java).putExtra("open_review", true),
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                )
-                .setAutoCancel(true)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .build()
-            try { nm.notify(1001, n) } catch (_: SecurityException) {}
-        }
-        // 重排下一天
-        ReminderScheduler.applySchedule(c)
     }
 
-    private fun startOfToday(): Long {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
-    }
-    private fun endOfToday(): Long = startOfToday() + 86400000L - 1
-    private fun endOfWeek(): Long {
-        val cal = Calendar.getInstance()
-        var add = Calendar.SUNDAY - cal.get(Calendar.DAY_OF_WEEK)
-        if (add < 0) add += 7
-        cal.add(Calendar.DAY_OF_MONTH, add)
-        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59); cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
-        return cal.timeInMillis
-    }
 }

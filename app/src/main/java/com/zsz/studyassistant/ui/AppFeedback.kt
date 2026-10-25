@@ -22,31 +22,57 @@ internal data class FeedbackVisuals(
     val isError: Boolean = false,
     val source: String = "",
     override val actionLabel: String? = null,
+    val undo: Boolean = false,
 ) : SnackbarVisuals {
     override val withDismissAction = false
-    override val duration = if (isError) SnackbarDuration.Long else SnackbarDuration.Short
+    override val duration = if (undo) SnackbarDuration.Indefinite else if (isError) SnackbarDuration.Long else SnackbarDuration.Short
 }
 
 @Stable
 class AppFeedbackState(private val scope: CoroutineScope) {
     val hostState = SnackbarHostState()
     var saveRecoveryRequested by mutableStateOf(false)
+    var draftRecoveryRequested by mutableStateOf(false)
+    var draftOrigin = AppNav.Origin.HOME
     private var displayJob: Job? = null
     private var activeVisuals: FeedbackVisuals? = null
+    private var activeAction: (() -> Unit)? = null
+    private var afterUndo: (() -> Unit)? = null
 
     fun show(message: String, isError: Boolean = false, source: String = "",
              actionLabel: String? = null, onAction: (() -> Unit)? = null) {
         val visuals = FeedbackVisuals(message, isError, source, actionLabel)
         val current = activeVisuals
+        if (current?.undo == true) {
+            if (isError) afterUndo = { show(message, isError, source, actionLabel, onAction) }
+            return
+        }
         // Never bury an actionable failure under success messages or build a stale queue.
         if (current == visuals || (current?.isError == true && !isError)) return
-        displayJob?.cancel()
+        publish(visuals, onAction)
+    }
+    fun showDeletion(message: String, label: String, action: () -> Unit) {
+        val previous = activeVisuals
+        val previousAction = activeAction
+        if(previous?.isError == true) afterUndo = {
+            show(previous.message, true, previous.source, previous.actionLabel, previousAction)
+        }
+        publish(FeedbackVisuals(message, source="delete", actionLabel=label, undo=true), action)
+    }
+    private fun publish(visuals: FeedbackVisuals, action: (() -> Unit)?) {
+        val previousJob = displayJob
         activeVisuals = visuals
+        activeAction = action
+        previousJob?.cancel()
         displayJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                if (hostState.showSnackbar(visuals) == SnackbarResult.ActionPerformed) onAction?.invoke()
+                if (hostState.showSnackbar(visuals) == SnackbarResult.ActionPerformed) action?.invoke()
             } finally {
-                if (activeVisuals === visuals) activeVisuals = null
+                if (activeVisuals === visuals) {
+                    activeVisuals = null
+                    activeAction = null
+                    if(visuals.undo) { val next=afterUndo; afterUndo=null; next?.invoke() }
+                }
             }
         }
     }
@@ -73,7 +99,18 @@ val LocalAppFeedback = staticCompositionLocalOf<AppFeedbackState> {
 fun AppFeedbackLayout(vm: MainViewModel, content: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
     val state = remember(scope) { AppFeedbackState(scope) }
+    val deletes by vm.deletionState.collectAsState()
+    val strings = LocalStrings.current
+    LaunchedEffect(deletes.pending?.token) {
+        val batch=deletes.pending
+        if(batch==null) state.dismiss("delete")
+        else state.showDeletion(strings.format("delete.undoMessage", "n" to "${batch.count}"), strings["delete.undo"]) {
+            vm.undoDelete(batch.token)
+        }
+    }
     CompositionLocalProvider(LocalAppFeedback provides state) {
+        FeedbackMessage(vm.deleteError, true) { vm.clearDeleteError() }
+        FeedbackMessage(vm.draftError, true) { vm.clearDraftError() }
         Surface(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize()) {
                 content()
@@ -99,7 +136,7 @@ private fun FeedbackHost(state: AppFeedbackState) {
                 Color(0xFFFF8A80) else Color(0xFFB3261E)
             Snackbar(
                 snackbarData = data,
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(if ((data.visuals as? FeedbackVisuals)?.undo == true) 12.dp else 28.dp),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = if (failure) errorRed else MaterialTheme.colorScheme.onSurface,
                 actionColor = if (failure) errorRed else MaterialTheme.colorScheme.primary,

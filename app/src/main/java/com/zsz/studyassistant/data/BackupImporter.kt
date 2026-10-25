@@ -8,19 +8,23 @@ object BackupImporter {
     private val json = Json { encodeDefaults = true }
     suspend fun merge(dao: QuestionDao, file: BackupFile): ImportResult {
         BackupValidation.validate(file)
+        val newQuestions = file.questions.filter { !dao.questionExists(it.id) }
+        val newIds = newQuestions.map { it.id }.toSet()
+        val neededCategories = newQuestions.mapNotNull { it.categoryId }.toSet()
+        val neededTags = file.questionTags.filter { it.questionId in newIds }.map { it.tagId }.toSet()
         val cats = dao.allCategoriesOnce().associateBy { it.name }.toMutableMap()
         val tags = dao.getAllTagsOnce().associateBy { it.name }.toMutableMap()
         val catMap = mutableMapOf<Long, Long>()
         val tagMap = mutableMapOf<Long, Long>()
         var newCats = 0
         var newTags = 0
-        file.categories.forEach { c ->
+        file.categories.filter { it.id in neededCategories }.forEach { c ->
             val cat = cats[c.name] ?: Category(name = c.name, createdAt = c.createdAt).let {
                 it.copy(id = dao.insertCategory(it)).also { added -> cats[c.name] = added; newCats++ }
             }
             catMap[c.id] = cat.id
         }
-        file.tags.forEach { t ->
+        file.tags.filter { it.id in neededTags }.forEach { t ->
             val tag = tags[t.name] ?: Tag(name = t.name, createdAt = t.createdAt).let {
                 it.copy(id = dao.insertTag(it)).also { added -> tags[t.name] = added; newTags++ }
             }
@@ -28,8 +32,7 @@ object BackupImporter {
         }
         val inserted = mutableSetOf<QuestionId>()
         var imageCount = 0
-        for (q in file.questions) {
-            if (dao.questionExists(q.id)) continue
+        for (q in newQuestions) {
             val images = BackupValidation.images(q.images)
             dao.insert(Question(id=q.id, text=q.text, answer=q.answer, createdAt=q.createdAt,
                 imageBytes=images.firstOrNull(), conversationJson=q.conversationJson,

@@ -97,9 +97,9 @@ import com.zsz.studyassistant.data.UpdateChecker
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTab(vm: MainViewModel) {
-    var page by remember { mutableStateOf(AppNav.SettingsPages.MAIN) }
+    var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(AppNav.SettingsPages.MAIN) }
     // ★ 设置页的"上一级"由页面树统一算（ui/AppNav.kt → SettingsPages.parent）：
-    //   data.* 四个子页 → 数据管理；其余二级页 → 设置主页。不要再各处手写 "main"。
+    //   ai.* → AI 管理，data.* → 数据管理；返回箭头和系统返回都使用同一个父节点。
     BackHandler(enabled = page != AppNav.SettingsPages.MAIN) {
         page = AppNav.SettingsPages.parent(page)
     }
@@ -113,8 +113,27 @@ fun SettingsTab(vm: MainViewModel) {
     val s = LocalStrings.current
 
     when (page) {
-        // 「AI 管理」= API 管理（置顶）+ 原 AI 配置（AI 切图开关 / 框选时限 / 解题模式 / 自定义要求）
-        AppNav.SettingsPages.AI -> {
+        AppNav.SettingsPages.AI -> SettingsSubPage(s["settings.aiManage"], { page = AppNav.SettingsPages.parent(page) }) {
+            SettingEntry(s["settings.api"]) { page = AppNav.SettingsPages.AI_API }
+            SettingEntry(s["settings.aiCropPage"]) { page = AppNav.SettingsPages.AI_CROP }
+            SettingEntry(s["settings.solveSettings"]) { page = AppNav.SettingsPages.AI_SOLVE }
+        }
+        AppNav.SettingsPages.AI_API -> SettingsSubPage(s["settings.api"], { page = AppNav.SettingsPages.parent(page) }) {
+            ApiSettings(vm)
+        }
+        AppNav.SettingsPages.AI_CROP -> SettingsSubPage(s["settings.aiCropPage"], { page = AppNav.SettingsPages.parent(page) }) {
+            val ctx = LocalContext.current
+            var aiCropOn by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)) }
+            AiCropSwitchSettings(checked = aiCropOn, onChecked = {
+                aiCropOn = it
+                com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
+            })
+            if (aiCropOn) {
+                Spacer(Modifier.height(20.dp))
+                AiCropTimeoutSettings()
+            }
+        }
+        AppNav.SettingsPages.AI_SOLVE -> {
             val ctx = LocalContext.current
             // ★ 2026-10-13（用户要求 · 第 2 版）：自定义要求的文本 + "是否已修改"状态提到页面这一层，
             //   把「保存」做成**跟着键盘出现**的按钮：
@@ -134,31 +153,11 @@ fun SettingsTab(vm: MainViewModel) {
                 Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
             }
             SettingsSubPage(
-                title = s["settings.aiManage"],
+                title = s["settings.solveSettings"],
                 onBack = { page = AppNav.SettingsPages.parent(page) },
                 // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
                 bottomBar = promptSaveBar.takeIf { imeVisible }
             ) {
-                // AI 切图总开关的界面状态（关掉后**整个时限设置项都不显示**）
-                var aiCropOn by remember {
-                    mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx))
-                }
-                Text(s["settings.api"], style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                ApiSettings(vm)
-                Spacer(Modifier.height(26.dp))
-                AiCropSwitchSettings(
-                    checked = aiCropOn,
-                    onChecked = {
-                        aiCropOn = it
-                        com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
-                    }
-                )
-                // 只有开了 AI 切图，才显示「AI 框选时限」（用户要求）
-                if (aiCropOn) {
-                    Spacer(Modifier.height(20.dp))
-                    AiCropTimeoutSettings()
-                }
                 AiSolveModelSettings()
                 AiCustomPromptSettings(cpText, onText = { cpText = it; cpDirty = true })
                 // 键盘收起时：保存按钮留在输入框下面（原来的位置）—— 与浮动底栏二选一，绝不同时出现
@@ -177,10 +176,9 @@ fun SettingsTab(vm: MainViewModel) {
         AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { page = AppNav.SettingsPages.parent(page) }) { LanguageSettings(vm) }
         AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { page = AppNav.SettingsPages.parent(page) }) { ThemeSettings(vm) { page = it } }
         AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { page = AppNav.SettingsPages.parent(page) }) { NotifyBackgroundSettings() }
-        // 数据管理：备份管理 / 自动备份 / 崩溃日志 / 数据升级·修复 / 标签整理
+        // 数据管理：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 标签整理
         AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { page = AppNav.SettingsPages.parent(page) }) { DataMenu(vm) { page = it } }
         AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm) }
-        AppNav.SettingsPages.DATA_AUTO -> SettingsSubPage(s["data.autoBackup"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm, "auto") }
         AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm, "crash") }
         AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { page = AppNav.SettingsPages.parent(page) }) { DataUpgradePage(vm) }
         AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { page = AppNav.SettingsPages.parent(page) }) { TagMergePage(vm) }
@@ -325,22 +323,22 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         // ── 通用 ──
         SettingGroupTitle(s["settings.group.general"])
         // API 管理已并入「AI 管理」二级菜单（放在该页最顶端）
-        SettingEntry(s["settings.aiManage"]) { onOpen("ai") }
+        SettingEntry(s["settings.aiManage"]) { onOpen(AppNav.SettingsPages.AI) }
         // 通知与后台：已合并为一个二级菜单，归入「通用」大类
-        SettingEntry(s["settings.group.notifyBackground"]) { onOpen("notify") }
+        SettingEntry(s["settings.group.notifyBackground"]) { onOpen(AppNav.SettingsPages.NOTIFY) }
 
         Spacer(Modifier.height(14.dp))
         // ── 个性化 ──
         SettingGroupTitle(s["settings.group.personalize"])
-        SettingEntry(s["settings.theme"]) { onOpen("theme") }
-        SettingEntry(s["settings.lang"]) { onOpen("lang") }
+        SettingEntry(s["settings.theme"]) { onOpen(AppNav.SettingsPages.THEME) }
+        SettingEntry(s["settings.lang"]) { onOpen(AppNav.SettingsPages.LANG) }
 
         Spacer(Modifier.height(26.dp))
         // ── 数据管理 / 应用更新 / 关于（分立，不归入大类；上方多留一行） ──
-        SettingEntry(s["settings.data"]) { onOpen("data") }
+        SettingEntry(s["settings.data"]) { onOpen(AppNav.SettingsPages.DATA) }
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
-        SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen("update") }
-        SettingEntry(s["settings.about"]) { onOpen("about") }
+        SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
+        SettingEntry(s["settings.about"]) { onOpen(AppNav.SettingsPages.ABOUT) }
     }
 }
 
@@ -361,7 +359,7 @@ private fun BackupHealthEntry(onOpen: (String) -> Unit) {
     failure?.takeIf { AutoBackup.treeUri(context) != null }?.let {
         Text(s.format("data.autoBackup.healthWarning", "t" to formatCheckTime(it.at), "reason" to s[it.key]),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_AUTO) }) { Text(s["data.autoBackup"]) }
+        TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_BACKUP) }) { Text(s["data.backup"]) }
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -729,7 +727,7 @@ private fun ApiSettings(vm: MainViewModel) {
     }
 }
 
-/** 💾 数据管理入口：备份管理 / 自动备份 / 崩溃日志 / 数据升级·修复 / 清空所有数据 */
+/** 💾 数据管理入口：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 清空所有数据 */
 @Composable
 private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     val s = LocalStrings.current
@@ -750,10 +748,15 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
             feedback.saveRecoveryRequested = true
         }
     }
-    DataMenuRow(s["data.backup"], "") { go("data.backup") }
-    DataMenuRow(s["data.autoBackup"], s["data.autoBackupDesc"]) { go("data.auto") }
-    DataMenuRow(s["data.crash"], s["data.crashLogDesc"]) { go("data.crash") }
-    DataMenuRow(s["data.upgradePage"], s["data.upgradeDesc"]) { go("data.upgrade") }
+    if (vm.draftSummaries.isNotEmpty() || vm.draftIssue) {
+        DataMenuRow(s["draft.title"], s["draft.notice"]) {
+            feedback.draftOrigin=AppNav.Origin.SETTINGS
+            feedback.draftRecoveryRequested=true
+        }
+    }
+    DataMenuRow(s["data.backup"], "") { go(AppNav.SettingsPages.DATA_BACKUP) }
+    DataMenuRow(s["data.crash"], s["data.crashLogDesc"]) { go(AppNav.SettingsPages.DATA_CRASH) }
+    DataMenuRow(s["data.upgradePage"], s["data.upgradeDesc"]) { go(AppNav.SettingsPages.DATA_UPGRADE) }
     DataMenuRow(s["tagMerge.title"], s["tagMerge.description"]) { go(AppNav.SettingsPages.DATA_TAG_MERGE) }
 
     // ★ 2026-10-17（用户要求）：清空所有数据**从「备份管理」挪到这一级菜单**上
@@ -899,13 +902,21 @@ private fun DataUpgradePage(vm: MainViewModel) {
     }
 }
 
-/** 💾 数据管理子页分派：backup（默认）/ auto / crash */
+/** 💾 Backup management contains both manual export/import and automatic backup settings. */
 @Composable
 private fun DataSettings(vm: MainViewModel, section: String = "backup") {
-    when (section) {
-        "auto" -> AutoBackupSettings(vm)
-        "crash" -> CrashLogSettings(vm)
-        else -> BackupSettings(vm)
+    if (section == "crash") {
+        CrashLogSettings(vm)
+    } else {
+        val s = LocalStrings.current
+        Text(s["data.manualBackup"], style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        BackupSettings(vm)
+        androidx.compose.material3.HorizontalDivider()
+        Spacer(Modifier.height(16.dp))
+        Text(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        AutoBackupSettings(vm)
     }
 }
 
@@ -993,7 +1004,7 @@ private fun BackupSettings(vm: MainViewModel) {
     }
 }
 
-/** 🗄 自动备份（B8）子页：选文件夹 / 每日开关 / 立即备份 */
+/** 🗄 Backup management section: folder / daily switch / back up now. */
 @Composable
 private fun AutoBackupSettings(vm: MainViewModel) {
     val context = LocalContext.current
@@ -1061,7 +1072,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         }
     }
 
-    // 子页标题由 SettingsSubPage 的顶栏提供，页面内不再重复画一遍「🗄 自动备份」
+    // Section heading is supplied by DataSettings; automatic backup behavior is unchanged.
     Text(
         if (autoFolder == null) s["data.autoBackup.noFolder"]
         else s.format("data.autoBackup.folder", "name" to autoFolder!!),

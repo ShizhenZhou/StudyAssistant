@@ -22,7 +22,7 @@ interface DeepSeekService {
      */
     @Streaming
     @POST("chat/completions")
-    suspend fun chatStream(@Body request: DeepSeekRequest): ResponseBody
+    fun chatStream(@Body request: DeepSeekRequest): retrofit2.Call<ResponseBody>
 }
 
 object ApiClient {

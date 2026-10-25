@@ -15,6 +15,8 @@ package com.zsz.studyassistant.ui
 // 批次 0：底部导航 / 主页 / 设置主页 / 语言设置页
 // ===========================================================================
 private val B0_ZH = mapOf(
+    "settings.aiCropPage" to "✂️ AI 切图",
+    "settings.solveSettings" to "🧠 解题设置",
     "feedback.handle" to "处理",
     "feedback.unsaved" to "待保存内容",
     "feedback.noPending" to "当前没有待保存内容。",
@@ -90,7 +92,7 @@ private val B0_ZH = mapOf(
     "settings.aiCrop" to "🤖 AI 配置",
     "settings.aiCrop.enable" to "✂️ AI 切图",
     "settings.aiCrop.enable.desc" to "开启后本地算法与 AI 视觉并行框选（谁先返回用谁）；关闭后完全不调用 AI，只用本地算法，更快、也不消耗额度。",
-    "settings.aiCrop.timeout" to "✂️ AI 框选时限",
+    "settings.aiCrop.timeout" to "⏱️ AI 框选时限",
     "settings.customPrompt" to "✍️ 自定义要求（Prompt）",
     "settings.customPrompt.desc" to "写在这里的要求会附加到每次 AI 提问中。例如：只给思路不要直接给答案 / 步骤编号并写清依据 / 用更简洁的语言 / 优先用我课本的符号习惯…（留空即不生效）",
     "settings.solveModel" to "🧠 解题模式",
@@ -122,6 +124,8 @@ private val B0_ZH = mapOf(
 )
 
 private val B0_EN = mapOf(
+    "settings.aiCropPage" to "✂️ AI cropping",
+    "settings.solveSettings" to "🧠 Solving settings",
     "feedback.handle" to "Resolve",
     "feedback.unsaved" to "Unsaved content",
     "feedback.noPending" to "There is no unsaved content.",
@@ -189,14 +193,14 @@ private val B0_EN = mapOf(
     "home.key.later" to "Later",
 
     "settings.title" to "Settings",
-    "settings.api" to "🔑 API",
+    "settings.api" to "🔑 API management",
     "settings.group.general" to "General",
     "settings.group.personalize" to "Personalization",
     "settings.group.notifyBackground" to "🔔 Notifications & background",
     "settings.aiCrop" to "🤖 AI settings",
     "settings.aiCrop.enable" to "✂️ AI cropping",
     "settings.aiCrop.enable.desc" to "On: the local algorithm and AI vision crop in parallel (whichever returns first wins). Off: no AI calls at all — local algorithm only, which is faster and spends no tokens.",
-    "settings.aiCrop.timeout" to "✂️ AI crop timeout",
+    "settings.aiCrop.timeout" to "⏱️ AI crop timeout",
     "settings.customPrompt" to "✍️ Custom instructions",
     "settings.customPrompt.desc" to "Anything written here is appended to every AI request. For example: give hints only, no full answer / number the steps and state the reasoning / use more concise language … (leave empty to disable)",
     "settings.solveModel" to "🧠 Solve mode",
@@ -228,6 +232,8 @@ private val B0_EN = mapOf(
 )
 
 private val B0_JA = mapOf(
+    "settings.aiCropPage" to "✂️ AI 切り抜き",
+    "settings.solveSettings" to "🧠 解答設定",
     "feedback.handle" to "対処する",
     "feedback.unsaved" to "未保存の内容",
     "feedback.noPending" to "未保存の内容はありません。",
@@ -302,7 +308,7 @@ private val B0_JA = mapOf(
     "settings.aiCrop" to "🤖 AI 設定",
     "settings.aiCrop.enable" to "✂️ AI 切り抜き",
     "settings.aiCrop.enable.desc" to "オン：ローカルアルゴリズムと AI 視覚が並行して枠取り（先に返った方を採用）。オフ：AI を一切呼び出さず、ローカルアルゴリズムのみ（より速く、トークンも消費しません）。",
-    "settings.aiCrop.timeout" to "✂️ AI 枠取りの制限時間",
+    "settings.aiCrop.timeout" to "⏱️ AI 枠取りの制限時間",
     "settings.customPrompt" to "✍️ カスタム指示",
     "settings.customPrompt.desc" to "ここに書いた内容は毎回の AI 質問に追加されます。例：考え方だけ／手順に番号と根拠／より簡潔に…（空欄なら無効）",
     "settings.solveModel" to "🧠 解答モード",
@@ -334,6 +340,8 @@ private val B0_JA = mapOf(
 )
 
 private val B0_KO = mapOf(
+    "settings.aiCropPage" to "✂️ AI 자르기",
+    "settings.solveSettings" to "🧠 풀이 설정",
     "feedback.handle" to "문제 해결",
     "feedback.unsaved" to "저장되지 않은 내용",
     "feedback.noPending" to "저장되지 않은 내용이 없습니다.",
@@ -408,7 +416,7 @@ private val B0_KO = mapOf(
     "settings.aiCrop" to "🤖 AI 설정",
     "settings.aiCrop.enable" to "✂️ AI 자르기",
     "settings.aiCrop.enable.desc" to "켜짐: 로컬 알고리즘과 AI 비전이 동시에 자르기(먼저 도착한 쪽 사용). 꺼짐: AI를 전혀 호출하지 않고 로컬 알고리즘만 사용(더 빠르고 토큰도 소모하지 않음).",
-    "settings.aiCrop.timeout" to "✂️ AI 자르기 제한 시간",
+    "settings.aiCrop.timeout" to "⏱️ AI 자르기 제한 시간",
     "settings.customPrompt" to "✍️ 사용자 지정 지시",
     "settings.customPrompt.desc" to "여기에 쓴 내용은 모든 AI 질문에 추가됩니다. 예: 풀이 방향만/단계 번호와 근거/더 간결하게… (비우면 적용 안 됨)",
     "settings.solveModel" to "🧠 풀이 모드",
@@ -1177,6 +1185,7 @@ private val B6_KO = mapOf(
 // 批次 7：设置重构（API 管理 / 数据管理 / 关于） + 复习折叠 + 搜索 + 公式条
 // ===========================================================================
 private val B7_ZH = mapOf(
+    "data.manualBackup" to "手动备份与导入",
     "data.autoBackup.snapshotFailed" to "无法生成备份快照，请稍后重试。",
     "data.autoBackup.permissionFailed" to "备份文件夹的访问权限已失效，请重新选择文件夹。",
     "data.autoBackup.healthWarning" to "最近一次备份失败（{t}）：{reason} 成功备份后此警示会消失。",
@@ -1310,6 +1319,7 @@ private val B7_ZH = mapOf(
 )
 
 private val B7_EN = mapOf(
+    "data.manualBackup" to "Manual backup and import",
     "data.autoBackup.snapshotFailed" to "Could not prepare a backup snapshot. Please retry.",
     "data.autoBackup.permissionFailed" to "Backup folder access was denied. Please select the folder again.",
     "data.autoBackup.healthWarning" to "Last backup attempt failed ({t}): {reason} This warning clears after a successful backup.",
@@ -1443,6 +1453,7 @@ private val B7_EN = mapOf(
 )
 
 private val B7_JA = mapOf(
+    "data.manualBackup" to "手動バックアップとインポート",
     "data.autoBackup.snapshotFailed" to "バックアップのスナップショットを作成できません。再試行してください。",
     "data.autoBackup.permissionFailed" to "バックアップ先へのアクセスが拒否されました。フォルダーを選び直してください。",
     "data.autoBackup.healthWarning" to "直近のバックアップに失敗しました（{t}）：{reason} 成功するとこの警告は消えます。",
@@ -1575,6 +1586,7 @@ private val B7_JA = mapOf(
 )
 
 private val B7_KO = mapOf(
+    "data.manualBackup" to "수동 백업 및 가져오기",
     "data.autoBackup.snapshotFailed" to "백업 스냅샷을 만들 수 없습니다. 다시 시도하세요.",
     "data.autoBackup.permissionFailed" to "백업 폴더 접근이 거부되었습니다. 폴더를 다시 선택하세요.",
     "data.autoBackup.healthWarning" to "최근 백업 실패({t}): {reason} 백업에 성공하면 이 경고가 사라집니다.",
@@ -1873,12 +1885,12 @@ private val B10_ZH = mapOf(
         "· 拍照或图文提问，最多 3 张图片；自动/手动框选与作答批改\n" +
         "· 流式解答、附图追问、中止与继续生成、同类题练习；支持 KaTeX 公式（含矩阵）\n" +
         "· 快速/思考模式均使用 deepseek-flash，分别关闭/开启思考\n" +
-        "· 错题本支持分类、标签、搜索、排序和批量处理\n" +
+        "· 错题本支持分类、标签、搜索、排序和批量处理；删除后 3 秒内可撤销\n" +
         "· 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
         "· 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
-        "· 间隔复习、学习统计（含新增趋势）与每日提醒；界面语言、主题和字号可调整\n" +
+        "· 间隔复习、每日提醒与学习统计（复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
         "· JSON 备份含原图和搜题记录，按题目编号去重；自动备份每天首次启动写到所选文件夹，保留最近 3 份，失败在设置中提示\n" +
-        "· 保存失败可重试，已落盘副本可重启恢复；冲突不覆盖，未保存内容可导出\n" +
+        "· 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
         "· AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
         "· 应用内更新校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
         ),
@@ -1928,12 +1940,12 @@ private val B10_EN = mapOf(
         "· Ask by photo or text with up to 3 images; automatic/manual cropping and answer grading\n" +
         "· Stream solutions, attach images to follow-ups, stop/resume, practise similar questions and render KaTeX formulas including matrices\n" +
         "· Fast and thinking modes both use deepseek-flash, with thinking disabled/enabled respectively\n" +
-        "· Categorise, tag, search, sort and batch-manage notebook entries\n" +
+        "· Categorise, tag, search, sort and batch-manage notebook entries; undo deletion within 3 seconds\n" +
         "· History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
         "· Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
-        "· Spaced review, study statistics including new-item trends and daily reminders; adjustable language, theme and font size\n" +
+        "· Spaced review, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
         "· JSON backups include images and history and deduplicate by question ID; daily automatic backups use the selected folder, keep the latest 3 and show failures in settings\n" +
-        "· Retry failed saves, recover durable copies after restart and export unsaved content without overwriting conflicts\n" +
+        "· Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
         "· Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
         "· In-app updates verify the signing certificate and SHA-256 when GitHub provides a digest"
         ),
@@ -1983,12 +1995,12 @@ private val B10_JA = mapOf(
         "· 撮影・文字と最大3枚の画像で質問。自動/手動の切り抜きと解答添削\n" +
         "· 逐次解答、画像付き追加質問、生成の中止・再開、類似問題演習、KaTeX数式（行列など）\n" +
         "· 高速/思考モードは共に deepseek-flash を使用し、思考を無効/有効に切り替え\n" +
-        "· 誤答ノートの分類・タグ・検索・並べ替え・一括操作\n" +
+        "· 誤答ノートの分類・タグ・検索・並べ替え・一括操作。削除は3秒以内に取り消し可能\n" +
         "· 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
         "· AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
-        "· 間隔復習・学習統計（新規推移）・毎日の通知。言語・テーマ・文字サイズを変更可能\n" +
+        "· 間隔復習・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
         "· 画像と履歴を含むJSONバックアップを問題番号で重複排除。自動保存は当日初回起動時に選択先へ直近3件を保持し、失敗を設定に表示\n" +
-        "· 保存失敗を再試行し、保存済みコピーを再起動後に復元。競合を上書きせず未保存内容を書き出せる\n" +
+        "· 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
         "· AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
         "· 更新時に署名を検証し、GitHubがダイジェストを提供する場合はSHA-256も照合"
         ),
@@ -2038,12 +2050,12 @@ private val B10_KO = mapOf(
         "· 사진 또는 글과 최대 3장의 이미지로 질문. 자동/수동 자르기와 답안 채점\n" +
         "· 스트리밍 풀이, 이미지 후속 질문, 생성 중지·계속, 유사 문제 연습 및 KaTeX 수식(행렬 등)\n" +
         "· 빠른/사고 모드는 모두 deepseek-flash를 사용하며 사고를 각각 끄거나 켬\n" +
-        "· 오답의 분류·태그·검색·정렬·일괄 관리\n" +
+        "· 오답의 분류·태그·검색·정렬·일괄 관리. 삭제는 3초 안에 취소 가능\n" +
         "· 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
         "· AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
-        "· 간격 복습·학습 통계(신규 추이)·매일 알림. 언어·테마·글꼴 크기 조정\n" +
+        "· 간격 복습·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
         "· 이미지와 기록을 포함하는 JSON 백업을 문제 번호로 중복 제거. 자동 백업은 매일 첫 실행 때 선택한 폴더에 최근 3개를 유지하고 실패를 설정에 표시\n" +
-        "· 저장 실패 재시도, 저장된 사본의 재시작 복구, 충돌을 덮어쓰지 않는 미저장 내용 내보내기\n" +
+        "· 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
         "· 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
         "· 업데이트의 서명 인증서를 확인하고 GitHub가 해시를 제공하면 SHA-256도 대조"
         ),
@@ -2367,7 +2379,32 @@ private val B12_ZH = mapOf(
     "tagMerge.discardDraft" to "放弃草稿",
     "tagMerge.discardDraftConfirm" to "只删除整理草稿，不修改错题或标签。确定放弃？"
 )
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH
+private val B13_ZH = mapOf(
+    "review.saveFailed" to "复习进度未保存，请重试；尚未跳到下一题。",
+    "review.unknownVerdict" to "AI 未给出明确判断，请确认掌握程度。",
+    "review.suggestion" to "AI 建议：{level}。请确认后记录。",
+    "delete.failed" to "删除未完成，数据已保留，请重试。",
+    "delete.wait" to "请等待删除完成，或先撤销删除。",
+    "delete.undoMessage" to "已移除 {n} 项，3 秒内可撤销",
+    "delete.undo" to "撤销",
+    "delete.removed" to "已从错题本移除",
+    "data.backupTooLarge" to "备份数据过大，已停止以避免内存不足；原有数据和备份不变。",
+    "draft.saveFailed" to "未能保存对话草稿，请保留当前页面。",
+    "draft.conflict" to "草稿无法恢复，或对应错题已发生变化。草稿仍保留，可救援导出。",
+    "draft.resolveFirst" to "请先继续生成或放弃当前未完成的回复。",
+    "draft.title" to "未完成对话与草稿",
+    "draft.notice" to "草稿仅保存在本机，未完成片段不会覆盖已存答案。恢复可能再次请求 AI；草稿不包含在普通备份中。",
+    "draft.issue" to "部分草稿无法读取；未删除原文件。",
+    "draft.empty" to "暂无可恢复草稿",
+    "draft.recover" to "恢复",
+    "draft.discard" to "放弃草稿",
+    "draft.discardConfirm" to "只删除这份对话草稿，不改动错题本。确定放弃？",
+    "stats.streak" to "连续天数（估算）",
+    "stats.estimateNotice" to "今日、本周复习数和连续天数按每题最近复习日期估算，并非完整操作日志；新增题目趋势按首次时间统计。",
+    "save.export" to "救援导出（保存异常时使用）",
+    "save.exportNotice" to "这是异常保存内容和对话草稿的救援文件，供人工排查恢复；不是普通备份，不能从备份管理直接导入。文件可能包含题目、图片和对话，请妥善保管。"
+)
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Minimum Android API {api} · DB v{db} · Backup v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2388,7 +2425,32 @@ private val B12_EN = mapOf(
     "tagMerge.discardDraft" to "Discard draft",
     "tagMerge.discardDraftConfirm" to "Only the draft will be removed. Questions and labels stay unchanged. Discard it?"
 )
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN
+private val B13_EN = mapOf(
+    "review.saveFailed" to "Review progress was not saved. Retry before moving on.",
+    "review.unknownVerdict" to "AI gave no clear verdict. Choose your review level.",
+    "review.suggestion" to "AI suggests: {level}. Confirm to record.",
+    "delete.failed" to "Deletion failed. Data was retained; please retry.",
+    "delete.wait" to "Wait for deletion to finish, or undo it first.",
+    "delete.undoMessage" to "Removed {n} items. Undo within 3 seconds.",
+    "delete.undo" to "Undo",
+    "delete.removed" to "Removed from notebook",
+    "data.backupTooLarge" to "Backup data exceeds the safe memory limit. Existing data and backups are unchanged.",
+    "draft.saveFailed" to "Conversation draft could not be saved. Keep this screen open.",
+    "draft.conflict" to "Draft recovery failed or the saved question has changed. The draft was retained for rescue export.",
+    "draft.resolveFirst" to "Continue or discard the unfinished reply first.",
+    "draft.title" to "Unfinished conversations and drafts",
+    "draft.notice" to "Drafts stay on this device. Partial replies never replace saved answers. Continuing may call AI again. Drafts are excluded from normal backups.",
+    "draft.issue" to "Some drafts could not be read. Original files were retained.",
+    "draft.empty" to "No recoverable drafts",
+    "draft.recover" to "Recover",
+    "draft.discard" to "Discard draft",
+    "draft.discardConfirm" to "Delete only this draft? Saved notebook questions stay unchanged.",
+    "stats.streak" to "Day streak (estimate)",
+    "stats.estimateNotice" to "Daily/weekly review counts and streaks are estimated from each question’s latest review date, not a full activity log. New-question trends use the first-input date.",
+    "save.export" to "Rescue export (save failures)",
+    "save.exportNotice" to "This rescue file contains unsaved content and conversation drafts for assisted recovery. It is not a normal backup and cannot be imported in Backup management. It may contain questions, images and conversations; keep it private."
+)
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "最低 Android API {api} · DB v{db} · バックアップ v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2409,7 +2471,32 @@ private val B12_JA = mapOf(
     "tagMerge.discardDraft" to "下書きを破棄",
     "tagMerge.discardDraftConfirm" to "整理の下書きだけを削除し、問題やタグは変更しません。破棄しますか？"
 )
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA
+private val B13_JA = mapOf(
+    "review.saveFailed" to "復習進捗を保存できません。次へ進む前に再試行してください。",
+    "review.unknownVerdict" to "AI の判定は不明です。習熟度を選んでください。",
+    "review.suggestion" to "AI の提案：{level}。確認して記録してください。",
+    "delete.failed" to "削除できませんでした。データは保持されています。",
+    "delete.wait" to "削除の完了を待つか、先に取り消してください。",
+    "delete.undoMessage" to "{n} 件を除外しました。3 秒以内に取り消せます。",
+    "delete.undo" to "取り消す",
+    "delete.removed" to "ノートから除外しました",
+    "data.backupTooLarge" to "バックアップが安全なメモリ上限を超えました。既存データとバックアップは保持されています。",
+    "draft.saveFailed" to "会話の下書きを保存できません。画面を閉じないでください。",
+    "draft.conflict" to "下書きを復元できないか、保存済みの問題が変更されています。救済出力用に保持しました。",
+    "draft.resolveFirst" to "未完了の応答を続行するか破棄してください。",
+    "draft.title" to "未完了の会話と下書き",
+    "draft.notice" to "下書きは端末内のみで、未完了の応答は保存済み回答を置換しません。続行時は AI を再利用する場合があります。通常のバックアップには含みません。",
+    "draft.issue" to "一部の下書きを読み取れません。元ファイルは保持されています。",
+    "draft.empty" to "復元可能な下書きはありません",
+    "draft.recover" to "復元",
+    "draft.discard" to "下書きを破棄",
+    "draft.discardConfirm" to "この下書きだけを削除しますか？保存済み問題は変更しません。",
+    "stats.streak" to "連続日数（推定）",
+    "stats.estimateNotice" to "今日・今週の復習数と連続日数は各問題の最終復習日による推定で、全履歴ではありません。新規問題の推移は初回日時で集計します。",
+    "save.export" to "救済出力（保存エラー時）",
+    "save.exportNotice" to "未保存内容と会話下書きの手動救済用ファイルです。通常のバックアップではなく、バックアップ管理から直接読み込めません。問題・画像・会話を含むため適切に保管してください。"
+)
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "최소 Android API {api} · DB v{db} · 백업 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2430,4 +2517,29 @@ private val B12_KO = mapOf(
     "tagMerge.discardDraft" to "초안 버리기",
     "tagMerge.discardDraftConfirm" to "정리 초안만 삭제하며 문제나 태그는 변경하지 않습니다. 버릴까요?"
 )
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO
+private val B13_KO = mapOf(
+    "review.saveFailed" to "복습 진행을 저장하지 못했습니다. 다음 문제로 이동하기 전에 다시 시도하세요.",
+    "review.unknownVerdict" to "AI 판정이 불명확합니다. 숙련도를 선택하세요.",
+    "review.suggestion" to "AI 제안: {level}. 확인 후 기록하세요.",
+    "delete.failed" to "삭제하지 못했습니다. 데이터를 유지했습니다. 다시 시도하세요.",
+    "delete.wait" to "삭제가 끝날 때까지 기다리거나 먼저 실행 취소하세요.",
+    "delete.undoMessage" to "{n}개를 제거했습니다. 3초 안에 취소할 수 있습니다.",
+    "delete.undo" to "실행 취소",
+    "delete.removed" to "오답 노트에서 제거됨",
+    "data.backupTooLarge" to "백업이 안전한 메모리 한도를 초과했습니다. 기존 데이터와 백업은 유지됩니다.",
+    "draft.saveFailed" to "대화 초안을 저장하지 못했습니다. 이 화면을 유지하세요.",
+    "draft.conflict" to "초안을 복원할 수 없거나 저장된 문제가 변경되었습니다. 복구용 내보내기를 위해 유지했습니다.",
+    "draft.resolveFirst" to "먼저 미완료 응답을 계속하거나 버리세요.",
+    "draft.title" to "미완료 대화 및 초안",
+    "draft.notice" to "초안은 이 기기에만 저장됩니다. 미완료 응답은 기존 답을 덮어쓰지 않습니다. 계속할 때 AI를 다시 호출할 수 있습니다. 일반 백업에는 포함되지 않습니다.",
+    "draft.issue" to "일부 초안을 읽지 못했습니다. 원본 파일은 유지했습니다.",
+    "draft.empty" to "복원할 초안이 없습니다",
+    "draft.recover" to "복원",
+    "draft.discard" to "초안 버리기",
+    "draft.discardConfirm" to "이 초안만 삭제할까요? 저장된 문제는 유지됩니다.",
+    "stats.streak" to "연속 일수(추정)",
+    "stats.estimateNotice" to "오늘·이번 주 복습 수와 연속 일수는 문제별 최근 복습일로 추정하며 전체 활동 기록이 아닙니다. 신규 문제 추이는 최초 입력일로 집계합니다.",
+    "save.export" to "복구용 내보내기(저장 실패 시)",
+    "save.exportNotice" to "저장되지 않은 내용과 대화 초안을 수동 복구하기 위한 파일입니다. 일반 백업이 아니므로 백업 관리에서 가져올 수 없습니다. 문제·이미지·대화가 포함될 수 있으니 안전하게 보관하세요."
+)
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO

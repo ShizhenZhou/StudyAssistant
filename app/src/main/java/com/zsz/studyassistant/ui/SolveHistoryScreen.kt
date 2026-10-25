@@ -69,8 +69,10 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val dao = remember(context) { AppDatabase.get(context).questionDao() }
     val scope = rememberCoroutineScope()
 
-    val sessions by remember { dao.solveSessionsLight() }
+    val storedSessions by remember { dao.solveSessionsLight() }
         .collectAsState(initial = emptyList())
+    val deletes by vm.deletionState.collectAsState()
+    val sessions=storedSessions.filterNot { it.id in deletes.historyIds }
 
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
@@ -238,9 +240,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                     showDeleteConfirm = false
                     exitSelection()
                     if (ids.isNotEmpty()) {
-                        vm.deleteHistoryRecords(ids) {
-                            feedback.show(s["history.deleteFailed"], isError = true)
-                        }
+                        vm.deleteHistoryRecords(ids)
                     }
                 }) { Text(s["common.delete"]) }
             },

@@ -273,16 +273,6 @@ object StudyAssistant {
 //     }
 
 
-    /** 正在进行的流式响应体（供「中止生成」立即中断阻塞读取用） */
-    @Volatile
-    private var activeStreamBody: ResponseBody? = null
-
-    /** 立即中止当前流式请求：关闭响应体 → 阻塞中的 readUtf8Line() 会立刻抛错返回 */
-    fun cancelActiveStream() {
-        runCatching { activeStreamBody?.close() }
-        activeStreamBody = null
-    }
-
     /**
      * 流式调用：逐块回调增量文本，返回拼接后的完整文本（供落库/展示）。
      *
@@ -300,10 +290,11 @@ object StudyAssistant {
         /** 思考模式增量回调（官方 reasoning_content；思考模式关闭时不会触发） */
         onReasoning: (suspend (String) -> Unit)? = null,
         /** 是否开启思考模式（设置 → AI 配置 → **解题模式**） */
-        thinkingEnabled: Boolean = true
+        thinkingEnabled: Boolean = true,
+        owner: StreamOwner = StreamOwner()
     ): String {
         requireKey()
-        val body = ApiClient.deepSeekStream.chatStream(
+        val call = ApiClient.deepSeekStream.chatStream(
             DeepSeekRequest(
                 model = model,
                 messages = messages,
@@ -314,11 +305,27 @@ object StudyAssistant {
                 thinking = if (!thinkingEnabled) ThinkingOption("disabled") else null
             )
         )
+        owner.attach { call.cancel() }
+        val body = kotlinx.coroutines.suspendCancellableCoroutine<ResponseBody> { continuation ->
+            continuation.invokeOnCancellation { owner.cancel() }
+            call.enqueue(object : retrofit2.Callback<ResponseBody> {
+                override fun onResponse(call: retrofit2.Call<ResponseBody>, response: retrofit2.Response<ResponseBody>) {
+                    val received = response.body()
+                    if (response.isSuccessful && received != null) {
+                        continuation.resume(received) { _, resource, _ -> resource.close() }
+                    } else {
+                        response.errorBody()?.close()
+                        if (continuation.isActive) continuation.resumeWith(Result.failure(retrofit2.HttpException(response)))
+                    }
+                }
+                override fun onFailure(call: retrofit2.Call<ResponseBody>, error: Throwable) {
+                    if (continuation.isActive) continuation.resumeWith(Result.failure(error))
+                }
+            })
+        }
         val sb = StringBuilder()
         var usage: DeepSeekUsage? = null
         val completion = StreamCompletion()
-        lastUsage = null
-        activeStreamBody = body
         try {
             body.use { b ->
                 val src = b.source()
@@ -343,8 +350,8 @@ object StudyAssistant {
                 }
             }
         } finally {
-            activeStreamBody = null
-            lastUsage = usage
+            owner.usage = usage
+            owner.finish()
         }
         completion.requireComplete()
         return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }
@@ -381,6 +388,7 @@ object StudyAssistant {
             //   项目里的 stripLeakedSectionMarks 就是给这句擦屁股的），且去掉了文案里的 `**`。
             "\n按下面模板输出，每项只写一次、各占一行，开头带对应序号；只有「解答」可以多行：\n" +
             (if (answerBytes != null) fmtWithAnswer else fmtNoAnswer) + "\n" +
+            "先单独输出一行 <review_verdict>correct|partial|incorrect|unknown</review_verdict>，只选一个英文值；这是机器评分建议，不随回答语言翻译。\n" +
             answerLayoutInstruction() + solveKnownHint(categories, tags) + "\n" +
             languageInstruction(lang)
     }
@@ -485,17 +493,10 @@ object StudyAssistant {
     /** 圈码后面紧跟数字分点（如 `④ 1. 条件：…`）→ 那个圈码一定是泄漏的节标签 */
     private val CIRC_THEN_NUM = Regex("^\\s*[\\u2460-\\u2473]\\s*(?=\\d+\\s*[.、)）])")
 
-    /** Only strip an explicitly identified answer-section mark before a separate numeric step.
-     * Repeated circled subquestion numbers in conclusions/derivations are legitimate content.
+    /** Bare circled numbers are content, even when identical to a template's section mark.
+     * Only explicit metadata labels are removed elsewhere; ambiguous numbering is never guessed away.
      */
-    private fun stripLeakedSectionMarks(text: String, sectionMark: String?): String {
-        if (sectionMark == null) return text
-        return text.lines().joinToString("\n") { line ->
-            val mark = CIRC_HEAD.find(line)?.groupValues?.get(1)
-            if (mark == sectionMark && CIRC_THEN_NUM.containsMatchIn(line))
-                CIRC_HEAD.replaceFirst(line, "").trimStart() else line
-        }
-    }
+    private fun stripLeakedSectionMarks(text: String, sectionMark: String?): String = text
 
     private val ANSWER_SECTION_MARK = Regex("(?m)^\\s*([\\u2460-\\u2473])\\s*解答[:：]")
 
@@ -506,17 +507,28 @@ object StudyAssistant {
     fun stripMetaLines(output: String, sectionMark: String? = null): String {
         val kept = output.replace(Regex("<思考>[\\s\\S]*?</思考>"), "")
             .lines()
-            .filterNot { META_LINE.containsMatchIn(it) }
+            .filterNot { META_LINE.containsMatchIn(it) || Regex("^\\s*<review_verdict>[^<]*</review_verdict>\\s*$").matches(it) }
             .joinToString("\n")
             .trim()
         return stripLeakedSectionMarks(kept, sectionMark ?: ANSWER_SECTION_MARK.find(output)?.groupValues?.get(1))
+    }
+
+    /** Keep all lines until the next explicit metadata/answer heading, not just the first line. */
+    private fun extractQuestionSection(output: String): String? {
+        val lines = output.lines()
+        val start = lines.indexOfFirst { Regex("^${META_LEAD}题目\\s*[:：]").containsMatchIn(it) }
+        if (start < 0) return null
+        val first = lines[start].replaceFirst(Regex("^${META_LEAD}题目\\s*[:：]\\s*"), "")
+        val stop = Regex("^$META_LEAD(?:分类|科目|类别|所属科目|知识点|考点|标签|解答)\\s*[:：]")
+        return (listOf(first) + lines.drop(start + 1).takeWhile { !stop.containsMatchIn(it) })
+            .joinToString("\n").trim().takeIf { it.isNotBlank() }
     }
 
     /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
     fun parseVisionOutput(output: String): SolveResult {
         // 路线 A：若正文里混进了 <思考> 块，先剥掉（避免污染题目/解答）
         val output = output.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim()
-        val question = Regex("题目[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
+        val question = extractQuestionSection(output)
         // 容错：模型可能写成"科目/类别/分类名/所属科目"等
         val category = Regex("(?:分类|科目|类别|分类名|所属科目)[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()
         // 知识点：按 、 / ， / 逗号 拆分，最多 5 个
@@ -659,6 +671,7 @@ object StudyAssistant {
     suspend fun generateSimilarQuestionStream(
         question: Question,
         lang: AiLang = AiLang.DEFAULT,
+        owner: StreamOwner = StreamOwner(),
         onDelta: suspend (String) -> Unit
     ): SimilarResult {
         requireKey()
@@ -666,7 +679,7 @@ object StudyAssistant {
             systemMessage(lang),
             DeepSeekMessage("user", JsonPrimitive(similarPrompt(question)))
         )
-        val out = chatStream(MODEL_TEXT, msgs, onDelta)
+        val out = chatStream(MODEL_TEXT, msgs, onDelta, owner = owner)
         return parseSimilar(out)
     }
 

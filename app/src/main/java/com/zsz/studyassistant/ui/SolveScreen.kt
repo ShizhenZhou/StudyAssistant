@@ -417,9 +417,7 @@ fun SolveScreen(
 
                         if (vm.isDeleted) {
                             // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
-                            TextButton(onClick = { vm.restoreSavedQuestion() }, contentPadding = smallPad) {
-                                Text(s["solve.restore"], fontSize = BTN_LABEL_SOLVE)
-                            }
+                            Text(s["delete.removed"], fontSize = BTN_LABEL_SOLVE)
                         } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
                             // ★ 「📁 分类」按钮（用户 2026-10-11 提出、2026-10-12 修订）：
                             //   ① 占位固定：**宽 = 「📁 + 5 个汉字」的实测宽**（比旁边的「⏸/🔄」宽一个汉字 ⇒
@@ -848,27 +846,17 @@ fun SolveScreen(
 
             // B6 重做：批改完成 → 显示"已按批改结果更新掌握度"，并可继续下一题
             vm.redoMessage?.let { msg ->
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = smoothShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Row(
-                        Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            msg,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { vm.reviewAdvance(onReviewFinished) }) { Text(s["redo.next"]) }
+                Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+                    Text(msg, style = MaterialTheme.typography.bodySmall)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for ((level, key) in listOf(0 to "solve.forgot", 1 to "solve.vague", 2 to "solve.familiar")) {
+                            OutlinedButton(enabled = !vm.reviewBusy && !vm.isDeleted, onClick = { vm.confirmRedo(level, onReviewFinished) },
+                                modifier = Modifier.weight(1f)) { Text(s[key]) }
+                        }
                     }
                 }
             }
 
-            // 复习模式：进度 + 折叠解答；底部为 熟悉/模糊/忘记 三按钮
             if (sessionMode == SessionMode.REVIEW) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -919,16 +907,19 @@ fun SolveScreen(
                 ) {
                     Button(
                         onClick = { vm.reviewNext(2, onReviewFinished) },
+                        enabled = !vm.reviewBusy && !vm.isDeleted,
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) { Text(s["solve.familiar"]) }
                     Button(
                         onClick = { vm.reviewNext(1, onReviewFinished) },
+                        enabled = !vm.reviewBusy && !vm.isDeleted,
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
                     ) { Text(s["solve.vague"]) }
                     Button(
                         onClick = { vm.reviewNext(0, onReviewFinished) },
+                        enabled = !vm.reviewBusy && !vm.isDeleted,
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
                     ) { Text(s["solve.forgot"]) }

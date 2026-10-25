@@ -20,3 +20,26 @@ internal fun decodeSampledBitmap(bytes: ByteArray, reqWidth: Int): Bitmap? = try
 } catch (e: Exception) {
     null
 }
+
+/** Query and decode images only for composed/visible cards, on IO, rather than in list queries. */
+@androidx.compose.runtime.Composable
+internal fun questionCardBitmaps(q: com.zsz.studyassistant.data.Question, width: Int): List<android.graphics.Bitmap> {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val state = androidx.compose.runtime.produceState<List<android.graphics.Bitmap>>(emptyList(), q.id, width) {
+        value = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val dao = com.zsz.studyassistant.data.AppDatabase.get(context).questionDao()
+            val stored = dao.imagesForQuestion(q.id).map { it.bytes }
+            val bytes = if(stored.isNotEmpty()) stored else {
+                val full = dao.heavyOnce(q.id)
+                com.zsz.studyassistant.data.mergeImageKeys(full?.imageBytes?.let {
+                    android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP)
+                }, com.zsz.studyassistant.data.questionImageBase64(full?.conversationJson)).mapNotNull {
+                    runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull()
+                }
+            }
+            bytes.take(3).mapNotNull { decodeSampledBitmap(it,width) }
+        } } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { emptyList() }
+    }
+    return state.value
+}

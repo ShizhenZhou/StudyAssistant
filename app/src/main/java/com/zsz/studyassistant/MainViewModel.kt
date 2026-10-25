@@ -34,6 +34,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +58,14 @@ data class ChatItem(val id: Long, val role: String, val content: String, val ima
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init { KeyManager.init(app) }
+    private val calendarDay = MutableStateFlow(com.zsz.studyassistant.data.CalendarDay.now())
+    fun refreshClock() { calendarDay.value = com.zsz.studyassistant.data.CalendarDay.now() }
+    init { viewModelScope.launch { while (isActive) { refreshClock(); kotlinx.coroutines.delay(30_000) } } }
+    var reviewOpenRequested by mutableStateOf(false)
+        private set
+    fun requestReviewNavigation() { reviewOpenRequested = true }
+    fun consumeReviewNavigation() { reviewOpenRequested = false }
+
 
     private val dao = AppDatabase.get(app).questionDao()
     private val json = Json { ignoreUnknownKeys = true }
@@ -140,11 +150,64 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         com.zsz.studyassistant.ui.FontScaleStore.save(getApplication(), scale)
     }
 
+    private val deletedNotebookIds = mutableSetOf<QuestionId>()
+    private val deleteQueue = com.zsz.studyassistant.data.DeferredDeletion(viewModelScope,
+        commit = { commitDeletion(it) }, failure = { batch ->
+            if(savedQuestionId in batch.questions) { isDeleted=false; savedToNotebook=true }
+            deleteError = com.zsz.studyassistant.ui.stringsFor(uiLang)["delete.failed"]
+        })
+    val deletionState = deleteQueue.state
+    var deleteError by mutableStateOf<String?>(null)
+        private set
+    fun clearDeleteError() { deleteError=null }
+    fun undoDelete(token: Long) {
+        val batch=deletionState.value.pending
+        if(deleteQueue.undo(token) && savedQuestionId in batch?.questions.orEmpty()) {
+            isDeleted=false; savedToNotebook=true
+        }
+    }
+    private suspend fun commitDeletion(batch: com.zsz.studyassistant.data.DeleteBatch) {
+        solveSessionWriteMutex.withLock {
+            AppDatabase.get(getApplication()).withTransaction {
+                if(batch.categories.isNotEmpty()) {
+                    dao.clearCategoryForCategories(batch.categories.toList())
+                    dao.deleteCategories(batch.categories.toList())
+                }
+                if(batch.questions.isNotEmpty()) {
+                    dao.clearImagesFor(batch.questions.toList())
+                    dao.deleteQuestionTagsForQuestions(batch.questions.toList())
+                    dao.deleteReviewsForQuestions(batch.questions.toList())
+                    dao.deleteByIds(batch.questions.toList())
+                    batch.questions.forEach { dao.unlinkExistingSession(it) }
+                }
+                if(batch.histories.isNotEmpty()) dao.deleteSolveSessionsByIds(batch.histories.toList())
+            }
+            deletedNotebookIds += batch.questions
+            batch.questions.forEach { pendingNotebookContent.remove(it) }
+            try {
+                withContext(Dispatchers.IO) {
+                    pendingSaveStore.invalidateNotebook(batch.questions)
+                    conversationDrafts.invalidate(batch.questions)
+                    pendingSaveStore.invalidateHistory(batch.histories)
+                }
+            } catch (_: Exception) { saveJournalIssue=true }
+            if(batch.histories.isNotEmpty()) dropCurrentSessionIfPruned(batch.histories.toList())
+            if(savedQuestionId in batch.questions) { savedQuestionId=null; savedToNotebook=false; isDeleted=true }
+            if(similarSavedQuestionId in batch.questions) similarSavedQuestionId=null
+            refreshPendingSaveState()
+        }
+    }
+    private fun stageQuestionDeletion(ids: Collection<QuestionId>) {
+        if(savedQuestionId in ids) { stopActiveGeneration(); isDeleted=true; savedToNotebook=false }
+        deleteQueue.stage(questions=ids.toSet())
+    }
+
     /** 错题本数据流（A5：按用户选的排序方式排好；排序变化 → 立即重新发射） */
     val notebook: StateFlow<List<Question>> =
         kotlinx.coroutines.flow.combine(
-            dao.getAll(), dao.allReviews(), notebookSort
-        ) { qs, rs, mode ->
+            dao.getAll(), dao.allReviews(), notebookSort, deletionState
+        ) { allQuestions, rs, mode, deletes ->
+            val qs=allQuestions.filterNot { it.id in deletes.questionIds }
             com.zsz.studyassistant.data.NotebookSorting.sort(qs, rs.associateBy { it.questionId }, mode)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -170,7 +233,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *   提示词又变成「当前没有任何分类」→ AI 自己造分类（重复分类的根因）。
      *   分类/标签表极小（几十行），常驻收集的开销可忽略。 */
     val categories: StateFlow<List<Category>> =
-        dao.categories().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        kotlinx.coroutines.flow.combine(dao.categories(), deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.categoryIds } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** 知识点标签列表（同上：Eagerly，保证 `.value` 随时可用） */
     val tags: StateFlow<List<Tag>> =
@@ -192,30 +256,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val stats: StateFlow<StatsSnapshot> =
         kotlinx.coroutines.flow.combine(
-            dao.getAll(), dao.allReviews(), dao.categories()
-        ) { qs, rs, cats ->
+            dao.getAll(), dao.allReviews(), dao.categories(), calendarDay, deletionState
+        ) { allQuestions, rs, cats, day, deletes ->
+            val qs=allQuestions.filterNot { it.id in deletes.questionIds }
             val now = System.currentTimeMillis()
             val dayMs = 24L * 60 * 60 * 1000
-            val todayStart = startOfToday()
-            val weekStart = todayStart - 6 * dayMs
+            val todayStart = day.start
+            val weekStart = day.after(-6)
             val byId = rs.associateBy { it.questionId }
 
             // ★ 只统计"未被删除"的题：复习记录可能残留在已删除的题上（软删除/移除错题），
             //   原来直接用 allReviews() 会把它们算进"今日复习/近7天/待复习"，导致数字偏大
             val aliveIds = qs.map { it.id }.toSet()
             // 待复习口径与复习会话一致：dueQuestions(endOfToday()) = 未删除 + nextReviewAt <= 今天末
-            val endOfToday = todayStart + dayMs
-            val todayReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt >= todayStart }
-            val weekReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt >= weekStart }
+            val endOfToday = day.end
+            val todayReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt in todayStart..day.end }
+            val weekReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt in weekStart..day.end }
             val dueNow = rs.count { it.questionId in aliveIds && it.nextReviewAt <= endOfToday }
 
             // 连续复习天数：从今天（或昨天）往前数，哪天有复习记录就 +1
-            val daysWithReview = rs.filter { it.lastReviewedAt > 0 && it.questionId in aliveIds }
-                .map { ((it.lastReviewedAt - todayStart) / dayMs).toInt() }
-                .toSet()
-            var streak = 0
-            var probe = if (daysWithReview.contains(0)) 0 else -1
-            while (daysWithReview.contains(probe)) { streak++; probe-- }
+            val streak = com.zsz.studyassistant.data.ReviewPlanning.recordedStreak(
+                rs.filter { it.questionId in aliveIds }.map { it.lastReviewedAt }, day)
 
             // 掌握度：无记录 = 未开始；intervalStep <= 2 = 复习中；>= 3 = 已掌握
             var notStarted = 0; var learning = 0; var mastered = 0
@@ -234,8 +295,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .map { it.key to it.value }
 
             fun series(days: Int): List<Int> = ((days - 1) downTo 0).map { back ->
-                val from = todayStart - back * dayMs
-                qs.count { it.createdAt in from until (from + dayMs) }
+                val from = day.after(-back)
+                val to = day.after(1 - back)
+                qs.count { it.createdAt in from until to }
             }
             val last7 = series(7)
             val last30 = series(30)
@@ -329,6 +391,141 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var retryingHistoryWrites by mutableStateOf(false)
         private set
+    private val conversationDrafts = com.zsz.studyassistant.data.ConversationDraftStore(app)
+    private var activeDraft: com.zsz.studyassistant.data.ConversationDraft? = null
+    private var currentNotebookBaseline: com.zsz.studyassistant.data.SavePayload? = null
+    private var draftRevision = 0L
+    var draftSummaries by mutableStateOf<List<com.zsz.studyassistant.data.DraftSummary>>(emptyList())
+        private set
+    var draftIssue by mutableStateOf(false)
+        private set
+    var draftError by mutableStateOf<String?>(null)
+        private set
+    fun clearDraftError() { draftError=null }
+    var draftSolveRequested by mutableStateOf(false)
+        private set
+    var draftReturnOrigin by mutableStateOf("home")
+        private set
+    fun consumeDraftNavigation() { draftSolveRequested=false }
+    init { viewModelScope.launch { refreshDrafts() } }
+    private suspend fun refreshDrafts() {
+        try {
+            val scan=withContext(Dispatchers.IO) { conversationDrafts.summaries() }
+            draftSummaries=scan.first; draftIssue=scan.second>0
+        } catch (_: Exception) { draftIssue=true }
+    }
+    private val draftWriteMutex = kotlinx.coroutines.sync.Mutex()
+    private suspend fun writeDraft(value: com.zsz.studyassistant.data.ConversationDraft,
+        baseline: com.zsz.studyassistant.data.SavePayload?) {
+        try {
+            val saved=draftWriteMutex.withLock { withContext(kotlinx.coroutines.NonCancellable+Dispatchers.IO) { conversationDrafts.write(value,baseline) } }
+            if(activeDraft?.generation==value.generation) activeDraft=activeDraft?.copy(baseline=saved.baseline)
+        } catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] }
+    }
+    private fun checkpointDraft(refresh: Boolean = true) {
+        val value=activeDraft?.copy(revision=++draftRevision) ?: return
+        val baseline=currentNotebookBaseline
+        viewModelScope.launch { writeDraft(value,baseline); if(refresh) refreshDrafts() }
+    }
+    private suspend fun persistCompletedConversation() {
+        saveSessionOnExit()
+        solveSessionWriteMutex.withLock { /* Await all snapshots just enqueued by saveSessionOnExit. */ }
+    }
+    private suspend fun draftCanBeCleared(id: QuestionId): Boolean {
+        return try {
+            val scan=withContext(Dispatchers.IO) { pendingSaveStore.scan() }
+            scan.unreadable==0 && scan.entries.none { it.payload.id==id } &&
+                id !in pendingNotebookContent && historyWriteQueue.failedTickets().none { it.row.id==id }
+        } catch (_: Exception) { saveJournalIssue=true; false }
+    }
+    fun discardDraft(id: QuestionId) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }
+                if(activeDraft?.id==id) { activeDraft=null; discardInterrupted() }
+                refreshDrafts()
+            } catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] }
+        }
+    }
+    fun resumeDraft(id: QuestionId, origin: String) {
+        if(busy || reviewBusy) return
+        viewModelScope.launch {
+            try {
+                val value=draftWriteMutex.withLock { withContext(Dispatchers.IO) { checkNotNull(conversationDrafts.read(id)) } }
+                val row=solveSessionWriteMutex.withLock { dao.heavyOnce(id) }
+                if(value.notebookId!=null) {
+                    check(row!=null && !row.deleted && id !in deletionState.value.questionIds)
+                    val actual=withContext(Dispatchers.IO) { com.zsz.studyassistant.data.PendingSaveCodec.fingerprint(com.zsz.studyassistant.data.SavePayload.notebook(row)) }
+                    if(actual!=value.baseline) {
+                        val completed=value.completedChats?.let { chats -> com.zsz.studyassistant.data.SavePayload(id,value.createdAt,
+                            value.completedQuestion ?: value.question,chats.lastOrNull { it.role=="assistant" }?.content.orEmpty(),json.encodeToString(chats)) }
+                        if(completed!=null && actual==com.zsz.studyassistant.data.PendingSaveCodec.fingerprint(completed)) {
+                            withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }
+                            loadQuestion(row); refreshDrafts(); draftReturnOrigin=origin; draftSolveRequested=true
+                            return@launch
+                        }
+                        error("Draft conflict")
+                    }
+                }
+                stopActiveGeneration()
+                resetSession()
+                val history=dao.solveSessionOnce(id)
+                sessionRecordBinding=SolveSessionBinding(id,value.createdAt,value.source,
+                    historyAllowed=value.historyAllowed && history!=null)
+                questionText=value.question
+                isPhoto=value.photo; askMode=value.ask; gradeMode=value.grade
+                pendingRedoFor=value.redoFor
+                questionImages=value.images
+                directImages=withContext(Dispatchers.IO) { value.images.map { Base64.decode(it,Base64.NO_WRAP) } }
+                imageBytes=directImages.firstOrNull()
+                savedQuestionId=row?.id; savedToNotebook=row!=null; isFromNotebook=row!=null
+                currentQuestionCreatedAt=value.createdAt
+                currentQuestionCategoryId=row?.categoryId
+                currentQuestionTags = row?.let { dao.tagIdsForQuestion(it.id) }.orEmpty()
+                currentNotebookBaseline=row?.let { com.zsz.studyassistant.data.SavePayload.notebook(it) }
+                chatItems=value.base
+                conversationDrafts.reserve(value.id,value.generation)
+                activeDraft=value
+                if(value.complete && value.completedChats!=null) {
+                    chatItems=value.completedChats; questionText=value.completedQuestion ?: value.question
+                    persistCompletedConversation()
+                    if(draftCanBeCleared(id)) withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }
+                    activeDraft=null
+                } else {
+                    streamingText=value.raw; thinkingText=value.thinking; streamInterrupted=true
+                    contModel=value.model; contPrefix=value.raw
+                    contMessages=continuationMessages(value.messages,value.raw)
+                    contDraftAction=value.action
+                    contOnDone={ output -> applyRecoveredReply(value.action,output) }
+                }
+                refreshDrafts(); draftReturnOrigin=origin; draftSolveRequested=true
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"] }
+        }
+    }
+    private fun applyRecoveredReply(action: String, output: String) {
+        when(action) {
+            "grade" -> onGradeReply(output)
+            "followup" -> addItem("assistant",StudyAssistant.stripMetaLines(output))
+            "regenerate_followup", "regenerate_initial" -> {
+                chatItems=com.zsz.studyassistant.data.regenerationBase(chatItems)
+                if(action=="regenerate_followup") addItem("assistant",StudyAssistant.stripMetaLines(output))
+                else {
+                    val result=StudyAssistant.parseVisionOutput(output)
+                    suggestedCategory=result.category; suggestedTags=result.tags
+                    addItem("assistant",result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+                }
+            }
+            else -> {
+                val result=StudyAssistant.parseVisionOutput(output)
+                if(isPhoto && !askMode) questionText=result.question
+                suggestedCategory=result.category; suggestedTags=result.tags
+                if(chatItems.none { it.role=="question" }) addItem("question",questionText,questionImages.ifEmpty { null })
+                addItem("assistant",result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+            }
+        }
+    }
+
     private val pendingSaveStore = com.zsz.studyassistant.data.PendingSaveStore(app)
     private val pendingSaveRepository = com.zsz.studyassistant.data.PendingSaveRepository(AppDatabase.get(app), pendingSaveStore)
     private val pendingNotebookContent = linkedMapOf<QuestionId, com.zsz.studyassistant.data.SavePayload>()
@@ -387,6 +584,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun queueNotebookSave(payload: com.zsz.studyassistant.data.SavePayload) {
+        if(payload.id in deletionState.value.questionIds || payload.id in deletedNotebookIds) return
         hasSaveActivity = true
         pendingNotebookContent[payload.id] = payload
         viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
@@ -397,10 +595,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         saveOperations++
         try {
             solveSessionWriteMutex.withLock {
-                if (pendingNotebookContent[payload.id] !== payload) return@withLock
+                if (pendingNotebookContent[payload.id] !== payload || payload.id in deletedNotebookIds) return@withLock
                 try {
                     pendingSaveRepository.saveNotebook(payload)
                     if (pendingNotebookContent[payload.id] === payload) pendingNotebookContent.remove(payload.id)
+                    if(savedQuestionId==payload.id) currentNotebookBaseline=payload
                 } catch (e: CancellationException) { throw e }
                 catch (_: Exception) { /* Preserve the in-memory snapshot even if journal creation failed. */ }
                 refreshPendingSaveState()
@@ -425,7 +624,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     withContext(Dispatchers.IO) {
                         val resolver = getApplication<Application>().contentResolver
                         checkNotNull(resolver.openOutputStream(uri, "wt")).bufferedWriter(Charsets.UTF_8).use {
-                            it.write(com.zsz.studyassistant.data.PendingSaveCodec.export(entries))
+                            it.write(com.zsz.studyassistant.data.PendingSaveCodec.export(entries, conversationDrafts.exportable()))
                         }
                     }
                     saveFeedbackIsError = false
@@ -458,13 +657,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun requireNoPendingSaves() {
+        check(!deletionState.value.active) { com.zsz.studyassistant.ui.stringsFor(uiLang)["delete.wait"] }
         refreshPendingSaveState()
         check(pendingSaveCount == 0 && !saveJournalIssue && historyWriteQueue.pendingTickets().isEmpty()) {
             com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]
         }
     }
 
-    private val notebookWriteMutex = kotlinx.coroutines.sync.Mutex()
+    private val notebookWriteMutex = solveSessionWriteMutex
     private val dataMaintenanceMutex = kotlinx.coroutines.sync.Mutex()
 
     private var currentSessionId: QuestionId?
@@ -762,18 +962,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun deleteHistoryRecords(ids: List<QuestionId>, onFailure: () -> Unit = {}) {
-        viewModelScope.launch {
-            solveSessionWriteMutex.withLock {
-                try {
-                    withContext(Dispatchers.IO) { pendingSaveStore.invalidateHistory(ids) }
-                    dao.deleteSolveSessionsByIds(ids)
-                    dropCurrentSessionIfPruned(ids)
-                } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { onFailure() }
-            }
-        }
-    }
+    fun deleteHistoryRecords(ids: List<QuestionId>) { deleteQueue.stage(histories=ids.toSet()) }
 
     /** 记录被裁剪掉时要顺手把 [currentSessionId] 松开，否则后续 UPDATE 会写进一条不存在的行 */
     private suspend fun dropCurrentSessionIfPruned(deleted: List<QuestionId>) {
@@ -803,6 +992,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 返回 true 后调用方才导航，期间保留 opening，避免重复打开。
      */
     suspend fun loadSolveSession(s: SolveSession): Boolean {
+        if (!canOpenSavedQuestion(s.id)) return false
         stopActiveGeneration()
         val seq = callSeq
         try {
@@ -940,6 +1130,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
 
     fun stopActiveGeneration() {
+        checkpointDraft()
+        activeDraft=null
+        val stopping = streamOwner
+        stopping?.cancel()
+        streamOwner = null
         callSeq++                 // 让旧请求收尾时不再覆盖界面状态
         callJob?.cancel()
         callJob = null
@@ -952,7 +1147,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         contMessages = null
         contOnDone = null
         contPrefix = ""
-        runCatching { com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication()) }
+        stopping?.let { com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(), it.id) }
     }
     fun clearCaptureCaches() {
         cancelCropFlow()
@@ -1009,7 +1204,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun customPromptText(): String =
         com.zsz.studyassistant.data.CapturePrefs.customPrompt(getApplication()).trim()
 
-    private fun buildMessages(): List<DeepSeekMessage> {
+    private fun buildMessages(items: List<ChatItem> = chatItems): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
         // 回答语言 + 用户自定义要求：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
         msgs.add(StudyAssistant.languageSystemMessage(aiLang, customPromptText()))
@@ -1031,7 +1226,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else if (questionText.isNotBlank()) {
             msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
         }
-        for (item in chatItems) {
+        for (item in items) {
             when (item.role) {
                 "assistant" -> msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.content)))
                 "user" -> {
@@ -1070,6 +1265,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun resetSession() {
+        currentNotebookBaseline=null
         sessionRecordBinding = SolveSessionBinding()
         askMode = false
         chatItems = emptyList()
@@ -1106,18 +1302,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var callJob: Job? = null
+    private var streamOwner: com.zsz.studyassistant.data.StreamOwner? = null
 
     // 「继续生成」所需的上文：原消息 + 已生成片段 + 完成回调
     private var contMessages: List<DeepSeekMessage>? = null
     private var contModel: String = ""
     private var contPrefix: String = ""
+    private var contDraftAction: String = "initial"
     private var contOnDone: ((String) -> Unit)? = null
 
     /** 中止生成：立即关闭响应流（模型思考中也能立刻停）+ 取消协程；已生成内容保留 */
     fun abortGeneration() {
         // ★ 中止时：从已生成的文本里抢救「分类/知识点」，避免中止后存错题本时丢失预选
         harvestSuggestions(streamingText.orEmpty())
-        StudyAssistant.cancelActiveStream()
+        streamOwner?.cancel()
         callJob?.cancel()
     }
 
@@ -1131,6 +1329,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 固化后会重复出现两次（见 FIXES 记录里的取舍说明）。
      */
     fun discardInterrupted() {
+        activeDraft?.id?.let { id -> viewModelScope.launch { withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }; refreshDrafts() } }
+        activeDraft=null
         streamInterrupted = false
         streamingText = null
         thinkingText = null
@@ -1146,7 +1346,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val onDone = contOnDone ?: return
         // ★ 包一层：续写完成后把**同一条**搜题记录也更新掉（否则记录里永远停在被中止时的半截答案）
         val wrapped: (String) -> Unit = { out -> onDone(out); updateSolveSession() }
-        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null)
+        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction)
     }
 
     private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
@@ -1176,10 +1376,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         messages: List<DeepSeekMessage>,
         prefix: String,
         onDone: (String) -> Unit,
-        repeat: (() -> Unit)?
+        repeat: (() -> Unit)?,
+        replyAction: String = if(gradeMode) "grade" else if(chatItems.any { it.role=="assistant" }) "followup" else "initial"
     ) {
+        streamOwner?.cancel()
         callJob?.cancel()
+        val owner = com.zsz.studyassistant.data.StreamOwner()
+        streamOwner = owner
         val mySeq = ++callSeq
+        val draftId=sessionRecordBinding.id
+        val template=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
+            owner.id,model,replyAction,currentSource(),questionText,isPhoto,askMode,gradeMode,
+            sessionRecordBinding.historyAllowed,savedQuestionId,questionImages,chatItems.toList(),messages,raw=prefix,redoFor=pendingRedoFor ?: if(gradeMode) redoQuestionId else null) }
+        if(template!=null) { conversationDrafts.reserve(template.id,template.generation); activeDraft=template }
         callJob = viewModelScope.launch {
             busy = true
             error = null
@@ -1188,7 +1397,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             streamInterrupted = false
             // 前台服务：切后台也不被冻结，保证请求跑完
             val app = getApplication<Application>()
-            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
+            com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = StringBuilder()
             var lastEmit = 0L
             var keepPartial = false
@@ -1199,6 +1408,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val thinkSb = StringBuilder()
             var lastThinkEmit = 0L
             try {
+                if(template!=null) { writeDraft(template.copy(revision=++draftRevision),currentNotebookBaseline); refreshDrafts() }
+                var lastDraftWrite=0L
                 val reply = withContext(Dispatchers.IO) {
                     val thinkOn = com.zsz.studyassistant.data.CapturePrefs.solveModel(app) != "flash"
                     StudyAssistant.chatStream(model, messages, onDelta = { delta ->
@@ -1243,25 +1454,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         if (now - lastEmit >= 180) {
                             lastEmit = now
                             val snapshot = prefix + bodyText
-                            withContext(Dispatchers.Main) { streamingText = snapshot }
+                            withContext(Dispatchers.Main) {
+                                if(mySeq==callSeq) {
+                                    streamingText = snapshot
+                                    activeDraft=activeDraft?.copy(raw=snapshot,thinking=thinkingText)
+                                    if(now-lastDraftWrite>=1000) { lastDraftWrite=now; checkpointDraft(refresh=false) }
+                                }
+                            }
                         }
-                    }, thinkingEnabled = thinkOn, onReasoning = { r ->
+                    }, thinkingEnabled = thinkOn, owner = owner, onReasoning = { r ->
                         thinkSb.append(r)
                         val now = System.currentTimeMillis()
                         if (now - lastThinkEmit >= 120) {
                             lastThinkEmit = now
                             val snap = thinkSb.toString()
-                            withContext(Dispatchers.Main) { thinkingText = snap }
+                            withContext(Dispatchers.Main) { if(mySeq == callSeq) thinkingText = snap }
                         }
                     })
                 }
+                if (mySeq != callSeq) return@launch
                 thinkingDone = true
-                recordUsage(app)
+                recordUsage(app, owner.usage)
                 // ⚠️ 这里原先有一段「把 thinkingText 挂到 indexOfLast{assistant}」的代码，已删除：
                 //   调用点在 onDone 之前，此刻 chatItems 里最后一条助手消息是**上一轮的** →
                 //   追问时会把上一轮答案的思考块覆盖成本轮思考。
                 //   本轮思考由 addItem() 的默认值自动挂到**新建的那条**助手消息上（见 addItem）。
                 onDone(prefix + reply.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim())
+                if(mySeq==callSeq) {
+                    activeDraft=activeDraft?.copy(raw=prefix+reply,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
+                    activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
+                    withContext(kotlinx.coroutines.NonCancellable) { persistCompletedConversation() }
+                    if(template!=null && draftCanBeCleared(template.id)) {
+                        try { withContext(kotlinx.coroutines.NonCancellable+Dispatchers.IO) { conversationDrafts.clear(template.id,template.generation) } }
+                        catch (_: Exception) { draftIssue=true }
+                        activeDraft=null
+                    }
+                    refreshDrafts()
+                }
                 // ★ 分类兜底（C）：正文里没给出「分类：/知识点：」时，解答完成即后台补一次，
                 //   这样等用户去点「存错题本」时建议已经就绪（不必在对话框里干等）
                 if (suggestedCategory == null && questionText.isNotBlank()) classifyCurrentQuestion()
@@ -1279,6 +1508,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 keepPartial = partial.isNotBlank() || aborted || e is com.zsz.studyassistant.data.StreamIncompleteException
                 // 已被新请求取代的旧请求：不改界面状态（否则会把新请求的「思考中…」/内容冲掉）
                 if (mySeq == callSeq) {
+                    activeDraft=activeDraft?.copy(raw=partial,thinking=thinkingText)
+                    activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
+                    withContext(kotlinx.coroutines.NonCancellable) { refreshDrafts() }
+                    contDraftAction=replyAction
                     if (keepPartial) {
                         streamInterrupted = true
                         contModel = model
@@ -1318,7 +1551,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (!keepPartial) streamingText = null
                     callJob = null
                 }
-                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
+                com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
             }
         }
     }
@@ -1326,6 +1559,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 网络断开后点击"继续生成"：用最后一次提问内容重新调用 */
     fun retry() {
         retryAction?.invoke()
+    }
+
+    override fun onCleared() {
+        streamOwner?.let { it.cancel(); com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(),it.id) }
+        similarStreamOwner?.let { it.cancel(); com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(),it.id) }
+        super.onCleared()
     }
 
     // ---- API 用量统计（累计调用次数与 token）----
@@ -1337,8 +1576,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     /** 每次接口调用后：写入统计并刷新界面状态 */
-    private fun recordUsage(app: Application) {
-        com.zsz.studyassistant.data.UsageStats.add(app, StudyAssistant.lastUsage)
+    private fun recordUsage(app: Application, usage: com.zsz.studyassistant.data.DeepSeekUsage?) {
+        com.zsz.studyassistant.data.UsageStats.add(app, usage)
         refreshUsage()
     }
 
@@ -1788,7 +2027,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */
     fun sendFollowUp(text: String, images: List<ByteArray> = emptyList()) {
-        if (text.isBlank()) return
+        if(streamInterrupted) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]; return }
+        if (text.isBlank() && images.isEmpty()) return
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         addItem("user", text, encoded)
         val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
@@ -1823,41 +2063,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 重新生成：**保留提问气泡**，只重做回答 */
     fun regenerate() {
-        // 旧实现这里是 chatItems = emptyList()：一旦本次生成失败/被中止，onDone 不会执行，
-        // 提问气泡就再也回不来了（用户反馈的「提问数据丢失」）。现在只清掉助手回答。
-        val keptQuestions = chatItems.filter { it.role == "question" }
-        chatItems = if (keptQuestions.isNotEmpty() || questionText.isBlank()) {
-            keptQuestions
-        } else {
-            // 极端情况：调用方没先插入 question（如 solveText 路径）→ 用 questionText 补一条
-            listOf(ChatItem(0L, "question", questionText, questionImages.ifEmpty { null }))
+        if(busy || streamInterrupted) {
+            if(streamInterrupted) error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]
+            return
         }
-        val model = if (isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        if (isPhoto) {
-            runCall(model, onDone = { output ->
-                val r = StudyAssistant.parseVisionOutput(output)
-                questionText = r.question
-                suggestedCategory = r.category
-                suggestedTags = r.tags
-                // 提问气泡已在上面保留，这里只追加回答，避免重复
-                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-                recordSolveSession(currentSource())   // 重新生成也要把记录刷新（已落库则 UPDATE 同一条）
-            }, repeat = { regenerate() })
-        } else {
-            runCall(model, onDone = { reply ->
-
-                // 同上：文字分支也要剥离元信息（否则重新生成后答案里又出现题目）
-
-                val r = StudyAssistant.parseVisionOutput(reply)
-
-                suggestedCategory = r.category
-
-                suggestedTags = r.tags
-
-                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-                recordSolveSession(currentSource())   // 同上：文字分支重新生成后也刷新记录
-            }, repeat = { regenerate() })
-        }
+        val retained=com.zsz.studyassistant.data.regenerationBase(chatItems)
+        val followup=retained.lastOrNull()?.role=="user"
+        val action=if(followup) "regenerate_followup" else "regenerate_initial"
+        val model=if(isPhoto || retained.lastOrNull()?.images?.isNotEmpty()==true) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        streamCall(model,buildMessages(retained),"",onDone={ output -> applyRecoveredReply(action,output) },
+            repeat={ regenerate() },replyAction=action)
     }
 
     private fun lastAnswer(): String =
@@ -1906,7 +2121,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val db = AppDatabase.get(getApplication())
                 var reusedQuestion: Question? = null
                 val saved = notebookWriteMutex.withLock { db.withTransaction {
-                    if (binding.cancelPending) return@withTransaction null
+                    if (binding.cancelPending || stableId in deletionState.value.questionIds) return@withTransaction null
                     val existingQuestion = dao.heavyOnce(stableId)
                     if (existingQuestion != null) {
                         // Explicit save can restore this ID, but must not replace a newer notebook copy.
@@ -1953,10 +2168,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     savedQuestionId = saved?.first
                     savedToNotebook = saved != null
-                    if (saved != null) isDeleted = false
+                    if (saved != null) { isDeleted = false; deletedNotebookIds.remove(stableId) }
                     currentQuestionCategoryId = saved?.second
                     currentQuestionTags = saved?.third.orEmpty()
-                    if (saved != null) currentQuestionCreatedAt = firstCreatedAt
+                    if (saved != null) {
+                        currentQuestionCreatedAt = firstCreatedAt
+                        currentNotebookBaseline=com.zsz.studyassistant.data.SavePayload(stableId,firstCreatedAt,q,a,convJson)
+                    }
                     cancelPending = false
                     recordSolveSession(currentSource())
                 }
@@ -1974,38 +2192,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 取消保存当前错题（从错题本移除） */
-    fun unsaveFromNotebook() {
-        val id = savedQuestionId ?: return
-        val binding = sessionRecordBinding
-        savedQuestionId = null
-        savedToNotebook = false
-        currentQuestionCategoryId = null
-        currentQuestionTags = emptyList()
-        viewModelScope.launch {
-            try {
-                notebookWriteMutex.withLock {
-                    AppDatabase.get(getApplication()).withTransaction {
-                        dao.clearImages(id)
-                        dao.clearQuestionTags(id)
-                        dao.deleteReviewsForQuestions(listOf(id))
-                        dao.deleteById(id)
-                        dao.unlinkExistingSession(id)
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (binding === sessionRecordBinding) {
-                    savedQuestionId = id
-                    savedToNotebook = true
-                    error = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                        .format("data.failed", "msg" to (e.message ?: ""))
-                }
-            }
-        }
-        suggestedCategory = null
-        suggestedTags = emptyList()
-    }
+    fun unsaveFromNotebook() { savedQuestionId?.let { stageQuestionDeletion(listOf(it)) } }
 
     /** 修改当前题目的分类（详情页用）；name 非空→新建分类，categoryId 为 null→暂不分类 */
     fun changeCurrentCategory(name: String?, categoryId: Long?) {
@@ -2106,40 +2293,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 批量彻底删除 */
-    fun batchDelete(ids: List<QuestionId>) {
-        if (ids.isEmpty()) return
-        viewModelScope.launch { dao.deleteByIds(ids) }
-    }
+    fun batchDelete(ids: List<QuestionId>) { stageQuestionDeletion(ids) }
 
     // ---- 复习（艾宾浩斯）----
 
     /** 今天到期的错题 */
-    fun dueQuestionsToday(): Flow<List<Question>> = dao.dueQuestions(endOfToday())
-    /** 本周（截止周日）到期的错题 */
-    fun dueQuestionsWeek(): Flow<List<Question>> = dao.dueQuestions(endOfWeek())
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun dueQuestionsToday(): Flow<List<Question>> = kotlinx.coroutines.flow.combine(calendarDay.flatMapLatest { dao.dueQuestions(it.end) }, deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.questionIds } }
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun dueQuestionsWeek(): Flow<List<Question>> = kotlinx.coroutines.flow.combine(calendarDay.flatMapLatest { dao.dueQuestions(it.weekEnd) }, deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.questionIds } }
 
-    /** 三个按钮更新调度：level 0=忘记, 1=模糊, 2=熟悉 */
-    fun reviewQuestion(questionId: QuestionId, level: Int) {
-        viewModelScope.launch {
-            val r = dao.reviewFor(questionId) ?: Review(questionId)
-            val (step, days) = scheduleFor(level, r.intervalStep)
-            dao.updateReview(questionId, step, startOfToday() + days * DAY_MS, System.currentTimeMillis())
+    var reviewBusy by mutableStateOf(false)
+        private set
+    private var reviewEpoch = 0L
+    private suspend fun commitReview(questionId: QuestionId, level: Int) {
+        AppDatabase.get(getApplication()).withTransaction {
+            val question = dao.questionLightOnce(questionId) ?: error("Question no longer exists")
+            check(!question.deleted && questionId !in deletionState.value.questionIds)
+            val before = dao.reviewFor(questionId) ?: Review(questionId).also { dao.insertReview(it) }
+            val (step, days) = com.zsz.studyassistant.data.ReviewPlanning.schedule(level, before.intervalStep)
+            dao.updateReview(questionId, step, com.zsz.studyassistant.data.CalendarDay.now().after(days), System.currentTimeMillis())
         }
-    }
-
-    /**
-     * 档位调度：返回 (新档位, 间隔天数)。
-     * ★ 最短复习周期为 **1 天**：第 0 档原本是 0 天 → nextReviewAt 落回"今天零点"，
-     *   于是今天点过之后它依然算"今天到期"，同一道题会在本轮反复出现（第1=第2…）。
-     *   这里把天数下限设为 1 天：今天点过一次，今天就不再出现，最早明天。
-     */
-    private fun scheduleFor(level: Int, currentStep: Int): Pair<Int, Int> {
-        val step = when (level) {
-            2 -> (currentStep + 1).coerceIn(0, INTERVAL_DAYS.size - 1) // 熟悉：+1 档
-            1 -> currentStep                                            // 模糊：保持档位
-            else -> 0                                                   // 忘记：重置第 0 档
-        }
-        return step to INTERVAL_DAYS[step].coerceAtLeast(1)
     }
 
     /** 复习模式：点进错题查看；详情页底部为 熟悉/模糊/忘记 三按钮 */
@@ -2155,21 +2329,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     /** 从复习列表进入时调用：记录本轮总数与起始位置，用于「第 i/n 题」显示 */
-    fun startReviewSession(total: Int, index: Int) {
-        reviewTotal = total
-        reviewDone = index.coerceIn(0, maxOf(0, total - 1))
+    fun startReviewSession(candidates: List<Question>, index: Int) {
+        reviewEpoch++
+        val ids = com.zsz.studyassistant.data.ReviewPlanning.ordered(candidates.map { it.id }, index)
+        val byId = candidates.associateBy { it.id }
+        reviewQueue = ids.mapNotNull { byId[it] }
+        reviewTotal = reviewQueue.size
+        reviewDone = 0
+        reviewBusy = false
     }
 
-    fun loadForReview(q: Question) {
+    fun loadForReview(q: Question, onReady: () -> Unit = {}) {
         stopActiveGeneration()
         val seq = callSeq
         val binding = sessionRecordBinding
         viewModelScope.launch {
             try {
+                if (!canOpenSavedQuestion(q.id)) return@launch
                 val full = dao.heavyOnce(q.id) ?: return@launch
                 if (seq != callSeq || binding !== sessionRecordBinding) return@launch
                 redoMessage = null
                 loadQuestion(full, keepReview = true)
+                onReady()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -2183,37 +2364,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 点三按钮后：更新调度并自动跳到下一题；无下一题时回调 onNoMore */
     fun reviewNext(level: Int, onNoMore: () -> Unit) {
-        val qid = savedQuestionId ?: return
-        reviewQuestion(qid, level)
-        reviewAdvance(onNoMore)
+        submitReview(savedQuestionId ?: return, level, onNoMore)
     }
-
-    /**
-     * 只"跳到下一题"，**不改变本题档位**。
-     * B6 重做模式用：批改完已经按结论自动更新了掌握度，这里点「下一题」时不该再按按钮档位覆盖一次。
-     */
-    fun reviewAdvance(onNoMore: () -> Unit) {
+    fun confirmRedo(level: Int, onNoMore: () -> Unit) {
+        submitReview(redoQuestionId ?: return, level, onNoMore)
+    }
+    private fun submitReview(id: QuestionId, level: Int, onNoMore: () -> Unit) {
+        if (reviewBusy) return
+        reviewBusy = true
+        val epoch = reviewEpoch
         viewModelScope.launch {
-            val qid = savedQuestionId
-            val due = dao.dueQuestions(endOfToday()).first()
-            val cat = currentQuestionCategoryId
-            // ★ 必须排除"刚答过的这道题"：艾宾浩斯第一档间隔原为 0 天，答完后 nextReviewAt 可能仍是今天
-            //   → 不排除的话，同一道题会连续出现两次（第1=第2、第3=第4…）
-            val rest = if (qid != null) due.filter { it.id != qid } else due
-            val next = rest.firstOrNull { it.categoryId == cat } ?: rest.firstOrNull()
-            redoMessage = null
-            if (next != null) {
-                reviewQueue = rest
-                reviewDone += 1
-                loadForReview(next)
-            } else {
-                reviewDone += 1
-                onNoMore()
+            try {
+                commitReview(id, level)
+                if (epoch == reviewEpoch) advanceReview(id, onNoMore)
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.saveFailed"] }
+            finally { if (epoch == reviewEpoch) reviewBusy = false }
+        }
+    }
+    private suspend fun advanceReview(answered: QuestionId?, onNoMore: () -> Unit) {
+        val remaining = reviewQueue.filter { it.id != answered }
+        reviewQueue = remaining
+        reviewDone = (reviewDone + 1).coerceAtMost(reviewTotal)
+        for (candidate in remaining) {
+            val full = dao.heavyOnce(candidate.id)
+            if (full != null && !full.deleted && full.id !in deletionState.value.questionIds) {
+                redoMessage = null
+                loadQuestion(full, keepReview = true)
+                return
             }
+            reviewQueue = reviewQueue.filter { it.id != candidate.id }
+            reviewTotal = (reviewTotal - 1).coerceAtLeast(reviewDone)
+        }
+        redoMessage = null
+        onNoMore()
+    }
+    fun reviewAdvance(onNoMore: () -> Unit) {
+        if (reviewBusy) return
+        reviewBusy = true
+        val epoch = reviewEpoch
+        viewModelScope.launch {
+            try { advanceReview(savedQuestionId ?: redoQuestionId, onNoMore) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.saveFailed"] }
+            finally { if (epoch == reviewEpoch) reviewBusy = false }
         }
     }
 
     fun exitReviewMode() {
+        reviewEpoch++
+        reviewBusy = false
+        reviewQueue = emptyList()
         reviewMode = false
         reviewTotal = 0
         reviewDone = 0
@@ -2223,7 +2424,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // 重做模式（B6，已接入界面）
     //
     // 闭环：复习页/复习中的题目 → 点「✏️ 手写重做」→ 在纸上写解答 → 拍一张 → 复用批改链路
-    //      （题目图有则用题目图，纯文字题走 gradeTextUserMessage）→ 按批改结论**自动**更新掌握档位
+    //      （题目图有则用题目图，纯文字题走 gradeTextUserMessage）→ 由用户确认批改建议后更新掌握档位
     //      → 回到解题页看批改结果，点「下一题」继续本轮复习。
     // 与人工点「熟悉/模糊/忘记」并行存在：自动更新只是省一步，用户仍可手动覆盖。
     // ---------------------------------------------------------------------
@@ -2265,20 +2466,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 批改结束（重做）→ 按结论映射档位、写回复习计划，并给界面一句提示 */
+    var redoSuggestedLevel by mutableStateOf<Int?>(null)
+        private set
     private fun applyRedoResult(qid: QuestionId, reply: String) {
-        val level = com.zsz.studyassistant.data.GradeVerdict.level(reply)
-        viewModelScope.launch {
-            val r = runCatching { dao.reviewFor(qid) }.getOrNull() ?: Review(qid)
-            val (step, days) = scheduleFor(level, r.intervalStep)
-            runCatching { dao.updateReview(qid, step, startOfToday() + days * DAY_MS, System.currentTimeMillis()) }
-            val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
-            val levelName = when (level) {
-                2 -> str["solve.familiar"]
-                1 -> str["solve.vague"]
-                else -> str["solve.forgot"]
-            }
-            redoMessage = str.format("redo.updated", "level" to levelName, "days" to "$days")
-        }
+        redoQuestionId = qid
+        redoSuggestedLevel = com.zsz.studyassistant.data.GradeVerdict.suggestion(reply)
+        val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
+        val label = when(redoSuggestedLevel) { 2 -> s["solve.familiar"]; 0 -> s["solve.forgot"]; 1 -> s["solve.vague"]; else -> s["review.unknownVerdict"] }
+        redoMessage = if(redoSuggestedLevel==null) s["review.unknownVerdict"] else s.format("review.suggestion", "level" to label)
     }
 
     /** 退出重做（离开复习/换会话时清干净，避免下一次普通批改被误判成重做） */
@@ -2324,6 +2519,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 同类题的出题/追问任务（用于「⏸ 中止生成」） */
     private var similarJob: Job? = null
+    private var similarStreamOwner: com.zsz.studyassistant.data.StreamOwner? = null
     private var similarSeq = 0L
 
     /**
@@ -2353,7 +2549,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         similarCreatedAt = System.currentTimeMillis()
         similarIdentity = QuestionIdentity.create(similarCreatedAt)
         val mySeq = ++similarSeq
+        similarStreamOwner?.cancel()
         similarJob?.cancel()
+        val owner = com.zsz.studyassistant.data.StreamOwner()
+        similarStreamOwner = owner
         similarJob = viewModelScope.launch {
             similarBusy = true
             similarQuestion = null; similarAnswer = null; similarMessages = emptyList(); similarRevealed = false
@@ -2361,13 +2560,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             similarInterrupted = false
             similarSavedQuestionId = null
             val app = getApplication<Application>()
-            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
+            com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = StringBuilder()
             var lastEmit = 0L
             try {
                 // 流式出题：界面只显示「题目」部分，答案随流到达但不外显（点「查看答案」才展开）
                 val r = withContext(Dispatchers.IO) {
-                    StudyAssistant.generateSimilarQuestionStream(q, aiLang) { delta ->
+                    StudyAssistant.generateSimilarQuestionStream(q, aiLang, owner) { delta ->
                         sb.append(delta)
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -2391,7 +2590,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (mySeq == similarSeq) {
                     thinkingDone = true
-                recordUsage(app)
+                recordUsage(app, owner.usage)
                 // ⚠️ 已删除「挂到 indexOfLast{assistant}」的旧代码：同类题的产物存进 similarQuestion/
                 //   similarAnswer，并不在 chatItems 里 → 那段只会去改**别的**气泡，纯属误伤。
                     similarQuestion = r.question
@@ -2418,10 +2617,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     similarStreamingText = null
                 }
             }
-            if (mySeq == similarSeq) {
-                similarBusy = false
-                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
-            }
+            if (mySeq == similarSeq) similarBusy = false
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
         }
     }
 
@@ -2430,7 +2627,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val hadQuestion = similarQuestion != null
         val partial = similarStreamingText
         similarSeq++
-        StudyAssistant.cancelActiveStream()
+        similarStreamOwner?.let { com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(), it.id) }
+        similarStreamOwner?.cancel()
         similarJob?.cancel()
         similarJob = null
         similarBusy = false
@@ -2464,13 +2662,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         )
         val mySeq = ++similarSeq
+        similarStreamOwner?.cancel()
         similarJob?.cancel()
+        val owner = com.zsz.studyassistant.data.StreamOwner()
+        similarStreamOwner = owner
         similarBusy = true
         similarStreamingText = ""
         val baseCount = similarMessages.size
         similarJob = viewModelScope.launch {
             val app = getApplication<Application>()
-            com.zsz.studyassistant.data.AnswerForegroundService.start(app)
+            com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = StringBuilder()
             var lastEmit = 0L
             try {
@@ -2483,7 +2684,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 else msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
                 val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
                 val reply = withContext(Dispatchers.IO) {
-                    StudyAssistant.chatStream(model, msgs, onDelta = { delta ->
+                    StudyAssistant.chatStream(model, msgs, owner = owner, onDelta = { delta ->
                         sb.append(delta)
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -2497,11 +2698,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (mySeq == similarSeq) {
                     thinkingDone = true
-                recordUsage(app)
+                recordUsage(app, owner.usage)
                 // ⚠️ 已删除「挂到 indexOfLast{assistant}」的旧代码：此处该挂的是**新建的** similarMessages 末条，
                 //   而旧代码去改 chatItems 里的别的气泡（同类题页也不渲染思考块）。
                     similarStreamingText = null
                     similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
+                    persistSimilarConversation()
                 }
             } catch (e: Exception) {
                 if (mySeq == similarSeq) {
@@ -2518,10 +2720,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             }
-            if (mySeq == similarSeq) {
-                similarBusy = false
-                com.zsz.studyassistant.data.AnswerForegroundService.stop(app)
-            }
+            if (mySeq == similarSeq) similarBusy = false
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
         }
     }
 
@@ -2531,6 +2731,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var similarSavedQuestionId by mutableStateOf<QuestionId?>(null)
         private set
 
+    private fun similarChats() = listOf(ChatItem(0,"question",similarQuestion.orEmpty()), ChatItem(1,"assistant",similarAnswer.orEmpty())) + similarMessages.mapIndexed { i,m -> m.copy(id=(i+2).toLong()) }
+    private suspend fun persistSimilarConversation() {
+        val id=similarSavedQuestionId ?: return
+        if(id in deletionState.value.questionIds) return
+        val chats=similarChats()
+        val payload=com.zsz.studyassistant.data.SavePayload(id,similarCreatedAt,similarQuestion.orEmpty(),similarAnswer.orEmpty(),json.encodeToString(chats))
+        queueNotebookSave(payload)
+        solveSessionWriteMutex.withLock { }
+    }
     fun saveSimilarToNotebook(
         name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()
     ) {
@@ -2552,7 +2761,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     AppDatabase.get(getApplication()).withTransaction {
                         if (!dao.questionExists(id)) {
                             val cid = if (!name.isNullOrBlank()) dao.insertCategory(Category(name=name.trim())) else categoryId
-                            dao.insertQuestionWithId(Question(id,title,answerText,created,categoryId=cid))
+                            dao.insertQuestionWithId(Question(id,title,answerText,created,categoryId=cid,conversationJson=json.encodeToString(similarChats())))
                             val finalIds = tagIds.distinct().toMutableList()
                             for (tn in tagNames.take(5)) {
                                 val n = tn.trim()
@@ -2565,7 +2774,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     }
                 }
-                if (seq == similarSeq) similarSavedQuestionId = id
+                if (seq == similarSeq) { similarSavedQuestionId = id; persistSimilarConversation() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -2578,18 +2787,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 取消保存（把刚存的同类题从错题本删掉） */
     fun unsaveSimilarFromNotebook() {
         val id = similarSavedQuestionId ?: return
-        similarSavedQuestionId = null
-        viewModelScope.launch {
-            notebookWriteMutex.withLock {
-                AppDatabase.get(getApplication()).withTransaction {
-                    dao.clearImages(id)
-                    dao.clearQuestionTags(id)
-                    dao.deleteReviewsForQuestions(listOf(id))
-                    dao.deleteById(id)
-                    dao.unlinkExistingSession(id)
-                }
-            }
-        }
+        stageQuestionDeletion(listOf(id))
         // ★ 2026-10-14（用户要求）：不再实时问 AI 重算 —— 清空会话内预置即可；
         //   之后要再存，就按"已存信息/置空"处理（分类＝暂不分类、不勾选标签）。
         suggestedCategory = null
@@ -2609,21 +2807,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    private fun startOfToday(): Long {
-        val c = Calendar.getInstance()
-        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
-        return c.timeInMillis
-    }
-    private fun endOfToday(): Long = startOfToday() + DAY_MS - 1
-    private fun endOfWeek(): Long {
-        val c = Calendar.getInstance()
-        var add = Calendar.SUNDAY - c.get(Calendar.DAY_OF_WEEK)
-        if (add < 0) add += 7
-        c.add(Calendar.DAY_OF_MONTH, add)
-        c.set(Calendar.HOUR_OF_DAY, 23); c.set(Calendar.MINUTE, 59); c.set(Calendar.SECOND, 59); c.set(Calendar.MILLISECOND, 999)
-        return c.timeInMillis
-    }
-
     /** 删除追问消息（按 chatItems 索引）。删除后构建消息仅基于剩余，AI 接续对话 */
     fun deleteMessages(indices: List<Int>) {
         if (indices.isEmpty()) return
@@ -2660,24 +2843,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 从解题页软删除当前已存的这条错题（可恢复） */
     var isDeleted by mutableStateOf(false)
         private set
-    fun deleteSavedQuestion() {
-        val id = savedQuestionId ?: return
-        isDeleted = true
-        savedToNotebook = false
-        viewModelScope.launch { dao.softDelete(id) }
-    }
-
-    /** 恢复已软删除的错题 */
-    fun restoreSavedQuestion() {
-        val id = savedQuestionId ?: return
-        isDeleted = false
-        savedToNotebook = true
-        viewModelScope.launch { dao.restore(id) }
-    }
-
-    fun deleteFromNotebook(q: Question) {
-        viewModelScope.launch { dao.delete(q) }
-    }
+    fun deleteSavedQuestion() { savedQuestionId?.let { stageQuestionDeletion(listOf(it)) } }
+    fun restoreSavedQuestion() { deletionState.value.pending?.let { undoDelete(it.token) } }
+    fun deleteFromNotebook(q: Question) { stageQuestionDeletion(listOf(q.id)) }
 
     // ---- 科目（分类）管理：重命名 / 批量删除 ----
     fun renameCategory(id: Long, newName: String) {
@@ -2692,19 +2860,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * deleteQuestions = false：题目保留，改为「未分类」
      */
     fun deleteCategories(ids: List<Long>, deleteQuestions: Boolean) {
-        if (ids.isEmpty()) return
+        if(ids.isEmpty()) return
         viewModelScope.launch {
-            if (deleteQuestions) {
-                val qids = dao.questionIdsInCategories(ids)
-                if (qids.isNotEmpty()) {
-                    dao.deleteQuestionTagsForQuestions(qids)
-                    dao.deleteReviewsForQuestions(qids)
-                }
-                dao.deleteQuestionsInCategories(ids)
-            } else {
-                dao.clearCategoryForCategories(ids)
-            }
-            dao.deleteCategories(ids)
+            try {
+                val qids=if(deleteQuestions) dao.questionIdsInCategories(ids) else emptyList()
+                if(savedQuestionId in qids) { stopActiveGeneration(); isDeleted=true; savedToNotebook=false }
+                deleteQueue.stage(questions=qids.toSet(), categories=ids.toSet())
+            } catch (_: Exception) { deleteError=com.zsz.studyassistant.ui.stringsFor(uiLang)["delete.failed"] }
         }
     }
 
@@ -2798,7 +2960,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 当前批改是否为"纯文字题干"（重新批改时据此选对构造方式） */
     private var gradeTextQuestion: String? = null
 
-    /** 批改完成的公共收尾：解析分类/知识点 + 落一条助手消息 + 重做时自动更新掌握度 */
+    /** 批改完成的公共收尾：解析分类/知识点 + 落一条助手消息 + 重做时给出待确认的掌握度建议 */
     private fun onGradeReply(reply: String) {
         // ★ 批改同样要解析分类/知识点（与拍题/直接提问一致），否则批改后存错题本无法预选
         val r = StudyAssistant.parseVisionOutput(reply)
@@ -2808,7 +2970,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // ★ 批改（source="grade"）不属于「4 个生成入口」，但同样要尽早落库，
         //   否则"批改完进程被杀"还是会丢（只在 saveSessionOnExit 里落就晚了）
         recordSolveSession("grade")
-        // B6：重做的批改 → 按结论自动更新掌握度（一次性，取完即清）
+        // B6：重做的批改 → 按结论给出待确认的建议（一次性，取完即清）
         val redoFor = pendingRedoFor
         if (redoFor != null) {
             pendingRedoFor = null
@@ -2849,6 +3011,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 重新批改（用当前会话的题目/作答图再跑一次） */
     fun regrade() {
+        if (busy || streamInterrupted) return
         val text = gradeTextQuestion
         if (text != null) gradeTextCall(text) else gradeCall()
     }
@@ -2866,6 +3029,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 错题本 getAll 已取完整字段；复习与历史入口在调用前 heavyOnce。
      * historySession 仅保留当前记录身份；返回来路仍由 AppNav 决定。
      */
+    private suspend fun canOpenSavedQuestion(id: QuestionId): Boolean = solveSessionWriteMutex.withLock {
+        try {
+            val scan=withContext(Dispatchers.IO) { pendingSaveStore.scan() }
+            val blocked=scan.unreadable>0 || scan.entries.any { it.payload.id==id } || id in pendingNotebookContent || id in deletionState.value.questionIds
+            if(blocked) error=com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]
+            !blocked
+        } catch (_: Exception) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]; false }
+    }
+    fun openNotebookQuestion(id: QuestionId, onReady: () -> Unit) {
+        val seq = callSeq
+        viewModelScope.launch {
+            try {
+                if (!canOpenSavedQuestion(id)) return@launch
+                val full = dao.heavyOnce(id) ?: return@launch
+                if (seq != callSeq || full.deleted) return@launch
+                loadQuestion(full)
+                onReady()
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"] }
+        }
+    }
+
     fun loadQuestion(q: Question, keepReview: Boolean = false, historySession: SolveSession? = null) {
         // 调用方提供完整 Question：错题本来自 getAll，复习 / 记录入口先 heavyOnce。
         if (keepReview && reviewMode) saveSessionOnExit()
@@ -2886,6 +3071,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (chatItems.isEmpty()) {
             chatItems = listOf(ChatItem(0, "question", q.text), ChatItem(1, "assistant", q.answer))
         }
+        currentNotebookBaseline=com.zsz.studyassistant.data.SavePayload.notebook(q)
         questionText = q.text
         imageBytes = q.imageBytes
         isPhoto = q.imageBytes != null

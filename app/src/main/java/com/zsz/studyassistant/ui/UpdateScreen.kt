@@ -194,26 +194,32 @@ fun UpdatePage() {
         phase = Phase.DOWNLOADING
         progress = 0
         message = null
-        UpdateChecker.clearDownloads(context)   // 先清掉上次残留，再下新的
         scope.launch {
-            val dest = File(UpdateChecker.downloadDir(context), rel.assetName)
-            val ok = UpdateChecker.download(rel.assetUrl, dest) { p -> progress = p }
-            if (!ok) {
-                phase = Phase.FAILED
-                message = s["update.netError"]
-                return@launch
+            val directory = UpdateChecker.downloadDir(context)
+            val token = java.util.UUID.randomUUID().toString()
+            val partial = File(directory, "$token.part")
+            val ready = File(directory, "$token.apk")
+            var handedOff = false
+            try {
+                val ok = UpdateChecker.download(rel.assetUrl, partial) { p -> progress = p }
+                if (!ok) { phase = Phase.FAILED; message = s["update.netError"]; return@launch }
+                phase = Phase.VERIFYING
+                val verified = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val result = UpdateChecker.verify(context, partial, rel.assetSha256, rel.version)
+                    if (result.ok) check(partial.renameTo(ready))
+                    result
+                }
+                verifiedSha = verified.shaOk && rel.assetSha256 != null
+                if (!verified.ok) { phase = Phase.FAILED; message = s["update.verifyFailed"]; return@launch }
+                apk = ready; handedOff = true; phase = Phase.READY
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { phase = Phase.FAILED; message = s["update.verifyFailed"] }
+            finally {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                    partial.delete()
+                    if (!handedOff) ready.delete()
+                }
             }
-            phase = Phase.VERIFYING
-            val res = UpdateChecker.verify(context, dest, rel.assetSha256)
-            verifiedSha = res.shaOk && rel.assetSha256 != null
-            if (!res.ok) {
-                dest.delete()
-                phase = Phase.FAILED
-                message = s["update.verifyFailed"]
-                return@launch
-            }
-            apk = dest
-            phase = Phase.READY
         }
     }
 

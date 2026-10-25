@@ -51,7 +51,8 @@ object AppNav {
         GRADE("grade", false),
         HISTORY("history", false),
         NOTEBOOK("notebook", false),
-        REVIEW("review", false);
+        REVIEW("review", false),
+        SETTINGS("settings", false);
 
         companion object {
             fun of(key: String?): Origin = entries.firstOrNull { it.key == key } ?: HOME
@@ -73,7 +74,7 @@ object AppNav {
     fun openSolve(nav: NavHostController, origin: Origin) {
         when (origin) {
             Origin.CAMERA, Origin.GRADE, Origin.HOME -> nav.navigate(solve(origin)) { popUpTo(HOME) }
-            Origin.HISTORY, Origin.NOTEBOOK, Origin.REVIEW -> nav.navigate(solve(origin))
+            Origin.HISTORY, Origin.NOTEBOOK, Origin.REVIEW, Origin.SETTINGS -> nav.navigate(solve(origin))
         }
     }
 
@@ -94,6 +95,11 @@ object AppNav {
         }
     }
 
+    fun openReview(nav: NavHostController) {
+        switchTab(nav, HOME)
+        nav.navigate(REVIEW) { launchSingleTop = true }
+    }
+
     /** 底部页签：回三大主页（清栈，保证"从任何深度点页签都回到那一页"） */
     fun switchTab(nav: NavHostController, route: String) {
         nav.navigate(route) {
@@ -106,12 +112,14 @@ object AppNav {
      * 「设置」页内部的子页树（内部 state，不走 NavHost）。
      * ```
      * 设置(main)
-     * ├── ai          AI 管理
+     * ├── ai          AI 管理 ──┬── ai.api     API 管理（含用量统计）
+     * │                        ├── ai.crop    AI 切图
+     * │                        └── ai.solve   解题设置
      * ├── lang        语言设置
      * ├── theme       应用主题
      * ├── notify      通知与后台
-     * ├── data        数据管理 ──┬── data.backup   备份管理
-     * │                        ├── data.auto     自动备份
+     * ├── data        数据管理 ──┬── data.backup   备份管理（含自动备份）
+     * │                        ├── data.tags     标签整理
      * │                        ├── data.crash    崩溃日志
      * │                        └── data.upgrade  数据升级 / 修复
      * ├── update      应用更新
@@ -121,22 +129,29 @@ object AppNav {
     object SettingsPages {
         const val MAIN = "main"
         const val AI = "ai"
+        const val AI_API = "ai.api"
+        const val AI_CROP = "ai.crop"
+        const val AI_SOLVE = "ai.solve"
         const val LANG = "lang"
         const val THEME = "theme"
         const val NOTIFY = "notify"
         const val DATA = "data"
         const val DATA_BACKUP = "data.backup"
-        const val DATA_AUTO = "data.auto"
         const val DATA_CRASH = "data.crash"
         const val DATA_UPGRADE = "data.upgrade"
         const val DATA_TAG_MERGE = "data.tags"
         const val UPDATE = "update"
         const val ABOUT = "about"
 
-        /** 上一级（返回手势 / ← 的去处）：数据管理的五个子页 → 数据管理，其余 → 设置主页 */
+        /** Complete registry, including leaf settings pages without children. */
+        val all = setOf(MAIN, AI, AI_API, AI_CROP, AI_SOLVE, LANG, THEME, NOTIFY,
+            DATA, DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT)
+
+        /** 所有设置页的唯一父节点：AI 子页 → AI 管理，数据子页 → 数据管理，其余 → 设置主页。 */
         fun parent(page: String): String = when (page) {
             MAIN -> MAIN
-            DATA_BACKUP, DATA_AUTO, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
+            AI_API, AI_CROP, AI_SOLVE -> AI
+            DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
             else -> MAIN
         }
     }
