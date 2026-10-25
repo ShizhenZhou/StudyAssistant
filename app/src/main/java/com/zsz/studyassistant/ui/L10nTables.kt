@@ -1207,9 +1207,9 @@ private val B7_ZH = mapOf(
     "data.import" to "导入备份",
     "data.import.desc" to "从 JSON 备份恢复：同名分类/标签会复用，题干相同的题目跳过",
     "data.clear" to "清空所有数据",
-    "data.clear.desc" to "删除全部错题、分类、标签与复习进度（不可恢复）",
+    "data.clear.desc" to "删除全部错题、搜题记录、对话草稿、分类、标签与复习进度（不可恢复）",
     "data.clear.title" to "确认清空",
-    "data.clear.text" to "将删除全部 {n} 道错题及其分类/标签/复习进度，且无法恢复。建议先导出备份。",
+    "data.clear.text" to "将删除全部 {n} 道错题、搜题记录、对话草稿及分类/标签/复习进度，且无法恢复。建议先导出备份。",
     "data.clear.inputLabel" to "请输入下面的文字以确认：",
     "data.clear.phrase" to "我同意删除本应用所有数据",
     "data.exporting" to "正在导出…",
@@ -1341,9 +1341,9 @@ private val B7_EN = mapOf(
     "data.import" to "Import backup",
     "data.import.desc" to "Restore from a JSON backup: same-name categories/tags are reused, identical questions are skipped",
     "data.clear" to "Erase all data",
-    "data.clear.desc" to "Delete all problems, categories, tags and review progress (cannot be undone)",
+    "data.clear.desc" to "Delete all problems, search history, conversation drafts, categories, tags and review progress (cannot be undone)",
     "data.clear.title" to "Confirm erase",
-    "data.clear.text" to "This deletes all {n} problems with their categories, tags and review progress. It cannot be undone — export a backup first.",
+    "data.clear.text" to "This deletes all {n} problems, search history, conversation drafts, categories, tags and review progress. It cannot be undone — export a backup first.",
     "data.clear.inputLabel" to "Type the text below to confirm:",
     "data.clear.phrase" to "I agree to delete all data of this app",
     "data.exporting" to "Exporting…",
@@ -1475,9 +1475,9 @@ private val B7_JA = mapOf(
     "data.import" to "バックアップを読み込む",
     "data.import.desc" to "JSON から復元：同名の分類/タグは再利用し、同じ問題文はスキップします",
     "data.clear" to "すべてのデータを削除",
-    "data.clear.desc" to "問題・分類・タグ・復習状況をすべて削除します（復元できません）",
+    "data.clear.desc" to "問題・検索履歴・会話の下書き・分類・タグ・復習状況をすべて削除します（復元できません）",
     "data.clear.title" to "削除の確認",
-    "data.clear.text" to "{n} 問すべてと分類・タグ・復習状況を削除します。復元できません。先にバックアップを書き出してください。",
+    "data.clear.text" to "{n} 問すべてと検索履歴・会話の下書き・分類・タグ・復習状況を削除します。復元できません。先にバックアップを書き出してください。",
     "data.clear.inputLabel" to "確認のため次の文字を入力してください：",
     "data.clear.phrase" to "本アプリのすべてのデータを削除することに同意します",
     "data.exporting" to "書き出し中…",
@@ -1608,9 +1608,9 @@ private val B7_KO = mapOf(
     "data.import" to "백업 가져오기",
     "data.import.desc" to "JSON에서 복원: 같은 이름의 분류/태그는 재사용하고, 문제 문장이 같은 항목은 건너뜁니다",
     "data.clear" to "모든 데이터 삭제",
-    "data.clear.desc" to "모든 오답, 분류, 태그, 복습 진행을 삭제합니다(복구 불가)",
+    "data.clear.desc" to "모든 오답, 검색 기록, 대화 초안, 분류, 태그, 복습 진행을 삭제합니다(복구 불가)",
     "data.clear.title" to "삭제 확인",
-    "data.clear.text" to "오답 {n}개와 분류/태그/복습 진행을 모두 삭제합니다. 복구할 수 없습니다. 먼저 백업을 내보내세요.",
+    "data.clear.text" to "오답 {n}개와 검색 기록, 대화 초안, 분류/태그/복습 진행을 모두 삭제합니다. 복구할 수 없습니다. 먼저 백업을 내보내세요.",
     "data.clear.inputLabel" to "확인을 위해 아래 문장을 입력하세요:",
     "data.clear.phrase" to "이 앱의 모든 데이터 삭제에 동의합니다",
     "data.exporting" to "내보내는 중…",
@@ -2380,6 +2380,11 @@ private val B12_ZH = mapOf(
     "tagMerge.discardDraftConfirm" to "只删除整理草稿，不修改错题或标签。确定放弃？"
 )
 private val B13_ZH = mapOf(
+    "notebook.searchFailed" to "搜索失败，请重新输入关键词或稍后重试。",
+    "review.loadFailed" to "复习进度已保存，但下一题读取失败；请重试或返回复习列表。",
+    "stats.mastery.notStarted" to "未开始",
+    "stats.mastery.learning" to "复习中",
+    "stats.mastery.mastered" to "已掌握",
     "review.saveFailed" to "复习进度未保存，请重试；尚未跳到下一题。",
     "review.unknownVerdict" to "AI 未给出明确判断，请确认掌握程度。",
     "review.suggestion" to "AI 建议：{level}。请确认后记录。",
@@ -2426,6 +2431,11 @@ private val B12_EN = mapOf(
     "tagMerge.discardDraftConfirm" to "Only the draft will be removed. Questions and labels stay unchanged. Discard it?"
 )
 private val B13_EN = mapOf(
+    "notebook.searchFailed" to "Search failed. Re-enter the search text or try again later.",
+    "review.loadFailed" to "Review progress was saved, but the next question could not be loaded. Retry or return to the review list.",
+    "stats.mastery.notStarted" to "Not started",
+    "stats.mastery.learning" to "Learning",
+    "stats.mastery.mastered" to "Mastered",
     "review.saveFailed" to "Review progress was not saved. Retry before moving on.",
     "review.unknownVerdict" to "AI gave no clear verdict. Choose your review level.",
     "review.suggestion" to "AI suggests: {level}. Confirm to record.",
@@ -2472,6 +2482,11 @@ private val B12_JA = mapOf(
     "tagMerge.discardDraftConfirm" to "整理の下書きだけを削除し、問題やタグは変更しません。破棄しますか？"
 )
 private val B13_JA = mapOf(
+    "notebook.searchFailed" to "検索できません。検索語を入力し直すか、後で再試行してください。",
+    "review.loadFailed" to "復習進捗は保存しましたが、次の問題を読み込めません。再試行するか復習一覧に戻ってください。",
+    "stats.mastery.notStarted" to "未開始",
+    "stats.mastery.learning" to "復習中",
+    "stats.mastery.mastered" to "習得済み",
     "review.saveFailed" to "復習進捗を保存できません。次へ進む前に再試行してください。",
     "review.unknownVerdict" to "AI の判定は不明です。習熟度を選んでください。",
     "review.suggestion" to "AI の提案：{level}。確認して記録してください。",
@@ -2518,6 +2533,11 @@ private val B12_KO = mapOf(
     "tagMerge.discardDraftConfirm" to "정리 초안만 삭제하며 문제나 태그는 변경하지 않습니다. 버릴까요?"
 )
 private val B13_KO = mapOf(
+    "notebook.searchFailed" to "검색하지 못했습니다. 검색어를 다시 입력하거나 나중에 다시 시도하세요.",
+    "review.loadFailed" to "복습 진행은 저장했지만 다음 문제를 불러오지 못했습니다. 다시 시도하거나 복습 목록으로 돌아가세요.",
+    "stats.mastery.notStarted" to "시작 전",
+    "stats.mastery.learning" to "학습 중",
+    "stats.mastery.mastered" to "습득 완료",
     "review.saveFailed" to "복습 진행을 저장하지 못했습니다. 다음 문제로 이동하기 전에 다시 시도하세요.",
     "review.unknownVerdict" to "AI 판정이 불명확합니다. 숙련도를 선택하세요.",
     "review.suggestion" to "AI 제안: {level}. 확인 후 기록하세요.",

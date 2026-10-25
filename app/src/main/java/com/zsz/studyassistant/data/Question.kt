@@ -75,7 +75,7 @@ interface QuestionDao {
     @Query("UPDATE questions SET text = :text, answer = :answer, conversationJson = :conversation WHERE id = :id AND deleted = 0")
     suspend fun updateAnswerContent(id: QuestionId, text: String, answer: String, conversation: String?)
 
-    @Query("SELECT id,text,answer,createdAt,deleted,categoryId FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
+    @Query("SELECT id,substr(text,1,256) AS text,substr(answer,1,256) AS answer,createdAt,deleted,categoryId FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
     fun getAll(): Flow<List<Question>>
 
     @Query("SELECT * FROM categories ORDER BY createdAt ASC")
@@ -135,7 +135,7 @@ interface QuestionDao {
 //   否则复习队列题一多，结果集超过 CursorWindow 的 2MB 上限会直接崩：
 //   IllegalStateException: Couldn't read row N, col 0 from CursorWindow
 //   图片/会话在真正进入某题时用 heavyOnce(id) 单独取。
-@Query("SELECT DISTINCT q.id, q.text, q.answer, q.createdAt, q.deleted, q.categoryId FROM questions q INNER JOIN review r ON q.id = r.questionId WHERE q.deleted = 0 AND r.nextReviewAt <= :until ORDER BY r.nextReviewAt ASC")
+@Query("SELECT DISTINCT q.id, substr(q.text,1,256) AS text, substr(q.answer,1,256) AS answer, q.createdAt, q.deleted, q.categoryId FROM questions q INNER JOIN review r ON q.id = r.questionId WHERE q.deleted = 0 AND r.nextReviewAt <= :until ORDER BY r.nextReviewAt ASC")
     fun dueQuestions(until: Long): Flow<List<Question>>
 
     /** 按 id 取完整一行（含图片 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
@@ -145,15 +145,32 @@ interface QuestionDao {
         return row.copy(imageBytes = questionImageOnce(id), conversationJson =
             readChunkedText(questionConversationSize(id)) { offset, count -> questionConversationPart(id, offset, count) })
     }
-    @Query("SELECT imageBytes FROM questions WHERE id=:id")
-    suspend fun questionImageOnce(id: QuestionId): ByteArray?
+    @Query("SELECT LENGTH(imageBytes) FROM questions WHERE id=:id")
+    suspend fun questionImageSize(id: QuestionId): Int?
+    @Query("SELECT substr(imageBytes,:offset,:count) FROM questions WHERE id=:id")
+    suspend fun questionImagePart(id: QuestionId, offset: Int, count: Int): ByteArray?
+    @androidx.room.Transaction
+    suspend fun questionImageOnce(id: QuestionId): ByteArray? =
+        readChunkedBlob(questionImageSize(id)) { a,b -> questionImagePart(id,a,b) }
     @Query("SELECT LENGTH(conversationJson) FROM questions WHERE id=:id")
     suspend fun questionConversationSize(id: QuestionId): Int?
     @Query("SELECT substr(conversationJson,:offset,:count) FROM questions WHERE id=:id")
     suspend fun questionConversationPart(id: QuestionId, offset: Int, count: Int): String?
 
-    @Query("SELECT id,text,answer,createdAt,deleted,categoryId FROM questions WHERE id=:id")
-    suspend fun questionLightOnce(id: QuestionId): Question?
+    @Query("SELECT id,substr(text,1,256) AS text,substr(answer,1,256) AS answer,createdAt,deleted,categoryId FROM questions WHERE id=:id")
+    suspend fun questionPreviewOnce(id: QuestionId): Question?
+    @Query("SELECT LENGTH(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END) FROM questions WHERE id=:id")
+    suspend fun questionTextSize(id: QuestionId, field: String): Int?
+    @Query("SELECT substr(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END,:offset,:count) FROM questions WHERE id=:id")
+    suspend fun questionTextPart(id: QuestionId, field: String, offset: Int, count: Int): String?
+    /** Full text, no images: duplicate checks and content saves must never use list previews. */
+    @androidx.room.Transaction
+    suspend fun questionLightOnce(id: QuestionId): Question? {
+        val row=questionPreviewOnce(id) ?: return null
+        return row.copy(
+            text=checkNotNull(readChunkedText(questionTextSize(id,"text")) { a,b -> questionTextPart(id,"text",a,b) }),
+            answer=checkNotNull(readChunkedText(questionTextSize(id,"answer")) { a,b -> questionTextPart(id,"answer",a,b) }))
+    }
 
     @Query("SELECT * FROM review WHERE questionId = :questionId")
     suspend fun reviewFor(questionId: QuestionId): Review?
@@ -222,23 +239,39 @@ interface QuestionDao {
     suspend fun imageBackupSize(): Long
 
     /** 轻查询（不含图片 BLOB / 会话 JSON）：查重（B9）等只要题干的场景用，避免大字段进出 */
-    @Query("SELECT id, text, answer, createdAt, deleted, categoryId FROM questions WHERE deleted = 0")
-    suspend fun allLightOnce(): List<Question>
+    @Query("SELECT id FROM questions WHERE deleted = 0")
+    suspend fun activeQuestionIdsOnce(): List<QuestionId>
+    @androidx.room.Transaction
+    suspend fun allLightOnce(): List<Question> = activeQuestionIdsOnce().mapNotNull { questionLightOnce(it) }
+
+    /** Full-content, Unicode ignore-case search. Only matches leave the IO reader. */
+    @androidx.room.Transaction
+    suspend fun matchingQuestionIds(query: String): Set<QuestionId> {
+        val ids=activeQuestionIdsOnce()
+        if(query.isBlank()) return ids.toSet()
+        return ids.filter { id ->
+            val text=readChunkedText(questionTextSize(id,"text")) { a,b -> questionTextPart(id,"text",a,b) }.orEmpty()
+            text.contains(query,ignoreCase=true) ||
+                readChunkedText(questionTextSize(id,"answer")) { a,b -> questionTextPart(id,"answer",a,b) }.orEmpty().contains(query,ignoreCase=true)
+        }.toSet()
+    }
 
     /**
      * 「原图回填」用（2026-10-14）：找出 `imageBytes` 为空、但会话 JSON 还在的错题。
      * 只取必要列（**不含 BLOB**），避免把大图整批读进内存。
      * ⚠️ `createdAt`/`deleted` 是**非空基元**，Room 要求它们必须出现在投影里（Kotlin 默认值不算数）。
      */
-    @Query("SELECT id, text, answer, createdAt, deleted, conversationJson FROM questions WHERE deleted = 0 AND imageBytes IS NULL AND conversationJson IS NOT NULL")
-    suspend fun questionsMissingImageOnce(): List<Question>
+    @Query("SELECT id FROM questions WHERE deleted = 0 AND imageBytes IS NULL AND conversationJson IS NOT NULL")
+    suspend fun questionIdsMissingImageOnce(): List<QuestionId>
+    @androidx.room.Transaction
+    suspend fun questionsMissingImageOnce(): List<Question> = questionIdsMissingImageOnce().mapNotNull { heavyOnce(it) }
 
     /** 「原图回填」用：只写回主图，不动其它字段（避免整行 UPDATE 覆盖并发修改） */
     @Query("UPDATE questions SET imageBytes = :img WHERE id = :id")
     suspend fun setQuestionImage(id: QuestionId, img: ByteArray)
 
     /** 维护候选只读取轻字段；调用方逐题 heavyOnce 分段读取会话，避免批量 CursorWindow 溢出。 */
-    @Query("SELECT id, text, answer, createdAt, deleted, categoryId FROM questions WHERE deleted = 0")
+    @Query("SELECT id, substr(text,1,256) AS text, substr(answer,1,256) AS answer, createdAt, deleted, categoryId FROM questions WHERE deleted = 0")
     suspend fun questionsWithConversationOnce(): List<Question>
 
     /** 「多图修复」用：把补好的会话 JSON 写回（只动这一列） */
@@ -251,18 +284,32 @@ interface QuestionDao {
         solveSessionOnce(qid)?.takeIf { it.savedQuestionId == qid }
 
     /** 「多图修复」用（兜底）：按题干文本匹配搜题记录 */
-    @Query("SELECT * FROM solve_sessions WHERE text = :text AND imagesJson IS NOT NULL ORDER BY createdAt DESC LIMIT 1")
-    suspend fun solveSessionByText(text: String): SolveSession?
+    @Query("SELECT id FROM solve_sessions WHERE text = :text AND imagesJson IS NOT NULL ORDER BY createdAt DESC LIMIT 1")
+    suspend fun sessionIdByText(text: String): QuestionId?
+    @androidx.room.Transaction
+    suspend fun solveSessionByText(text: String): SolveSession? = sessionIdByText(text)?.let { solveSessionOnce(it) }
 
     // ── DB v9：一题多图（`question_images` 表，0=主图）────────────────────────
 
     /** 读某题的全部原图（按 position 升序，0 = 主图） */
-    @Query("SELECT * FROM question_images WHERE questionId = :qid ORDER BY position ASC")
-    suspend fun imagesForQuestion(qid: QuestionId): List<QuestionImage>
+    @Query("SELECT id,questionId,position,X'' AS bytes,source,createdAt FROM question_images WHERE questionId = :qid ORDER BY position ASC")
+    suspend fun imageHeadersForQuestion(qid: QuestionId): List<QuestionImage>
+    @Query("SELECT LENGTH(bytes) FROM question_images WHERE id=:id")
+    suspend fun imageSize(id: Long): Int?
+    @Query("SELECT substr(bytes,:offset,:count) FROM question_images WHERE id=:id")
+    suspend fun imagePart(id: Long, offset: Int, count: Int): ByteArray?
+    @androidx.room.Transaction
+    suspend fun imagesForQuestion(qid: QuestionId): List<QuestionImage> = imageHeadersForQuestion(qid).map {
+        it.copy(bytes=checkNotNull(readChunkedBlob(imageSize(it.id)) { a,b -> imagePart(it.id,a,b) }))
+    }
 
     /** 批量读"主图"（列表页兜底；只取 position=0，避免把全部大图读进内存） */
-    @Query("SELECT * FROM question_images WHERE position = 0 AND questionId IN (:qids)")
-    suspend fun mainImagesFor(qids: List<QuestionId>): List<QuestionImage>
+    @Query("SELECT id,questionId,position,X'' AS bytes,source,createdAt FROM question_images WHERE position = 0 AND questionId IN (:qids)")
+    suspend fun mainImageHeadersFor(qids: List<QuestionId>): List<QuestionImage>
+    @androidx.room.Transaction
+    suspend fun mainImagesFor(qids: List<QuestionId>): List<QuestionImage> = mainImageHeadersFor(qids).map {
+        it.copy(bytes=checkNotNull(readChunkedBlob(imageSize(it.id)) { a,b -> imagePart(it.id,a,b) }))
+    }
 
     @Insert
     suspend fun insertImages(list: List<QuestionImage>): List<Long>
@@ -409,14 +456,23 @@ interface QuestionDao {
      *   （与 `dueQuestions` / `allLightOnce` 同一个坑）。
      *   重字段（原图 / 会话 JSON）在真正进入某条记录时用 `solveSessionOnce(id)` 单独取。
      */
-    @Query("SELECT id, createdAt, updatedAt, source, text, answer, savedQuestionId FROM solve_sessions ORDER BY createdAt DESC")
+    @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId FROM solve_sessions ORDER BY createdAt DESC")
     fun solveSessionsLight(): Flow<List<SolveSession>>
 
     /** 按 id 取**重字段**（含原图 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
-    @Query("SELECT id,createdAt,updatedAt,source,text,answer,savedQuestionId FROM solve_sessions WHERE id=:id")
+    @Query("SELECT id,createdAt,updatedAt,source,substr(text,1,256) AS text,substr(answer,1,256) AS answer,savedQuestionId FROM solve_sessions WHERE id=:id")
     suspend fun sessionLightOnce(id: QuestionId): SolveSession?
-    @Query("SELECT imageBytes FROM solve_sessions WHERE id=:id")
-    suspend fun sessionImageOnce(id: QuestionId): ByteArray?
+    @Query("SELECT LENGTH(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END) FROM solve_sessions WHERE id=:id")
+    suspend fun sessionTextSize(id: QuestionId, field: String): Int?
+    @Query("SELECT substr(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END,:offset,:count) FROM solve_sessions WHERE id=:id")
+    suspend fun sessionTextPart(id: QuestionId, field: String, offset: Int, count: Int): String?
+    @Query("SELECT LENGTH(imageBytes) FROM solve_sessions WHERE id=:id")
+    suspend fun sessionImageSize(id: QuestionId): Int?
+    @Query("SELECT substr(imageBytes,:offset,:count) FROM solve_sessions WHERE id=:id")
+    suspend fun sessionImagePart(id: QuestionId, offset: Int, count: Int): ByteArray?
+    @androidx.room.Transaction
+    suspend fun sessionImageOnce(id: QuestionId): ByteArray? =
+        readChunkedBlob(sessionImageSize(id)) { a,b -> sessionImagePart(id,a,b) }
     @Query("SELECT LENGTH(conversationJson) FROM solve_sessions WHERE id=:id")
     suspend fun sessionConversationSize(id: QuestionId): Int?
     @Query("SELECT substr(conversationJson,:offset,:count) FROM solve_sessions WHERE id=:id")
@@ -429,6 +485,8 @@ interface QuestionDao {
     suspend fun solveSessionOnce(id: QuestionId): SolveSession? {
         val row = sessionLightOnce(id) ?: return null
         return row.copy(imageBytes = sessionImageOnce(id),
+            text=checkNotNull(readChunkedText(sessionTextSize(id,"text")) { a,b -> sessionTextPart(id,"text",a,b) }),
+            answer=checkNotNull(readChunkedText(sessionTextSize(id,"answer")) { a,b -> sessionTextPart(id,"answer",a,b) }),
             conversationJson = readChunkedText(sessionConversationSize(id)) { a,b -> sessionConversationPart(id,a,b) },
             imagesJson = readChunkedText(sessionImagesSize(id)) { a,b -> sessionImagesPart(id,a,b) })
     }
@@ -443,7 +501,7 @@ interface QuestionDao {
     suspend fun countSolveSessions(): Int
 
     /** 全部记录的轻字段（裁剪策略用：只判 id 与 createdAt） */
-    @Query("SELECT id, createdAt, updatedAt, source, text, answer, savedQuestionId FROM solve_sessions")
+    @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId FROM solve_sessions")
     suspend fun solveSessionsLightOnce(): List<SolveSession>
 
     @Query("DELETE FROM solve_sessions WHERE id IN (:ids)")

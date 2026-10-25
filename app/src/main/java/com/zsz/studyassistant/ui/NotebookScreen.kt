@@ -132,8 +132,13 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val qTagIds = remember(questionTags) { questionTags.groupBy { it.questionId }.mapValues { e -> e.value.map { it.tagId } } }
     val tagById = remember(tags) { tags.associateBy { it.id } }
 
+    val keyword=query.trim()
+    val searchMatches by remember(vm,keyword) { vm.notebookMatches(keyword) }.collectAsState(initial=null)
+    val searching=keyword.isNotEmpty() && searchMatches?.first!=keyword
+    val searchFailed=keyword.isNotEmpty() && searchMatches?.first==keyword && searchMatches?.second==null
+
     // 筛选结果缓存，避免每次重组都重新过滤
-    val filtered = remember(questions, showUncategorized, filterCategoryId, filterTagIds, qTagIds, query) {
+    val filtered = remember(questions, showUncategorized, filterCategoryId, filterTagIds, qTagIds, keyword, searchMatches) {
         when {
             showUncategorized -> questions.filter { it.categoryId == null }
             filterCategoryId != null -> questions.filter { it.categoryId == filterCategoryId }
@@ -142,9 +147,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
             // 按选中的 tag 多选（命中任一即显示）
             filterTagIds.isEmpty() || (qTagIds[q.id] ?: emptyList()).any { it in filterTagIds }
         }.filter { q ->
-            // 全文搜索：题干（AI 转译文本）+ 解答
-            val kw = query.trim()
-            kw.isEmpty() || q.text.contains(kw, ignoreCase = true) || q.answer.contains(kw, ignoreCase = true)
+            // Match full text in the IO reader, never the bounded card preview.
+            keyword.isEmpty() || (searchMatches?.first==keyword && q.id in searchMatches?.second.orEmpty())
         }
     }
 
@@ -346,7 +350,12 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
 
-            if (filtered.isEmpty()) {
+            if(searching || searchFailed) {
+                Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+                    if(searching) androidx.compose.material3.CircularProgressIndicator()
+                    else Text(s["notebook.searchFailed"],color=MaterialTheme.colorScheme.error)
+                }
+            } else if (filtered.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         when {

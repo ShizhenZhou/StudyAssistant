@@ -53,3 +53,11 @@ CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、
 6. refs API 触发 CI 与鉴权身份有关；Actions 自带 GITHUB_TOKEN 的 push 通常不会再触发新工作流。每次更新后确认对应 SHA 的 CI 实际出现，不凭 HTTP 成功推断。
 
 官方依据：[Gradle 缓存](https://github.com/gradle/actions/blob/v4/docs/setup-gradle.md)、[Git HTTP 配置](https://git-scm.com/docs/git-config)、[refs API](https://docs.github.com/en/rest/git/refs)、[工作流触发](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。
+
+
+## 隔离测试的覆盖范围
+
+- `integration` 包名为 `com.zsz.studyassistant.integration`，使用专门的 Application；不初始化真实 Key、崩溃日志或应用后台任务。Manifest 移除联网权限以及正式服务/Provider；测试不应请求在线 AI、读取真实数据或使用签名材料。
+- 保留真实 MainActivity 供 `UiSmokeTest` 检查设置返回路径、语言切换后的统计标签，以及 WebView 的实际列表编号。使用 ActivityScenario 和现有 Android 测试依赖，未增加 Compose 测试框架。
+- `ReliabilityRegressionTest` 只用人工数据检查 ViewModel 的草稿和复习生命周期；故障注入明确模拟下一题读取异常。`LargeFieldIntegrationTest` 检查大字段、原图、全文搜索及导出读取契约。
+- 本地仍通过 `tools/run-android-tests.ps1 -Serial emulator-<端口>` 明确选择模拟器；CI 沿用同一套测试的自动发现，不另起重复工作流。测试包可打开主界面不等于已在用户手机实测，不能据此承诺所有机型效果。

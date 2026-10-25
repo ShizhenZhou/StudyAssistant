@@ -10,6 +10,22 @@ suspend fun readChunkedText(length: Int?, part: suspend (Int,Int) -> String?): S
     return result.toString()
 }
 
+/** SQLite substr offsets are one-based; each BLOB chunk stays well below CursorWindow size. */
+suspend fun readChunkedBlob(length: Int?, part: suspend (Int,Int) -> ByteArray?): ByteArray? {
+    if(length==null) return null
+    require(length>=0 && length.toLong()<=minOf(32L*1024*1024,Runtime.getRuntime().maxMemory()/4)) { "Image exceeds safe read size" }
+    val result=ByteArray(length)
+    var position=0
+    while(position<length) {
+        val count=minOf(65536,length-position)
+        val bytes=checkNotNull(part(position+1,count))
+        check(bytes.size==count) { "Incomplete image read" }
+        bytes.copyInto(result,position)
+        position+=count
+    }
+    return result
+}
+
 object BackupLimits {
     val maxBytes: Long get() = minOf(48L*1024*1024, Runtime.getRuntime().maxMemory()/8)
     fun checkEncoded(text: String, maximum: Long = maxBytes) {

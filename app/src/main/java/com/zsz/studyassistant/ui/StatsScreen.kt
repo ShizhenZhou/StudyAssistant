@@ -113,7 +113,7 @@ fun StatsScreen(vm: MainViewModel) {
                                 .background(colors[i % colors.size])
                         )
                         Spacer(Modifier.size(8.dp))
-                        Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(s[name], style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Text("$v", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
                 }

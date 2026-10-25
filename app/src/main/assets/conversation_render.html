@@ -103,7 +103,7 @@ function mdToHtml(s){
     var h=t.match(/^(#{1,4})\s+(\S.*)$/); if(h){closeList();var n=h[1].length;out+='<h'+n+'>'+h[2]+'</h'+n+'>';continue;}
     if(/^\s*---+\s*$/.test(t)){closeList();out+='<hr>';continue;}
     if(/^\s*[-*]\s+/.test(t)){ if(!ul){closeList();out+='<ul>';ul=true;} out+='<li>'+t.replace(/^\s*[-*]\s+/,'')+'</li>';continue; }
-    if(/^\s*\d+\.\s+/.test(t)){ if(!ol){closeList();out+='<ol>';ol=true;} out+='<li>'+t.replace(/^\s*\d+\.\s+/,'')+'</li>';continue; }
+    if(/^\s*\d+\.\s+/.test(t)){ if(!ol){closeList();out+='<ol>';ol=true;} const number=t.match(/^\s*(\d+)\.\s+/)[1]; out+='<li value="'+number+'">'+t.replace(/^\s*\d+\.\s+/,'')+'</li>';continue; }
     out+=t+'<br>';
   }
   if(pre){out+='<pre>'+esc(preBuf.join('\n'))+'</pre>';}

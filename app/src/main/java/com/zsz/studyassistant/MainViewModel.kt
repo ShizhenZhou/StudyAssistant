@@ -41,6 +41,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -254,6 +257,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val last30Days: List<Int> = emptyList()               // 近 30 天新增
     )
 
+    /** A nullable match set reports an IO failure, not an empty successful search. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun notebookMatches(query: String): Flow<Pair<String,Set<QuestionId>?>> = dao.getAll().mapLatest {
+        if(query.isNotBlank()) kotlinx.coroutines.delay(200)
+        Pair<String,Set<QuestionId>?>(query,dao.matchingQuestionIds(query))
+    }.flowOn(Dispatchers.IO).catch { emit(query to null) }
+
     val stats: StateFlow<StatsSnapshot> =
         kotlinx.coroutines.flow.combine(
             dao.getAll(), dao.allReviews(), dao.categories(), calendarDay, deletionState
@@ -308,7 +318,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 weekReviewed = weekReviewed,
                 streakDays = streak,
                 dueNow = dueNow,
-                mastery = listOf("未开始" to notStarted, "复习中" to learning, "已掌握" to mastered),
+                mastery = listOf("stats.mastery.notStarted" to notStarted, "stats.mastery.learning" to learning, "stats.mastery.mastered" to mastered),
                 subjects = subjects,
                 last7Days = last7,
                 last30Days = last30
@@ -431,24 +441,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         saveSessionOnExit()
         solveSessionWriteMutex.withLock { /* Await all snapshots just enqueued by saveSessionOnExit. */ }
     }
-    private suspend fun draftCanBeCleared(id: QuestionId): Boolean {
+    private suspend fun draftCanBeCleared(value: com.zsz.studyassistant.data.ConversationDraft): Boolean {
+        val chats=value.completedChats ?: return false
+        val text=value.completedQuestion ?: value.question
+        val answer=chats.lastOrNull { it.role=="assistant" }?.content.orEmpty()
+        val conversation=json.encodeToString(chats)
         return try {
             val scan=withContext(Dispatchers.IO) { pendingSaveStore.scan() }
-            scan.unreadable==0 && scan.entries.none { it.payload.id==id } &&
-                id !in pendingNotebookContent && historyWriteQueue.failedTickets().none { it.row.id==id }
+            if(scan.unreadable!=0 || scan.entries.any { it.payload.id==value.id } ||
+                value.id in pendingNotebookContent || historyWriteQueue.failedTickets().any { it.row.id==value.id }) return false
+            // Absence of an error is not evidence of a save: read back a durable destination.
+            val notebook=dao.heavyOnce(value.id)
+            val history=dao.solveSessionOnce(value.id)
+            (notebook!=null && !notebook.deleted && notebook.text==text && notebook.answer==answer && notebook.conversationJson==conversation) ||
+                (history!=null && history.text==text && history.answer==answer && history.conversationJson==conversation)
         } catch (_: Exception) { saveJournalIssue=true; false }
+    }
+    internal suspend fun finishDraftCleanup(value: com.zsz.studyassistant.data.ConversationDraft) {
+        try { withContext(kotlinx.coroutines.NonCancellable+Dispatchers.IO) { conversationDrafts.clear(value.id,value.generation) } }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { draftIssue=true; return }
+        if(activeDraft?.generation==value.generation) activeDraft=null
     }
     fun discardDraft(id: QuestionId) {
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }
-                if(activeDraft?.id==id) { activeDraft=null; discardInterrupted() }
+                val value=withContext(Dispatchers.IO) { conversationDrafts.read(id) } ?: return@launch
+                withContext(Dispatchers.IO) { conversationDrafts.clear(id,value.generation) }
+                if(activeDraft?.generation==value.generation) { activeDraft=null; discardInterrupted() }
                 refreshDrafts()
             } catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] }
         }
     }
     fun resumeDraft(id: QuestionId, origin: String) {
-        if(busy || reviewBusy) return
+        if(busy || reviewBusy || dataBusy) return
         viewModelScope.launch {
             try {
                 val value=draftWriteMutex.withLock { withContext(Dispatchers.IO) { checkNotNull(conversationDrafts.read(id)) } }
@@ -460,7 +486,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         val completed=value.completedChats?.let { chats -> com.zsz.studyassistant.data.SavePayload(id,value.createdAt,
                             value.completedQuestion ?: value.question,chats.lastOrNull { it.role=="assistant" }?.content.orEmpty(),json.encodeToString(chats)) }
                         if(completed!=null && actual==com.zsz.studyassistant.data.PendingSaveCodec.fingerprint(completed)) {
-                            withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }
+                            withContext(Dispatchers.IO) { conversationDrafts.clear(id,value.generation) }
                             loadQuestion(row); refreshDrafts(); draftReturnOrigin=origin; draftSolveRequested=true
                             return@launch
                         }
@@ -489,8 +515,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if(value.complete && value.completedChats!=null) {
                     chatItems=value.completedChats; questionText=value.completedQuestion ?: value.question
                     persistCompletedConversation()
-                    if(draftCanBeCleared(id)) withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }
-                    activeDraft=null
+                    if(draftCanBeCleared(value)) finishDraftCleanup(value)
                 } else {
                     streamingText=value.raw; thinkingText=value.thinking; streamInterrupted=true
                     contModel=value.model; contPrefix=value.raw
@@ -1329,7 +1354,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 固化后会重复出现两次（见 FIXES 记录里的取舍说明）。
      */
     fun discardInterrupted() {
-        activeDraft?.id?.let { id -> viewModelScope.launch { withContext(Dispatchers.IO) { conversationDrafts.invalidate(listOf(id)) }; refreshDrafts() } }
+        activeDraft?.let { value -> viewModelScope.launch { withContext(Dispatchers.IO) { conversationDrafts.clear(value.id,value.generation) }; refreshDrafts() } }
         activeDraft=null
         streamInterrupted = false
         streamingText = null
@@ -1379,6 +1404,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repeat: (() -> Unit)?,
         replyAction: String = if(gradeMode) "grade" else if(chatItems.any { it.role=="assistant" }) "followup" else "initial"
     ) {
+        if(dataBusy) return
         streamOwner?.cancel()
         callJob?.cancel()
         val owner = com.zsz.studyassistant.data.StreamOwner()
@@ -1481,13 +1507,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 //   本轮思考由 addItem() 的默认值自动挂到**新建的那条**助手消息上（见 addItem）。
                 onDone(prefix + reply.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim())
                 if(mySeq==callSeq) {
-                    activeDraft=activeDraft?.copy(raw=prefix+reply,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
-                    activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
+                    val completed=activeDraft?.copy(raw=prefix+reply,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
+                    activeDraft=completed
+                    completed?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
                     withContext(kotlinx.coroutines.NonCancellable) { persistCompletedConversation() }
-                    if(template!=null && draftCanBeCleared(template.id)) {
-                        try { withContext(kotlinx.coroutines.NonCancellable+Dispatchers.IO) { conversationDrafts.clear(template.id,template.generation) } }
-                        catch (_: Exception) { draftIssue=true }
-                        activeDraft=null
+                    if(template!=null && completed!=null && draftCanBeCleared(completed)) {
+                        finishDraftCleanup(completed)
                     }
                     refreshDrafts()
                 }
@@ -1888,15 +1913,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearAllData() {
+        if(dataBusy) return
+        dataBusy = true
         viewModelScope.launch {
-            dataBusy = true
             try {
+                val stoppingJob=callJob
+                stopActiveGeneration()
+                stoppingJob?.join()
                 solveSessionWriteMutex.withLock {
                     requireNoPendingSaves()
                     com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
+                    draftWriteMutex.withLock { withContext(Dispatchers.IO) { conversationDrafts.clearAll() } }
                     historyWriteQueue.clear()
                     failedHistoryWrites = 0
-                    sessionRecordBinding.historyAllowed = false
+                    activeDraft=null
+                    resetSession()
+                    exitReviewMode()
+                    draftError=null
+                    refreshDrafts()
                 }
                 menuMessageIsError = false
                 menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]
@@ -2094,6 +2128,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
     fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {
+        if(dataBusy) return
         if (saving) { cancelPending = true; return }
         if (savedQuestionId != null) return
         val hasImg = questionImages.isNotEmpty() || imageBytes != null || directImages.isNotEmpty()
@@ -2306,6 +2341,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var reviewBusy by mutableStateOf(false)
         private set
     private var reviewEpoch = 0L
+    private val committedReviewIds = mutableSetOf<QuestionId>()
     private suspend fun commitReview(questionId: QuestionId, level: Int) {
         AppDatabase.get(getApplication()).withTransaction {
             val question = dao.questionLightOnce(questionId) ?: error("Question no longer exists")
@@ -2331,6 +2367,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 从复习列表进入时调用：记录本轮总数与起始位置，用于「第 i/n 题」显示 */
     fun startReviewSession(candidates: List<Question>, index: Int) {
         reviewEpoch++
+        committedReviewIds.clear()
         val ids = com.zsz.studyassistant.data.ReviewPlanning.ordered(candidates.map { it.id }, index)
         val byId = candidates.associateBy { it.id }
         reviewQueue = ids.mapNotNull { byId[it] }
@@ -2375,28 +2412,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val epoch = reviewEpoch
         viewModelScope.launch {
             try {
-                commitReview(id, level)
+                if(id !in committedReviewIds) withContext(kotlinx.coroutines.NonCancellable) {
+                    commitReview(id, level)
+                    if(epoch==reviewEpoch) committedReviewIds.add(id)
+                }
                 if (epoch == reviewEpoch) advanceReview(id, onNoMore)
             } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.saveFailed"] }
+            catch (_: Exception) {
+                if(epoch==reviewEpoch) error = com.zsz.studyassistant.ui.stringsFor(uiLang)[
+                    if(id in committedReviewIds) "review.loadFailed" else "review.saveFailed"]
+            }
             finally { if (epoch == reviewEpoch) reviewBusy = false }
         }
     }
     private suspend fun advanceReview(answered: QuestionId?, onNoMore: () -> Unit) {
+        val wasQueued=reviewQueue.any { it.id==answered }
         val remaining = reviewQueue.filter { it.id != answered }
         reviewQueue = remaining
-        reviewDone = (reviewDone + 1).coerceAtMost(reviewTotal)
+        if(wasQueued) reviewDone = (reviewDone + 1).coerceAtMost(reviewTotal)
         for (candidate in remaining) {
             val full = dao.heavyOnce(candidate.id)
             if (full != null && !full.deleted && full.id !in deletionState.value.questionIds) {
                 redoMessage = null
                 loadQuestion(full, keepReview = true)
+                error=null
                 return
             }
             reviewQueue = reviewQueue.filter { it.id != candidate.id }
             reviewTotal = (reviewTotal - 1).coerceAtLeast(reviewDone)
         }
         redoMessage = null
+        error=null
         onNoMore()
     }
     fun reviewAdvance(onNoMore: () -> Unit) {
@@ -2406,13 +2452,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try { advanceReview(savedQuestionId ?: redoQuestionId, onNoMore) }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.saveFailed"] }
+            catch (_: Exception) { if(epoch==reviewEpoch) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.loadFailed"] }
             finally { if (epoch == reviewEpoch) reviewBusy = false }
         }
     }
 
     fun exitReviewMode() {
         reviewEpoch++
+        committedReviewIds.clear()
         reviewBusy = false
         reviewQueue = emptyList()
         reviewMode = false

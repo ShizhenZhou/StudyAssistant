@@ -49,11 +49,21 @@ internal class ConversationDraftStore(context: Context) {
     }
     fun read(id: QuestionId): ConversationDraft? = synchronized(lock) { file(id).read()?.let(ConversationDraftCodec::decode) }
     fun clear(id: QuestionId, generation: String) = synchronized(lock) {
-        if(writers[id]!=null && writers[id]!=generation) return@synchronized
-        writers[id]="closed-$generation"; file(id).clear()
+        val current = writers[id] ?: read(id)?.generation
+        if(current != generation) return@synchronized
+        file(id).clear(); writers[id]="closed-$generation"; revisions.remove(id)
     }
     fun invalidate(ids: Collection<QuestionId>) = synchronized(lock) {
         ids.forEach { writers[it]="deleted"; file(it).clear() }
+    }
+    /** Explicit erase only. Tombstones reject writes already queued by a stopped request. */
+    fun clearAll() = synchronized(lock) {
+        writers.keys.toList().forEach { writers[it]="deleted" }
+        revisions.clear()
+        val files=if(directory.exists()) checkNotNull(directory.listFiles()).toList() else emptyList()
+        val names=files.filter { it.name.endsWith(".json") || it.name.endsWith(".json.bak") || it.name.endsWith(".json.new") }
+            .map { it.name.removeSuffix(".bak").removeSuffix(".new") }.distinct()
+        names.forEach { PrivateJsonFile(File(directory,it),32*1024*1024).clear() }
     }
     fun summaries(): Pair<List<DraftSummary>,Int> = synchronized(lock) {
         if(!directory.exists()) return@synchronized emptyList<DraftSummary>() to 0

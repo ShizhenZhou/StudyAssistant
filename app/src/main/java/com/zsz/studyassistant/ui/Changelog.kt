@@ -5,6 +5,14 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.6.12
+· 💾 加固对话草稿保存与恢复，旧请求的清理不再影响新草稿；尚未存入错题本或搜题记录的完整草稿继续保留
+· 🧹 主动清空学习数据时同步清除对话草稿并停止旧写入，确认提示明确包含搜题记录和草稿
+· 📖 区分复习保存失败与下一题读取失败；已保存后的切题重试不再重复登记复习或增加进度
+· 🛡️ 大题干、答案和原图分段读取，列表使用短预览；全文搜索、查重和备份仍保留完整内容
+· 🔢 保留 Markdown 小题的原始数字序号，避免非连续编号被自动改写
+· 🌐 统计页掌握程度标签随界面语言切换，补齐四语言提示
+
 v0.6.6.11
 · 🎨 数据管理入口与 AI 管理共用标题卡片，去掉按钮下方说明并保留于子页；关于页“技术与兼容”补齐背景框
 · ✍️ 自定义要求独立为 AI 管理下的子页，保留键盘上方保存按钮，更新页面树与返回路径
@@ -418,6 +426,14 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.6.12
+· 💾 Harden conversation draft saving and recovery; old-request cleanup no longer affects new drafts, and completed drafts remain until saved to the notebook or history
+· 🧹 Explicit learning-data erasure also removes conversation drafts and stops old writes; confirmation now includes history and drafts
+· 📖 Distinguish review-save failures from next-question loading failures; retrying after a successful save no longer records another review or advances progress twice
+· 🛡️ Read large questions, answers and original images in chunks with short list previews; full-text search, duplicate checks and backups retain complete content
+· 🔢 Preserve original Markdown subquestion numbers, including non-sequential numbering
+· 🌐 Translate statistics mastery labels with the interface language and complete messages in all four languages
+
 v0.6.6.11
 · 🎨 Share title-only cards across Data and AI management; move descriptions into subpages and add a matching card for Technology & compatibility
 · ✍️ Give Custom instructions its own AI management subpage, preserving keyboard-aware saving and updating back navigation
@@ -831,6 +847,14 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.6.12
+· 💾 会話の下書き保存と復元を改善。古いリクエストの後処理から新しい下書きを保護し、問題集や履歴に保存されるまで完了済みの下書きを保持
+· 🧹 学習データの全削除時は会話の下書きと古い書き込みも処理。確認画面に履歴と下書きを明記
+· 📖 復習の保存失敗と次の問題の読み込み失敗を区別。保存後の再試行で復習回数や進捗を重複加算しない
+· 🛡️ 大きな問題文・解答・原画像を分割読み込みし、一覧は短いプレビューを使用。全文検索・重複確認・バックアップは完全な内容を保持
+· 🔢 Markdown の小問番号を維持し、連続していない番号もそのまま表示
+· 🌐 統計の習得度ラベルを表示言語に合わせ、4 言語のメッセージを補完
+
 v0.6.6.11
 · 🎨 データ管理と AI 管理を同じ見出しカードに統一。説明は子ページへ移し、技術と互換性にも背景を追加
 · ✍️ カスタム指示を AI 管理の独立した子ページに分離。キーボード上の保存操作を保持し、戻る経路を更新
@@ -1244,6 +1268,14 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.6.12
+· 💾 대화 초안 저장과 복원을 강화. 이전 요청의 정리가 새 초안에 영향을 주지 않으며 오답노트나 기록에 저장될 때까지 완료된 초안을 유지
+· 🧹 학습 데이터 전체 삭제 시 대화 초안과 이전 쓰기도 함께 처리. 확인 안내에 검색 기록과 초안을 명시
+· 📖 복습 저장 실패와 다음 문제 읽기 실패를 구분. 저장 후 재시도해도 복습 횟수나 진행을 중복 계산하지 않음
+· 🛡️ 큰 문제문·답변·원본 이미지를 나누어 읽고 목록에는 짧은 미리보기를 사용. 전체 검색·중복 확인·백업에는 완전한 내용을 유지
+· 🔢 연속되지 않은 번호를 포함하여 Markdown 소문항의 원래 번호를 유지
+· 🌐 통계 숙달도 이름을 화면 언어에 맞추고 네 언어의 안내를 보완
+
 v0.6.6.11
 · 🎨 데이터·AI 관리에 같은 제목 카드를 사용. 설명은 하위 페이지로 옮기고 기술 및 호환성에도 배경 추가
 · ✍️ 사용자 지정 지시를 AI 관리의 독립 하위 페이지로 분리. 키보드 위 저장 버튼을 유지하고 뒤로 가기 경로 갱신
