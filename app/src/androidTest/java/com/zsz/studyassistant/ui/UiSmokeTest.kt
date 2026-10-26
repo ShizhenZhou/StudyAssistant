@@ -33,28 +33,45 @@ class UiSmokeTest {
         }
         error("Missing UI text: $text")
     }
-    private fun clickable(node: AccessibilityNodeInfo?, text: String): AccessibilityNodeInfo? {
+    private fun clickable(node: AccessibilityNodeInfo?, text: String, visibleOnly: Boolean = true): AccessibilityNodeInfo? {
         if (node == null) return null
         if (node.text?.toString() == text || node.contentDescription?.toString() == text) {
             var candidate: AccessibilityNodeInfo? = node
             while (candidate != null) {
-                if (candidate.isClickable && candidate.isEnabled && candidate.isVisibleToUser) return candidate
+                if (candidate.isClickable && candidate.isEnabled && (!visibleOnly || candidate.isVisibleToUser)) return candidate
                 candidate = candidate.parent
             }
         }
-        for (i in 0 until node.childCount) clickable(node.getChild(i), text)?.let { return it }
+        for (i in 0 until node.childCount) clickable(node.getChild(i), text, visibleOnly)?.let { return it }
+        return null
+    }
+    private fun scrollable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isScrollable && node.isVisibleToUser) return node
+        for (i in 0 until node.childCount) scrollable(node.getChild(i))?.let { return it }
         return null
     }
     private fun tap(text: String) {
         val deadline = android.os.SystemClock.uptimeMillis() + 8000
+        var revealRequested = false
+        var forward = true
         while (android.os.SystemClock.uptimeMillis() < deadline) {
-            // A leaving page's title can match an entering page's button during navigation.
-            val target = clickable(instrumentation.uiAutomation.rootInActiveWindow, text)
+            val root = instrumentation.uiAutomation.rootInActiveWindow
+            // Ignore an exiting page's same-name title and scroll offscreen controls into view.
+            val target = clickable(root, text)
             if (target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) {
                 instrumentation.waitForIdleSync()
                 return
             }
-            Thread.sleep(40)
+            val offscreen = clickable(root, text, visibleOnly = false)
+            if (offscreen != null && !offscreen.isVisibleToUser && !revealRequested) {
+                revealRequested = true
+                offscreen.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+            } else if (offscreen == null || !offscreen.isVisibleToUser) {
+                val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                if (scrollable(root)?.performAction(action) != true) forward = !forward
+            }
+            Thread.sleep(120)
         }
         error("Not clickable: $text")
     }
