@@ -10,7 +10,7 @@ v0.6.7
 · 📥 恢复时可一次多选全部分卷，先校验再确认导入；兼容旧 v3 JSON，相同题号保留本机内容
 · 🗄️ 自动备份在当天打开应用后由系统择机执行，内容未变则跳过；支持取消、重试和已完成阶段复用
 · 🛡️ 全部写入并读回校验成功后才登记备份；开始前完整自动备份超过 3 套时留最新 2 套，成功后留 3 套，含旧命名自动备份
-· 🏷️ 文件名统一为 SABak-时间戳.sab，自动备份用 SABak_auto-；多卷追加 -1of3，手动、损坏、缺卷及无法识别的文件保留
+· 🏷️ 统一使用 ZIP 后缀，避免重复追加；文件名为 SABak-时间戳.zip，自动备份用 SABak_auto-；多卷追加 -1of3，手动、损坏、缺卷及无法识别的文件保留
 · 💬 自动备份成功且应用仍在前台时显示“自动备份成功”气泡，后台完成不补弹旧提示
 · 🔔 错题本为空时不启动自动备份；后台最终失败发送系统通知，可点按进入备份管理
 · ↪️ 离开备份页后准备完成，返回可继续保存或取消，不再卡住备份入口
@@ -441,7 +441,7 @@ v0.6.7
 · 📥 Select all parts together for validated, confirmed import; legacy v3 JSON remains supported and existing question IDs keep local content
 · 🗄️ Opening the app schedules automatic backup; unchanged content is skipped, with cancellation, retry and completed-stage reuse
 · 🛡️ Register success only after all parts pass read-back verification; if more than 3 complete automatic sets exist, keep 2 before starting and 3 after success, including old automatic names
-· 🏷️ Files use SABak-timestamp.sab or SABak_auto-; multipart files append -1of3. Manual, corrupt, incomplete and unrecognized files are preserved
+· 🏷️ Use the ZIP extension consistently to avoid duplicate suffixes: SABak-timestamp.zip or SABak_auto-; multipart files append -1of3. Manual, corrupt, incomplete and unrecognized files are preserved
 · 💬 Automatic backup success shows a bubble only while the app is visible; background completions never replay later
 · 🔔 Empty notebooks do not start automatic backups; final background failures post a system notification that opens Backup management
 · ↪️ Prepared exports can be saved or canceled after returning to the backup page, keeping the controls usable
@@ -872,7 +872,7 @@ v0.6.7
 · 📥 全巻をまとめて選択し、検証・確認後にインポート。旧v3 JSONに対応し、同じ問題IDの端末内データを維持
 · 🗄️ 当日アプリを開くと自動バックアップを予約。変更がなければスキップし、キャンセル・再試行・完了段階の再利用に対応
 · 🛡️ 全巻の再読み取り検証後に成功を記録。完全な自動バックアップが3セットを超える場合は開始前に最新2セット、成功後に3セット保持。旧名の自動バックアップも対象
-· 🏷️ ファイル名は SABak-日時.sab、自動は SABak_auto-、分巻のみ -1of3 を付加。手動・破損・欠巻・識別不能なファイルは保持
+· 🏷️ ZIP拡張子に統一して二重付加を防止。ファイル名は SABak-日時.zip、自動は SABak_auto-、分巻のみ -1of3 を付加。手動・破損・欠巻・識別不能なファイルは保持
 · 💬 自動バックアップ成功時にアプリが前面なら通知バブルを表示。背面で完了した古い通知は再表示しない
 · 🔔 問題集が空なら自動バックアップを開始せず、背面で最終的に失敗した場合はバックアップ管理を開くシステム通知を表示
 · ↪️ バックアップ画面を離れた後に準備が完了しても、戻って保存を続けるかキャンセル可能
@@ -1303,7 +1303,7 @@ v0.6.7
 · 📥 모든 분할 파일을 한 번에 선택하고 검증 및 확인 후 가져오기. 기존 v3 JSON 지원 및 같은 문제 ID의 기기 내 내용 유지
 · 🗄️ 매일 앱을 열면 자동 백업을 예약하고 변경이 없으면 건너뛰기. 취소, 재시도 및 완료된 단계 재사용 지원
 · 🛡️ 모든 파일을 다시 읽어 검증한 후 성공 기록. 완전한 자동 백업이 3세트보다 많으면 시작 전 최신 2세트, 성공 후 3세트 유지. 이전 이름의 자동 백업도 포함
-· 🏷️ 파일명은 SABak-타임스탬프.sab, 자동은 SABak_auto-, 분할 시에만 -1of3 추가. 수동·손상·누락·인식 불가 파일은 보존
+· 🏷️ ZIP 확장자로 통일하여 중복 확장자를 방지. 파일명은 SABak-타임스탬프.zip, 자동은 SABak_auto-, 분할 시에만 -1of3 추가. 수동·손상·누락·인식 불가 파일은 보존
 · 💬 자동 백업 성공 시 앱이 화면에 열려 있으면 알림 표시. 백그라운드 완료 알림은 나중에 다시 표시하지 않음
 · 🔔 오답 노트가 비어 있으면 자동 백업을 시작하지 않으며, 백그라운드에서 최종 실패하면 백업 관리를 여는 시스템 알림 표시
 · ↪️ 백업 화면을 떠난 후 준비가 완료되어도 돌아와 저장을 계속하거나 취소 가능

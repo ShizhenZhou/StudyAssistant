@@ -34,8 +34,8 @@ object BackupRetention {
         } } }
     }
     private fun candidate(name: String): Boolean =
-        (name.startsWith("SABak_auto-") && Regex("^SABak_auto-[0-9]{14}.*\\.sab(?:$|[ ._-].*)").matches(name)) ||
-        (name.startsWith(AutoBackup.PREFIX) && (name.contains(".sab") || name.contains(".json")))
+        (name.startsWith("SABak_auto-") && Regex("^SABak_auto-[0-9]{14}.*\\.zip(?:$|[ ._-].*)").matches(name)) ||
+        (name.startsWith(AutoBackup.PREFIX) && (name.contains(".zip") || name.contains(".json")))
     private fun ledger(context: Context): JSONArray = runCatching { JSONArray(prefs(context).getString(LEDGER, "[]")!!) }.getOrDefault(JSONArray())
     internal fun protectDocuments(context: Context, tree: Uri, ids: kotlin.collections.Set<String>) {
         if (ids.isEmpty()) return

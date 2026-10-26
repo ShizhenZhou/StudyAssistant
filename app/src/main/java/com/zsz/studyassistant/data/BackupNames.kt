@@ -13,6 +13,6 @@ object BackupNames {
         val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT).apply { this.timeZone = timeZone }.format(Date(snapshotAt))
         val prefix = if (automatic) "SABak_auto" else "SABak"
         val part = if (totalParts == 1) "" else "-${partIndex + 1}of$totalParts"
-        return "$prefix-$stamp$part.sab"
+        return "$prefix-$stamp$part.zip"
     }
 }

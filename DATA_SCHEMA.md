@@ -32,10 +32,10 @@
 - 单个需解析字段/旧 JSON 记录受 `min(16 MiB, maxHeap/16)` 安全预算限制；总题库不再受整库 JSON 字符串预算限制。空间不足、字段过大或格式异常均停止，不改现有数据。
 - 恢复先把用户选定的全部文件固定到私有目录，核对格式、卷号、路径、摘要、字段和关联，重建临时数据库。用户预览确认后，在主库一次 Room 事务中从独立只读私有库分段合并（不使用 ATTACH，也不改变 WAL）；重复编号跳过，失败或取消整次回滚，不把部分恢复当成功。
 
-### .sab 容器与分卷
+### ZIP 容器与分卷
 
-- 公共文件名为 `SABak-yyyyMMddHHmmss.sab`（手动）或 `SABak_auto-yyyyMMddHHmmss.sab`（自动），时间戳使用本地时间精确到秒。只有分卷才追加 `-1of3` 等后缀，单文件无卷号；格式身份和顺序仍以内置头及完成标记为准。
-- `.sab` 使用 Android/JDK 原生 ZIP / DEFLATE，每卷独立 ZIP，默认目标 256 MiB（允许有界 ZIP 头尾开销），不是 PKZIP 跨盘连续流。单文件优先，过大才多卷；恢复多选全卷，内部编号确定顺序，不依赖文件名或选择顺序。
+- 公共文件名为 `SABak-yyyyMMddHHmmss.zip`（手动）或 `SABak_auto-yyyyMMddHHmmss.zip`（自动），时间戳使用本地时间精确到秒。只有分卷才追加 `-1of3` 等后缀，单文件无卷号；格式身份和顺序仍以内置头及完成标记为准。
+- `.zip` 使用 Android/JDK 原生 ZIP / DEFLATE，每卷独立 ZIP，默认目标 256 MiB（允许有界 ZIP 头尾开销），不是 PKZIP 跨盘连续流。单文件优先，过大才多卷；恢复多选全卷，内部编号确定顺序，不依赖文件名或选择顺序。
 - `header.bin` 使用 DataOutputStream：固定格式字符串、int version=4、UUID 字符串、int 零起始卷号、long snapshotAt。
 - `block-%012d.bin`：int magic=0x53414234、long 全局块序号；文件帧为 byte=1、int 路径字节长度、UTF-8 路径、long 总文件长度；数据帧为 byte=2、long 偏移、int 数据长度及字节。块不超过 1 MiB，单段不超过 64 KiB。
 - `directory.bin`：int magic=0x53414434、int 条目数，随后重复 long 块序号、int 长度、32 字节 SHA-256；每卷至多4092块。最后一卷 `commit.bin` 包含 magic=0x53414334、总卷数、块数、文件数、原始字节数、内容摘要和目录根摘要。

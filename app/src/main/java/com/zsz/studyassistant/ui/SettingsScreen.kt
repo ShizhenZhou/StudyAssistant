@@ -908,7 +908,7 @@ private fun BackupSettings(vm: MainViewModel) {
         style = MaterialTheme.typography.bodyMedium
     )
     Spacer(Modifier.height(16.dp))
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri == null) vm.discardPreparedExport() else vm.writePreparedBackup(uri)
     }
     val exportTreeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
