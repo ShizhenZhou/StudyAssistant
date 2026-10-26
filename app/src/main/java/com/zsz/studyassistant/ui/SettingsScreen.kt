@@ -59,6 +59,7 @@ import kotlin.math.pow
 import kotlin.math.ln
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.mutableFloatStateOf
@@ -983,7 +984,8 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     val feedback = LocalAppFeedback.current
     var autoFolder by remember { mutableStateOf(AutoBackup.treeUri(context)?.lastPathSegment) }
     var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
-    var autoCount by remember { mutableStateOf<Int?>(null) }
+    var folderSummary by remember { mutableStateOf<com.zsz.studyassistant.data.BackupRetention.FolderSummary?>(null) }
+    var folderReadFailed by remember { mutableStateOf(false) }
     var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
     var autoFailure by remember { mutableStateOf(AutoBackup.lastFailure(context)) }
     var status by remember { mutableStateOf(com.zsz.studyassistant.data.BackupJobs.status(context)) }
@@ -998,6 +1000,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 canNotify = com.zsz.studyassistant.data.BackupNotifications.canNotify(context)
+                refresh++
             }
         }
         backupLifecycleOwner.lifecycle.addObserver(observer)
@@ -1022,24 +1025,36 @@ private fun AutoBackupSettings(vm: MainViewModel) {
                 .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, com.zsz.studyassistant.data.BackupNotifications.CHANNEL_ID))
         }
     }
-    val autoWriting = requesting || status.active
-    LaunchedEffect(context, refresh) {
+    val autoWriting = requesting || !status.canRequestNow
+    LaunchedEffect(context, refresh, vm.dataBusy, vm.preparedExport == null) {
+        if (vm.dataBusy || vm.preparedExport != null) return@LaunchedEffect
         val tree = AutoBackup.treeUri(context)
-        val details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            (AutoBackup.folderName(context) ?: tree?.lastPathSegment) to AutoBackup.listBackups(context).size
+        val operation = kotlinx.coroutines.currentCoroutineContext()
+        try {
+            val details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                (AutoBackup.folderName(context) ?: tree?.lastPathSegment) to
+                    if (tree == null) com.zsz.studyassistant.data.BackupRetention.FolderSummary()
+                    else com.zsz.studyassistant.data.BackupRetention.folderSummary(context, tree) { operation.ensureActive() }
+            }
+            if (AutoBackup.treeUri(context) == tree) {
+                autoFolder = details.first; folderSummary = details.second
+                autoLast = details.second.latestAt; folderReadFailed = false
+            }
+        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (_: Exception) {
+            if (AutoBackup.treeUri(context) == tree) { folderSummary = null; folderReadFailed = true }
         }
-        if (AutoBackup.treeUri(context) == tree) { autoFolder = details.first; autoCount = details.second }
     }
     DisposableEffect(context) {
         val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key?.startsWith("auto_backup_") == true || key?.startsWith("backup_job_") == true) {
                 scope.launch {
-                    autoLast = AutoBackup.lastBackupAt(context)
                     autoFailure = AutoBackup.lastFailure(context)
                     autoEnabled = AutoBackup.isEnabled(context)
                     status = com.zsz.studyassistant.data.BackupJobs.status(context)
-                    if (key == "auto_backup_tree" || key == "auto_backup_last_at" || key == "backup_job_phase" || key == "backup_job_sets") refresh++
+                    if (key == "auto_backup_tree" || key == "auto_backup_last_at" ||
+                        (key == "backup_job_phase" && status.phaseKey == "data.backupJob.success")) refresh++
                 }
             }
         }
@@ -1084,7 +1099,9 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         style = MaterialTheme.typography.bodySmall,
         color = if (autoFolder == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(6.dp))
-    Text(s.format("data.autoBackup.count", "n" to (autoCount?.toString() ?: "…")) + " · " +
+    Text((if (folderReadFailed) s["data.autoBackup.countFailed"] else s.format("data.autoBackup.count",
+        "manual" to (folderSummary?.manual?.toString() ?: "…"),
+        "automatic" to (folderSummary?.automatic?.toString() ?: "…"))) + " · " +
         if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     if (status.phaseKey.isNotEmpty()) {

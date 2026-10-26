@@ -149,6 +149,39 @@ class UiSmokeTest {
             assertTrue(waitFor(s["data.export"]).isEnabled)
         }
     }
+    @Test fun queuedAutomaticBackupCanBeTakenOverAndFinishAfterActivityCloses() {
+        val jobs = com.zsz.studyassistant.data.BackupJobs
+        val provider = com.zsz.studyassistant.data.TestBackupDocumentsProvider
+        val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        val manager = androidx.work.WorkManager.getInstance(context)
+        val id = com.zsz.studyassistant.data.QuestionIdentity.create(1700000400000L)
+        val dao = com.zsz.studyassistant.data.AppDatabase.get(context).questionDao()
+        val gate = CountDownLatch(1)
+        manager.cancelUniqueWork("backup-v4-on-open").result.get()
+        provider.reset(context)
+        preferences.edit().clear().putString("auto_backup_tree", "content://${context.packageName}.fixture.backups/tree/root").commit()
+        kotlinx.coroutines.runBlocking { dao.insert(com.zsz.studyassistant.data.Question(id, "background fixture", "answer", 1700000400000L)) }
+        try {
+            jobs.onAppOpened(context)
+            val previous = preferences.getString("backup_job_work_id", null)
+            provider.writeGate = gate
+            launch(openBackup = true).use { tap(s["data.autoBackup.now"]) }
+            val immediate = preferences.getString("backup_job_work_id", null)
+            assertNotEquals(previous, immediate)
+            assertFalse(preferences.getBoolean("backup_job_automatic", true))
+            assertFalse("Worker must wait until the activity has closed", jobs.status(context).phaseKey == "data.backupJob.success")
+            gate.countDown()
+            val deadline = android.os.SystemClock.uptimeMillis() + 20000
+            while (jobs.status(context).active && android.os.SystemClock.uptimeMillis() < deadline) Thread.sleep(80)
+            assertEquals("data.backupJob.success", jobs.status(context).phaseKey)
+            assertEquals(1, com.zsz.studyassistant.data.BackupRetention.folderSummary(context, com.zsz.studyassistant.data.AutoBackup.treeUri(context)!!).manual)
+        } finally {
+            gate.countDown(); provider.writeGate = null
+            manager.cancelUniqueWork("backup-v4-on-open").result.get()
+            kotlinx.coroutines.runBlocking { dao.deleteById(id) }
+            preferences.edit().clear().commit()
+        }
+    }
     @Test fun englishStatisticsUseEnglishMasteryLabels() {
         launch().use {
             tap("Stats")

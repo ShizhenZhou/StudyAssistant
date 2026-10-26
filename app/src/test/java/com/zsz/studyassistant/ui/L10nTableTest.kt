@@ -65,7 +65,8 @@ class L10nTableTest {
         // B8 自动备份文案
         assertEquals("🗄 自動備份", tw["data.autoBackup"])
         assertTrue("文件夹未转成文件夾：${tw["data.autoBackup.pick"]}", tw["data.autoBackup.pick"].contains("文件夾"))
-        assertTrue(tw["data.autoBackup.count"].contains("已保存"))
+        assertTrue(tw["data.autoBackup.count"].contains("手動備份"))
+        assertTrue(tw["data.autoBackup.count"].contains("自動備份"))
 
         // A5 / B6 / B9 文案
         assertEquals("⇅ 排序", tw["notebook.sort"])

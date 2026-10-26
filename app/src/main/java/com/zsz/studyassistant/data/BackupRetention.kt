@@ -19,7 +19,9 @@ object BackupRetention {
     private const val PROTECTED = "backup_job_protected_documents"
     internal data class Document(val id: String, val name: String, val length: Long)
     internal data class VerifiedDocument(val id: String, val name: String, val length: Long, val sha: String)
-    private data class Set(val id: String, val at: Long, val parts: List<VerifiedDocument>, val name: String)
+    data class FolderSummary(val manual: Int = 0, val automatic: Int = 0, val latestAt: Long = 0,
+        val backupDays: kotlin.collections.Set<String> = emptySet())
+    private data class Set(val id: String, val at: Long, val parts: List<VerifiedDocument>, val name: String, val automatic: Boolean = true)
     private data class Probe(val header: BackupArchive.PartInfo, val document: VerifiedDocument)
     private fun prefs(c: Context) = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
     internal fun uri(tree: Uri, id: String): Uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
@@ -36,6 +38,10 @@ object BackupRetention {
     private fun candidate(name: String): Boolean =
         (name.startsWith("SABak_auto-") && Regex("^SABak_auto-[0-9]{14}.*\\.zip(?:$|[ ._-].*)").matches(name)) ||
         (name.startsWith(AutoBackup.PREFIX) && (name.contains(".zip") || name.contains(".json")))
+    private fun summaryCandidate(name: String): Boolean =
+        Regex(".*\\.(?:zip|json)(?:$|[ ._-].*)", RegexOption.IGNORE_CASE).matches(name)
+    private fun automaticName(name: String): Boolean =
+        name.startsWith("SABak_auto-") || name.startsWith(AutoBackup.PREFIX)
     private fun ledger(context: Context): JSONArray = runCatching { JSONArray(prefs(context).getString(LEDGER, "[]")!!) }.getOrDefault(JSONArray())
     internal fun protectDocuments(context: Context, tree: Uri, ids: kotlin.collections.Set<String>) {
         if (ids.isEmpty()) return
@@ -69,16 +75,27 @@ object BackupRetention {
         return names
     }
 
-    private suspend fun catalog(context: Context, tree: Uri, check: () -> Unit): List<Set> {
+    /** Blocking IO API. Always scans current documents; ledger/cache state cannot hide valid backups. */
+    fun folderSummary(context: Context, tree: Uri, check: () -> Unit = {}): FolderSummary =
+        kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+            val sets = catalog(context, tree, check, includeManual = true)
+            FolderSummary(sets.count { !it.automatic }, sets.count { it.automatic }, sets.maxOfOrNull { it.at } ?: 0L,
+                sets.map { AutoBackup.dayKey(it.at) }.toSet())
+        }
+
+    private suspend fun catalog(context: Context, tree: Uri, check: () -> Unit, includeManual: Boolean = false): List<Set> {
         check()
         // A directory-wide access/list error is a real failure; individual unreadable files are preserved.
         val listed = list(context, tree)
         val byId = listed.groupBy { it.id }
         val handled = HashSet<String>()
         val protectedIds = runCatching { JSONArray(prefs(context).getString(PROTECTED, "[]")!!) }.getOrDefault(JSONArray())
-        for (i in 0 until protectedIds.length()) protectedIds.optJSONObject(i)?.takeIf { it.optString("tree") == tree.toString() }?.optString("id")?.let { handled.add(it) }
+        if (!includeManual) for (i in 0 until protectedIds.length()) protectedIds.optJSONObject(i)?.takeIf { it.optString("tree") == tree.toString() }?.optString("id")?.let { handled.add(it) }
         val eligible = linkedMapOf<String, Set>()
-        val journal = ledger(context)
+        // Retention ownership is deliberately independent of the folder inventory. Summary reads
+        // internal snapshot times and fully validates even known sets, so stale ledger/protection
+        // entries cannot suppress a replacement file or misreport its time.
+        val journal = if (includeManual) JSONArray() else ledger(context)
         for (i in 0 until journal.length()) {
             check()
             val entry = journal.optJSONObject(i) ?: continue
@@ -104,7 +121,7 @@ object BackupRetention {
             val groups = linkedMapOf<String, MutableList<Probe>>()
             for (document in listed) {
                 check()
-                if (document.id in handled || !candidate(document.name) || byId[document.id]?.size != 1) continue
+                if (document.id in handled || !(if (includeManual) summaryCandidate(document.name) else candidate(document.name)) || byId[document.id]?.size != 1) continue
                 val probeDir = File(work, UUID.randomUUID().toString()).apply { if (!mkdir()) throw IOException("retention probe") }
                 try {
                     val fixed = File(probeDir, "input")
@@ -117,7 +134,8 @@ object BackupRetention {
                     } else {
                         // The progressive legacy reader enforces Bak3 and validates all records/resources, without merge.
                         val prepared = BackupRepository(context).prepareImportFiles(listOf(fixed), File(probeDir, "validated"), check)
-                        if (prepared.snapshotAt > 0) eligible["legacy:${document.id}"] = Set("legacy:${document.id}", prepared.snapshotAt, listOf(verified), document.name)
+                        if (prepared.snapshotAt > 0) eligible["legacy:${document.id}"] = Set("legacy:${document.id}", prepared.snapshotAt,
+                            listOf(verified), document.name, automatic = !includeManual || automaticName(document.name))
                     }
                 } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Preserve this individual historical file and continue. */ }
                 finally { probeDir.deleteRecursively() }
@@ -135,7 +153,11 @@ object BackupRetention {
                     }
                     // Includes missing/duplicate/mixed-index/root/content validation; a header probe alone never qualifies a set.
                     val prepared = BackupRepository(context).prepareImportFiles(parts, File(groupDir, "validated"), check)
-                    eligible[id] = Set(id, prepared.snapshotAt, probes.map { it.document }, BackupNames.fileName(prepared.snapshotAt, true))
+                    // A set with any custom/manual volume name is manual. Retention still probes
+                    // only its original automatic candidates, never newly recognized custom names.
+                    val automatic = !includeManual || probes.all { automaticName(it.document.name) }
+                    eligible[id] = Set(id, prepared.snapshotAt, probes.map { it.document },
+                        BackupNames.fileName(prepared.snapshotAt, automatic), automatic)
                 } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Missing/corrupt sets remain untouched. */ }
                 finally { groupDir.deleteRecursively() }
             }

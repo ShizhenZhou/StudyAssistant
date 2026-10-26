@@ -25,6 +25,7 @@ class BackupJobsIntegrationTest {
     private fun works() = WorkManager.getInstance(context).getWorkInfosForUniqueWork("backup-v4-on-open").get().filter { !it.state.isFinished }
     @Before fun reset() {
         WorkManager.getInstance(context).cancelUniqueWork("backup-v4-on-open").result.get()
+        TestBackupDocumentsProvider.reset(context)
         prefs.edit().clear().putString("auto_backup_tree", "content://${context.packageName}.fixture.backups/tree/root").commit()
         runBlocking { dao.insert(Question(fixtureId, "synthetic schedule fixture", "answer", 1700000200000L)) }
     }
@@ -102,6 +103,101 @@ class BackupJobsIntegrationTest {
         BackupJobs.onAppOpened(context)
         assertEquals(1, works().size)
     }
+    private suspend fun saveFolderBackup(at: Long, automatic: Boolean): String {
+        val work = java.io.File(context.cacheDir, "schedule-fixture-${java.util.UUID.randomUUID()}")
+        try {
+            val output = java.io.File(work, "export")
+            BackupRepository(context).export(output)
+            val archive = BackupArchive.writeTree(java.io.File(output, "tree"), java.io.File(work, "dated"), snapshotAt = at)
+            BackupDocuments.writeSet(context, archive, AutoBackup.treeUri(context)!!, automatic)
+            return archive.contentHash
+        } finally { work.deleteRecursively() }
+    }
+    @Test fun actualFolderManualBackupTodaySuppressesAutomaticPlanWithoutLocalSuccessFlag() = runBlocking {
+        saveFolderBackup(System.currentTimeMillis(), false)
+        assertFalse(prefs.contains("backup_job_checked_day"))
+        BackupJobs.onAppOpened(context)
+        assertTrue(works().isEmpty())
+        assertEquals("data.backupJob.today", BackupJobs.status(context).phaseKey)
+        // Explicit requests remain available even though today's folder backup exists.
+        BackupJobs.requestNow(context)
+        assertFalse(prefs.getBoolean("backup_job_automatic", true))
+        assertNotNull(prefs.getString("backup_job_work_id", null))
+    }
+    @Test fun deletingAllBackupsTodayDoesNotLetStaleSuccessfulFlagsBlockANewPlan() = runBlocking {
+        saveFolderBackup(System.currentTimeMillis(), false)
+        val today = AutoBackup.dayKey(System.currentTimeMillis())
+        prefs.edit().putString("backup_job_checked_day", today).putString("backup_job_attempt_day", today)
+            .putString("backup_job_hash", "stale-success").putString("backup_job_phase", "data.backupJob.success").commit()
+        TestBackupDocumentsProvider.reset(context)
+        BackupJobs.onAppOpened(context)
+        assertEquals(1, works().size)
+        assertTrue(BackupJobs.status(context).active)
+    }
+    @Test fun actualFolderAutomaticBackupTodayAlsoSuppressesPlanAndYesterdayDoesNot() = runBlocking {
+        saveFolderBackup(System.currentTimeMillis(), true)
+        BackupJobs.onAppOpened(context)
+        assertTrue(works().isEmpty())
+        TestBackupDocumentsProvider.reset(context)
+        saveFolderBackup(System.currentTimeMillis() - 48 * 60 * 60_000L, false)
+        BackupJobs.onAppOpened(context)
+        assertEquals(1, works().size)
+    }
+    private fun waitForWorker() {
+        val deadline = android.os.SystemClock.uptimeMillis() + 20000
+        while (BackupJobs.status(context).active && android.os.SystemClock.uptimeMillis() < deadline) Thread.sleep(60)
+        assertFalse("Worker did not complete", BackupJobs.status(context).active)
+    }
+    @Test fun identicalContentStillWritesWhenTheLastFolderBackupWasDeleted() = runBlocking {
+        val hash = saveFolderBackup(System.currentTimeMillis(), false)
+        TestBackupDocumentsProvider.reset(context)
+        prefs.edit().putString("backup_job_hash", hash).commit()
+        BackupJobs.enqueue(context, automatic = true, delay = 0)
+        waitForWorker()
+        assertEquals("data.backupJob.success", BackupJobs.status(context).phaseKey)
+        assertEquals(1, BackupRetention.folderSummary(context, AutoBackup.treeUri(context)!!).automatic)
+    }
+    @Test fun workerSkipsAnAutomaticPlanWhenACompleteManualBackupAppearsBeforeExecution() = runBlocking {
+        saveFolderBackup(System.currentTimeMillis(), false)
+        BackupJobs.enqueue(context, automatic = true, delay = 0)
+        waitForWorker()
+        assertEquals("data.backupJob.today", BackupJobs.status(context).phaseKey)
+        val actual = BackupRetention.folderSummary(context, AutoBackup.treeUri(context)!!)
+        assertEquals(1, actual.manual); assertEquals(0, actual.automatic)
+    }
+    @Test fun automaticPlanWaitsThirtySecondsAndImmediateRequestReplacesIt() {
+        BackupJobs.onAppOpened(context)
+        val delayed = works().single()
+        assertEquals(30_000L, delayed.initialDelayMillis)
+        val oldToken = prefs.getString("backup_job_token", null)
+        BackupJobs.requestNow(context)
+        val immediateId = java.util.UUID.fromString(prefs.getString("backup_job_work_id", null))
+        val immediate = WorkManager.getInstance(context).getWorkInfoById(immediateId).get()!!
+        assertNotEquals(delayed.id, immediate.id)
+        assertEquals(0L, immediate.initialDelayMillis)
+        assertEquals(androidx.work.Constraints.NONE, immediate.constraints)
+        assertNotEquals(oldToken, prefs.getString("backup_job_token", null))
+        assertFalse(prefs.getBoolean("backup_job_automatic", true))
+        val replaced = WorkManager.getInstance(context).getWorkInfoById(delayed.id).get()
+        assertTrue("The old plan must be canceled or removed", replaced == null || replaced.state == androidx.work.WorkInfo.State.CANCELLED)
+        assertFalse(works().any { it.id == delayed.id })
+    }
+    @Test fun manualRequestDoesNotInterruptWorkThatHasAlreadyStarted() {
+        BackupJobs.onAppOpened(context)
+        val token = prefs.getString("backup_job_token", null)
+        prefs.edit().putString("backup_job_phase", "data.backupJob.writing").commit()
+        BackupJobs.requestNow(context)
+        assertEquals(token, prefs.getString("backup_job_token", null))
+    }
+    @Test fun cancelingAnOlderPendingPlanSuppressesReschedulingOnTheActualCancellationDay() {
+        BackupJobs.onAppOpened(context)
+        prefs.edit().putString("backup_job_attempt_day", "1900-01-01").commit()
+        BackupJobs.cancel(context)
+        WorkManager.getInstance(context).cancelUniqueWork("backup-v4-on-open").result.get()
+        BackupJobs.onAppOpened(context)
+        assertTrue(works().isEmpty())
+        assertEquals(AutoBackup.dayKey(System.currentTimeMillis()), prefs.getString("backup_job_attempt_day", null))
+    }
     @Test fun repeatedOpensCreateOneTaskAndCancelPersists() {
         BackupJobs.onAppOpened(context)
         val first = works().single().id
@@ -114,12 +210,14 @@ class BackupJobsIntegrationTest {
         assertFalse(BackupJobs.status(context).active)
         assertEquals("data.backupJob.canceled", BackupJobs.status(context).phaseKey)
     }
-    @Test fun manualRequestBypassesDailyCheckAndConfigChangeDoesNotSchedule() {
-        prefs.edit().putString("backup_job_checked_day", AutoBackup.dayKey(System.currentTimeMillis())).commit()
+    @Test fun manualRequestBypassesDailyCheckAndConfigChangeDoesNotSchedule() = runBlocking {
+        saveFolderBackup(System.currentTimeMillis(), false)
         BackupJobs.onAppOpened(context)
         assertTrue(works().isEmpty())
         BackupJobs.requestNow(context)
-        assertEquals(1, works().size)
+        val manualId = java.util.UUID.fromString(prefs.getString("backup_job_work_id", null))
+        assertNotNull(WorkManager.getInstance(context).getWorkInfoById(manualId).get())
+        assertFalse(prefs.getBoolean("backup_job_automatic", true))
         val epoch = prefs.getLong("backup_job_generation", 0)
         BackupJobs.configurationChanged(context)
         WorkManager.getInstance(context).cancelUniqueWork("backup-v4-on-open").result.get()

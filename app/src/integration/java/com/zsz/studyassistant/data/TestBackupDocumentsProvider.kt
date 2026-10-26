@@ -14,13 +14,14 @@ import java.util.UUID
 /** Exists only in the independent integration APK. Synthetic files and deterministic fault injection. */
 class TestBackupDocumentsProvider : DocumentsProvider() {
     companion object {
+        @Volatile var writeGate: java.util.concurrent.CountDownLatch? = null
         @Volatile var denyAccess = false
         @Volatile var corruptReads = false
         @Volatile var returnExistingId: String? = null
         @Volatile var denyListing = false
         fun reset(context: Context) {
             check(context.packageName == "com.zsz.studyassistant.integration")
-            denyAccess = false; corruptReads = false; returnExistingId = null; denyListing = false
+            writeGate = null; denyAccess = false; corruptReads = false; returnExistingId = null; denyListing = false
             File(context.filesDir, "saf-fixture").listFiles()?.filter { it.isFile }?.forEach { check(it.delete()) }
         }
     }
@@ -79,6 +80,7 @@ class TestBackupDocumentsProvider : DocumentsProvider() {
         parentDocumentId == "root" && (documentId == "root" || file(documentId).isFile)
     override fun openDocument(documentId: String, mode: String, signal: CancellationSignal?): ParcelFileDescriptor {
         access()
+        if (mode.contains('w')) check(writeGate?.await(15, java.util.concurrent.TimeUnit.SECONDS) != false)
         val target = if (corruptReads && mode == "r") File(directory(), "corrupt-fixture.bin").apply { writeText("corrupt") }
             else file(documentId)
         return ParcelFileDescriptor.open(target, ParcelFileDescriptor.parseMode(mode))

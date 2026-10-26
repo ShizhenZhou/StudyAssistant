@@ -3,8 +3,12 @@ package com.zsz.studyassistant.data
 /** Pure decisions shared by the UI trigger and the durable worker. */
 data class BackupSetStamp(val id:String,val at:Long,val complete:Boolean,val automatic:Boolean)
 object BackupTaskPolicy {
-    fun shouldSchedule(enabled:Boolean,hasFolder:Boolean,today:String,lastAttemptDay:String?,checkedDay:String?,active:Boolean,hasQuestions:Boolean=true):Boolean =
-        enabled && hasFolder && hasQuestions && !active && today!=lastAttemptDay && today!=checkedDay
+    fun shouldSchedule(enabled:Boolean,hasFolder:Boolean,today:String,active:Boolean,hasQuestions:Boolean=true,
+        latestBackupDay:String?=null,canceledDay:String?=null):Boolean =
+        enabled && hasFolder && hasQuestions && !active && today!=latestBackupDay && today!=canceledDay
+
+    fun canRequestNow(active:Boolean,automatic:Boolean,phase:String):Boolean =
+        !active || (automatic && phase == "data.backupJob.queued")
 
     /** Never prune based on an unverified replacement; protect the new set even after clock rollback. */
     fun pruneSetIds(sets:List<BackupSetStamp>,newId:String,keep:Int):List<String> {

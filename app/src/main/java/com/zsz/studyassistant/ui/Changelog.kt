@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7.1
+· 📂 从实际备份文件夹分别统计手动、自动备份套数，分卷合并计数；读取失败不再显示为零
+· 🗓️ 按手机本地日期每天备份一次；当天已有任一完整手动或自动备份则跳过，其他日期即使内容未变也备份
+· ⏱️ 自动备份计划延迟调整为30秒；等待中的计划可由“立即备份一次”取消接管
+· 🛡️ 立即备份仍由系统持久任务执行，离开页面后可继续；正在执行的备份避免被重复点击打断
+
 v0.6.7
 · 📦 备份升级为 v4 压缩包，使用原生 ZIP、图片去重及有界流式处理，较大备份自动分卷
 · 📥 恢复时可一次多选全部分卷，先校验再确认导入；兼容旧 v3 JSON，相同题号保留本机内容
@@ -436,6 +442,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7.1
+· 📂 Count manual and automatic sets directly from the selected folder; multipart sets count once and read failures are separate from zero
+· 🗓️ Back up once per local calendar day; skip if any complete manual or automatic backup exists today, otherwise back up even unchanged content
+· ⏱️ Automatic plans use a 30-second delay; Back up now replaces a pending automatic plan
+· 🛡️ Immediate backups remain durable system work independent of the page; repeated taps do not interrupt running backups
+
 v0.6.7
 · 📦 Backup v4 uses native ZIP compression, image deduplication and bounded streaming; large backups split into parts
 · 📥 Select all parts together for validated, confirmed import; legacy v3 JSON remains supported and existing question IDs keep local content
@@ -867,6 +879,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7.1
+· 📂 実際のフォルダーから手動・自動のセット数を別々に集計。分巻は1セット、読み取り失敗は0件と区別
+· 🗓️ 端末の現地日付で1日1回バックアップ。本日の完全な手動・自動バックアップがあればスキップし、他の日は変更がなくても実行
+· ⏱️ 自動予約は30秒遅延。「今すぐバックアップ」で待機中の自動予約を置き換え可能
+· 🛡️ 即時バックアップも永続システムタスクで実行。画面を閉じても継続し、実行中の重複操作を防止
+
 v0.6.7
 · 📦 バックアップv4は標準ZIP圧縮・画像の重複排除・有界ストリーム処理を採用し、大容量時は分巻
 · 📥 全巻をまとめて選択し、検証・確認後にインポート。旧v3 JSONに対応し、同じ問題IDの端末内データを維持
@@ -1298,6 +1316,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7.1
+· 📂 실제 폴더에서 수동·자동 백업 세트를 각각 집계. 분할은 한 세트로 계산하고 읽기 실패를 0과 구분
+· 🗓️ 기기의 현지 날짜로 하루 한 번 백업. 오늘의 완전한 수동·자동 백업이 있으면 건너뛰며 다른 날에는 내용이 같아도 실행
+· ⏱️ 자동 예약 지연을 30초로 변경. 지금 백업으로 대기 중인 자동 예약을 대체 가능
+· 🛡️ 즉시 백업도 영구 시스템 작업으로 실행. 화면을 닫아도 계속하며 실행 중 중복 조작 방지
+
 v0.6.7
 · 📦 백업 v4는 기본 ZIP 압축, 이미지 중복 제거 및 제한된 메모리 스트리밍을 사용하며 큰 백업을 분할
 · 📥 모든 분할 파일을 한 번에 선택하고 검증 및 확인 후 가져오기. 기존 v3 JSON 지원 및 같은 문제 ID의 기기 내 내용 유지

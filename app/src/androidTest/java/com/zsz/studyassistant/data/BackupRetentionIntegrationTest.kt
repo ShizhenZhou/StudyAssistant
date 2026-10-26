@@ -146,4 +146,154 @@ class BackupRetentionIntegrationTest {
         assertTrue(old.all { file(it).isFile })
         assertTrue(File(context.noBackupFilesDir, "backup-retention").listFiles().isNullOrEmpty())
     }
+    /** A real repository snapshot, re-packed only to give each synthetic fixture a deterministic time. */
+    private suspend fun business(work: File, at: Long, multi: Boolean = false): BackupArchive.ArchiveSet {
+        val name = "folder-summary-${UUID.randomUUID()}.db"
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        try {
+            val created = 1700000300000L
+            db.questionDao().insert(Question(QuestionIdentity.create(created),
+                if (multi) "甲".repeat(40000) else "synthetic question", "answer", created))
+            val directory = File(work, "business-${UUID.randomUUID()}")
+            BackupRepository(context, db).export(directory)
+            return BackupArchive.writeTree(File(directory, "tree"), File(directory, "timed"), at,
+                if (multi) 16384L else BackupArchive.DEFAULT_VOLUME_BYTES)
+        } finally { db.close(); context.deleteDatabase(name) }
+    }
+    private fun external(set: BackupArchive.ArchiveSet, automatic: Boolean): List<Uri> =
+        set.files.mapIndexed { i, source -> save(BackupNames.fileName(set.snapshotAt, automatic, i, set.files.size), source.readBytes()) }
+
+    private fun assertSummary(expected: BackupRetention.FolderSummary, actual: BackupRetention.FolderSummary) {
+        assertEquals(expected.manual, actual.manual)
+        assertEquals(expected.automatic, actual.automatic)
+        assertEquals(expected.latestAt, actual.latestAt)
+        assertEquals(expected.backupDays, actual.backupDays)
+    }
+
+    @Test fun immediateManualWriteWithoutLedgerCountsAndUsesInternalSnapshotTime() = runBlocking {
+        val work = workspace()
+        try {
+            val set = business(work, 1234)
+            assertTrue(BackupDocuments.writeSet(context, set, tree, false).ok)
+            assertEquals("[]", context.getSharedPreferences("settings", Context.MODE_PRIVATE).getString(BackupRetention.LEDGER, "[]"))
+            File(context.filesDir, "saf-fixture").listFiles()!!.forEach { assertTrue(it.setLastModified(999999999999L)) }
+            assertSummary(BackupRetention.FolderSummary(manual = 1, latestAt = 1234, backupDays = setOf(AutoBackup.dayKey(1234))), BackupRetention.folderSummary(context, tree))
+            assertEquals(0, BackupRetention.listNames(context, tree).size)
+        } finally { work.deleteRecursively() }
+    }
+    @Test fun freshFolderSummaryCountsUnrecordedMixedSetsAndLegacyWithOneCountPerSet() = runBlocking {
+        val work = workspace()
+        try {
+            val manual = business(work, 100, multi = true)
+            val automatic = business(work, 200, multi = true)
+            assertTrue(manual.files.size > 1); assertTrue(automatic.files.size > 1)
+            val documents = external(manual, false)
+            external(automatic, true)
+            val old = legacy(300)
+            assertSummary(BackupRetention.FolderSummary(1, 2, 300, backupDays = setOf(AutoBackup.dayKey(300))), BackupRetention.folderSummary(context, tree))
+            assertTrue(file(old).delete())
+            assertTrue(file(documents.first()).delete())
+            assertSummary(BackupRetention.FolderSummary(0, 1, 200, backupDays = setOf(AutoBackup.dayKey(200))), BackupRetention.folderSummary(context, tree))
+        } finally { work.deleteRecursively() }
+    }
+    @Test fun folderSummaryExcludesCorruptUnrelatedAndIncompleteArchives() = runBlocking {
+        val work = workspace()
+        try {
+            val valid = business(work, 100, multi = true)
+            val documents = external(valid, false)
+            assertTrue(file(documents.first()).delete())
+            val corrupt = external(business(work, 200), true).single()
+            file(corrupt).writeText("broken zip")
+            external(generic(work, 300), false)
+            save("SABak-19700101000001.sab", "ignored".toByteArray())
+            save("unrelated.zip", "ignored".toByteArray())
+            assertSummary(BackupRetention.FolderSummary(), BackupRetention.folderSummary(context, tree))
+        } finally { work.deleteRecursively() }
+    }
+    @Test fun retentionNeverDeletesManualSetsIncludedInFolderSummary() = runBlocking {
+        val work = workspace()
+        try {
+            val manual = external(business(work, 900, multi = true), false)
+            (1L..4L).forEach { legacy(it) }
+            assertSummary(BackupRetention.FolderSummary(1, 4, 900, backupDays = setOf(AutoBackup.dayKey(900))), BackupRetention.folderSummary(context, tree))
+            assertEquals(2, BackupRetention.preTrim(context, tree))
+            assertTrue(manual.all { file(it).isFile })
+            assertSummary(BackupRetention.FolderSummary(1, 2, 900, backupDays = setOf(AutoBackup.dayKey(900))), BackupRetention.folderSummary(context, tree))
+        } finally { work.deleteRecursively() }
+    }
+
+    @Test fun folderSummaryPropagatesFolderAccessFailureAndCancellation() {
+        TestBackupDocumentsProvider.denyListing = true
+        try {
+            BackupRetention.folderSummary(context, tree)
+            fail("folder listing failure hidden")
+        } catch (_: Exception) {
+        } finally { TestBackupDocumentsProvider.denyListing = false }
+        try {
+            BackupRetention.folderSummary(context, tree) { throw CancellationException("synthetic stop") }
+            fail("folder summary cancellation hidden")
+        } catch (_: CancellationException) { }
+    }
+
+    @Test fun staleLedgerAndRetentionProtectionCannotHideValidReplacementContents() = runBlocking {
+        val work = workspace()
+        try {
+            assertTrue(BackupDocuments.writeSet(context, business(work, 100), tree, true).ok)
+            val document = BackupRetention.list(context, tree).single()
+            val replacement = business(work, 200)
+            file(BackupRetention.uri(tree, document.id)).writeBytes(replacement.files.single().readBytes())
+            BackupRetention.protectDocuments(context, tree, setOf(document.id))
+            assertSummary(BackupRetention.FolderSummary(0, 1, 200, backupDays = setOf(AutoBackup.dayKey(200))), BackupRetention.folderSummary(context, tree))
+            // Retention still refuses to delete protected/replaced owned documents.
+            (1L..4L).forEach { legacy(it) }
+            assertEquals(2, BackupRetention.preTrim(context, tree))
+            assertTrue(file(BackupRetention.uri(tree, document.id)).isFile)
+        } finally { work.deleteRecursively() }
+    }
+
+    @Test fun folderDaysRetainTodayDespiteFutureDatedCompleteBackup() = runBlocking {
+        val work = workspace()
+        try {
+            val calendar = java.util.Calendar.getInstance()
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 12)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            val today = calendar.timeInMillis
+            calendar.add(java.util.Calendar.DAY_OF_MONTH, 2)
+            val future = calendar.timeInMillis
+            external(business(work, future), true)
+            external(business(work, today), false)
+            val summary = BackupRetention.folderSummary(context, tree)
+            assertEquals(1, summary.manual)
+            assertEquals(1, summary.automatic)
+            assertEquals(future, summary.latestAt)
+            assertEquals(setOf(AutoBackup.dayKey(today), AutoBackup.dayKey(future)), summary.backupDays)
+            // Both kinds contribute independently: a future manual set must not hide today's auto.
+            TestBackupDocumentsProvider.reset(context)
+            external(business(work, future), false)
+            external(business(work, today), true)
+            val swapped = BackupRetention.folderSummary(context, tree)
+            assertEquals(future, swapped.latestAt)
+            assertTrue(AutoBackup.dayKey(today) in swapped.backupDays)
+        } finally { work.deleteRecursively() }
+    }
+
+    @Test fun customNamedBusinessZipAndLegacyJsonCountAsManualAndRemainOutsideRetention() = runBlocking {
+        val work = workspace()
+        try {
+            val archive = business(work, 100, multi = true)
+            val custom = archive.files.mapIndexed { index, source -> save("my-backup-$index.zip", source.readBytes()) }
+            val json = legacy(200, "my-old-backup.json")
+            val summary = BackupRetention.folderSummary(context, tree)
+            assertEquals(2, summary.manual)
+            assertEquals(0, summary.automatic)
+            assertEquals(200L, summary.latestAt)
+            (1L..4L).forEach { legacy(it) }
+            assertEquals(2, BackupRetention.preTrim(context, tree))
+            assertTrue(custom.all { file(it).isFile })
+            assertTrue(file(json).isFile)
+        } finally { work.deleteRecursively() }
+    }
+
 }

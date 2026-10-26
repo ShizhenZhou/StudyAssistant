@@ -26,7 +26,9 @@ import java.util.concurrent.TimeUnit
 
 /** A single durable app-open request; no periodic or application-start scheduling. */
 object BackupJobs {
-    data class Status(val phaseKey: String = "", val errorKey: String? = null, val progressBytes: Long = 0, val active: Boolean = false)
+    data class Status(val phaseKey: String = "", val errorKey: String? = null, val progressBytes: Long = 0, val active: Boolean = false, val automatic: Boolean = true) {
+        val canRequestNow: Boolean get() = BackupTaskPolicy.canRequestNow(active, automatic, phaseKey)
+    }
     data class Notice(val automatic: Boolean, val snapshotAt: Long)
     private val events = MutableSharedFlow<Notice>(extraBufferCapacity = 1)
     val notices: SharedFlow<Notice> = events
@@ -36,25 +38,55 @@ object BackupJobs {
     internal const val PREFIX = "backup_job_"
     internal fun prefs(c: Context) = c.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun setForeground(active: Boolean) { foreground = active }
-    @Synchronized fun onAppOpened(context: Context) {
+    /** Folder IO runs without holding the scheduling monitor, so a manual request can take priority. */
+    fun onAppOpened(context: Context) {
+        var expectedTree: android.net.Uri? = null
+        var expectedGeneration: Long? = null
         try {
-        if (!AutoBackup.isEnabled(context) || AutoBackup.treeUri(context) == null) return
-        val p = prefs(context)
-        if (p.getBoolean(PREFIX + "active", false) && !reconcile(context)) return
-        // A terminal permission/space/data error waits for explicit retry or configuration change.
-        if (p.getString(PREFIX + "error", null) != null && !p.getBoolean(PREFIX + "dispatch_failed", false)) return
-        val today = AutoBackup.dayKey(System.currentTimeMillis())
-        if (!BackupTaskPolicy.shouldSchedule(AutoBackup.isEnabled(context), AutoBackup.treeUri(context) != null, today,
-                p.getString(PREFIX + "attempt_day", null), p.getString(PREFIX + "checked_day", null), p.getBoolean(PREFIX + "active", false), hasActiveQuestions(context))) return
-        enqueue(context, automatic = true, delay = 60)
+            val opening = synchronized(this) {
+                if (!AutoBackup.isEnabled(context)) return
+                val tree = AutoBackup.treeUri(context) ?: return
+                val p = prefs(context)
+                if (p.getBoolean(PREFIX + "active", false) && !reconcile(context)) return
+                if (p.getString(PREFIX + "error", null) != null && !p.getBoolean(PREFIX + "dispatch_failed", false)) return
+                if (!hasActiveQuestions(context)) return
+                expectedTree = tree
+                expectedGeneration = p.getLong(PREFIX + "generation", 0)
+                tree to expectedGeneration
+            }
+            val summary = BackupRetention.folderSummary(context, opening.first)
+            synchronized(this) {
+                val p = prefs(context)
+                if (AutoBackup.treeUri(context) != opening.first || p.getLong(PREFIX + "generation", 0) != opening.second ||
+                    !AutoBackup.isEnabled(context) || p.getBoolean(PREFIX + "active", false)) return
+                val today = AutoBackup.dayKey(System.currentTimeMillis())
+                val latestDay = today.takeIf { it in summary.backupDays }
+                if (latestDay == today) {
+                    p.edit().putString(PREFIX + "phase", "data.backupJob.today").remove(PREFIX + "error").commit()
+                    return
+                }
+                val canceledDay = p.getString(PREFIX + "attempt_day", null)
+                    .takeIf { p.getString(PREFIX + "phase", null) == "data.backupJob.canceled" }
+                if (!BackupTaskPolicy.shouldSchedule(true, true, today, false,
+                        hasActiveQuestions(context), latestDay, canceledDay)) return
+                enqueue(context, automatic = true, delay = 30)
+            }
         } catch (_: Exception) {
-            recordSchedulingFailure(context, true, "data.autoBackup.snapshotFailed")
+            synchronized(this) {
+                if (expectedGeneration == null || (AutoBackup.treeUri(context) == expectedTree &&
+                        prefs(context).getLong(PREFIX + "generation", 0) == expectedGeneration))
+                    recordSchedulingFailure(context, true, "data.autoBackup.snapshotFailed")
+            }
         }
     }
     @Synchronized fun requestNow(context: Context) {
         try {
+            if (!status(context).canRequestNow) return
             invalidate(context)
-            if (AutoBackup.treeUri(context) != null) enqueue(context, automatic = false, delay = 0)
+            if (AutoBackup.treeUri(context) != null) {
+                // This runs on IO: do not report a queued manual request before WorkManager commits it.
+                enqueue(context, automatic = false, delay = 0)?.result?.get(5, TimeUnit.SECONDS)
+            }
         } catch (_: Exception) { recordSchedulingFailure(context, false, "data.autoBackup.storageFailed") }
     }
     /** Reconcile only UI opens. A preference commit may survive a process death before dispatch. */
@@ -84,14 +116,15 @@ object BackupJobs {
     internal fun enqueue(context: Context, automatic: Boolean, delay: Long,
         dispatch: (androidx.work.OneTimeWorkRequest) -> androidx.work.Operation = {
             WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, it)
-        }) {
+        }): androidx.work.Operation? {
+        var queuedOperation: androidx.work.Operation? = null
         var failureKey = "data.autoBackup.snapshotFailed"
         try {
         val p = prefs(context)
         val token = UUID.randomUUID().toString()
         val generation = p.getLong(PREFIX + "generation", 0)
-        val tree = AutoBackup.treeUri(context)?.toString() ?: return
-        if (automatic && !hasActiveQuestions(context)) return
+        val tree = AutoBackup.treeUri(context)?.toString() ?: return null
+        if (automatic && !hasActiveQuestions(context)) return null
         failureKey = "data.autoBackup.storageFailed"
         // State is committed before dispatch, so repeated activity creation cannot duplicate a request.
         p.edit().putString(PREFIX + "token", token).putBoolean(PREFIX + "active", true)
@@ -103,11 +136,13 @@ object BackupJobs {
             .addTag("backup-token:$token")
             .setInputData(workDataOf("token" to token, "generation" to generation, "tree" to tree, "automatic" to automatic))
             .setInitialDelay(delay, TimeUnit.SECONDS)
-            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build())
+            .setConstraints(if (automatic) Constraints.Builder().setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build()
+                else Constraints.NONE)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES).build()
         p.edit().putString(PREFIX + "work_id", request.id.toString()).commit()
         try {
             val operation = dispatch(request)
+            queuedOperation = operation
             operation.result.addListener({
                 try { operation.result.get() }
                 catch (_: Exception) { synchronized(BackupJobs) { dispatchFailed(context, token) } }
@@ -116,6 +151,7 @@ object BackupJobs {
         } catch (_: Exception) {
             recordSchedulingFailure(context, automatic, failureKey)
         }
+        return queuedOperation
     }
     /** UI entry points must never crash the app when local DB or scheduler services fail. */
     private fun recordSchedulingFailure(context: Context, automatic: Boolean, key: String, terminal: Boolean = true) {
@@ -140,7 +176,8 @@ object BackupJobs {
     }
     @Synchronized fun cancel(context: Context) {
         invalidate(context)
-        prefs(context).edit().putString(PREFIX + "phase", "data.backupJob.canceled").commit()
+        prefs(context).edit().putString(PREFIX + "phase", "data.backupJob.canceled")
+            .putString(PREFIX + "attempt_day", AutoBackup.dayKey(System.currentTimeMillis())).commit()
     }
     @Synchronized fun invalidate(context: Context) {
         val p = prefs(context)
@@ -154,7 +191,7 @@ object BackupJobs {
         prefs(context).edit().remove(PREFIX + "attempt_day").remove(PREFIX + "checked_day")
             .remove(PREFIX + "hash").remove(PREFIX + "phase").remove(PREFIX + "error").remove(PREFIX + "dispatch_failed").commit()
     }
-    fun status(context: Context): Status = prefs(context).let { Status(it.getString(PREFIX + "phase", "") ?: "", it.getString(PREFIX + "error", null), it.getLong(PREFIX + "bytes", 0), it.getBoolean(PREFIX + "active", false)) }
+    fun status(context: Context): Status = prefs(context).let { Status(it.getString(PREFIX + "phase", "") ?: "", it.getString(PREFIX + "error", null), it.getLong(PREFIX + "bytes", 0), it.getBoolean(PREFIX + "active", false), it.getBoolean(PREFIX + "automatic", true)) }
     suspend fun <T> exclusive(context: Context, block: suspend () -> T): T {
         invalidate(context)
         return mutex.withLock { block() }
@@ -226,8 +263,20 @@ class BackupWorker(context: Context, parameters: WorkerParameters) : CoroutineWo
         val workspace = File(root, token).apply { mkdirs() }
         val manifest = File(workspace, "complete.json")
         try {
-            check()
+            state("data.backupJob.capturing")
             if (BackupJobs.stopAutomaticIfEmpty(c, automatic, check)) return Result.success()
+            if (automatic && !manifest.exists()) {
+                val saved = BackupRetention.folderSummary(c, tree, check)
+                if (AutoBackup.dayKey(System.currentTimeMillis()) in saved.backupDays) {
+                    synchronized(BackupJobs) {
+                        check()
+                        p.edit().putBoolean(prefix + "active", false).putString(prefix + "phase", "data.backupJob.today")
+                            .remove(prefix + "error").commit()
+                    }
+                    workspace.deleteRecursively()
+                    return Result.success()
+                }
+            }
             if (automatic) {
                 state("data.backupJob.retention")
                 BackupJobs.preTrimOnce(c, tree, token, check)
@@ -252,15 +301,6 @@ class BackupWorker(context: Context, parameters: WorkerParameters) : CoroutineWo
                 if (!temp.renameTo(manifest)) throw IOException("checkpoint")
             }
             check()
-            if (automatic && p.getString(prefix + "hash", null) == set.contentHash) {
-                synchronized(BackupJobs) {
-                check()
-                p.edit().putString(prefix + "checked_day", AutoBackup.dayKey(System.currentTimeMillis()))
-                    .putBoolean(prefix + "active", false).putString(prefix + "phase", "data.backupJob.unchanged").remove(prefix + "error").commit()
-                }
-                workspace.deleteRecursively()
-                return Result.success()
-            }
             state("data.backupJob.writing")
             val result = BackupDocuments.writeSet(c, set, tree, automatic, check)
             check()
