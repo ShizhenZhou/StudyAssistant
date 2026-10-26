@@ -110,6 +110,12 @@ fun SettingsTab(vm: MainViewModel) {
             vm.openDataUpgradePage = false
         }
     }
+    LaunchedEffect(vm.openBackupManagementPage) {
+        if (vm.openBackupManagementPage) {
+            page = AppNav.SettingsPages.DATA_BACKUP
+            vm.openBackupManagementPage = false
+        }
+    }
     val s = LocalStrings.current
 
     when (page) {
@@ -205,7 +211,7 @@ private fun AboutPage() {
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Text(s.format("about.tech.body", "api" to "${aboutContext.applicationInfo.minSdkVersion}",
             "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
-            "bak" to "${com.zsz.studyassistant.data.BackupFile.VERSION}"),
+            "bak" to "${com.zsz.studyassistant.data.BackupArchive.VERSION}"),
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
     }
     Spacer(Modifier.height(20.dp))
@@ -848,7 +854,7 @@ private fun DataUpgradePage(vm: MainViewModel) {
     Text(
         s.format("data.supportedVersions",
             "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
-            "bak" to "${com.zsz.studyassistant.data.BackupFile.VERSION}"),
+            "bak" to "${com.zsz.studyassistant.data.BackupArchive.VERSION}"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
@@ -888,17 +894,13 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
     }
 }
 
-/** 💾 备份管理：摘要 + 导出 / 导入 / 清空（数据管理默认子页） */
+/** Backup management uses a private, validated tree before any picker or database write. */
 @Composable
 private fun BackupSettings(vm: MainViewModel) {
-    val context = LocalContext.current
     val s = LocalStrings.current
-    val feedback = LocalAppFeedback.current
-
-    // 本页只显示自己的结果（导出 / 导入）；升级与清空的文案归各自页面，避免串页
+    var showParts by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearDataMessage() }
-    androidx.compose.runtime.DisposableEffect(vm) { onDispose { vm.discardPreparedBackup() } }
-
+    // ViewModel owns prepared files across system pickers and page/activity recreation.
     val summary = vm.dataSummary
     Text(
         if (summary == null) s["data.summary"].replace("{q}", "…").replace("{c}", "…").replace("{t}", "…")
@@ -906,196 +908,231 @@ private fun BackupSettings(vm: MainViewModel) {
         style = MaterialTheme.typography.bodyMedium
     )
     Spacer(Modifier.height(16.dp))
-
-    // 导出
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) {
-            vm.exportBackup(onReady = { json ->
-                try {
-                    com.zsz.studyassistant.data.writeUtf8Document(json) {
-                        context.contentResolver.openOutputStream(uri, "wt")
-                    }
-                    feedback.show(s["feedback.exportDone"])
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    feedback.show(s["feedback.writeFailed"], isError = true)
-                }
-            }, onError = { feedback.show(it, isError = true) })
-        }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri == null) vm.discardPreparedExport() else vm.writePreparedBackup(uri)
     }
-    Button(shape = smoothPill(), onClick = { exportLauncher.launch("study-assistant-backup.json") },
-        enabled = !vm.dataBusy && vm.preparedBackup == null, modifier = Modifier.fillMaxWidth()) {
-        Text(s["data.export"])
+    val exportTreeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri == null) vm.discardPreparedExport() else vm.writePreparedBackup(uri, tree = true)
+    }
+    val idle = !vm.dataBusy && vm.preparedBackup == null
+    fun savePrepared(set: com.zsz.studyassistant.data.BackupArchive.ArchiveSet) {
+        showParts = set.files.size != 1
+        if (set.files.size == 1) exportLauncher.launch("study-assistant-backup.sab")
+    }
+    Button(shape = smoothPill(), onClick = {
+        val ready = vm.preparedExport
+        if (ready != null) savePrepared(ready) else vm.prepareBackupExport { savePrepared(it) }
+    }, enabled = idle, modifier = Modifier.fillMaxWidth()) {
+        Text(s[if (vm.preparedExport == null) "data.export" else "data.backupContinue"])
+    }
+    if (vm.preparedExport != null && !vm.dataBusy) {
+        TextButton(shape = smoothPill(), onClick = { showParts = false; vm.discardPreparedExport() }) {
+            Text(s["data.backupCancel"])
+        }
     }
     Spacer(Modifier.height(4.dp))
     Text(s["data.export.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-
     Spacer(Modifier.height(16.dp))
-
-    // 导入
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) vm.prepareBackupImport(uri)
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) vm.prepareBackupImport(uris)
     }
-    OutlinedButton(shape = smoothPill(), onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
-        enabled = !vm.dataBusy && vm.preparedBackup == null, modifier = Modifier.fillMaxWidth()) {
-        Text(s["data.import"])
-    }
+    OutlinedButton(shape = smoothPill(), onClick = {
+        importLauncher.launch(arrayOf("application/json", "application/zip", "application/octet-stream", "*/*"))
+    }, enabled = idle && vm.preparedExport == null, modifier = Modifier.fillMaxWidth()) { Text(s["data.import"]) }
     Spacer(Modifier.height(4.dp))
     Text(s["data.import.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-
     Spacer(Modifier.height(16.dp))
-
     if (vm.dataBusy) {
         Spacer(Modifier.height(12.dp))
         androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Text(s[vm.dataProgressKey ?: "data.exporting"], style = MaterialTheme.typography.bodySmall)
+        TextButton(shape = smoothPill(), onClick = { vm.cancelBackupOperation() }) { Text(s["data.backupCancel"]) }
     }
     FeedbackMessage(vm.dataMessage, vm.dataMessageIsError) { vm.clearDataMessage() }
-
-    if (vm.preparedBackup != null) {
+    if (showParts && vm.preparedExport != null) {
         AlertDialog(
-            onDismissRequest = { vm.discardPreparedBackup() },
+            onDismissRequest = { showParts = false; vm.discardPreparedExport() },
+            title = { Text(s["data.export"]) },
+            text = { Text(s.format("data.backupParts", "n" to "${vm.preparedExport!!.files.size}")) },
+            confirmButton = { TextButton(shape = smoothPill(), onClick = {
+                showParts = false; exportTreeLauncher.launch(null)
+            }) { Text(s["common.ok"]) } },
+            dismissButton = { TextButton(shape = smoothPill(), onClick = {
+                showParts = false; vm.discardPreparedExport()
+            }) { Text(s["common.cancel"]) } }
+        )
+    }
+    vm.preparedBackup?.let { prepared ->
+        AlertDialog(
+            onDismissRequest = { if (!vm.dataBusy) vm.discardPreparedBackup() },
             title = { Text(s["data.import"]) },
-            text = { Text(s["data.import.desc"]) },
-            confirmButton = {
-                TextButton(shape = smoothPill(), onClick = {
-                    vm.importBackup()
-                }) { Text(s["common.ok"]) }
-            },
-            dismissButton = { TextButton(shape = smoothPill(), onClick = { vm.discardPreparedBackup() }) { Text(s["common.cancel"]) } }
+            text = { Text(s.format("data.backupPreview", "q" to "${prepared.stats.questions}",
+                "c" to "${prepared.stats.categories}", "t" to "${prepared.stats.tags}")) },
+            confirmButton = { TextButton(shape = smoothPill(), onClick = { vm.importBackup() }, enabled = !vm.dataBusy) { Text(s["common.ok"]) } },
+            dismissButton = { TextButton(shape = smoothPill(), onClick = { vm.discardPreparedBackup() }, enabled = !vm.dataBusy) { Text(s["common.cancel"]) } }
         )
     }
 }
 
-/** 🗄 Backup management section: folder / daily switch / back up now. */
+/** One-time work is queued by an app-open event or an explicit user request. */
 @Composable
 private fun AutoBackupSettings(vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
-    val feedback = LocalAppFeedback.current
     val scope = rememberCoroutineScope()
-
-    // ── 自动备份（B8）：每天第一次打开应用时写一份 JSON 到用户选的文件夹，只留最近 3 份 ──
-    // 设计取舍：必须由用户选一次文件夹（SAF 持久化授权）才生效 —— 备份要能扛住"卸载/清除数据"；
-    // 不碰该文件夹里除自己写的 study-assistant-auto-*.json 之外的任何文件。
-    var autoFolder by remember { mutableStateOf(AutoBackup.folderName(context)) }
+    val feedback = LocalAppFeedback.current
+    var autoFolder by remember { mutableStateOf(AutoBackup.treeUri(context)?.lastPathSegment) }
     var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
-    var autoCount by remember { mutableStateOf(AutoBackup.listBackups(context).size) }
+    var autoCount by remember { mutableStateOf<Int?>(null) }
     var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
     var autoFailure by remember { mutableStateOf(AutoBackup.lastFailure(context)) }
+    var status by remember { mutableStateOf(com.zsz.studyassistant.data.BackupJobs.status(context)) }
+    var refresh by remember { mutableStateOf(0) }
+    var requesting by remember { mutableStateOf(false) }
+    var canNotify by remember { mutableStateOf(com.zsz.studyassistant.data.BackupNotifications.canNotify(context)) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        canNotify = com.zsz.studyassistant.data.BackupNotifications.canNotify(context)
+    }
+    val backupLifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(backupLifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                canNotify = com.zsz.studyassistant.data.BackupNotifications.canNotify(context)
+            }
+        }
+        backupLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { backupLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    fun requestFailureNotifications() {
+        com.zsz.studyassistant.data.BackupNotifications.ensureChannel(context)
+        val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        val needsRuntimePermission = com.zsz.studyassistant.data.BackupNotifications.needsPermission(context)
+        val activity = context as? android.app.Activity
+        val mayRequestAgain = !preferences.getBoolean("backup_failure_permission_asked", false) ||
+            (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity,
+                android.Manifest.permission.POST_NOTIFICATIONS))
+        if (needsRuntimePermission && mayRequestAgain) {
+            preferences.edit().putBoolean("backup_failure_permission_asked", true).apply()
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            val action = if (needsRuntimePermission || !androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())
+                android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS else android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+            context.startActivity(Intent(action)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, com.zsz.studyassistant.data.BackupNotifications.CHANNEL_ID))
+        }
+    }
+    val autoWriting = requesting || status.active
+    LaunchedEffect(context, refresh) {
+        val tree = AutoBackup.treeUri(context)
+        val details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            (AutoBackup.folderName(context) ?: tree?.lastPathSegment) to AutoBackup.listBackups(context).size
+        }
+        if (AutoBackup.treeUri(context) == tree) { autoFolder = details.first; autoCount = details.second }
+    }
     DisposableEffect(context) {
         val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key?.startsWith("auto_backup_") == true) {
-                autoLast = AutoBackup.lastBackupAt(context)
-                autoFailure = AutoBackup.lastFailure(context)
+            if (key?.startsWith("auto_backup_") == true || key?.startsWith("backup_job_") == true) {
+                scope.launch {
+                    autoLast = AutoBackup.lastBackupAt(context)
+                    autoFailure = AutoBackup.lastFailure(context)
+                    autoEnabled = AutoBackup.isEnabled(context)
+                    status = com.zsz.studyassistant.data.BackupJobs.status(context)
+                    if (key == "auto_backup_tree" || key == "auto_backup_last_at" || key == "backup_job_phase" || key == "backup_job_sets") refresh++
+                }
             }
         }
         preferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    var autoWriting by remember { mutableStateOf(false) }
-
-    /** 备份一次（按钮与"刚选完文件夹"共用）：写入并校验后才显示悬浮结果。 */
     fun backupNow() {
-        if (autoWriting || vm.dataBusy || vm.preparedBackup != null) return
-        autoWriting = true
-        val expectedTree = AutoBackup.treeUri(context)
-        vm.exportBackup(onReady = { json ->
-            // Await the whole write/verification so dataBusy also prevents competing exports/imports.
-            try {
-                val r = AutoBackup.runBackup(context, json)
-                autoCount = AutoBackup.listBackups(context).size
-                autoLast = AutoBackup.lastBackupAt(context)
-                feedback.backupResult(r, s)
-            } finally { autoWriting = false }
-        }, onError = { msg ->
-            AutoBackup.recordFailure(context, "data.autoBackup.snapshotFailed", expectedTree = expectedTree)
-            autoWriting = false
-            feedback.show(s.format("data.autoBackup.failed", "msg" to msg), isError = true, source = "backup")
-        })
-    }
-
-    val folderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            // 持久化授权：否则下次启动就读不到这个文件夹（自动备份会静默失效）
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (e: Exception) { /* 个别 ROM 会抛：仍先记下来，失败时界面会给提示 */ }
-            AutoBackup.setTreeUri(context, uri)
-            autoFolder = AutoBackup.folderName(context) ?: uri.lastPathSegment
-            autoCount = AutoBackup.listBackups(context).size
-            // 选完文件夹立刻备份一次：既确认权限可用，也让用户马上有一份可用的备份
-            backupNow()
+        if (autoWriting || vm.dataBusy || vm.preparedBackup != null || vm.preparedExport != null) return
+        requesting = true
+        scope.launch {
+            try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.zsz.studyassistant.data.BackupJobs.requestNow(context) } }
+            catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) { feedback.show(s["data.autoBackup.storageFailed"], isError = true, source = "backup") }
+            finally { requesting = false }
         }
     }
-
-    // Section heading is supplied by DataSettings; automatic backup behavior is unchanged.
-    Text(
-        if (autoFolder == null) s["data.autoBackup.noFolder"]
-        else s.format("data.autoBackup.folder", "name" to autoFolder!!),
+    val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        try {
+                            context.contentResolver.takePersistableUriPermission(uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        } catch (_: SecurityException) { /* The worker reports unusable provider permissions. */ }
+                        AutoBackup.setTreeUri(context, uri)
+                        com.zsz.studyassistant.data.BackupJobs.requestNow(context)
+                    }
+                    refresh++
+                    if (AutoBackup.isEnabled(context) && com.zsz.studyassistant.data.BackupNotifications.needsPermission(context) &&
+                        !context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getBoolean("backup_failure_permission_asked", false)) {
+                        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit()
+                            .putBoolean("backup_failure_permission_asked", true).apply()
+                        notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                catch (_: Exception) { feedback.show(s["data.autoBackup.storageFailed"], isError = true, source = "backup") }
+            }
+        }
+    }
+    Text(if (autoFolder == null) s["data.autoBackup.noFolder"] else s.format("data.autoBackup.folder", "name" to autoFolder!!),
         style = MaterialTheme.typography.bodySmall,
-        color = if (autoFolder == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
-    )
+        color = if (autoFolder == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(6.dp))
-    Text(
-        s.format("data.autoBackup.count", "n" to "$autoCount") + " · " +
-            if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline
-    )
-    autoFailure?.takeIf { AutoBackup.treeUri(context) != null }?.let { failure ->
+    Text(s.format("data.autoBackup.count", "n" to (autoCount?.toString() ?: "…")) + " · " +
+        if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    if (status.phaseKey.isNotEmpty()) {
         Spacer(Modifier.height(6.dp))
-        Text(s.format("data.autoBackup.healthWarning", "t" to formatCheckTime(failure.at),
-            "reason" to s[failure.key]), style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error)
+        Text(s[status.phaseKey] + if (status.active && status.progressBytes > 0) " · " + android.text.format.Formatter.formatShortFileSize(context, status.progressBytes) else "",
+            style = MaterialTheme.typography.bodySmall, color = if (status.errorKey == null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.error)
+    }
+    status.errorKey?.let { key ->
+        Text(s[key], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    autoFailure?.takeIf { AutoBackup.treeUri(context) != null && status.errorKey == null }?.let { failure ->
+        Spacer(Modifier.height(6.dp))
+        Text(s.format("data.autoBackup.healthWarning", "t" to formatCheckTime(failure.at), "reason" to s[failure.key]),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    if (status.active) {
+        TextButton(shape = smoothPill(), onClick = { scope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.zsz.studyassistant.data.BackupJobs.cancel(context) }
+        } }) { Text(s["data.backupCancel"]) }
     }
     Spacer(Modifier.height(8.dp))
-
-    OutlinedButton(
-        shape = smoothPill(),
-        onClick = { folderLauncher.launch(null) },
-        enabled = !autoWriting && !vm.dataBusy,
-        modifier = Modifier.fillMaxWidth().height(44.dp)
-    ) { Text(if (autoFolder == null) s["data.autoBackup.pick"] else s["data.autoBackup.change"]) }
-
+    OutlinedButton(shape = smoothPill(), onClick = { folderLauncher.launch(null) },
+        enabled = !requesting && !vm.dataBusy && vm.preparedBackup == null && vm.preparedExport == null,
+        modifier = Modifier.fillMaxWidth().height(44.dp)) {
+        Text(if (autoFolder == null) s["data.autoBackup.pick"] else s["data.autoBackup.change"])
+    }
     Spacer(Modifier.height(8.dp))
-    // 开关：每天首次启动时自动备份
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(s["data.autoBackup.daily"], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(
-            checked = autoEnabled,
-            onCheckedChange = { on ->
-                AutoBackup.setEnabled(context, on)
-                autoEnabled = on
-            }
-        )
+        Switch(checked = autoEnabled, onCheckedChange = { on ->
+            autoEnabled = on
+            scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AutoBackup.setEnabled(context, on) } }
+        })
     }
-
     Spacer(Modifier.height(8.dp))
-    Button(
-        shape = smoothPill(),
-        enabled = autoFolder != null && !vm.dataBusy && !autoWriting,
-        onClick = { backupNow() },
-        modifier = Modifier.fillMaxWidth()
-    ) { Text(s[if (autoWriting) "data.exporting" else "data.autoBackup.now"]) }
+    if (!canNotify && autoEnabled && autoFolder != null) {
+        Text(s["data.backupNotifyBlocked"], style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error)
+        TextButton(onClick = { requestFailureNotifications() }) { Text(s["data.backupNotifyEnable"]) }
+    }
+    Button(shape = smoothPill(), enabled = autoFolder != null && !vm.dataBusy && !autoWriting && vm.preparedBackup == null && vm.preparedExport == null,
+        onClick = { backupNow() }, modifier = Modifier.fillMaxWidth()) {
+        Text(s[if (status.errorKey != null && !status.active) "data.backupRetry" else "data.autoBackup.now"])
+    }
     Spacer(Modifier.height(4.dp))
     Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-
-
     Spacer(Modifier.height(16.dp))
 }
-
 /** 🐞 崩溃日志子页：导出 / 清空（本机记录，不上传） */
 @Composable
 private fun CrashLogSettings(vm: MainViewModel) {

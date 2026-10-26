@@ -34,6 +34,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
@@ -1587,6 +1588,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        val readJob = backupReadJob
+        val exportJob = backupExportJob
+        val importDirectory = preparedBackup?.directory
+        val exportDirectory = backupExportDirectory
+        readJob?.cancel()
+        exportJob?.cancel()
+        // A picker/preview can outlive the operation job; clean only its private UUID folders.
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            readJob?.join()
+            exportJob?.join()
+            removeBackupWorkspace(importDirectory)
+            removeBackupWorkspace(exportDirectory)
+        }
         streamOwner?.let { it.cancel(); com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(),it.id) }
         similarStreamOwner?.let { it.cancel(); com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(),it.id) }
         super.onCleared()
@@ -1674,64 +1688,151 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * 供**自动备份**（设置 → 数据管理）使用：静默生成备份 JSON。
-     * 与 [exportBackup] 的区别：不写 dataMessage、不置 dataBusy（启动时的自动备份不该改界面状态）。
-     */
-    suspend fun buildBackupJson(): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        com.zsz.studyassistant.data.BackupManager.export(AppDatabase.get(getApplication()))
-    }
-
-    /** 生成备份 JSON（IO 在后台线程）；ok 回调在拿到结果后触发 */
-    fun exportBackup(onReady: suspend (String) -> Unit, onError: (String) -> Unit) {
-        if (dataBusy || preparedBackup != null) return
-        dataBusy = true
-        viewModelScope.launch {
-            try {
-                val json = com.zsz.studyassistant.data.BackupManager.export(AppDatabase.get(getApplication()))
-                // JSON generation is not a successful export; the caller reports only after writing.
-                onReady(json)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else (e.message ?: "")
-                val m = s.format("data.failed", "msg" to detail)
-                onError(m)
-            } finally {
-                dataBusy = false
-            }
-        }
-    }
-
-    var preparedBackup by mutableStateOf<com.zsz.studyassistant.data.BackupFile?>(null)
+    var preparedExport by mutableStateOf<com.zsz.studyassistant.data.BackupArchive.ArchiveSet?>(null)
+        private set
+    var preparedBackup by mutableStateOf<com.zsz.studyassistant.data.BackupRepository.PreparedImport?>(null)
         private set
     var dataProgressKey by mutableStateOf<String?>(null)
         private set
     private var backupReadJob: Job? = null
+    private var backupExportJob: Job? = null
+    private var backupExportDirectory: java.io.File? = null
 
-    fun discardPreparedBackup() { backupReadJob?.cancel(); preparedBackup = null }
+    private fun backupWorkspace(): java.io.File = java.io.File(
+        getApplication<Application>().noBackupFilesDir, "backup-manual/${java.util.UUID.randomUUID()}"
+    )
 
-    fun prepareBackupImport(uri: android.net.Uri) {
-        if (dataBusy || preparedBackup != null) return
+    private suspend fun cleanAbandonedBackupWorkspaces(current: java.io.File) = withContext(Dispatchers.IO) {
+        val root = current.parentFile ?: return@withContext
+        if (!root.isDirectory) return@withContext
+        val keep = setOfNotNull(current.canonicalFile, backupExportDirectory?.canonicalFile,
+            preparedBackup?.directory?.canonicalFile)
+        java.nio.file.Files.newDirectoryStream(root.toPath()).use { entries ->
+            for (entry in entries) {
+                val candidate = entry.toFile()
+                if (!java.nio.file.Files.isDirectory(entry, java.nio.file.LinkOption.NOFOLLOW_LINKS)) continue
+                if (runCatching { java.util.UUID.fromString(candidate.name) }.isFailure) continue
+                if (candidate.canonicalFile !in keep &&
+                    System.currentTimeMillis() - candidate.lastModified() > 24L * 60 * 60 * 1000) {
+                    removeBackupWorkspace(candidate)
+                }
+            }
+        }
+    }
+
+    private suspend fun removeBackupWorkspace(directory: java.io.File?) {
+        withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+            directory?.let {
+                val root = java.io.File(getApplication<Application>().noBackupFilesDir, "backup-manual").canonicalFile
+                val target = it.canonicalFile
+                check(target != root && target.toPath().startsWith(root.toPath()))
+                target.deleteRecursively()
+            }
+        }
+    }
+
+    private fun backupError(e: Exception) {
+        val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
+        val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey]
+            else s["data.autoBackup.storageFailed"]
+        dataMessageIsError = true
+        dataMessage = s.format("data.failed", "msg" to detail)
+    }
+
+    fun prepareBackupExport(onReady: (com.zsz.studyassistant.data.BackupArchive.ArchiveSet) -> Unit) {
+        if (dataBusy || preparedBackup != null || preparedExport != null) return
         dataBusy = true
         dataMessage = null
-        dataProgressKey = "data.importReading"
-        backupReadJob = viewModelScope.launch {
+        val directory = backupWorkspace()
+        backupExportJob = viewModelScope.launch {
+            var ready = false
             try {
-                preparedBackup = withContext(Dispatchers.IO) {
-                    com.zsz.studyassistant.data.BackupValidation.decodeStream {
-                        getApplication<Application>().contentResolver.openInputStream(uri)
-                    }
+                cleanAbandonedBackupWorkspaces(directory)
+                val set = com.zsz.studyassistant.data.BackupJobs.exclusive(getApplication()) {
+                    com.zsz.studyassistant.data.BackupRepository(getApplication()).export(directory,
+                        progress = { phase, _ -> dataProgressKey = phase })
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                dataMessageIsError = true
-                dataMessage = s.format("data.failed", "msg" to
-                    if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else s["data.importReadFailed"])
-            } finally {
+                backupExportDirectory = directory
+                preparedExport = set
+                ready = true
+                onReady(set)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { backupError(e) }
+            finally {
+                if (!ready) removeBackupWorkspace(directory)
+                dataBusy = false
+                dataProgressKey = null
+            }
+        }
+    }
+
+    fun discardPreparedExport() {
+        val directory = backupExportDirectory
+        backupExportDirectory = null
+        preparedExport = null
+        viewModelScope.launch { removeBackupWorkspace(directory) }
+    }
+
+    fun writePreparedBackup(uri: android.net.Uri, tree: Boolean = false) {
+        if (dataBusy) return
+        val set = preparedExport ?: return
+        val directory = backupExportDirectory
+        dataBusy = true
+        dataProgressKey = "data.backupJob.writing"
+        backupExportJob = viewModelScope.launch {
+            try {
+                val job = kotlinx.coroutines.currentCoroutineContext()[Job]
+                val stop = { job?.ensureActive(); Unit }
+                com.zsz.studyassistant.data.BackupJobs.exclusive(getApplication()) {
+                if (tree) {
+                    val result = com.zsz.studyassistant.data.BackupDocuments.writeSet(getApplication(), set, uri, false, stop)
+                    if (!result.ok) throw com.zsz.studyassistant.data.BackupValidationException(
+                        result.errorKey ?: "data.autoBackup.storageFailed")
+                } else {
+                    check(set.files.size == 1)
+                    com.zsz.studyassistant.data.BackupDocuments.writeSingle(getApplication(), set.files.single(), uri, stop)
+                }
+                }
+                dataMessageIsError = false
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.backupSuccess"]
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { backupError(e) }
+            finally {
+                preparedExport = null
+                backupExportDirectory = null
+                removeBackupWorkspace(directory)
+                dataBusy = false
+                dataProgressKey = null
+            }
+        }
+    }
+
+    fun discardPreparedBackup() {
+        backupReadJob?.cancel()
+        val directory = preparedBackup?.directory
+        preparedBackup = null
+        viewModelScope.launch { removeBackupWorkspace(directory) }
+    }
+
+    fun cancelBackupOperation() { backupReadJob?.cancel(); backupExportJob?.cancel() }
+
+    fun prepareBackupImport(uris: List<android.net.Uri>) {
+        if (dataBusy || preparedBackup != null || preparedExport != null || uris.isEmpty()) return
+        dataBusy = true
+        dataMessage = null
+        dataProgressKey = "data.backupRead"
+        val directory = backupWorkspace()
+        backupReadJob = viewModelScope.launch {
+            var ready = false
+            try {
+                cleanAbandonedBackupWorkspaces(directory)
+                preparedBackup = com.zsz.studyassistant.data.BackupRepository(getApplication()).prepareImport(
+                    uris, directory, progress = { phase, _ -> dataProgressKey = phase })
+                ready = true
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { backupError(e) }
+            finally {
+                if (!ready) removeBackupWorkspace(directory)
                 dataBusy = false
                 dataProgressKey = null
             }
@@ -1743,28 +1844,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val file = preparedBackup ?: return
         preparedBackup = null
         dataBusy = true
-        dataProgressKey = "data.importing"
-        viewModelScope.launch {
+        dataProgressKey = "data.backupMerge"
+        backupReadJob = viewModelScope.launch {
             try {
-                // Backup v3: validate identity/references/images before a transactional merge.
-                val r = solveSessionWriteMutex.withLock {
-                    requireNoPendingSaves()
-                    com.zsz.studyassistant.data.BackupManager.importFile(AppDatabase.get(getApplication()), file)
+                val r = com.zsz.studyassistant.data.BackupJobs.exclusive(getApplication()) {
+                    solveSessionWriteMutex.withLock {
+                        requireNoPendingSaves()
+                        com.zsz.studyassistant.data.BackupRepository(getApplication()).merge(file)
+                    }
                 }
                 dataMessageIsError = false
-                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
-                    "data.importDone",
-                    "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}"
-                )
+                dataMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.importDone",
+                    "q" to "${r.questions}", "c" to "${r.categories}", "t" to "${r.tags}", "s" to "${r.skipped}")
                 refreshDataSummary()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                val detail = if (e is com.zsz.studyassistant.data.BackupValidationException) s[e.messageKey] else (e.message ?: "")
-                dataMessageIsError = true
-                dataMessage = s.format("data.failed", "msg" to detail)
-            } finally {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { backupError(e) }
+            finally {
+                removeBackupWorkspace(file.directory)
                 dataBusy = false
                 dataProgressKey = null
             }
@@ -1778,6 +1874,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     /** 供设置页使用：从提示/警示"直达"数据升级子页（设置页消费后清零） */
+    var openBackupManagementPage by mutableStateOf(false)
+
     var openDataUpgradePage by mutableStateOf(false)
 
     private var upgradePromptChecked = false
@@ -1914,12 +2012,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearAllData() {
         if(dataBusy) return
+        // Late file-picker results must not export a snapshot made before this clear.
+        discardPreparedBackup()
+        discardPreparedExport()
         dataBusy = true
         viewModelScope.launch {
             try {
                 val stoppingJob=callJob
                 stopActiveGeneration()
                 stoppingJob?.join()
+                com.zsz.studyassistant.data.BackupJobs.exclusive(getApplication()) {
                 solveSessionWriteMutex.withLock {
                     requireNoPendingSaves()
                     com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
@@ -1931,6 +2033,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     exitReviewMode()
                     draftError=null
                     refreshDrafts()
+                }
                 }
                 menuMessageIsError = false
                 menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["data.clearDone"]

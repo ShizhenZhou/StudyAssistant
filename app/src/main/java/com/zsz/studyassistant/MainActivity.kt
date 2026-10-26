@@ -40,6 +40,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -70,6 +72,19 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
+    override fun onStart() {
+        super.onStart()
+        com.zsz.studyassistant.data.BackupJobs.setForeground(true)
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            com.zsz.studyassistant.data.BackupJobs.onAppOpened(applicationContext)
+        }
+    }
+
+    override fun onStop() {
+        com.zsz.studyassistant.data.BackupJobs.setForeground(false)
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         viewModel.refreshClock()
@@ -78,6 +93,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.getBooleanExtra(AppNav.OPEN_BACKUP_EXTRA, false)) {
+            intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
+            viewModel.openBackupManagementPage = true
+        }
         if (intent.getBooleanExtra("open_review", false)) {
             intent.removeExtra("open_review")
             viewModel.requestReviewNavigation()
@@ -90,14 +109,25 @@ class MainActivity : ComponentActivity() {
         viewModel.purgeDeletedData()
         // 启动即创建通知渠道（否则系统"通知管理"会显示"未发布任何通知"），并按需申请通知权限
         com.zsz.studyassistant.data.ReminderScheduler.ensureChannel(this)
-        if (android.os.Build.VERSION.SDK_INT >= 33 && com.zsz.studyassistant.data.ReminderScheduler.isEnabled(this)) {
+        val backupPreferences = getSharedPreferences("settings", MODE_PRIVATE)
+        val askBackupNotifications = com.zsz.studyassistant.data.AutoBackup.isEnabled(this) &&
+            com.zsz.studyassistant.data.AutoBackup.treeUri(this) != null &&
+            !backupPreferences.getBoolean("backup_failure_permission_asked", false)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            (com.zsz.studyassistant.data.ReminderScheduler.isEnabled(this) || askBackupNotifications)) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                if (askBackupNotifications) backupPreferences.edit().putBoolean("backup_failure_permission_asked", true).apply()
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
             }
         }
         if (intent?.getBooleanExtra("open_review", false) == true) {
             intent.removeExtra("open_review")
             viewModel.requestReviewNavigation()
+        }
+        com.zsz.studyassistant.data.BackupNotifications.ensureChannel(this)
+        if (intent?.getBooleanExtra(AppNav.OPEN_BACKUP_EXTRA, false) == true) {
+            intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
+            viewModel.openBackupManagementPage = true
         }
         enableEdgeToEdge()
         setContent {
@@ -141,25 +171,23 @@ class MainActivity : ComponentActivity() {
                     val nav = rememberNavController()
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
+                    LaunchedEffect(viewModel.openBackupManagementPage) {
+                        if (viewModel.openBackupManagementPage) AppNav.switchTab(nav, AppNav.SETTINGS)
+                    }
                     val showBottomBar = current == AppNav.HOME || current == AppNav.STATS || current == AppNav.SETTINGS
 
                     // 启动时**静默**查一次更新：网络失败或已是最新 → 什么都不做；
                     // 查到新版本 → UpdateBadgeState 置位，设置入口与底栏「设置」显示红色气泡①
                     LaunchedEffect(Unit) { silentUpdateCheck(this@MainActivity) }
 
-                    // 自动备份（设置 → 数据管理）：**每天第一次打开应用**时写一份 JSON 到用户选的文件夹，
-                    // 只保留最近 3 份。未设置文件夹/开关关闭/今天已备份过 → 什么都不做；
-                    // 只对本次实际备份的结果显示悬浮气泡；跳过时不提示，不改变页面高度。
-                    LaunchedEffect(Unit) {
-                        try {
-                            com.zsz.studyassistant.data.AutoBackup.runIfDue(applicationContext) {
-                                viewModel.buildBackupJson()
-                            }?.let { feedback.backupResult(it, strings) }
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (_: Exception) {
-                            feedback.show(strings.format("data.autoBackup.failed", "msg" to
-                                strings["data.autoBackup.storageFailed"]), isError = true, source = "backup")
+                    // No replay: a background completion must not become a stale notice on return.
+                    LaunchedEffect(feedback, strings) {
+                        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                            com.zsz.studyassistant.data.BackupJobs.notices.collect { notice ->
+                                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                                    feedback.show(strings[if (notice.automatic) "data.autoBackup.success" else "data.backupSuccess"])
+                                }
+                            }
                         }
                     }
 

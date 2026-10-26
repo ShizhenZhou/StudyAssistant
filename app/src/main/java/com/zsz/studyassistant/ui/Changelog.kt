@@ -5,6 +5,15 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7
+· 📦 备份升级为 v4 压缩包，使用原生 ZIP、图片去重及有界流式处理，较大备份自动分卷
+· 📥 恢复时可一次多选全部分卷，先校验再确认导入；兼容旧 v3 JSON，相同题号保留本机内容
+· 🗄️ 自动备份在当天打开应用后由系统择机执行，内容未变则跳过；支持取消、重试和已完成阶段复用
+· 🛡️ 全部写入并读回校验成功后才登记备份；新版自动备份按整套保留最近 3 套，旧 JSON 与其他文件不动
+· 💬 自动备份成功且应用仍在前台时显示“自动备份成功”气泡，后台完成不补弹旧提示
+· 🔔 错题本为空时不启动自动备份；后台最终失败发送系统通知，可点按进入备份管理
+· ↪️ 离开备份页后准备完成，返回可继续保存或取消，不再卡住备份入口
+
 v0.6.6.12
 · 💾 加固对话草稿保存与恢复，旧请求的清理不再影响新草稿；尚未存入错题本或搜题记录的完整草稿继续保留
 · 🧹 主动清空学习数据时同步清除对话草稿并停止旧写入，确认提示明确包含搜题记录和草稿
@@ -426,6 +435,15 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7
+· 📦 Backup v4 uses native ZIP compression, image deduplication and bounded streaming; large backups split into parts
+· 📥 Select all parts together for validated, confirmed import; legacy v3 JSON remains supported and existing question IDs keep local content
+· 🗄️ Opening the app schedules automatic backup; unchanged content is skipped, with cancellation, retry and completed-stage reuse
+· 🛡️ A backup counts only after all parts are written and read-back verified; retains 3 complete new automatic sets and preserves legacy JSON and other files
+· 💬 Automatic backup success shows a bubble only while the app is visible; background completions never replay later
+· 🔔 Empty notebooks do not start automatic backups; final background failures post a system notification that opens Backup management
+· ↪️ Prepared exports can be saved or canceled after returning to the backup page, keeping the controls usable
+
 v0.6.6.12
 · 💾 Harden conversation draft saving and recovery; old-request cleanup no longer affects new drafts, and completed drafts remain until saved to the notebook or history
 · 🧹 Explicit learning-data erasure also removes conversation drafts and stops old writes; confirmation now includes history and drafts
@@ -847,6 +865,15 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7
+· 📦 バックアップv4は標準ZIP圧縮・画像の重複排除・有界ストリーム処理を採用し、大容量時は分巻
+· 📥 全巻をまとめて選択し、検証・確認後にインポート。旧v3 JSONに対応し、同じ問題IDの端末内データを維持
+· 🗄️ 当日アプリを開くと自動バックアップを予約。変更がなければスキップし、キャンセル・再試行・完了段階の再利用に対応
+· 🛡️ 全巻の書き込みと再読み取り検証後に成功を記録。新形式の自動バックアップを最新3セット保持し、旧JSONなどは維持
+· 💬 自動バックアップ成功時にアプリが前面なら通知バブルを表示。背面で完了した古い通知は再表示しない
+· 🔔 問題集が空なら自動バックアップを開始せず、背面で最終的に失敗した場合はバックアップ管理を開くシステム通知を表示
+· ↪️ バックアップ画面を離れた後に準備が完了しても、戻って保存を続けるかキャンセル可能
+
 v0.6.6.12
 · 💾 会話の下書き保存と復元を改善。古いリクエストの後処理から新しい下書きを保護し、問題集や履歴に保存されるまで完了済みの下書きを保持
 · 🧹 学習データの全削除時は会話の下書きと古い書き込みも処理。確認画面に履歴と下書きを明記
@@ -1268,6 +1295,15 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7
+· 📦 백업 v4는 기본 ZIP 압축, 이미지 중복 제거 및 제한된 메모리 스트리밍을 사용하며 큰 백업을 분할
+· 📥 모든 분할 파일을 한 번에 선택하고 검증 및 확인 후 가져오기. 기존 v3 JSON 지원 및 같은 문제 ID의 기기 내 내용 유지
+· 🗄️ 매일 앱을 열면 자동 백업을 예약하고 변경이 없으면 건너뛰기. 취소, 재시도 및 완료된 단계 재사용 지원
+· 🛡️ 모든 파일 저장 및 재검증 후에만 성공 기록. 새 자동 백업 3세트를 유지하며 기존 JSON 및 다른 파일은 보존
+· 💬 자동 백업 성공 시 앱이 화면에 열려 있으면 알림 표시. 백그라운드 완료 알림은 나중에 다시 표시하지 않음
+· 🔔 오답 노트가 비어 있으면 자동 백업을 시작하지 않으며, 백그라운드에서 최종 실패하면 백업 관리를 여는 시스템 알림 표시
+· ↪️ 백업 화면을 떠난 후 준비가 완료되어도 돌아와 저장을 계속하거나 취소 가능
+
 v0.6.6.12
 · 💾 대화 초안 저장과 복원을 강화. 이전 요청의 정리가 새 초안에 영향을 주지 않으며 오답노트나 기록에 저장될 때까지 완료된 초안을 유지
 · 🧹 학습 데이터 전체 삭제 시 대화 초안과 이전 쓰기도 함께 처리. 확인 안내에 검색 기록과 초안을 명시

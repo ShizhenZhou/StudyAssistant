@@ -17,7 +17,10 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 自动备份（B8）：**每天第一次打开应用**时把整库导出成 JSON，写进用户自己选的文件夹。
+ * Settings and legacy v3 helpers. The live v4 pipeline is BackupJobs / BackupRepository /
+ * BackupDocuments; JSON methods below are retained for legacy compatibility tests only.
+ *
+ * 历史自动备份（B8）：**每天第一次打开应用**时把整库导出成 JSON，写进用户自己选的文件夹。
  *
  * 设计取舍：
  *  - **必须由用户选一次文件夹**（SAF `ACTION_OPEN_DOCUMENT_TREE` + 持久化授权），备份才生效。
@@ -96,17 +99,19 @@ object AutoBackup {
 
     fun isEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_ENABLED, true)
 
-    fun setEnabled(context: Context, on: Boolean) {
+    fun setEnabled(context: Context, on: Boolean) = synchronized(BackupJobs) {
+        if (isEnabled(context) == on) return@synchronized
         prefs(context).edit().putBoolean(KEY_ENABLED, on).apply()
+        BackupJobs.configurationChanged(context)
     }
 
     fun treeUri(context: Context): Uri? =
         prefs(context).getString(KEY_TREE, null)?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
 
     /** 保存文件夹（调用方需先 takePersistableUriPermission；传 null = 清除） */
-    @Synchronized
-    fun setTreeUri(context: Context, uri: Uri?) {
-        if (treeUri(context) == uri) return
+    fun setTreeUri(context: Context, uri: Uri?) = synchronized(BackupJobs) {
+        if (treeUri(context) == uri) return@synchronized
+        BackupJobs.configurationChanged(context)
         prefs(context).edit().apply {
             remove(KEY_LAST_DAY); remove(KEY_LAST_AT); remove(KEY_ATTEMPT_AT); remove(KEY_FAILURE_KEY)
             if (uri == null) remove(KEY_TREE) else putString(KEY_TREE, uri.toString())
@@ -130,6 +135,8 @@ object AutoBackup {
             .remove(KEY_FAILURE_KEY)
             .apply()
     }
+
+    internal fun markVerified(context: Context, snapshotAt: Long, tree: Uri) = markBackedUp(context, snapshotAt, tree)
 
     // ── 文件夹访问（用框架的 DocumentsContract，不引额外依赖）──────────────────
 
@@ -177,10 +184,10 @@ object AutoBackup {
 
     /** 已有的自动备份文件名（新的在前）；文件夹没设置或读不到 → 空 */
     fun listBackups(context: Context): List<String> =
-        children(context)
+        (children(context)
             .map { it.first }
             .filter { it.startsWith(PREFIX) && it.endsWith(SUFFIX) }
-            .sortedDescending()
+            .sortedDescending() + BackupDocuments.knownSetNames(context, treeUri(context)))
 
     /** 该不该现在跑（纯判断，供启动时调用） */
     fun isDue(context: Context, now: Long = System.currentTimeMillis()): Boolean =

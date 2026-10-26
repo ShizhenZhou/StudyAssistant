@@ -1,5 +1,158 @@
 package com.zsz.studyassistant.ui
 
+private val B14_ZH = mapOf(
+    "data.backupContinue" to "继续保存备份",
+    "data.backupJob.empty" to "错题本为空，已跳过自动备份",
+    "data.backupNotifyChannel" to "自动备份失败提醒",
+    "data.backupNotifyFailed" to "自动备份失败",
+    "data.backupNotifyBody" to "点按打开备份管理，查看原因并重试。",
+    "data.backupNotifyBlocked" to "系统通知未开启，后台备份失败将无法弹出通知；失败原因仍会保留在备份管理中。",
+    "data.backupNotifyEnable" to "开启备份失败通知",
+    "data.backupVersionUnsupported" to "支持压缩备份 v4 和 JSON 备份 v3；此文件的版本不受支持。",
+    "data.autoBackup.success" to "自动备份成功",
+    "data.backupSuccess" to "备份成功",
+    "data.backupParts" to "备份较大，已分为 {n} 卷。请选择一个文件夹保存全部分卷；恢复时须一并选择这些文件。",
+    "data.backupPreview" to "已校验备份：{q} 道错题、{c} 个分类、{t} 个标签。仅为本机没有的题目引入所需分类和标签，相同编号的题目跳过。",
+    "data.backupCancel" to "取消备份操作",
+    "data.backupRetry" to "重试",
+    "data.backupFieldTooLarge" to "个别图片或对话过大，已停止以避免内存不足；原有数据和备份不变。",
+    "data.backupSpaceInsufficient" to "可用空间不足，无法完成备份操作；原有数据和备份不变。",
+    "data.backupNoSpace" to "可用空间不足，请释放空间后重试；原有数据和备份不变。",
+    "data.backupSnapshot" to "正在读取一致数据快照…",
+    "data.backupNormalize" to "正在整理数据并去重图片…",
+    "data.backupCompress" to "正在压缩备份…",
+    "data.backupRead" to "正在读取备份及分卷…",
+    "data.backupValidate" to "正在校验备份完整性…",
+    "data.backupMerge" to "正在导入新题目…",
+    "data.backupJob.queued" to "等待系统安排（电量和空间充足后执行）",
+    "data.backupJob.capturing" to "正在准备备份…",
+    "data.backupJob.writing" to "正在写入并读回校验备份…",
+    "data.backupJob.verifying" to "正在读回校验备份…",
+    "data.backupJob.success" to "最近一次备份成功",
+    "data.backupJob.unchanged" to "内容未变化，已跳过本次自动备份",
+    "data.backupJob.canceled" to "备份已取消",
+    "data.backupJob.failed" to "备份未完成，可重试或手动导出",
+    "data.backupJob.timeLimit" to "本次备份超出后台时限，请在备份管理中手动导出；原有数据和备份不变。",
+    "data.export.desc" to "导出压缩备份包（含错题、图片、复习和搜题记录）。优先单文件，较大时分卷；不含 API Key、设置和本机草稿。",
+    "data.import.desc" to "选择备份包；分卷须一次选齐，文件顺序不限。兼容 v3 JSON 备份。校验并确认后才导入，相同题目编号直接跳过，本机已有内容保留。",
+    "data.autoBackup.desc" to "每天打开应用后由系统择机备份，关闭应用后可继续完成；不会在未打开应用的日期自行触发。内容未变则跳过；只清理本功能登记的较旧 v4 自动备份，保留最近 {n} 套，旧 JSON 和其他文件不动。",
+    "data.autoBackup.count" to "已保存：{n} 套备份"
+)
+private val B14_EN = mapOf(
+    "data.backupContinue" to "Continue saving backup",
+    "data.backupJob.empty" to "Notebook empty; automatic backup skipped",
+    "data.backupNotifyChannel" to "Automatic backup failures",
+    "data.backupNotifyFailed" to "Automatic backup failed",
+    "data.backupNotifyBody" to "Tap to open Backup management, view the cause and retry.",
+    "data.backupNotifyBlocked" to "System notifications are disabled, so background backup failures cannot alert you. The failure remains recorded here.",
+    "data.backupNotifyEnable" to "Enable backup failure alerts",
+    "data.backupVersionUnsupported" to "Supports compressed v4 and JSON v3 backups; this file version is unsupported.",
+    "data.autoBackup.success" to "Automatic backup successful",
+    "data.backupSuccess" to "Backup successful",
+    "data.backupParts" to "The backup has {n} parts. Choose a folder to save all parts; select them together when restoring.",
+    "data.backupPreview" to "Validated: {q} questions, {c} categories, {t} tags. Existing question IDs are skipped; categories and tags are added only for new questions.",
+    "data.backupCancel" to "Cancel backup operation",
+    "data.backupRetry" to "Retry",
+    "data.backupFieldTooLarge" to "An individual image or conversation is too large to process safely. Existing data and backups are unchanged.",
+    "data.backupSpaceInsufficient" to "Not enough free storage to complete the backup operation. Existing data and backups are unchanged.",
+    "data.backupNoSpace" to "Not enough free storage. Free up space and retry; existing data and backups are unchanged.",
+    "data.backupSnapshot" to "Reading a consistent data snapshot…",
+    "data.backupNormalize" to "Organizing data and deduplicating images…",
+    "data.backupCompress" to "Compressing backup…",
+    "data.backupRead" to "Reading backup parts…",
+    "data.backupValidate" to "Validating backup integrity…",
+    "data.backupMerge" to "Importing new questions…",
+    "data.backupJob.queued" to "Waiting for the system (requires sufficient battery and storage)",
+    "data.backupJob.capturing" to "Preparing backup…",
+    "data.backupJob.writing" to "Writing and verifying backup…",
+    "data.backupJob.verifying" to "Verifying saved backup…",
+    "data.backupJob.success" to "Last backup successful",
+    "data.backupJob.unchanged" to "Content unchanged; automatic backup skipped",
+    "data.backupJob.canceled" to "Backup canceled",
+    "data.backupJob.failed" to "Backup incomplete; retry or export manually",
+    "data.backupJob.timeLimit" to "The backup exceeded the background time limit. Export manually from Backup management; existing data and backups are unchanged.",
+    "data.export.desc" to "Export a compressed backup with questions, images, reviews and search history. One file when possible, multiple parts when large. API keys, settings and local drafts are excluded.",
+    "data.import.desc" to "Select a backup, or all its parts together in any order. Legacy v3 JSON is supported. Import starts after validation and confirmation; existing question IDs and local content are preserved.",
+    "data.autoBackup.desc" to "After opening the app each day, the system schedules a backup that may finish after closing. No daily trigger while unopened; unchanged content is skipped. Keeps {n} registered v4 automatic sets; legacy JSON and other files are preserved.",
+    "data.autoBackup.count" to "Current folder: {n} backup sets"
+)
+private val B14_JA = mapOf(
+    "data.backupContinue" to "バックアップの保存を続ける",
+    "data.backupJob.empty" to "オフライン問題集が空のため自動バックアップをスキップしました",
+    "data.backupNotifyChannel" to "自動バックアップ失敗通知",
+    "data.backupNotifyFailed" to "自動バックアップに失敗しました",
+    "data.backupNotifyBody" to "タップしてバックアップ管理を開き、原因を確認して再試行してください。",
+    "data.backupNotifyBlocked" to "通知が無効なため、背面でのバックアップ失敗を通知できません。失敗原因はバックアップ管理に残ります。",
+    "data.backupNotifyEnable" to "失敗通知を有効にする",
+    "data.backupVersionUnsupported" to "圧縮v4とJSON v3に対応しています。このファイルの版には対応していません。",
+    "data.autoBackup.success" to "自動バックアップが完了しました",
+    "data.backupSuccess" to "バックアップが完了しました",
+    "data.backupParts" to "バックアップは {n} 巻です。全巻を保存するフォルダーを選び、復元時は全巻をまとめて選んでください。",
+    "data.backupPreview" to "検証済み：問題 {q} 件、分類 {c} 件、タグ {t} 件。同じIDの問題はスキップし、新しい問題に必要な分類・タグのみ追加します。",
+    "data.backupCancel" to "バックアップ操作をキャンセル",
+    "data.backupRetry" to "再試行",
+    "data.backupFieldTooLarge" to "画像または会話の一部が大きすぎるため停止しました。既存データとバックアップは変更していません。",
+    "data.backupSpaceInsufficient" to "空き容量が不足しています。既存データとバックアップは変更していません。",
+    "data.backupNoSpace" to "空き容量が不足しています。容量を確保して再試行してください。既存データとバックアップは変更していません。",
+    "data.backupSnapshot" to "整合性のあるスナップショットを読み取り中…",
+    "data.backupNormalize" to "データの整理と画像の重複排除中…",
+    "data.backupCompress" to "バックアップを圧縮中…",
+    "data.backupRead" to "バックアップと分巻を読み取り中…",
+    "data.backupValidate" to "バックアップの完全性を検証中…",
+    "data.backupMerge" to "新しい問題をインポート中…",
+    "data.backupJob.queued" to "システムの実行待ち（電池と空き容量が必要）",
+    "data.backupJob.capturing" to "バックアップを準備中…",
+    "data.backupJob.writing" to "バックアップを書き込み・再読み取り検証中…",
+    "data.backupJob.verifying" to "保存済みバックアップを検証中…",
+    "data.backupJob.success" to "前回のバックアップは成功しました",
+    "data.backupJob.unchanged" to "内容に変更がないため自動バックアップをスキップしました",
+    "data.backupJob.canceled" to "バックアップをキャンセルしました",
+    "data.backupJob.failed" to "バックアップ未完了。再試行または手動エクスポートしてください",
+    "data.backupJob.timeLimit" to "バックグラウンド実行時間を超えました。バックアップ管理から手動でエクスポートしてください。既存データとバックアップは変更していません。",
+    "data.export.desc" to "問題・画像・復習・検索履歴を圧縮して保存します。通常は1ファイル、大きい場合は分巻。APIキー・設定・端末内の下書きは含みません。",
+    "data.import.desc" to "バックアップを選んでください。分巻は順不同で全巻を一度に選択します。旧v3 JSONにも対応。検証・確認後に追加し、同じIDと既存内容は維持します。",
+    "data.autoBackup.desc" to "その日にアプリを開くとシステムがバックアップを予約し、閉じた後も完了できます。未起動の日は開始しません。変更がなければスキップ。登録済みv4自動バックアップを最新 {n} セット保持し、旧JSONなどは維持します。",
+    "data.autoBackup.count" to "現在のフォルダー：{n} セット"
+)
+private val B14_KO = mapOf(
+    "data.backupContinue" to "백업 저장 계속",
+    "data.backupJob.empty" to "오답 노트가 비어 자동 백업을 건너뛰었습니다",
+    "data.backupNotifyChannel" to "자동 백업 실패 알림",
+    "data.backupNotifyFailed" to "자동 백업 실패",
+    "data.backupNotifyBody" to "백업 관리를 열어 원인을 확인하고 다시 시도하세요.",
+    "data.backupNotifyBlocked" to "시스템 알림이 꺼져 있어 백그라운드 백업 실패를 알릴 수 없습니다. 실패 원인은 백업 관리에 보관됩니다.",
+    "data.backupNotifyEnable" to "백업 실패 알림 켜기",
+    "data.backupVersionUnsupported" to "압축 v4 및 JSON v3 백업을 지원합니다. 이 파일 버전은 지원하지 않습니다.",
+    "data.autoBackup.success" to "자동 백업 성공",
+    "data.backupSuccess" to "백업 성공",
+    "data.backupParts" to "백업이 {n}개로 나뉩니다. 모두 저장할 폴더를 선택하고 복원할 때 모든 파일을 함께 선택하세요.",
+    "data.backupPreview" to "검증 완료: 문제 {q}개, 분류 {c}개, 태그 {t}개. 같은 ID의 문제는 건너뛰고 새 문제에 필요한 분류와 태그만 추가합니다.",
+    "data.backupCancel" to "백업 작업 취소",
+    "data.backupRetry" to "다시 시도",
+    "data.backupFieldTooLarge" to "일부 이미지나 대화가 너무 커 안전하게 처리할 수 없습니다. 기존 데이터와 백업은 유지됩니다.",
+    "data.backupSpaceInsufficient" to "저장 공간이 부족합니다. 기존 데이터와 백업은 유지됩니다.",
+    "data.backupNoSpace" to "저장 공간을 확보한 후 다시 시도하세요. 기존 데이터와 백업은 유지됩니다.",
+    "data.backupSnapshot" to "일관된 데이터 스냅샷 읽는 중…",
+    "data.backupNormalize" to "데이터 정리 및 이미지 중복 제거 중…",
+    "data.backupCompress" to "백업 압축 중…",
+    "data.backupRead" to "백업 파일 읽는 중…",
+    "data.backupValidate" to "백업 무결성 검증 중…",
+    "data.backupMerge" to "새 문제 가져오는 중…",
+    "data.backupJob.queued" to "시스템 실행 대기 중(배터리와 저장 공간 필요)",
+    "data.backupJob.capturing" to "백업 준비 중…",
+    "data.backupJob.writing" to "백업 저장 및 재검증 중…",
+    "data.backupJob.verifying" to "저장된 백업 검증 중…",
+    "data.backupJob.success" to "최근 백업 성공",
+    "data.backupJob.unchanged" to "변경된 내용이 없어 자동 백업을 건너뛰었습니다",
+    "data.backupJob.canceled" to "백업 취소됨",
+    "data.backupJob.failed" to "백업 미완료. 다시 시도하거나 수동으로 내보내세요",
+    "data.backupJob.timeLimit" to "백그라운드 실행 시간을 초과했습니다. 백업 관리에서 수동으로 내보내세요. 기존 데이터와 백업은 유지됩니다.",
+    "data.export.desc" to "문제, 이미지, 복습 및 검색 기록을 압축하여 내보냅니다. 기본은 단일 파일이며 크면 분할합니다. API 키, 설정 및 기기 내 초안은 제외됩니다.",
+    "data.import.desc" to "백업을 선택하세요. 분할 파일은 순서에 관계없이 한 번에 모두 선택하세요. v3 JSON도 지원합니다. 검증 및 확인 후 가져오며 같은 ID와 기존 내용은 유지됩니다.",
+    "data.autoBackup.desc" to "매일 앱을 열면 시스템이 백업을 예약하며 닫은 후에도 완료할 수 있습니다. 앱을 열지 않은 날은 시작하지 않습니다. 변경이 없으면 건너뜁니다. 등록된 v4 자동 백업 {n}세트를 유지하며 기존 JSON 등은 보존합니다.",
+    "data.autoBackup.count" to "현재 폴더: 백업 {n}세트"
+)
+
 /**
  * 界面文案表（简体中文为基准，其余语言按 key 对应）。
  *
@@ -1889,7 +2042,7 @@ private val B10_ZH = mapOf(
         "· 🕘 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
         "· 🏷️ 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
         "· 📖 间隔复习、每日提醒与学习统计（含新增趋势，复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
-        "· 🗄️ JSON 备份含原图和搜题记录，按题目编号去重；自动备份每天首次启动写到所选文件夹，保留最近 3 份，失败在设置中提示\n" +
+        "· 🗄️ 压缩备份包支持图片去重、大备份分卷及旧 v3 JSON 导入；每天打开后择机自动备份，保留最近 3 套新版自动备份，旧 JSON 保留；空错题本不自动备份，前台成功气泡提示，后台最终失败发系统通知（需允许通知）\n" +
         "· 💾 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
         "· 🔎 AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
         "· ⬆️ 应用内更新校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
@@ -1944,7 +2097,7 @@ private val B10_EN = mapOf(
         "· 🕘 History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
         "· 🏷️ Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
         "· 📖 Spaced review, new-question trends, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
-        "· 🗄️ JSON backups include images and history and deduplicate by question ID; daily automatic backups use the selected folder, keep the latest 3 and show failures in settings\n" +
+        "· 🗄️ Compressed backups deduplicate images, split large sets and import legacy v3 JSON. Opening the app schedules daily backup; keeps 3 new automatic sets and preserves legacy JSON. Empty notebooks skip automatic backup; foreground success uses a bubble and final background failures post a system notification (permission required)\n" +
         "· 💾 Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
         "· 🔎 Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
         "· ⬆️ In-app updates verify the signing certificate and SHA-256 when GitHub provides a digest"
@@ -1999,7 +2152,7 @@ private val B10_JA = mapOf(
         "· 🕘 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
         "· 🏷️ AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
         "· 📖 間隔復習・新規問題の推移・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
-        "· 🗄️ 画像と履歴を含むJSONバックアップを問題番号で重複排除。自動保存は当日初回起動時に選択先へ直近3件を保持し、失敗を設定に表示\n" +
+        "· 🗄️ 圧縮バックアップは画像の重複排除・分巻・旧v3 JSON読み込みに対応。当日アプリを開くと自動保存を予約し、新形式を最新3セット保持、旧JSONは維持。空の問題集は自動保存せず、前面で成功を通知。背面での最終失敗はシステム通知（許可が必要）\n" +
         "· 💾 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
         "· 🔎 AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
         "· ⬆️ 更新時に署名を検証し、GitHubがダイジェストを提供する場合はSHA-256も照合"
@@ -2054,7 +2207,7 @@ private val B10_KO = mapOf(
         "· 🕘 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
         "· 🏷️ AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
         "· 📖 간격 복습·신규 문제 추이·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
-        "· 🗄️ 이미지와 기록을 포함하는 JSON 백업을 문제 번호로 중복 제거. 자동 백업은 매일 첫 실행 때 선택한 폴더에 최근 3개를 유지하고 실패를 설정에 표시\n" +
+        "· 🗄️ 압축 백업은 이미지 중복 제거, 분할 및 기존 v3 JSON 가져오기를 지원. 매일 앱을 열면 자동 백업을 예약하며 새 형식 3세트를 유지하고 기존 JSON은 보존. 빈 노트는 자동 백업하지 않으며 앞에서 실행 중이면 성공 알림, 백그라운드 최종 실패는 시스템 알림 표시(권한 필요)\n" +
         "· 💾 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
         "· 🔎 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
         "· ⬆️ 업데이트의 서명 인증서를 확인하고 GitHub가 해시를 제공하면 SHA-256도 대조"
@@ -2409,7 +2562,7 @@ private val B13_ZH = mapOf(
     "save.export" to "救援导出（保存异常时使用）",
     "save.exportNotice" to "这是异常保存内容和对话草稿的救援文件，供人工排查恢复；不是普通备份，不能从备份管理直接导入。文件可能包含题目、图片和对话，请妥善保管。"
 )
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Minimum Android API {api} · DB v{db} · Backup v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2460,7 +2613,7 @@ private val B13_EN = mapOf(
     "save.export" to "Rescue export (save failures)",
     "save.exportNotice" to "This rescue file contains unsaved content and conversation drafts for assisted recovery. It is not a normal backup and cannot be imported in Backup management. It may contain questions, images and conversations; keep it private."
 )
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "最低 Android API {api} · DB v{db} · バックアップ v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2511,7 +2664,7 @@ private val B13_JA = mapOf(
     "save.export" to "救済出力（保存エラー時）",
     "save.exportNotice" to "未保存内容と会話下書きの手動救済用ファイルです。通常のバックアップではなく、バックアップ管理から直接読み込めません。問題・画像・会話を含むため適切に保管してください。"
 )
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "최소 Android API {api} · DB v{db} · 백업 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2562,4 +2715,4 @@ private val B13_KO = mapOf(
     "save.export" to "복구용 내보내기(저장 실패 시)",
     "save.exportNotice" to "저장되지 않은 내용과 대화 초안을 수동 복구하기 위한 파일입니다. 일반 백업이 아니므로 백업 관리에서 가져올 수 없습니다. 문제·이미지·대화가 포함될 수 있으니 안전하게 보관하세요."
 )
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO

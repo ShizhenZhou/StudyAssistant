@@ -27,6 +27,9 @@ import androidx.navigation.NavHostController
  */
 object AppNav {
 
+    /** System backup-failure notification → settings → data → backup. */
+    const val OPEN_BACKUP_EXTRA = "open_backup_management"
+
     // ── NavHost 路由（节点）──────────────────────────────────────────────
     const val HOME = "home"
     const val CAMERA = "camera"

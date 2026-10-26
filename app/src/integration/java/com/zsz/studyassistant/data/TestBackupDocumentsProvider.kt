@@ -16,9 +16,11 @@ class TestBackupDocumentsProvider : DocumentsProvider() {
     companion object {
         @Volatile var denyAccess = false
         @Volatile var corruptReads = false
+        @Volatile var returnExistingId: String? = null
+        @Volatile var denyListing = false
         fun reset(context: Context) {
             check(context.packageName == "com.zsz.studyassistant.integration")
-            denyAccess = false; corruptReads = false
+            denyAccess = false; corruptReads = false; returnExistingId = null; denyListing = false
             File(context.filesDir, "saf-fixture").listFiles()?.filter { it.isFile }?.forEach { check(it.delete()) }
         }
     }
@@ -62,10 +64,12 @@ class TestBackupDocumentsProvider : DocumentsProvider() {
     }
     override fun queryChildDocuments(parentDocumentId: String, projection: Array<out String>?, sortOrder: String?): Cursor {
         access(); require(parentDocumentId == "root")
+        if (denyListing) throw java.io.IOException("Injected listing failure")
         return cursor(projection).also { out -> directory().listFiles()?.filter { it.isFile }?.forEach { row(out, it.name) } }
     }
     override fun createDocument(parentDocumentId: String, mimeType: String, displayName: String): String {
         access(); require(parentDocumentId == "root")
+        returnExistingId?.let { return it }
         require(displayName.matches(Regex("[A-Za-z0-9_.-]+")))
         val id = displayName.removeSuffix(".json") + "-" + UUID.randomUUID() + ".json"
         check(file(id).createNewFile()); return id

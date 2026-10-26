@@ -33,16 +33,40 @@ class UiSmokeTest {
         }
         error("Missing UI text: $text")
     }
-    private fun tap(text: String) {
-        var node: AccessibilityNodeInfo?=waitFor(text)
-        while(node!=null && !node.isClickable) node=node.parent
-        check(node?.performAction(AccessibilityNodeInfo.ACTION_CLICK)==true) { "Not clickable: $text" }
-        instrumentation.waitForIdleSync()
+    private fun clickable(node: AccessibilityNodeInfo?, text: String): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.text?.toString() == text || node.contentDescription?.toString() == text) {
+            var candidate: AccessibilityNodeInfo? = node
+            while (candidate != null) {
+                if (candidate.isClickable && candidate.isEnabled && candidate.isVisibleToUser) return candidate
+                candidate = candidate.parent
+            }
+        }
+        for (i in 0 until node.childCount) clickable(node.getChild(i), text)?.let { return it }
+        return null
     }
-    private fun launch(): ActivityScenario<MainActivity> {
+    private fun tap(text: String) {
+        val deadline = android.os.SystemClock.uptimeMillis() + 8000
+        while (android.os.SystemClock.uptimeMillis() < deadline) {
+            // A leaving page's title can match an entering page's button during navigation.
+            val target = clickable(instrumentation.uiAutomation.rootInActiveWindow, text)
+            if (target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) {
+                instrumentation.waitForIdleSync()
+                return
+            }
+            Thread.sleep(40)
+        }
+        error("Not clickable: $text")
+    }
+    private fun launch(openBackup: Boolean = false): ActivityScenario<MainActivity> {
         check(context.packageName=="com.zsz.studyassistant.integration")
         UiLangStore.save(context,UiLang.EN)
-        val scenario=ActivityScenario.launch(MainActivity::class.java)
+        // These journeys cover navigation, independently of the upgrade-prompt policy tests.
+        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit()
+            .putInt("data_upgrade_seen_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION)
+            .putInt("data_upgrade_prompted_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION).commit()
+        val scenario=ActivityScenario.launch<MainActivity>(android.content.Intent(context, MainActivity::class.java)
+            .putExtra(AppNav.OPEN_BACKUP_EXTRA, openBackup))
         val deadline=android.os.SystemClock.uptimeMillis()+8000
         while(android.os.SystemClock.uptimeMillis()<deadline) {
             val root=instrumentation.uiAutomation.rootInActiveWindow
@@ -63,10 +87,49 @@ class UiSmokeTest {
             scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
             tap(s["settings.data"])
             tap(s["data.backup"])
+            waitFor(s["data.manualBackup"])
             scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
             waitFor(s["data.crash"])
             scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
             waitFor(s["settings.aiManage"])
+        }
+    }
+    @Test fun backupFailureEntryOpensBackupAndReturnsToDataManagement() {
+        launch(openBackup = true).use { scenario ->
+            waitFor(s["data.manualBackup"])
+            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            waitFor(s["data.crash"])
+            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            waitFor(s["settings.aiManage"])
+        }
+    }
+    @Test fun preparedExportHasContinueAndCancelAfterReturningToItsPage() {
+        launch().use { scenario ->
+            tap("Settings")
+            waitFor(s["settings.aiManage"])
+            tap(s["settings.data"])
+            waitFor(s["data.crash"])
+            tap(s["data.backup"])
+            waitFor(s["data.manualBackup"])
+            var viewModel: com.zsz.studyassistant.MainViewModel? = null
+            scenario.onActivity { activity ->
+                viewModel = androidx.lifecycle.ViewModelProvider(activity)[com.zsz.studyassistant.MainViewModel::class.java]
+                // No surviving UI callback: simulate finishing after its original page left composition.
+                viewModel!!.prepareBackupExport { }
+                activity.onBackPressedDispatcher.onBackPressed()
+            }
+            waitFor(s["data.crash"])
+            var ready = false
+            val deadline = android.os.SystemClock.uptimeMillis() + 10000
+            while (!ready && android.os.SystemClock.uptimeMillis() < deadline) {
+                instrumentation.runOnMainSync { ready = viewModel!!.preparedExport != null && !viewModel!!.dataBusy }
+                if (!ready) Thread.sleep(40)
+            }
+            assertTrue("Export did not become ready", ready)
+            tap(s["data.backup"])
+            assertTrue(waitFor(s["data.backupContinue"]).isEnabled)
+            tap(s["data.backupCancel"])
+            assertTrue(waitFor(s["data.export"]).isEnabled)
         }
     }
     @Test fun englishStatisticsUseEnglishMasteryLabels() {

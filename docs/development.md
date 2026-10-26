@@ -57,7 +57,8 @@ CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、
 
 ## 隔离测试的覆盖范围
 
-- `integration` 包名为 `com.zsz.studyassistant.integration`，使用专门的 Application；不初始化真实 Key、崩溃日志或应用后台任务。Manifest 移除联网权限以及正式服务/Provider；测试不应请求在线 AI、读取真实数据或使用签名材料。
+- `integration` 包名为 `com.zsz.studyassistant.integration`，使用专门的 Application；不读取正式应用的 Key、崩溃日志或后台任务状态；备份调度测试只使用隔离包的私有状态和人工夹具。Manifest 移除联网权限以及正式服务/Provider；测试不应请求在线 AI、读取真实数据或使用签名材料。
 - 保留真实 MainActivity 供 `UiSmokeTest` 检查设置返回路径、语言切换后的统计标签，以及 WebView 的实际列表编号。使用 ActivityScenario 和现有 Android 测试依赖，未增加 Compose 测试框架。
 - `ReliabilityRegressionTest` 只用人工数据检查 ViewModel 的草稿和复习生命周期；故障注入明确模拟下一题读取异常。`LargeFieldIntegrationTest` 检查大字段、原图、全文搜索及导出读取契约。
+- 压缩备份测试覆盖 ZIP 分卷完整性、SAF 所有权与读回校验、空错题本不调度、前台成功事件、后台终局失败通知、v3 兼容导入和 96 MiB 人工题库完整往返。系统通知授权只针对 integration 包，不触及正式应用或真实手机。
 - 本地仍通过 `tools/run-android-tests.ps1 -Serial emulator-<端口>` 明确选择模拟器；CI 沿用同一套测试的自动发现，不另起重复工作流。测试包可打开主界面不等于已在用户手机实测，不能据此承诺所有机型效果。
