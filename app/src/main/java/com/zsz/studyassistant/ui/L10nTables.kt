@@ -1,6 +1,7 @@
 package com.zsz.studyassistant.ui
 
 private val B14_ZH = mapOf(
+    "data.backupJob.retention" to "正在检查已有自动备份…",
     "data.backupContinue" to "继续保存备份",
     "data.backupJob.empty" to "错题本为空，已跳过自动备份",
     "data.backupNotifyChannel" to "自动备份失败提醒",
@@ -35,10 +36,11 @@ private val B14_ZH = mapOf(
     "data.backupJob.timeLimit" to "本次备份超出后台时限，请在备份管理中手动导出；原有数据和备份不变。",
     "data.export.desc" to "导出压缩备份包（含错题、图片、复习和搜题记录）。优先单文件，较大时分卷；不含 API Key、设置和本机草稿。",
     "data.import.desc" to "选择备份包；分卷须一次选齐，文件顺序不限。兼容 v3 JSON 备份。校验并确认后才导入，相同题目编号直接跳过，本机已有内容保留。",
-    "data.autoBackup.desc" to "每天打开应用后由系统择机备份，关闭应用后可继续完成；不会在未打开应用的日期自行触发。内容未变则跳过；只清理本功能登记的较旧 v4 自动备份，保留最近 {n} 套，旧 JSON 和其他文件不动。",
+    "data.autoBackup.desc" to "每天打开应用后由系统择机备份；错题本为空或内容未变时跳过。开始前若完整自动备份超过 {n} 套，先保留最新 2 套；新备份成功后保留最近 {n} 套，包含旧命名自动备份。手动备份、损坏、缺卷和无法识别的文件不清理。",
     "data.autoBackup.count" to "已保存：{n} 套备份"
 )
 private val B14_EN = mapOf(
+    "data.backupJob.retention" to "Checking existing automatic backups…",
     "data.backupContinue" to "Continue saving backup",
     "data.backupJob.empty" to "Notebook empty; automatic backup skipped",
     "data.backupNotifyChannel" to "Automatic backup failures",
@@ -73,10 +75,11 @@ private val B14_EN = mapOf(
     "data.backupJob.timeLimit" to "The backup exceeded the background time limit. Export manually from Backup management; existing data and backups are unchanged.",
     "data.export.desc" to "Export a compressed backup with questions, images, reviews and search history. One file when possible, multiple parts when large. API keys, settings and local drafts are excluded.",
     "data.import.desc" to "Select a backup, or all its parts together in any order. Legacy v3 JSON is supported. Import starts after validation and confirmation; existing question IDs and local content are preserved.",
-    "data.autoBackup.desc" to "After opening the app each day, the system schedules a backup that may finish after closing. No daily trigger while unopened; unchanged content is skipped. Keeps {n} registered v4 automatic sets; legacy JSON and other files are preserved.",
+    "data.autoBackup.desc" to "Opening the app schedules a backup; empty notebooks and unchanged content are skipped. Before starting, more than {n} complete automatic sets are reduced to the latest 2. After success, keeps {n}, including legacy automatic backups. Manual, corrupt, incomplete and unrecognized files are preserved.",
     "data.autoBackup.count" to "Current folder: {n} backup sets"
 )
 private val B14_JA = mapOf(
+    "data.backupJob.retention" to "既存の自動バックアップを確認中…",
     "data.backupContinue" to "バックアップの保存を続ける",
     "data.backupJob.empty" to "オフライン問題集が空のため自動バックアップをスキップしました",
     "data.backupNotifyChannel" to "自動バックアップ失敗通知",
@@ -111,10 +114,11 @@ private val B14_JA = mapOf(
     "data.backupJob.timeLimit" to "バックグラウンド実行時間を超えました。バックアップ管理から手動でエクスポートしてください。既存データとバックアップは変更していません。",
     "data.export.desc" to "問題・画像・復習・検索履歴を圧縮して保存します。通常は1ファイル、大きい場合は分巻。APIキー・設定・端末内の下書きは含みません。",
     "data.import.desc" to "バックアップを選んでください。分巻は順不同で全巻を一度に選択します。旧v3 JSONにも対応。検証・確認後に追加し、同じIDと既存内容は維持します。",
-    "data.autoBackup.desc" to "その日にアプリを開くとシステムがバックアップを予約し、閉じた後も完了できます。未起動の日は開始しません。変更がなければスキップ。登録済みv4自動バックアップを最新 {n} セット保持し、旧JSONなどは維持します。",
+    "data.autoBackup.desc" to "当日アプリを開くと予約し、空の問題集や変更なしはスキップ。開始前に完全な自動バックアップが {n} セットを超えた場合は最新2セットを残し、成功後は旧名称分も含め最新 {n} セットを保持。手動・破損・欠巻・不明なファイルは削除しません。",
     "data.autoBackup.count" to "現在のフォルダー：{n} セット"
 )
 private val B14_KO = mapOf(
+    "data.backupJob.retention" to "기존 자동 백업 확인 중…",
     "data.backupContinue" to "백업 저장 계속",
     "data.backupJob.empty" to "오답 노트가 비어 자동 백업을 건너뛰었습니다",
     "data.backupNotifyChannel" to "자동 백업 실패 알림",
@@ -149,7 +153,7 @@ private val B14_KO = mapOf(
     "data.backupJob.timeLimit" to "백그라운드 실행 시간을 초과했습니다. 백업 관리에서 수동으로 내보내세요. 기존 데이터와 백업은 유지됩니다.",
     "data.export.desc" to "문제, 이미지, 복습 및 검색 기록을 압축하여 내보냅니다. 기본은 단일 파일이며 크면 분할합니다. API 키, 설정 및 기기 내 초안은 제외됩니다.",
     "data.import.desc" to "백업을 선택하세요. 분할 파일은 순서에 관계없이 한 번에 모두 선택하세요. v3 JSON도 지원합니다. 검증 및 확인 후 가져오며 같은 ID와 기존 내용은 유지됩니다.",
-    "data.autoBackup.desc" to "매일 앱을 열면 시스템이 백업을 예약하며 닫은 후에도 완료할 수 있습니다. 앱을 열지 않은 날은 시작하지 않습니다. 변경이 없으면 건너뜁니다. 등록된 v4 자동 백업 {n}세트를 유지하며 기존 JSON 등은 보존합니다.",
+    "data.autoBackup.desc" to "매일 앱을 열면 예약하며 빈 노트와 변경 없는 내용은 건너뜁니다. 시작 전 완전한 자동 백업이 {n}세트를 초과하면 최신 2세트만 남기고 성공 후에는 기존 이름을 포함해 최신 {n}세트를 유지합니다. 수동·손상·누락·알 수 없는 파일은 삭제하지 않습니다.",
     "data.autoBackup.count" to "현재 폴더: 백업 {n}세트"
 )
 
@@ -2042,7 +2046,7 @@ private val B10_ZH = mapOf(
         "· 🕘 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
         "· 🏷️ 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
         "· 📖 间隔复习、每日提醒与学习统计（含新增趋势，复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
-        "· 🗄️ 压缩备份包支持图片去重、大备份分卷及旧 v3 JSON 导入；每天打开后择机自动备份，保留最近 3 套新版自动备份，旧 JSON 保留；空错题本不自动备份，前台成功气泡提示，后台最终失败发系统通知（需允许通知）\n" +
+        "· 🗄️ 压缩备份包支持图片去重、大备份分卷及旧 v3 JSON 导入；每天打开后择机自动备份，自动备份含旧命名统一清理，超过3套先留最新2套、成功后留3套；空错题本不自动备份，前台成功气泡提示，后台最终失败发系统通知（需允许通知）\n" +
         "· 💾 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
         "· 🔎 AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
         "· ⬆️ 应用内更新校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
@@ -2097,7 +2101,7 @@ private val B10_EN = mapOf(
         "· 🕘 History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
         "· 🏷️ Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
         "· 📖 Spaced review, new-question trends, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
-        "· 🗄️ Compressed backups deduplicate images, split large sets and import legacy v3 JSON. Opening the app schedules daily backup; keeps 3 new automatic sets and preserves legacy JSON. Empty notebooks skip automatic backup; foreground success uses a bubble and final background failures post a system notification (permission required)\n" +
+        "· 🗄️ Compressed backups deduplicate images, split large sets and import legacy v3 JSON. Opening the app schedules daily backup; includes legacy automatic sets in retention: over 3 before backup keeps 2, then 3 after success. Empty notebooks skip automatic backup; foreground success uses a bubble and final background failures post a system notification (permission required)\n" +
         "· 💾 Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
         "· 🔎 Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
         "· ⬆️ In-app updates verify the signing certificate and SHA-256 when GitHub provides a digest"
@@ -2152,7 +2156,7 @@ private val B10_JA = mapOf(
         "· 🕘 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
         "· 🏷️ AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
         "· 📖 間隔復習・新規問題の推移・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
-        "· 🗄️ 圧縮バックアップは画像の重複排除・分巻・旧v3 JSON読み込みに対応。当日アプリを開くと自動保存を予約し、新形式を最新3セット保持、旧JSONは維持。空の問題集は自動保存せず、前面で成功を通知。背面での最終失敗はシステム通知（許可が必要）\n" +
+        "· 🗄️ 圧縮バックアップは画像の重複排除・分巻・旧v3 JSON読み込みに対応。当日アプリを開くと自動保存を予約し、旧名称も含め開始前に3セット超なら最新2セット、成功後は3セット保持。空の問題集は自動保存せず、前面で成功を通知。背面での最終失敗はシステム通知（許可が必要）\n" +
         "· 💾 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
         "· 🔎 AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
         "· ⬆️ 更新時に署名を検証し、GitHubがダイジェストを提供する場合はSHA-256も照合"
@@ -2207,7 +2211,7 @@ private val B10_KO = mapOf(
         "· 🕘 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
         "· 🏷️ AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
         "· 📖 간격 복습·신규 문제 추이·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
-        "· 🗄️ 압축 백업은 이미지 중복 제거, 분할 및 기존 v3 JSON 가져오기를 지원. 매일 앱을 열면 자동 백업을 예약하며 새 형식 3세트를 유지하고 기존 JSON은 보존. 빈 노트는 자동 백업하지 않으며 앞에서 실행 중이면 성공 알림, 백그라운드 최종 실패는 시스템 알림 표시(권한 필요)\n" +
+        "· 🗄️ 압축 백업은 이미지 중복 제거, 분할 및 기존 v3 JSON 가져오기를 지원. 매일 앱을 열면 자동 백업을 예약하며 기존 이름도 포함해 시작 전 3세트 초과 시 최신 2세트, 성공 후 3세트 유지. 빈 노트는 자동 백업하지 않으며 앞에서 실행 중이면 성공 알림, 백그라운드 최종 실패는 시스템 알림 표시(권한 필요)\n" +
         "· 💾 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
         "· 🔎 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
         "· ⬆️ 업데이트의 서명 인증서를 확인하고 GitHub가 해시를 제공하면 SHA-256도 대조"

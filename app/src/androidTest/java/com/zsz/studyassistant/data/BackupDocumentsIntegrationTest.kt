@@ -25,6 +25,12 @@ class BackupDocumentsIntegrationTest {
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
     }
     private fun folder() = File(context.filesDir, "saf-fixture")
+    private fun knownFiles(set: BackupArchive.ArchiveSet): List<File> {
+        val journal = org.json.JSONArray(context.getSharedPreferences("settings", Context.MODE_PRIVATE).getString("backup_job_sets", "[]"))
+        val entry = (0 until journal.length()).map { journal.getJSONObject(it) }.single { it.getString("id") == set.setId }
+        val parts = entry.getJSONArray("parts")
+        return (0 until parts.length()).map { File(folder(), parts.getJSONObject(it).getString("id")) }
+    }
     private fun workspace() = File(context.cacheDir, "saf-v4-${UUID.randomUUID()}").apply { mkdirs() }
     private fun set(work: File, at: Long = 1000): BackupArchive.ArchiveSet {
         val source = File(work, "source").apply { mkdirs() }
@@ -80,7 +86,7 @@ class BackupDocumentsIntegrationTest {
                 val work = workspace().also { works.add(it) }
                 val set = set(work, at)
                 assertTrue(BackupDocuments.writeSet(context, set, tree, true).ok)
-                if (at == 1L) assertTrue(folder().listFiles()!!.any { it.name.contains(set.setId) })
+                if (at == 1L) assertTrue(knownFiles(set).all { it.isFile })
             }
             assertEquals(3, BackupDocuments.knownSetNames(context, tree).size)
             assertTrue(folder().listFiles()!!.map { it.name }.containsAll(manualIds))
@@ -92,7 +98,7 @@ class BackupDocumentsIntegrationTest {
             val oldWork = workspace().also { works.add(it) }
             val old = set(oldWork, 1)
             BackupDocuments.writeSet(context, old, tree, true)
-            val oldFiles = folder().listFiles()!!.filter { it.name.contains(old.setId) }
+            val oldFiles = knownFiles(old)
             val victim = oldFiles.first()
             val replacement = victim.readBytes().also { it[0] = (it[0].toInt() xor 1).toByte() }
             victim.writeBytes(replacement) // same ID and size, foreign/corrupt replacement
@@ -110,7 +116,7 @@ class BackupDocumentsIntegrationTest {
             val oldWork = workspace().also { works.add(it) }
             val old = set(oldWork, 1)
             BackupDocuments.writeSet(context, old, tree, true)
-            val oldFiles = folder().listFiles()!!.filter { it.name.contains(old.setId) }
+            val oldFiles = knownFiles(old)
             assertTrue(oldFiles.size > 1)
             assertTrue(oldFiles.first().delete())
             for (at in 2L..4L) {
@@ -144,13 +150,38 @@ class BackupDocumentsIntegrationTest {
             assertFalse(prefs.contains(key))
         } finally { work.deleteRecursively() }
     }
+    @Test fun resumedSetUpsertsLedgerWhenOneCompletedVolumeMustBeRecreated() = runBlocking {
+        val work = workspace()
+        try {
+            val set = set(work)
+            val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            try {
+                BackupDocuments.writeSet(context, set, tree, true) {
+                    if (prefs.getString("backup_job_sets", "[]")!!.contains(set.setId)) throw CancellationException("after ledger")
+                }
+                fail("not interrupted")
+            } catch (_: CancellationException) { }
+            val oldFiles = knownFiles(set)
+            assertTrue(oldFiles.size > 1)
+            val changed = oldFiles.first()
+            val bytes = changed.readBytes().also { it[0] = (it[0].toInt() xor 1).toByte() }
+            changed.writeBytes(bytes)
+            assertTrue(BackupDocuments.writeSet(context, set, tree, true).ok)
+            val repaired = knownFiles(set)
+            assertNotEquals(changed.name, repaired.first().name)
+            assertEquals(oldFiles.drop(1).map { it.name }, repaired.drop(1).map { it.name })
+            assertEquals(1, BackupRetention.listNames(context, tree).size)
+            assertArrayEquals(bytes, changed.readBytes())
+            assertEquals(1, org.json.JSONArray(prefs.getString("backup_job_sets", "[]")).length())
+        } finally { work.deleteRecursively() }
+    }
     @Test fun failedReadbackNeverCountsAsCompletedSet() = runBlocking {
         val work = workspace()
         try {
             TestBackupDocumentsProvider.corruptReads = true
             try { BackupDocuments.writeSet(context, set(work), tree, true); fail("corruption accepted") } catch (_: BackupWriteException) { }
             assertTrue(BackupDocuments.knownSetNames(context, tree).isEmpty())
-            assertFalse(folder().listFiles()!!.any { it.name.startsWith(AutoBackup.PREFIX) })
+            assertFalse(folder().listFiles()!!.any { (it.name.startsWith(AutoBackup.PREFIX) || it.name.startsWith("SABak_auto-")) })
         } finally { work.deleteRecursively() }
     }
 }

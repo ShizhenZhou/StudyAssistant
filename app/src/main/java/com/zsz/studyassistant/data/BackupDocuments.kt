@@ -61,8 +61,7 @@ object BackupDocuments {
                     if (valid) uri = candidate
                 }
                 if (uri == null) {
-                    val prefix = if (automatic) AutoBackup.PREFIX else "study-assistant-"
-                    val name = "$prefix${set.setId}-part${(index + 1).toString().padStart(4, '0')}.sab"
+                    val name = BackupNames.fileName(set.snapshotAt, automatic, index, set.files.size)
                     val made = DocumentsContract.createDocument(resolver, parent, "application/zip", name)
                         ?: throw BackupWriteException("data.autoBackup.createFailed")
                     val id = DocumentsContract.getDocumentId(made)
@@ -81,39 +80,29 @@ object BackupDocuments {
                 if (!prefs(context).edit().putString(checkpointKey, checkpoint.toString()).commit()) throw IOException("checkpoint")
             }
             check()
-            val sets = ledger(context)
-            val recorded = (0 until sets.length()).any { sets.getJSONObject(it).optString("id") == set.setId }
-            if (automatic && !recorded) sets.put(JSONObject().put("id", set.setId).put("at", set.snapshotAt).put("tree", tree.toString())
-                .put("automatic", automatic).put("complete", true).put("parts", finalParts))
+            val previousSets = ledger(context)
+            val sets = JSONArray()
+            val currentIds = (0 until finalParts.length()).map { finalParts.getJSONObject(it).getString("id") }.toSet()
+            val superseded = mutableSetOf<String>()
+            for (i in 0 until previousSets.length()) {
+                val existing = previousSets.getJSONObject(i)
+                if (automatic && existing.optString("id") == set.setId && existing.optString("tree") == tree.toString()) {
+                    val oldParts = existing.optJSONArray("parts") ?: JSONArray()
+                    for (j in 0 until oldParts.length()) oldParts.optJSONObject(j)?.optString("id")?.takeIf { it.isNotEmpty() && it !in currentIds }?.let { superseded.add(it) }
+                } else sets.put(existing)
+            }
+            if (automatic) sets.put(JSONObject().put("id", set.setId).put("at", set.snapshotAt).put("tree", tree.toString())
+                .put("automatic", true).put("complete", true).put("parts", finalParts))
+            // A rewritten/recycled old document stays protected even after the current ledger moves to a replacement ID.
+            BackupRetention.protectDocuments(context, tree, superseded)
+            check()
             if (!prefs(context).edit().putString(LEDGER, sets.toString()).commit()) throw IOException("ledger")
             completed = true
-            // Completion is durable before pruning. Manual sets and unknown/legacy files are never deletion candidates.
-            val eligible = (0 until sets.length()).map { sets.getJSONObject(it) }.filter { it.optString("tree") == tree.toString() }
-            val prune = if (automatic) BackupTaskPolicy.pruneSetIds(eligible.map { BackupSetStamp(it.getString("id"), it.optLong("at"), it.optBoolean("complete"), it.optBoolean("automatic")) }, set.setId, AutoBackup.KEEP) else emptyList()
-            var pruned = 0
-            val removed = mutableSetOf<String>()
-            for (old in eligible.filter { it.getString("id") in prune }) {
-                check()
-                val oldParts = old.getJSONArray("parts")
-                // A stored ID alone is not ownership: providers may recycle IDs and users may replace contents.
-                if (!verifiedOwnedSet(context, tree, oldParts, check)) continue
-                var allRemoved = true
-                for (i in 0 until oldParts.length()) {
-                    check()
-                    val oldUri = doc(tree, oldParts.getJSONObject(i).getString("id"))
-                    val deleted = synchronized(BackupJobs) {
-                        check()
-                        runCatching { DocumentsContract.deleteDocument(resolver, oldUri) }.getOrDefault(false)
-                    }
-                    if (!deleted) allRemoved = false
-                }
-                if (allRemoved) { removed.add(old.getString("id")); pruned++ }
-            }
+            // The actual folder, including validated legacy automatic backups, is authoritative.
+            val pruned = if (automatic) BackupRetention.postTrim(context, tree, set.setId, check) else 0
             check()
-            val kept = JSONArray()
-            for (i in 0 until sets.length()) if (sets.getJSONObject(i).getString("id") !in removed) kept.put(sets.getJSONObject(i))
-            prefs(context).edit().putString(LEDGER, kept.toString()).remove(checkpointKey).commit()
-            AutoBackup.Result(true, set.files.firstOrNull()?.name, pruned)
+            prefs(context).edit().remove(checkpointKey).commit()
+            AutoBackup.Result(true, BackupNames.fileName(set.snapshotAt, automatic, 0, set.files.size), pruned)
         } finally {
             // Preserve completed verified volumes for resumable execution. Remove only newly created,
             // not-yet-checkpointed volumes. Never remove a returned pre-existing document ID.
@@ -125,29 +114,6 @@ object BackupDocuments {
         }
     }
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
-    private fun verifiedOwnedSet(context: Context, tree: Uri, parts: JSONArray, check: () -> Unit): Boolean {
-        return try {
-            check()
-            if (parts.length() == 0) return false
-            val listed = children(context, tree).groupBy { it.id }
-            val ids = HashSet<String>()
-            for (i in 0 until parts.length()) {
-                check()
-                val part = parts.getJSONObject(i)
-                val id = part.getString("id")
-                val length = part.getLong("length")
-                val sha = part.getString("sha")
-                if (!ids.add(id) || length < 0 || !sha.matches(Regex("[0-9a-f]{64}"))) return false
-                val current = listed[id]?.singleOrNull() ?: return false
-                if (current.size != length) return false
-                val input = context.contentResolver.openInputStream(doc(tree, id)) ?: return false
-                if (hex(BackupStreamCopy.digest(input, check)) != sha) return false
-            }
-            true
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-          catch (_: Exception) { false }
-    }
-
     internal fun completedPartCount(context: Context, setId: String): Int = runCatching {
         JSONObject(prefs(context).getString(PARTS + setId, "{}")!!).optJSONArray("parts")?.length() ?: 0
     }.getOrDefault(0)
@@ -162,7 +128,7 @@ object BackupDocuments {
         return runCatching {
             val sets = ledger(context)
             (0 until sets.length()).map { sets.getJSONObject(it) }.filter { it.optBoolean("automatic") && it.optBoolean("complete") && it.optString("tree") == tree.toString() }
-                .sortedByDescending { it.optLong("at") }.map { "study-assistant-auto-${it.getString("id")}.sab" }
+                .sortedByDescending { it.optLong("at") }.map { BackupNames.fileName(it.getLong("at"), true) }
         }.getOrDefault(emptyList())
     }
 }

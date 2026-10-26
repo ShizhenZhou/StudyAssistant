@@ -159,6 +159,16 @@ object BackupJobs {
         invalidate(context)
         return mutex.withLock { block() }
     }
+    /** One pre-clean per durable job, including retries after external completion. */
+    internal suspend fun preTrimOnce(context: Context, tree: android.net.Uri, token: String, check: () -> Unit = {}): Int {
+        if (prefs(context).getString(PREFIX + "pretrim_token", null) == token) return 0
+        val removed = BackupRetention.preTrim(context, tree, check)
+        synchronized(BackupJobs) {
+            check()
+            if (!prefs(context).edit().putString(PREFIX + "pretrim_token", token).commit()) throw IOException("pre-clean checkpoint")
+        }
+        return removed
+    }
     /** Call on IO: bounded EXISTS does not load question text/images or a full ID list. */
     internal fun hasActiveQuestions(context: Context, database: AppDatabase = AppDatabase.get(context)): Boolean =
         database.openHelper.writableDatabase.query("SELECT EXISTS(SELECT 1 FROM questions WHERE deleted = 0 LIMIT 1)").use {
@@ -218,6 +228,10 @@ class BackupWorker(context: Context, parameters: WorkerParameters) : CoroutineWo
         try {
             check()
             if (BackupJobs.stopAutomaticIfEmpty(c, automatic, check)) return Result.success()
+            if (automatic) {
+                state("data.backupJob.retention")
+                BackupJobs.preTrimOnce(c, tree, token, check)
+            }
             // Only task-owned UUID directories, never business images or external documents.
             root.listFiles()?.filter { it != workspace && System.currentTimeMillis() - it.lastModified() > 24 * 60 * 60_000L }?.forEach { it.deleteRecursively() }
             var set = if (manifest.isFile && System.currentTimeMillis() - manifest.lastModified() <= 24 * 60 * 60_000L) readCheckpoint(manifest, workspace, check) else null

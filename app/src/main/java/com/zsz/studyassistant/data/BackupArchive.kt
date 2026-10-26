@@ -37,6 +37,36 @@ object BackupArchive {
     private const val FORMAT = "study-assistant-backup"
     data class ArchiveSet(val setId: String, val snapshotAt: Long, val files: List<File>, val contentHash: String)
     data class ArchiveInfo(val setId: String, val snapshotAt: Long, val contentHash: String)
+    data class PartInfo(val setId: String, val partIndex: Int, val snapshotAt: Long)
+
+    /** Bounded ZIP/header probe only. Completeness and all payload hashes require readParts. */
+    fun inspectPart(file: File, check: () -> Unit = {}): PartInfo {
+        try {
+            check(); rejectLinks(file); inspectZip(file, check)
+            return ZipFile(file).use { zip ->
+                var header: ZipEntry? = null
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    check()
+                    val entry = entries.nextElement()
+                    if (entry.name == "header.bin") {
+                        if (header != null) invalid()
+                        header = entry
+                    }
+                }
+                val value = parseHeader(entryBytes(zip, header ?: invalid(), 4096, check))
+                PartInfo(value.setId, value.partIndex, value.snapshotAt)
+            }
+        } catch (error: Throwable) {
+            when (error) {
+                is BackupValidationException -> throw error
+                is java.util.concurrent.CancellationException -> throw error
+                is EOFException, is java.util.zip.ZipException, is java.nio.charset.CharacterCodingException,
+                is IllegalArgumentException -> invalid()
+                else -> throw error
+            }
+        }
+    }
     private data class Header(val setId: String, val partIndex: Int, val snapshotAt: Long)
     private data class Descriptor(val sequence: Long, val length: Int, val hash: ByteArray)
     private data class Part(val file: File, val header: Header)

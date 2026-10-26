@@ -139,4 +139,36 @@ class BackupArchiveTest {
         malformed.writeBytes(bytes.copyOf().also { it[central + 40] = 0xff.toByte(); it[central + 41] = 0xa1.toByte() })
         rejected(listOf(malformed))
     }
+    @Test fun headerProbeUsesInternalCoordinatesAndDoesNotRequireCompleteSet() {
+        val source = directory(); fixture(source, 90_000)
+        val set = BackupArchive.writeTree(source, directory(), snapshotAt = 123456, volumeBytes = 32_768)
+        assertTrue(set.files.size > 1)
+        val renamed = set.files.first().copyTo(File(directory(), "arbitrary-name.bin"))
+        val info = BackupArchive.inspectPart(renamed)
+        assertEquals(set.setId, info.setId); assertEquals(0, info.partIndex); assertEquals(123456L, info.snapshotAt)
+        assertEquals(set.files.lastIndex, BackupArchive.inspectPart(set.files.last()).partIndex)
+        rejected(listOf(renamed)) // Probe is deliberately weaker than full-set validation.
+        try { BackupArchive.inspectPart(renamed) { throw CancellationException() }; fail() }
+        catch (_: CancellationException) { }
+    }
+    @Test fun headerProbeRejectsUnknownVersionBadZipAndHeaderCrcMismatch() {
+        val file = BackupArchive.writeTree(directory(), directory()).files.single()
+        val unknown = rewrite(file) { name, bytes -> name to if (name == "header.bin") bytes.copyOf().also {
+            java.nio.ByteBuffer.wrap(it).putInt(2 + "study-assistant-backup".length, 99)
+        } else bytes }
+        try { BackupArchive.inspectPart(unknown); fail() }
+        catch (error: BackupValidationException) { assertEquals("data.backupVersionUnsupported", error.messageKey) }
+        val broken = File(directory(), "broken.sab"); broken.writeText("not a ZIP")
+        try { BackupArchive.inspectPart(broken); fail() } catch (_: BackupValidationException) { }
+        val bytes = file.readBytes()
+        val central = bytes.indices.first { index -> index + 3 < bytes.size && bytes[index] == 0x50.toByte() &&
+            bytes[index + 1] == 0x4b.toByte() && bytes[index + 2] == 1.toByte() && bytes[index + 3] == 2.toByte() }
+        val buffer = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        val compressed = buffer.getInt(central + 20)
+        val descriptor = 30 + (buffer.getShort(26).toInt() and 65535) + (buffer.getShort(28).toInt() and 65535) + compressed
+        bytes[central + 16] = (bytes[central + 16].toInt() xor 1).toByte()
+        bytes[descriptor + 4] = (bytes[descriptor + 4].toInt() xor 1).toByte()
+        broken.writeBytes(bytes)
+        try { BackupArchive.inspectPart(broken); fail() } catch (_: BackupValidationException) { }
+    }
 }

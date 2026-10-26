@@ -917,7 +917,7 @@ private fun BackupSettings(vm: MainViewModel) {
     val idle = !vm.dataBusy && vm.preparedBackup == null
     fun savePrepared(set: com.zsz.studyassistant.data.BackupArchive.ArchiveSet) {
         showParts = set.files.size != 1
-        if (set.files.size == 1) exportLauncher.launch("study-assistant-backup.sab")
+        if (set.files.size == 1) exportLauncher.launch(com.zsz.studyassistant.data.BackupNames.fileName(set.snapshotAt, automatic = false))
     }
     Button(shape = smoothPill(), onClick = {
         val ready = vm.preparedExport
