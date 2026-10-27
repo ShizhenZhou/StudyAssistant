@@ -97,11 +97,12 @@ object AutoBackup {
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun isEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_ENABLED, true)
+    fun isEnabled(context: Context): Boolean = treeUri(context) != null && prefs(context).getBoolean(KEY_ENABLED, true)
 
     fun setEnabled(context: Context, on: Boolean) = synchronized(BackupJobs) {
-        if (isEnabled(context) == on) return@synchronized
-        prefs(context).edit().putBoolean(KEY_ENABLED, on).apply()
+        val enabled = on && treeUri(context) != null
+        if (isEnabled(context) == enabled) return@synchronized
+        prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply()
         BackupJobs.configurationChanged(context)
     }
 
@@ -114,7 +115,8 @@ object AutoBackup {
         BackupJobs.configurationChanged(context)
         prefs(context).edit().apply {
             remove(KEY_LAST_DAY); remove(KEY_LAST_AT); remove(KEY_ATTEMPT_AT); remove(KEY_FAILURE_KEY)
-            if (uri == null) remove(KEY_TREE) else putString(KEY_TREE, uri.toString())
+            if (uri == null) { remove(KEY_TREE); putBoolean(KEY_ENABLED, false) }
+            else { putString(KEY_TREE, uri.toString()); putBoolean(KEY_ENABLED, true) }
         }.apply()
     }
 

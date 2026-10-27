@@ -7,6 +7,8 @@ class BackupUiTest {
     @Test fun `folder path keeps logical volume and all nested folders`() {
         assertEquals("Internal storage/Documents/Study/Backups", backupFolderLabel("primary:Documents/Study/Backups", "Backups", "Internal storage"))
         assertEquals("1234-ABCD:/Study", backupFolderLabel("1234-ABCD:Study", "Study", "Internal storage"))
+        assertEquals("Internal storage/Documents/Study", backupFolderLabel("primary: /Documents/Study", null, "Internal storage"))
+        assertEquals("Internal storage/My Files/Study", backupFolderLabel("primary:My Files/Study", null, "Internal storage"))
         assertEquals("Cloud backups", backupFolderLabel("opaque-provider-id", "Cloud backups", "Internal storage"))
     }
     @Test fun `internal storage name follows all supported UI languages`() {

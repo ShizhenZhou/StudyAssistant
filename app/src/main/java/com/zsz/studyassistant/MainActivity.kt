@@ -76,7 +76,11 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         com.zsz.studyassistant.data.BackupJobs.setForeground(true)
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            com.zsz.studyassistant.data.BackupJobs.onAppOpened(applicationContext)
+            val tree = com.zsz.studyassistant.data.AutoBackup.treeUri(applicationContext)
+            if (tree != null && !com.zsz.studyassistant.data.BackupFolderAccess.isUsable(applicationContext, tree)) {
+                if (com.zsz.studyassistant.data.AutoBackup.treeUri(applicationContext) == tree)
+                    com.zsz.studyassistant.data.AutoBackup.setEnabled(applicationContext, false)
+            } else com.zsz.studyassistant.data.BackupJobs.onAppOpened(applicationContext)
         }
     }
 

@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7.5
+· 📂 首次填写 Key 后引导选择自动备份路径；未配置或路径失效时再次提醒，可跳过；选好自动开启每日备份，无有效路径时开关关闭并置灰
+· 📝 补齐早期更新记录图标；备份路径增加说明并可点击打开文件夹，导入说明明确支持 Bak v3 JSON
+
 v0.6.7.4
 · 🔔 更新下载新增持续进度通知，显示等待、下载与校验结果，可取消下载；点按通知返回应用更新页
 · 🛡️ 使用 Android 通用通知与后台下载接口；通知不可用时继续系统下载，可在更新页打开通知设置
@@ -218,8 +222,8 @@ v0.6.2
 
 v0.6.1.4
 · 🗄 **自动备份**：设置 → 数据管理 → 「自动备份」——选一个文件夹后，**每天第一次打开应用时**自动把整库备份成 JSON 写进去，**只保留最近 3 份**（自动清理更旧的，且只删自己写出的文件）；备份可直接用「导入备份」恢复，不联网、不上传
-· 备份要能扛住"卸载 / 清除数据"，所以需要先选一次文件夹才生效，并且**故意不写进 App 私有目录**；可随时用「立即备份一次」手动触发、也可关掉开关
-· 本次起「更新说明」直接写在 Release 里 —— App 的更新页会把该说明显示出来
+· 🗄 备份要能扛住"卸载 / 清除数据"，所以需要先选一次文件夹才生效，并且**故意不写进 App 私有目录**；可随时用「立即备份一次」手动触发、也可关掉开关
+· ⬆️ 本次起「更新说明」直接写在 Release 里 —— App 的更新页会把该说明显示出来
 
 v0.6.1.3
 · 🔍 **首次引入单元测试**：新增 `app/src/test`（22 个用例）覆盖**历史上反复踩坑的纯逻辑** —— 答案解析（题干回显、圈码泄漏、正文不能被截断）、版本比较与「同版本新构建」判定、四种语言文案表的键/占位符/繁体转换；`tools/run-unit-tests.ps1` 供本机运行，CI 每次推送都会跑
@@ -279,15 +283,15 @@ v0.5.7
 
 v0.5.6
 · **📊 新增「学习统计」页**：底栏改为三个页签 —— 📚 学习（原「主页」）/ 📊 统计 / ⚙️ 设置
-· 统计内容：今日复习、近 7 天复习、连续天数、待复习；掌握度分布（未开始 / 复习中 / 已掌握）；近 7 天新增错题（可一键切换成**近 1 个月**，带纵坐标刻度）；科目分布
-· **Android 17 兼容性修复**：补上精确闹钟权限并在未授予时自动降级（复习提醒不再静默失效）；框选页底部按钮避开手势导航条
+· 📊 统计内容：今日复习、近 7 天复习、连续天数、待复习；掌握度分布（未开始 / 复习中 / 已掌握）；近 7 天新增错题（可一键切换成**近 1 个月**，带纵坐标刻度）；科目分布
+· 🛡 **Android 17 兼容性修复**：补上精确闹钟权限并在未授予时自动降级（复习提醒不再静默失效）；框选页底部按钮避开手势导航条
 
 v0.5.5
-· **菜单调整**：「直接提问」从拍照搜题页搬到**主页**，位于「拍照搜题」与「批改题目」之间（文字/图文直接解答，不必拍照）
-· **框选页支持预框选**：进页面即自动框出题目范围（本地算法与 AI 并行，AI 超时回落本地/默认框），可双指缩放图片、长按跳过框选
-· **两张模式全程可框选**：拍题 / 批改的「两张」模式，每张都各自框选；框完第二张可按返回回到第一张重框
-· **设置页归类**：新增「通用」（API 管理 + AI 框选时限滑条），「个性化」「通知与后台」重新归类
-· 回到主页会清空所有拍摄 / 框选缓存
+· 🧭 **菜单调整**：「直接提问」从拍照搜题页搬到**主页**，位于「拍照搜题」与「批改题目」之间（文字/图文直接解答，不必拍照）
+· ✂️ **框选页支持预框选**：进页面即自动框出题目范围（本地算法与 AI 并行，AI 超时回落本地/默认框），可双指缩放图片、长按跳过框选
+· ✂️ **两张模式全程可框选**：拍题 / 批改的「两张」模式，每张都各自框选；框完第二张可按返回回到第一张重框
+· ⚙️ **设置页归类**：新增「通用」（API 管理 + AI 框选时限滑条），「个性化」「通知与后台」重新归类
+· 🧹 回到主页会清空所有拍摄 / 框选缓存
 
 v0.5.4
 · ✏️ **批改页重做**：拍完题目（或题目+作答）直接进入**全屏批改页**（复用解题界面，标题「批改」）；批改结果与后续问答**全部流式**，可**带图追问**；生成中「⏸ 中止批改」、追问中「⏸ 中止生成」、空闲「🔄 重新批改」
@@ -300,164 +304,168 @@ v0.5.4
 · 🔤 页面标题统一大字号；修复批改页偶发出现「删除 / 暂不分类」按钮组
 
 v0.5.3
-· **解题与追问流式输出**：答案边生成边显示（末尾有 ▍ 光标），长推导不用再整段白等；生成中可继续滚动阅读
-· 生成中可点 **⏸ 中止生成**（立即停止）；中断或中止后在内容末尾显示蓝色「**继续生成**」，点击**从中断处接着写**，不重复已写内容
-· **长按消息气泡进入多选**：气泡右上角选择圈、选中显示红框；顶栏左侧「全选 / 取消全选」、右侧「删除 / 完成」；多选态下不会触发系统长按选字
-· 打开会话**默认停在顶部**；右下角圆形按钮：在顶部显示 **↓**（快速滚到底），否则显示 **↑**（快速回顶），均为平滑滚动
-· **同类题页支持流式**：出题只外显题目（答案仍点「查看答案」才展开，未生成好时按钮置灰）；追问同样流式
-· 复习：详情页标题显示「**复习 x/xx**」；切下一题时**清屏提示 + 自动折叠答案 + 回到顶部**
-· 标题字号统一（解题 / 错题 / 错题本 / 复习均为大字号）；错题本多选改小字号并新增「全选」
-· 错题详情顶栏：删除按钮位于分类左侧；生成答案时出现「⏸ 中止生成」且**删除按钮置灰**
+· 🌊 **解题与追问流式输出**：答案边生成边显示（末尾有 ▍ 光标），长推导不用再整段白等；生成中可继续滚动阅读
+· ⏸ 生成中可点 **⏸ 中止生成**（立即停止）；中断或中止后在内容末尾显示蓝色「**继续生成**」，点击**从中断处接着写**，不重复已写内容
+· ☑️ **长按消息气泡进入多选**：气泡右上角选择圈、选中显示红框；顶栏左侧「全选 / 取消全选」、右侧「删除 / 完成」；多选态下不会触发系统长按选字
+· ⬆️⬇️ 打开会话**默认停在顶部**；右下角圆形按钮：在顶部显示 **↓**（快速滚到底），否则显示 **↑**（快速回顶），均为平滑滚动
+· 🧩 **同类题页支持流式**：出题只外显题目（答案仍点「查看答案」才展开，未生成好时按钮置灰）；追问同样流式
+· 🔁 复习：详情页标题显示「**复习 x/xx**」；切下一题时**清屏提示 + 自动折叠答案 + 回到顶部**
+· 🔤 标题字号统一（解题 / 错题 / 错题本 / 复习均为大字号）；错题本多选改小字号并新增「全选」
+· 🗂 错题详情顶栏：删除按钮位于分类左侧；生成答案时出现「⏸ 中止生成」且**删除按钮置灰**
 
 v0.5.2
-· **公式键盘改为窄条**：默认只显示一行小字「公式键盘」，点一下才展开符号行与 LaTeX 模板行，再点收起——不再占用输入区空间
-· 界面**锁定竖屏**：转动手机不再跟着旋转（此前未锁定，横屏下部分页面排版会乱；大屏设备上系统可能仍会忽略该锁定）
+· 🧮 **公式键盘改为窄条**：默认只显示一行小字「公式键盘」，点一下才展开符号行与 LaTeX 模板行，再点收起——不再占用输入区空间
+· 📱 界面**锁定竖屏**：转动手机不再跟着旋转（此前未锁定，横屏下部分页面排版会乱；大屏设备上系统可能仍会忽略该锁定）
 
 v0.5.1
-· 错题本：搜索框不再常驻，改为标题栏 **🔍 按钮**唤出；点其他位置（或返回键）自动关闭
-· 错题本新增 **「管理」**：科目（分类）纵向列表，可 **✏️ 重命名**、可 **勾选批量删除**；删除前二次确认，并可选择**是否连同科目中的错题一起删除**（不勾选则题目改为「未分类」）
+· 🔍 错题本：搜索框不再常驻，改为标题栏 **🔍 按钮**唤出；点其他位置（或返回键）自动关闭
+· 🗂 错题本新增 **「管理」**：科目（分类）纵向列表，可 **✏️ 重命名**、可 **勾选批量删除**；删除前二次确认，并可选择**是否连同科目中的错题一起删除**（不勾选则题目改为「未分类」）
 
 v0.5.0
-· 设置重构：新增「💾 数据管理」；「关于」改为二级菜单（上面应用信息，下面更新内容）
-· 数据管理：**导出备份**（单个 JSON，含题目图片与完整会话）/ **导入备份**（同名分类标签复用、题干相同自动跳过，不会覆盖现有数据）/ **清空所有数据**（二次确认）
+· ⚙️ 设置重构：新增「💾 数据管理」；「关于」改为二级菜单（上面应用信息，下面更新内容）
+· 💾 数据管理：**导出备份**（单个 JSON，含题目图片与完整会话）/ **导入备份**（同名分类标签复用、题干相同自动跳过，不会覆盖现有数据）/ **清空所有数据**（二次确认）
 · 「🔑 API 管理」：Key 设置 + **累计用量统计**（调用次数、输入/输出 tokens，可重置）；输入框下标注「API Key 一律加密保存在本地」
-· 复习默认**折叠解答**：先自己回忆，再点「看解答」展开；顶部显示「第 i/n 题」进度
-· 错题本新增**全文搜索**：按题干（AI 转译文本）与解答检索
-· 直接提问与追问新增**公式快捷输入条**：∫ ∑ √ π 等符号 + LaTeX 模板（分式/上下标/积分上下限等）
-· 重做模式已预留接口（复习时手写重做 → 复用批改 → 自动更新掌握度），后续版本接入
-· 对话（解题/批改/同类题）里的图片**点击可全屏放大**：双指缩放、拖动，✕ 或返回键关闭
-· 「清空所有数据」需**手动输入确认语**后才可执行，确认按钮为红色；「API Key 加密保存」提示改为绿色字
+· 📖 复习默认**折叠解答**：先自己回忆，再点「看解答」展开；顶部显示「第 i/n 题」进度
+· 🔍 错题本新增**全文搜索**：按题干（AI 转译文本）与解答检索
+· 🧮 直接提问与追问新增**公式快捷输入条**：∫ ∑ √ π 等符号 + LaTeX 模板（分式/上下标/积分上下限等）
+· 🔌 重做模式已预留接口（复习时手写重做 → 复用批改 → 自动更新掌握度），后续版本接入
+· 🔍 对话（解题/批改/同类题）里的图片**点击可全屏放大**：双指缩放、拖动，✕ 或返回键关闭
+· 🛡 「清空所有数据」需**手动输入确认语**后才可执行，确认按钮为红色；「API Key 加密保存」提示改为绿色字
 
 v0.5.0_beta
-· 新增「应用语言」（界面语言）：设置 → 🌐 语言设置，可选 跟随系统 / 简体中文 / 繁體中文 / English / 日本語 / 한국어，切换立即生效、无需重启
-· 界面文案全面多语言：主页、拍题、直接提问、解题、批改、错题本、复习、设置、通知等
-· 「AI 生成语言」与「应用语言」现为两项独立设置：前者决定 AI 用什么语言作答，后者决定 App 界面文字
+· 🌐 新增「应用语言」（界面语言）：设置 → 🌐 语言设置，可选 跟随系统 / 简体中文 / 繁體中文 / English / 日本語 / 한국어，切换立即生效、无需重启
+· 🌐 界面文案全面多语言：主页、拍题、直接提问、解题、批改、错题本、复习、设置、通知等
+· 🧩 「AI 生成语言」与「应用语言」现为两项独立设置：前者决定 AI 用什么语言作答，后者决定 App 界面文字
 
 v0.4.9
-· 拍照题的题目气泡只显示原图：不再显示 AI 转译的题干文字（题干仍保存，错题本/搜索/编辑不受影响；旧会话同样只显示原图）；直接提问仍显示你自己写的问题
-· 设置新增二级菜单「🌐 语言设置」→「AI 生成语言」：跟随系统 / 跟随题目 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский
-· 语言设置覆盖拍题解答、直接提问、追问、批改、同类题（数学公式仍是 LaTeX）
+· 🎨 拍照题的题目气泡只显示原图：不再显示 AI 转译的题干文字（题干仍保存，错题本/搜索/编辑不受影响；旧会话同样只显示原图）；直接提问仍显示你自己写的问题
+· 🌐 设置新增二级菜单「🌐 语言设置」→「AI 生成语言」：跟随系统 / 跟随题目 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский
+· 🌐 语言设置覆盖拍题解答、直接提问、追问、批改、同类题（数学公式仍是 LaTeX）
 
 v0.4.8
-· 题目/首次提问统一显示为浅绿色用户气泡（含原图/附图）：单张拍题、两张拍题、直接提问、批改、错题本、复习界面全部一致
-· 复习界面改为单列：整行宽度、题图更大更清楚
-· R8 混淆 + 资源压缩转为常规（release 变体）：APK 约 4.4MB（原约 30MB），保留旧会话兼容
+· 🎨 题目/首次提问统一显示为浅绿色用户气泡（含原图/附图）：单张拍题、两张拍题、直接提问、批改、错题本、复习界面全部一致
+· 🎨 复习界面改为单列：整行宽度、题图更大更清楚
+· 📦 R8 混淆 + 资源压缩转为常规（release 变体）：APK 约 4.4MB（原约 30MB），保留旧会话兼容
 
 v0.4.7.5（临时版本）
-· 开启 R8 代码裁剪/混淆 + 资源压缩（仅 release），APK 体积大幅缩小；保留旧会话兼容
-· 设置页新增二级菜单「📝 更新内容」
+· 📦 开启 R8 代码裁剪/混淆 + 资源压缩（仅 release），APK 体积大幅缩小；保留旧会话兼容
+· 🆕 设置页新增二级菜单「📝 更新内容」
 
 v0.4.7
-· 直接提问会在对话里显示「我的提问 + 附图」（与拍题后的问答一致）
-· 性能：错题本/复习列表图片改为缓存 + 降采样解码（滚动更流畅、内存更省）
-· 体积：删除 KaTeX 冗余 .woff（保留 woff2）；预览工具改为仅 debug 依赖
-· 拍照搜题新增「单张 / 两张」拍摄模式：两张可拍两张作为同一道题一起解答
-· 更多效率优化：API Key 内存缓存；复习页 Flow 缓存；时间格式化器复用；对话消息列表缓存；WebView 内容未变时跳过重渲染；筛选结果缓存；分类/标签名预缓存
+· 🆕 直接提问会在对话里显示「我的提问 + 附图」（与拍题后的问答一致）
+· ⚡ 性能：错题本/复习列表图片改为缓存 + 降采样解码（滚动更流畅、内存更省）
+· 📦 体积：删除 KaTeX 冗余 .woff（保留 woff2）；预览工具改为仅 debug 依赖
+· 🆕 拍照搜题新增「单张 / 两张」拍摄模式：两张可拍两张作为同一道题一起解答
+· ⚡ 更多效率优化：API Key 内存缓存；复习页 Flow 缓存；时间格式化器复用；对话消息列表缓存；WebView 内容未变时跳过重渲染；筛选结果缓存；分类/标签名预缓存
 
 v0.4.6
-· 「关于」不再做二级菜单，直接显示在设置主页
-· 生成答案的通知点击可回到正在生成的页面
+· 🔄 「关于」不再做二级菜单，直接显示在设置主页
+· 🆕 生成答案的通知点击可回到正在生成的页面
 
 v0.4.5
-· 设置页改为二级菜单：主页为入口列表（API Key / 应用主题 / 复习提醒 / 后台运行 / 关于），点进去再做具体设置
+· 🆕 设置页改为二级菜单：主页为入口列表（API Key / 应用主题 / 复习提醒 / 后台运行 / 关于），点进去再做具体设置
 
 v0.4.4
-· 存题选标签改为下拉菜单（纵向可滑动，保留 AI 自动预选）
-· 错题本标签筛选改为选择框「按标签搜索」，点击才弹出下拉多选
+· 🆕 存题选标签改为下拉菜单（纵向可滑动，保留 AI 自动预选）
+· 🆕 错题本标签筛选改为选择框「按标签搜索」，点击才弹出下拉多选
 
 v0.4.3
-· 模型升级到 DeepSeek-V4.1-Flash（deepseek-flash，原生多模态），视觉与文本统一
-· 修复：解题页标题「解题」被右侧按钮挤压成省略号（缩小按钮间距/字号 + 标题保留最小宽度）
+· 🔄 模型升级到 DeepSeek-V4.1-Flash（deepseek-flash，原生多模态），视觉与文本统一
+· 🐛 修复：解题页标题「解题」被右侧按钮挤压成省略号（缩小按钮间距/字号 + 标题保留最小宽度）
 
 v0.4.2
-· 点击复习提醒通知直接打开「复习」界面
-· 设置页「一键开启自启动」（适配荣耀/华为/小米/OPPO/vivo）
-· 拍题界面右上角「✏️ 直接提问」：可用文字 + 1~3 张图直接提问
-· 通知时间为系统上下滑动选择
+· 🆕 点击复习提醒通知直接打开「复习」界面
+· 🆕 设置页「一键开启自启动」（适配荣耀/华为/小米/OPPO/vivo）
+· 🆕 拍题界面右上角「✏️ 直接提问」：可用文字 + 1~3 张图直接提问
+· 🆕 通知时间为系统上下滑动选择
 
 v0.4.1
-· 复习完自动跳下一题（同科目优先），今日全部复习完才退出并提示
-· 练同类题：AI 出一道同类题（先只显示题目，可互动），点「查看答案」才显示答案
-· 复习提醒通知：开关 + 提醒时间（每天一次）
-· 通知权限申请；开机自动恢复提醒
+· 🆕 复习完自动跳下一题（同科目优先），今日全部复习完才退出并提示
+· 🆕 练同类题：AI 出一道同类题（先只显示题目，可互动），点「查看答案」才显示答案
+· 🆕 复习提醒通知：开关 + 提醒时间（每天一次）
+· 🆕 通知权限申请；开机自动恢复提醒
 
 v0.4.0
-· 复习功能：主页新增「📖 复习」入口
-· 艾宾浩斯自动排期：新存错题按 0/1/2/4/7/15/30 天间隔调度（新增 review 表，DB v7）
-· 复习界面「今天 / 本周」可选，按科目→知识点分组、两列瀑布流
-· 点进错题底部变为 熟悉 / 模糊 / 忘记 三按钮，改变下次出现时机
-· 近似题接口预留
+· 🆕 复习功能：主页新增「📖 复习」入口
+· 🆕 艾宾浩斯自动排期：新存错题按 0/1/2/4/7/15/30 天间隔调度（新增 review 表，DB v7）
+· 🆕 复习界面「今天 / 本周」可选，按科目→知识点分组、两列瀑布流
+· 🆕 点进错题底部变为 熟悉 / 模糊 / 忘记 三按钮，改变下次出现时机
+· 🆕 近似题接口预留
 
 v0.3.9
-· 知识点标签（tag）：与科目分类解耦、全局不分科、多对多
-· AI 自动打 tag（≤5，优先复用已有标签），存题/详情页可改
-· 错题本顶部标签多选筛选，卡片显示标签
-· 数据库 v5→v6（tags + question_tags 表）
+· 🆕 知识点标签（tag）：与科目分类解耦、全局不分科、多对多
+· 🆕 AI 自动打 tag（≤5，优先复用已有标签），存题/详情页可改
+· 🆕 错题本顶部标签多选筛选，卡片显示标签
+· 🆕 数据库 v5→v6（tags + question_tags 表）
 
 v0.3.8
-· 修复：对话正文回归单个 WebView 稳定滚动，错题本点进后上下滑动顺畅
-· 修复：错题时间戳记录提问时时间，点进去退出不再刷新
-· 版本约定：自定义数据文件头 4 字节记版本号，便于未来迁移
-· 密钥策略：源码/仓库不含任何 key
+· 🐛 修复：对话正文回归单个 WebView 稳定滚动，错题本点进后上下滑动顺畅
+· 🐛 修复：错题时间戳记录提问时时间，点进去退出不再刷新
+· 🗂 版本约定：自定义数据文件头 4 字节记版本号，便于未来迁移
+· 🔐 密钥策略：源码/仓库不含任何 key
 
 v0.3.7
-· 批量改分类 / 批量删除：错题本长按进入多选
-· 批量分类：已有 / 新建 / 暂不分类
-· 批量删除：彻底删除（弹确认框）
-· 多选卡片显示勾选标记 + 选中绿框
+· 🆕 批量改分类 / 批量删除：错题本长按进入多选
+· 🆕 批量分类：已有 / 新建 / 暂不分类
+· 🆕 批量删除：彻底删除（弹确认框）
+· 🆕 多选卡片显示勾选标记 + 选中绿框
 
 v0.3.6
-· 错题分类：存题时选择「暂不分类 / 已有分类 / 新建分类」，AI 自动推测科目
-· AI 优先归入已有分类，避免重复新建
-· 错题本顶部分类筛选；详情页可改分类
-· 错题本改为两列瀑布流；分类栏增加「未分类」
-· 数据库 v4→v5（categories 表）
+· 🆕 错题分类：存题时选择「暂不分类 / 已有分类 / 新建分类」，AI 自动推测科目
+· 🆕 AI 优先归入已有分类，避免重复新建
+· 🆕 错题本顶部分类筛选；详情页可改分类
+· 🆕 错题本改为两列瀑布流；分类栏增加「未分类」
+· 🆕 数据库 v4→v5（categories 表）
 
 v0.3.5
-· 追问可带图（1~3 张），AI 同时看图与文字作答
-· 输入栏样式：圆角输入框 + 胶囊「发送」按钮
-· 追问消息气泡显示附图缩略图；附图随会话保存
-· 移除「拍下一题」按钮；解题页返回直达拍题界面
-· 拍题/批改相机支持点击对焦 + 对焦框动画
+· 🆕 追问可带图（1~3 张），AI 同时看图与文字作答
+· ✨ 输入栏样式：圆角输入框 + 胶囊「发送」按钮
+· 🆕 追问消息气泡显示附图缩略图；附图随会话保存
+· 🔄 移除「拍下一题」按钮；解题页返回直达拍题界面
+· 🆕 拍题/批改相机支持点击对焦 + 对焦框动画
 
 v0.3.4
-· 批改题目：单张/两张拍摄，AI 判断正误、指出错误步骤并讲解
-· 应用图标字母改为 SA
-· 错题本删除改为软删除（可「恢复」）
-· 追问输入框键盘避让；拍题图库按钮与快门齐平
+· 🆕 批改题目：单张/两张拍摄，AI 判断正误、指出错误步骤并讲解
+· 🆕 应用图标字母改为 SA
+· 🔄 错题本删除改为软删除（可「恢复」）
+· ✨ 追问输入框键盘避让；拍题图库按钮与快门齐平
 
 v0.3.3
-· 应用图标（白底 + 蓝书）；桌面名称 Study Assistant
-· 存错题本保存完整对话会话，点击错题可继续问答（续答）
-· 框选红色加粗、四角可拖拽；APK 命名规范
+· 🆕 应用图标（白底 + 蓝书）；桌面名称 Study Assistant
+· 🆕 存错题本保存完整对话会话，点击错题可继续问答（续答）
+· 🐛 框选红色加粗、四角可拖拽；APK 命名规范
 
 v0.3.2
-· 底部双选项卡：主页 / 设置
-· 应用主题：浅色 / 深色 / 跟随系统
-· Key 设置移入设置页；关于页标注作者与版本
-· 答案滚动修复；解答改聊天气泡；首次打开自动弹填 Key 对话框
+· 🆕 底部双选项卡：主页 / 设置
+· 🎨 应用主题：浅色 / 深色 / 跟随系统
+· 🔑 Key 设置移入设置页；关于页标注作者与版本
+· 🐛 答案滚动修复；解答改聊天气泡；首次打开自动弹填 Key 对话框
 
 v0.3.1
-· 答案区支持 Markdown 排版
-· 长答案滚动修复；宽公式自适应 + 横向滚动
-· 拍题界面加「重新拍摄」；问答界面加「拍下一题」
-· 拍题界面「相册搜题」；解答页顶部可折叠原图
-· 错题本显示框选原图，可查看 LaTeX 解答
+· ✨ 答案区支持 Markdown 排版
+· ✨ 长答案滚动修复；宽公式自适应 + 横向滚动
+· 🆕 拍题界面加「重新拍摄」；问答界面加「拍下一题」
+· 🆕 拍题界面「相册搜题」；解答页顶部可折叠原图
+· 🆕 错题本显示框选原图，可查看 LaTeX 解答
 
 v0.3.0
-· 拍题框选：拍照后框选题目区域，或整张图识别
-· 重新生成 + 接续对话（多轮问答）
-· API Key 应用内自填（Android Keystore 加密存储）
-· KaTeX 公式渲染
+· 🆕 拍题框选：拍照后框选题目区域，或整张图识别
+· 🆕 重新生成 + 接续对话（多轮问答）
+· 🆕 API Key 应用内自填（Android Keystore 加密存储）
+· 🆕 KaTeX 公式渲染
 
 v0.2（早期版本）
-· 改用 DeepSeek 处理图像：图片直接发给 DeepSeek 视觉模型识别并解答，不再使用百度 OCR
+· 🔄 改用 DeepSeek 处理图像：图片直接发给 DeepSeek 视觉模型识别并解答，不再使用百度 OCR
 
 v0.1（项目建立）
-· 项目搭建：百度智能云 OCR 识别图像 + DeepSeek 解题，拍照搜题、AI 解答、错题整理雏形
+· 🆕 项目搭建：百度智能云 OCR 识别图像 + DeepSeek 解题，拍照搜题、AI 解答、错题整理雏形
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7.5
+· 📂 Guide backup folder setup after the first Key entry; remind when missing or unavailable, with a skip option. A selected folder enables daily backups; otherwise the switch stays off and disabled
+· 📝 Restore icons in early release notes; label and link the backup folder, and clarify support for Bak v3 JSON imports
+
 v0.6.7.4
 · 🔔 Update downloads show ongoing progress, waiting and verification results, with a cancel action; tapping opens App update
 · 🛡️ Uses standard Android notifications and background downloads. Downloads continue when notifications are unavailable; notification settings are accessible from App update
@@ -671,8 +679,8 @@ v0.6.2
 
 v0.6.1.4
 · 🗄 **Automatic backup**: Settings → Data → "Auto backup" — pick a folder and the whole database is backed up to JSON on the **first launch of each day**, keeping only the **last 3** (older ones are cleaned up automatically, and only files it wrote itself are deleted); the backup can be restored straight from "Import backup", local only — no network, no upload
-· A backup has to survive "uninstall / clear data", so a folder must be picked once for this to take effect, and the files are **deliberately not written into the app's private directory**; you can trigger it any time with "Back up now" or switch it off
-· From this version on the "what's new" text is written directly in the Release — the app's update page shows it
+· 🗄 A backup has to survive "uninstall / clear data", so a folder must be picked once for this to take effect, and the files are **deliberately not written into the app's private directory**; you can trigger it any time with "Back up now" or switch it off
+· ⬆️ From this version on the "what's new" text is written directly in the Release — the app's update page shows it
 
 v0.6.1.3
 · 🔍 **Unit tests introduced for the first time**: a new `app/src/test` (22 cases) covering the **pure logic that had bitten us repeatedly** — answer parsing (question echo, circled-number leakage, body text must not be truncated), version comparison and the "new build of the same version" rule, and the keys / placeholders / traditional conversion of the four string tables; run locally with `tools/run-unit-tests.ps1` and by CI on every push
@@ -732,15 +740,15 @@ v0.5.7
 
 v0.5.6
 · **📊 New "Learning stats" page**: bottom bar now has three tabs — 📚 Learn (renamed from Home) / 📊 Stats / ⚙️ Settings
-· Stats: reviewed today, last 7 days, day streak, due now; mastery split (not started / learning / mastered); mistakes added in the last 7 days (toggle to **30 days**, with a Y axis); subject breakdown
-· **Android 17 compatibility fixes**: exact-alarm permission added with graceful fallback (reminders no longer silently stop); crop screen bottom buttons now avoid the gesture bar
+· 📊 Stats: reviewed today, last 7 days, day streak, due now; mastery split (not started / learning / mastered); mistakes added in the last 7 days (toggle to **30 days**, with a Y axis); subject breakdown
+· 🛡 **Android 17 compatibility fixes**: exact-alarm permission added with graceful fallback (reminders no longer silently stop); crop screen bottom buttons now avoid the gesture bar
 
 v0.5.5
-· **Menu change**: "Ask directly" moved from the photo page to the **home screen**, between "Solve by photo" and "Grade my work" (type or attach an image, no photo needed)
-· **Pre-selection in the crop screen**: the question area is framed automatically (local algorithm + AI in parallel, falling back to local/default on timeout); pinch to zoom, hold to skip
-· **Two-shot mode now crops every image**: each photo goes through cropping; press back on the 2nd to re-crop the 1st
-· **Settings reorganized**: new "General" (API, AI crop timeout slider), plus "Personalization" and "Notifications & background"
-· Returning to Home clears all capture/crop caches
+· 🧭 **Menu change**: "Ask directly" moved from the photo page to the **home screen**, between "Solve by photo" and "Grade my work" (type or attach an image, no photo needed)
+· ✂️ **Pre-selection in the crop screen**: the question area is framed automatically (local algorithm + AI in parallel, falling back to local/default on timeout); pinch to zoom, hold to skip
+· ✂️ **Two-shot mode now crops every image**: each photo goes through cropping; press back on the 2nd to re-crop the 1st
+· ⚙️ **Settings reorganized**: new "General" (API, AI crop timeout slider), plus "Personalization" and "Notifications & background"
+· 🧹 Returning to Home clears all capture/crop caches
 
 v0.5.4
 · ✏️ **Grading page rebuilt**: shooting the question (or question + your answer) now goes straight to a **full-screen grading page** reusing the solve UI, titled "Grading"; results and follow-ups are **fully streamed** and you can **ask with images** — "⏸ Stop grading" while grading, "⏸ Stop" while asking, "🔄 Re-grade" when idle
@@ -753,164 +761,168 @@ v0.5.4
 · 🔤 Page titles unified; fixed a stray "Delete / Uncategorized" button group on the grading page
 
 v0.5.3
-· **Streaming answers for solve and follow-up**: the answer appears while it is generated (with a trailing ▍ cursor), so long derivations no longer make you wait for the whole block
+· 🌊 **Streaming answers for solve and follow-up**: the answer appears while it is generated (with a trailing ▍ cursor), so long derivations no longer make you wait for the whole block
 · **⏸ Stop** while generating; after a stop or a network drop the text already generated is kept and a blue "**Continue generating**" line appends at the end — tapping it **resumes from where it stopped** without repeating
-· **Long-press a message bubble to enter multi-select**: a pick circle at each bubble's top-right and a red border when selected; the bar has "Select all / Deselect all" on the left and "Delete / Done" on the right; system text-selection is suppressed in this mode
-· Conversations open **at the top**; the round button at the bottom-right shows **↓** when at the top (scroll to bottom) and **↑** otherwise (back to top), both animated
-· **Similar-problem page is streamed too**: the question streams while the answer stays hidden until "Show answer" (the button is disabled until the answer is ready); follow-ups stream as well
-· Review: the title shows "**Review x/xx**"; moving to the next question now **clears the screen briefly, collapses the answer and scrolls back to the top**
-· Page titles unified to the large size (Solve / Problem / Notebook / Review); the notebook's multi-select title is small and gained a "Select all" button
-· Problem detail bar: Delete sits left of the category button; while generating, "⏸ Stop" appears and **Delete is disabled**
+· ☑️ **Long-press a message bubble to enter multi-select**: a pick circle at each bubble's top-right and a red border when selected; the bar has "Select all / Deselect all" on the left and "Delete / Done" on the right; system text-selection is suppressed in this mode
+· ⬆️⬇️ Conversations open **at the top**; the round button at the bottom-right shows **↓** when at the top (scroll to bottom) and **↑** otherwise (back to top), both animated
+· 🧩 **Similar-problem page is streamed too**: the question streams while the answer stays hidden until "Show answer" (the button is disabled until the answer is ready); follow-ups stream as well
+· 🔁 Review: the title shows "**Review x/xx**"; moving to the next question now **clears the screen briefly, collapses the answer and scrolls back to the top**
+· 🔤 Page titles unified to the large size (Solve / Problem / Notebook / Review); the notebook's multi-select title is small and gained a "Select all" button
+· 🗂 Problem detail bar: Delete sits left of the category button; while generating, "⏸ Stop" appears and **Delete is disabled**
 
 v0.5.2
-· The **formula keyboard is now a slim strip**: by default it shows a single small "Formula keyboard" line; tap it to expand the symbol and LaTeX template rows, tap again to collapse — it no longer takes up input space
-· The UI is now **locked to portrait**: rotating the phone no longer rotates the app (it was unlocked before, and some pages looked broken in landscape; large-screen devices may still ignore this lock)
+· 🧮 The **formula keyboard is now a slim strip**: by default it shows a single small "Formula keyboard" line; tap it to expand the symbol and LaTeX template rows, tap again to collapse — it no longer takes up input space
+· 📱 The UI is now **locked to portrait**: rotating the phone no longer rotates the app (it was unlocked before, and some pages looked broken in landscape; large-screen devices may still ignore this lock)
 
 v0.5.1
-· Notebook: the search box no longer takes up space — open it with the **🔍 button** in the title bar; tap anywhere else (or press Back) to close it
-· Notebook gained a **"Manage"** entry: a vertical list of categories with **✏️ rename** and **multi-select delete**; deleting asks for confirmation and lets you choose **whether to delete the problems in those categories too** (otherwise they become "Uncategorized")
+· 🔍 Notebook: the search box no longer takes up space — open it with the **🔍 button** in the title bar; tap anywhere else (or press Back) to close it
+· 🗂 Notebook gained a **"Manage"** entry: a vertical list of categories with **✏️ rename** and **multi-select delete**; deleting asks for confirmation and lets you choose **whether to delete the problems in those categories too** (otherwise they become "Uncategorized")
 
 v0.5.0
-· Settings reorganized: new "💾 Data" page; "About" is now a subpage (app info on top, what's new below)
-· Data management: export a backup (single JSON with images and full conversations) / import a backup (same-name categories and tags are reused, identical questions are skipped — nothing is overwritten) / erase all data (with confirmation)
+· ⚙️ Settings reorganized: new "💾 Data" page; "About" is now a subpage (app info on top, what's new below)
+· 💾 Data management: export a backup (single JSON with images and full conversations) / import a backup (same-name categories and tags are reused, identical questions are skipped — nothing is overwritten) / erase all data (with confirmation)
 · "🔑 API" now holds both the key settings and cumulative usage stats (call count, input/output tokens, resettable), with the note "API Key is always stored encrypted on this device"
-· Review now hides the answer by default: recall first, then tap "Show answer"; a "i / n" progress line is shown
-· Notebook gained full-text search over the transcribed question and the answer
-· Direct questions and follow-ups gained a formula bar: ∫ ∑ √ π symbols plus LaTeX templates (fractions, sub/superscripts, integral limits…)
-· Redo mode has a reserved interface (hand-write your solution → reuse grading → auto-update mastery); UI comes in a later version
-· Images in conversations (solve / grading / similar problems) can be **tapped to view full screen**: pinch to zoom, drag to pan, close with ✕ or Back
-· "Erase all data" now requires **typing a confirmation phrase** and the confirm button is red; the "API Key stored encrypted" note is green
+· 📖 Review now hides the answer by default: recall first, then tap "Show answer"; a "i / n" progress line is shown
+· 🔍 Notebook gained full-text search over the transcribed question and the answer
+· 🧮 Direct questions and follow-ups gained a formula bar: ∫ ∑ √ π symbols plus LaTeX templates (fractions, sub/superscripts, integral limits…)
+· 🔌 Redo mode has a reserved interface (hand-write your solution → reuse grading → auto-update mastery); UI comes in a later version
+· 🔍 Images in conversations (solve / grading / similar problems) can be **tapped to view full screen**: pinch to zoom, drag to pan, close with ✕ or Back
+· 🛡 "Erase all data" now requires **typing a confirmation phrase** and the confirm button is red; the "API Key stored encrypted" note is green
 
 v0.5.0_beta
-· New "App language": Settings → 🌐 Language, choose Follow system / 简体中文 / 繁體中文 / English / 日本語 / 한국어 — applies instantly, no restart
-· The whole interface is now multilingual: home, camera, direct questions, solving, grading, notebook, review, settings, notifications
-· "AI answer language" and "App language" are now two separate settings: one controls what language the AI answers in, the other the app's own text
+· 🌐 New "App language": Settings → 🌐 Language, choose Follow system / 简体中文 / 繁體中文 / English / 日本語 / 한국어 — applies instantly, no restart
+· 🌐 The whole interface is now multilingual: home, camera, direct questions, solving, grading, notebook, review, settings, notifications
+· 🧩 "AI answer language" and "App language" are now two separate settings: one controls what language the AI answers in, the other the app's own text
 
 v0.4.9
-· Photo questions now show only the original image in the question bubble — the AI-transcribed text is gone (it is still saved; notebook, search and editing are unaffected, and older sessions behave the same). Direct questions still show what you typed
-· New submenu in Settings: 🌐 Language → AI answer language (follow system / follow question / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский)
-· The language setting covers photo solving, direct questions, follow-ups, grading and similar problems (formulas stay in LaTeX)
+· 🎨 Photo questions now show only the original image in the question bubble — the AI-transcribed text is gone (it is still saved; notebook, search and editing are unaffected, and older sessions behave the same). Direct questions still show what you typed
+· 🌐 New submenu in Settings: 🌐 Language → AI answer language (follow system / follow question / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский)
+· 🌐 The language setting covers photo solving, direct questions, follow-ups, grading and similar problems (formulas stay in LaTeX)
 
 v0.4.8
-· Questions and first prompts render as a light-green user bubble with the original image everywhere: one-shot, two-shot, direct questions, grading, notebook and review
-· Review screen switched to a single column — full width, larger images
-· R8 shrinking + resource shrinking became standard for release: APK about 4.4 MB (was about 30 MB), old sessions stay readable
+· 🎨 Questions and first prompts render as a light-green user bubble with the original image everywhere: one-shot, two-shot, direct questions, grading, notebook and review
+· 🎨 Review screen switched to a single column — full width, larger images
+· 📦 R8 shrinking + resource shrinking became standard for release: APK about 4.4 MB (was about 30 MB), old sessions stay readable
 
 v0.4.7.5 (temporary version)
-· Enabled R8 code shrinking/obfuscation + resource shrinking (release only); APK much smaller; old sessions stay readable
-· New submenu in Settings: 📝 What's new
+· 📦 Enabled R8 code shrinking/obfuscation + resource shrinking (release only); APK much smaller; old sessions stay readable
+· 🆕 New submenu in Settings: 📝 What's new
 
 v0.4.7
-· Direct questions now appear in the conversation as "my question + attachments"
-· Performance: notebook/review images use caching + downsampled decoding (smoother scrolling, less memory)
-· Size: removed redundant KaTeX .woff files (kept woff2); preview tooling moved to debug-only
-· Photo solving gained One-shot / Two-shot modes: two photos are solved as one problem
-· More micro-optimizations: in-memory API key cache; cached flows; reused time formatter; cached message list; skip WebView re-render when content is unchanged; cached filters; preloaded category/tag names
+· 🆕 Direct questions now appear in the conversation as "my question + attachments"
+· ⚡ Performance: notebook/review images use caching + downsampled decoding (smoother scrolling, less memory)
+· 📦 Size: removed redundant KaTeX .woff files (kept woff2); preview tooling moved to debug-only
+· 🆕 Photo solving gained One-shot / Two-shot modes: two photos are solved as one problem
+· ⚡ More micro-optimizations: in-memory API key cache; cached flows; reused time formatter; cached message list; skip WebView re-render when content is unchanged; cached filters; preloaded category/tag names
 
 v0.4.6
-· "About" is shown directly on the settings page instead of a submenu
-· Tapping the "generating" notification returns to the page that is generating
+· 🔄 "About" is shown directly on the settings page instead of a submenu
+· 🆕 Tapping the "generating" notification returns to the page that is generating
 
 v0.4.5
-· Settings became a submenu list (API Key / Theme / Review reminder / Background running / About)
+· 🆕 Settings became a submenu list (API Key / Theme / Review reminder / Background running / About)
 
 v0.4.4
-· Tag selection when saving a problem became a scrollable dropdown (AI suggestions kept)
-· Notebook tag filter became a "Search by tag" button with a multi-select dropdown
+· 🆕 Tag selection when saving a problem became a scrollable dropdown (AI suggestions kept)
+· 🆕 Notebook tag filter became a "Search by tag" button with a multi-select dropdown
 
 v0.4.3
-· Model upgraded to DeepSeek-V4.1-Flash (deepseek-flash, native multimodal), vision and text unified
-· Fixed the "Solve" title being squeezed into an ellipsis by the right-side buttons
+· 🔄 Model upgraded to DeepSeek-V4.1-Flash (deepseek-flash, native multimodal), vision and text unified
+· 🐛 Fixed the "Solve" title being squeezed into an ellipsis by the right-side buttons
 
 v0.4.2
-· Tapping the review reminder opens the Review screen directly
-· "Enable auto-start" shortcut in Settings (Honor / Huawei / Xiaomi / OPPO / vivo)
+· 🆕 Tapping the review reminder opens the Review screen directly
+· 🆕 "Enable auto-start" shortcut in Settings (Honor / Huawei / Xiaomi / OPPO / vivo)
 · "✏️ Ask directly" in the camera screen: ask with text + 1–3 images
-· Reminder time picked with a wheel selector
+· 🆕 Reminder time picked with a wheel selector
 
 v0.4.1
-· After reviewing, jump to the next problem automatically (same subject first); exit only when today's list is done
-· Similar-problem practice: the AI writes a similar problem (question first, interactive); tap "Show answer" to reveal it
-· Review reminder notification: switch + time (once a day)
-· Notification permission request; reminders restored after reboot
+· 🆕 After reviewing, jump to the next problem automatically (same subject first); exit only when today's list is done
+· 🆕 Similar-problem practice: the AI writes a similar problem (question first, interactive); tap "Show answer" to reveal it
+· 🆕 Review reminder notification: switch + time (once a day)
+· 🆕 Notification permission request; reminders restored after reboot
 
 v0.4.0
-· Review feature: new "📖 Review" entry on the home screen
-· Ebbinghaus scheduling: new problems are scheduled at 0/1/2/4/7/15/30-day intervals (new review table, DB v7)
-· Review screen with Today / This week tabs, grouped by subject → knowledge point, two-column waterfall
-· Inside a problem the bottom shows Easy / Unsure / Forgot, changing when it appears next
-· Similar-problem API prepared
+· 🆕 Review feature: new "📖 Review" entry on the home screen
+· 🆕 Ebbinghaus scheduling: new problems are scheduled at 0/1/2/4/7/15/30-day intervals (new review table, DB v7)
+· 🆕 Review screen with Today / This week tabs, grouped by subject → knowledge point, two-column waterfall
+· 🆕 Inside a problem the bottom shows Easy / Unsure / Forgot, changing when it appears next
+· 🆕 Similar-problem API prepared
 
 v0.3.9
-· Knowledge tags: decoupled from subject categories, global, many-to-many
-· AI auto-tagging (up to 5, reusing existing tags), editable when saving or in details
-· Multi-select tag filter at the top of the notebook; tags shown on cards
-· Database v5→v6 (tags + question_tags)
+· 🆕 Knowledge tags: decoupled from subject categories, global, many-to-many
+· 🆕 AI auto-tagging (up to 5, reusing existing tags), editable when saving or in details
+· 🆕 Multi-select tag filter at the top of the notebook; tags shown on cards
+· 🆕 Database v5→v6 (tags + question_tags)
 
 v0.3.8
-· Fixed: conversation body back to a single, stable scrolling WebView
-· Fixed: problem timestamps record the asking time and no longer change when you leave
-· Versioning convention: custom data files carry a 4-byte version header for future migration
-· Key policy: no keys in the source or repository
+· 🐛 Fixed: conversation body back to a single, stable scrolling WebView
+· 🐛 Fixed: problem timestamps record the asking time and no longer change when you leave
+· 🗂 Versioning convention: custom data files carry a 4-byte version header for future migration
+· 🔐 Key policy: no keys in the source or repository
 
 v0.3.7
-· Batch category change / batch delete: long-press in the notebook to multi-select
-· Batch category: existing / new / uncategorized
-· Batch delete: permanent deletion with a confirmation dialog
-· Selected cards show a check mark and a green border
+· 🆕 Batch category change / batch delete: long-press in the notebook to multi-select
+· 🆕 Batch category: existing / new / uncategorized
+· 🆕 Batch delete: permanent deletion with a confirmation dialog
+· 🆕 Selected cards show a check mark and a green border
 
 v0.3.6
-· Problem categories: choose uncategorized / existing / new when saving; the AI guesses the subject
-· The AI prefers existing categories to avoid duplicates
-· Category filter at the top of the notebook; the category can be changed in details
-· Notebook switched to a two-column waterfall; "Uncategorized" added
-· Database v4→v5 (categories table)
+· 🆕 Problem categories: choose uncategorized / existing / new when saving; the AI guesses the subject
+· 🆕 The AI prefers existing categories to avoid duplicates
+· 🆕 Category filter at the top of the notebook; the category can be changed in details
+· 🆕 Notebook switched to a two-column waterfall; "Uncategorized" added
+· 🆕 Database v4→v5 (categories table)
 
 v0.3.5
-· Follow-ups can include images (1–3); the AI reads both text and images
-· Input row restyled: rounded field + pill-shaped "Send" button
-· Follow-up bubbles show attachment thumbnails; attachments are saved with the session
-· Removed the "next problem" button; going back from Solve returns to the camera
-· Camera supports tap-to-focus with a focus ring animation
+· 🆕 Follow-ups can include images (1–3); the AI reads both text and images
+· ✨ Input row restyled: rounded field + pill-shaped "Send" button
+· 🆕 Follow-up bubbles show attachment thumbnails; attachments are saved with the session
+· 🔄 Removed the "next problem" button; going back from Solve returns to the camera
+· 🆕 Camera supports tap-to-focus with a focus ring animation
 
 v0.3.4
-· Grading: one-shot / two-shot capture; the AI checks correctness, points out wrong steps and explains
-· App icon letter changed to SA
-· Notebook deletion became a soft delete (restorable)
-· Follow-up input avoids the keyboard; the gallery button is aligned with the shutter
+· 🆕 Grading: one-shot / two-shot capture; the AI checks correctness, points out wrong steps and explains
+· 🆕 App icon letter changed to SA
+· 🔄 Notebook deletion became a soft delete (restorable)
+· ✨ Follow-up input avoids the keyboard; the gallery button is aligned with the shutter
 
 v0.3.3
-· App icon (white background + blue book); launcher name "Study Assistant"
-· Saving stores the whole conversation; tapping a problem continues the Q&A
-· Crop frame in bold red with draggable corners; APK naming convention
+· 🆕 App icon (white background + blue book); launcher name "Study Assistant"
+· 🆕 Saving stores the whole conversation; tapping a problem continues the Q&A
+· 🐛 Crop frame in bold red with draggable corners; APK naming convention
 
 v0.3.2
-· Bottom tabs: Home / Settings
-· Theme: light / dark / follow system
-· API key moved into Settings; About shows author and version
-· Fixed answer scrolling; answers shown as chat bubbles; first launch prompts for the key
+· 🆕 Bottom tabs: Home / Settings
+· 🎨 Theme: light / dark / follow system
+· 🔑 API key moved into Settings; About shows author and version
+· 🐛 Fixed answer scrolling; answers shown as chat bubbles; first launch prompts for the key
 
 v0.3.1
-· Markdown formatting in the answer area
-· Fixed long-answer scrolling; wide formulas adapt with horizontal scrolling
-· "Retake" in the camera screen; "next problem" in the Q&A screen
-· "Gallery search" in the camera screen; collapsible original image on the answer page
-· Notebook shows the cropped original image and the LaTeX answer
+· ✨ Markdown formatting in the answer area
+· ✨ Fixed long-answer scrolling; wide formulas adapt with horizontal scrolling
+· 🆕 "Retake" in the camera screen; "next problem" in the Q&A screen
+· 🆕 "Gallery search" in the camera screen; collapsible original image on the answer page
+· 🆕 Notebook shows the cropped original image and the LaTeX answer
 
 v0.3.0
-· Crop after taking a photo, or use the whole image
-· Regenerate + continue the conversation (multi-turn)
-· API key entered in the app (encrypted with Android Keystore)
-· KaTeX formula rendering
+· 🆕 Crop after taking a photo, or use the whole image
+· 🆕 Regenerate + continue the conversation (multi-turn)
+· 🆕 API key entered in the app (encrypted with Android Keystore)
+· 🆕 KaTeX formula rendering
 
 v0.2 (early version)
-· Switched image handling to DeepSeek: images go straight to the DeepSeek vision model for recognition and solving; Baidu OCR removed
+· 🔄 Switched image handling to DeepSeek: images go straight to the DeepSeek vision model for recognition and solving; Baidu OCR removed
 
 v0.1 (project start)
-· Initial build: Baidu OCR for image recognition + DeepSeek for solving; photo search, AI solutions and the mistake notebook prototype
+· 🆕 Initial build: Baidu OCR for image recognition + DeepSeek for solving; photo search, AI solutions and the mistake notebook prototype
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7.5
+· 📂 初回のキー入力後に保存先を案内。未設定・無効な場合は再案内し、スキップも可能。選択後は毎日バックアップを有効化し、有効な保存先がなければスイッチを無効化
+· 📝 過去の更新記録の絵文字を補完。保存先の説明とフォルダリンクを追加し、Bak v3 JSON の読み込み対応を明記
+
 v0.6.7.4
 · 🔔 更新の継続通知で進捗・待機・検証結果を表示し、取消も可能。通知をタップするとアプリ更新へ移動
 · 🛡️ Android 共通の通知・背面ダウンロード機能を使用。通知が使えなくても取得を続行し、更新ページから通知設定を開けます
@@ -1124,8 +1136,8 @@ v0.6.2
 
 v0.6.1.4
 · 🗄 **自動バックアップ**：設定 → データ管理 → 「自動バックアップ」——フォルダを選ぶと、**毎日最初にアプリを開いたとき**にデータベース全体を JSON へ書き出し、**最新 3 件だけ**保持（古いものは自動で削除。削除するのは自分が書いたファイルだけ）。バックアップは「バックアップを読み込む」でそのまま復元でき、通信も送信もありません
-· 「アンインストール／データ消去」に耐える必要があるため、**あえてアプリ専用領域には書きません**。フォルダを一度選ばないと有効にならず、「今すぐ 1 回バックアップ」でいつでも手動実行でき、スイッチを切ることもできます
-· このバージョンから「更新内容」は Release に直接書きます —— アプリの更新ページにその内容が表示されます
+· 🗄 「アンインストール／データ消去」に耐える必要があるため、**あえてアプリ専用領域には書きません**。フォルダを一度選ばないと有効にならず、「今すぐ 1 回バックアップ」でいつでも手動実行でき、スイッチを切ることもできます
+· ⬆️ このバージョンから「更新内容」は Release に直接書きます —— アプリの更新ページにその内容が表示されます
 
 v0.6.1.3
 · 🔍 **単体テストを初導入**：`app/src/test` を新設（22 件）し、**過去に何度も踏んだ純粋なロジック**をカバー —— 解答解析（問題文の再表示、丸数字の混入、本文が切れないこと）、バージョン比較と「同一バージョンの新ビルド」判定、4 言語の文言テーブルのキー／プレースホルダ／繁体変換。`tools/run-unit-tests.ps1` でローカル実行でき、CI がプッシュのたびに走ります
@@ -1185,15 +1197,15 @@ v0.5.7
 
 v0.5.6
 · **📊 「学習統計」ページを追加**：下部バーを 3 タブに —— 📚 学習（旧「ホーム」）/ 📊 統計 / ⚙️ 設定
-· 統計内容：今日の復習、直近 7 日、連続日数、復習待ち；習得度（未着手 / 学習中 / 習得済み）；直近 7 日の追加（**30 日**に切替可・縦軸付き）；科目別
-· **Android 17 互換性修正**：正確なアラーム権限を追加し未許可時は自動フォールバック（リマインダーが無効化されない）；切り抜き画面の下部ボタンがジェスチャーバーを避けるように
+· 📊 統計内容：今日の復習、直近 7 日、連続日数、復習待ち；習得度（未着手 / 学習中 / 習得済み）；直近 7 日の追加（**30 日**に切替可・縦軸付き）；科目別
+· 🛡 **Android 17 互換性修正**：正確なアラーム権限を追加し未許可時は自動フォールバック（リマインダーが無効化されない）；切り抜き画面の下部ボタンがジェスチャーバーを避けるように
 
 v0.5.5
-· **メニュー変更**：「直接質問」を撮影ページから**ホーム**へ移動（「撮影して質問」と「添削」の間）。文字・画像でそのまま質問できます
-· **切り抜き画面に自動プリセレクト**：開くと同時に問題範囲を自動で枠取り（ローカル算法と AI を並行、AI が時間内に返らなければローカル/既定枠にフォールバック）。ピンチで拡大縮小、長押しでスキップ
-· **2 枚モードは全枚を切り抜き**：2 枚モードでも 1 枚ずつ枠取り。2 枚目で戻ると 1 枚目を再枠取り
-· **設定の整理**：「一般」（API・AI 切り抜き制限時間スライダー）を追加、「パーソナライズ」「通知とバックグラウンド」に再分類
-· ホームに戻ると撮影・切り抜きのキャッシュを全消去
+· 🧭 **メニュー変更**：「直接質問」を撮影ページから**ホーム**へ移動（「撮影して質問」と「添削」の間）。文字・画像でそのまま質問できます
+· ✂️ **切り抜き画面に自動プリセレクト**：開くと同時に問題範囲を自動で枠取り（ローカル算法と AI を並行、AI が時間内に返らなければローカル/既定枠にフォールバック）。ピンチで拡大縮小、長押しでスキップ
+· ✂️ **2 枚モードは全枚を切り抜き**：2 枚モードでも 1 枚ずつ枠取り。2 枚目で戻ると 1 枚目を再枠取り
+· ⚙️ **設定の整理**：「一般」（API・AI 切り抜き制限時間スライダー）を追加、「パーソナライズ」「通知とバックグラウンド」に再分類
+· 🧹 ホームに戻ると撮影・切り抜きのキャッシュを全消去
 
 v0.5.4
 · ✏️ **添削ページを刷新**：撮影後すぐに**全画面の添削ページ**（解答 UI を再利用、タイトル「添削」）へ。結果と以降のやり取りは**すべてストリーミング**、**画像付きの追加質問**も可能。添削中は「⏸ 添削を中止」、質問中は「⏸ 中止」、待機中は「🔄 再添削」
@@ -1206,164 +1218,168 @@ v0.5.4
 · 🔤 ページタイトルを統一。添削ページのボタン崩れを修正
 
 v0.5.3
-· **解答と追加質問でストリーミング出力に対応**：生成しながら表示（末尾に ▍ カーソル）。長い導出でも一括待ちが不要になりました
-· 生成中は **⏸ 中止**が可能。中止・通信断の後は末尾に青い「**生成を続ける**」が出て、タップすると**中断箇所から続きを生成**します（重複しません）
-· **メッセージを長押しで複数選択**：各吹き出し右上に選択サークル、選択中は赤枠。バー左に「すべて選択／選択解除」、右に「削除／完了」。この間は OS の長押し文字選択は無効
-· 会話を開くと**先頭に表示**。右下の丸ボタンは先頭で **↓**（最下部へ）、それ以外で **↑**（先頭へ）— どちらもスムーズスクロール
-· **類似問題ページもストリーミング**：出題は問題文のみ表示（解答は「解答を見る」まで非表示、準備できるまでボタンは無効）。追加質問も同様
-· 復習：タイトルが「**復習 x/xx**」に。次の問題へ移ると**画面を一度クリアし、解答を畳んで先頭に戻ります**
-· ページタイトルの文字サイズを統一（解答／誤答／間違いノート／復習）。間違いノートの複数選択時は小さめ＋「すべて選択」を追加
-· 誤答詳細のバー：削除は分類の左隣。生成中は「⏸ 中止」が出て**削除は無効**になります
+· 🌊 **解答と追加質問でストリーミング出力に対応**：生成しながら表示（末尾に ▍ カーソル）。長い導出でも一括待ちが不要になりました
+· ⏸ 生成中は **⏸ 中止**が可能。中止・通信断の後は末尾に青い「**生成を続ける**」が出て、タップすると**中断箇所から続きを生成**します（重複しません）
+· ☑️ **メッセージを長押しで複数選択**：各吹き出し右上に選択サークル、選択中は赤枠。バー左に「すべて選択／選択解除」、右に「削除／完了」。この間は OS の長押し文字選択は無効
+· ⬆️⬇️ 会話を開くと**先頭に表示**。右下の丸ボタンは先頭で **↓**（最下部へ）、それ以外で **↑**（先頭へ）— どちらもスムーズスクロール
+· 🧩 **類似問題ページもストリーミング**：出題は問題文のみ表示（解答は「解答を見る」まで非表示、準備できるまでボタンは無効）。追加質問も同様
+· 🔁 復習：タイトルが「**復習 x/xx**」に。次の問題へ移ると**画面を一度クリアし、解答を畳んで先頭に戻ります**
+· 🔤 ページタイトルの文字サイズを統一（解答／誤答／間違いノート／復習）。間違いノートの複数選択時は小さめ＋「すべて選択」を追加
+· 🗂 誤答詳細のバー：削除は分類の左隣。生成中は「⏸ 中止」が出て**削除は無効**になります
 
 v0.5.2
-· **数式キーボードを細い帯に変更**：既定では小さく「数式キーボード」と表示するだけ。タップで記号行と LaTeX テンプレート行を展開し、もう一度タップで折りたたみ——入力欄の場所を取りません
-· UI を**縦向きに固定**：端末を回しても画面が回転しなくなりました（従来は未固定で、横向きでは一部ページのレイアウトが崩れていました。大画面端末ではシステムがこの固定を無視する場合があります）
+· 🧮 **数式キーボードを細い帯に変更**：既定では小さく「数式キーボード」と表示するだけ。タップで記号行と LaTeX テンプレート行を展開し、もう一度タップで折りたたみ——入力欄の場所を取りません
+· 📱 UI を**縦向きに固定**：端末を回しても画面が回転しなくなりました（従来は未固定で、横向きでは一部ページのレイアウトが崩れていました。大画面端末ではシステムがこの固定を無視する場合があります）
 
 v0.5.1
-· 間違いノート：検索欄が常時表示されなくなり、タイトルバーの **🔍 ボタン**で開く方式に（他の場所をタップ、または戻るで閉じる）
-· 間違いノートに **「管理」** を追加：分類の縦リストで **✏️ 名前変更** と **複数選択して削除** が可能。削除前に確認し、**その分類の問題も一緒に削除するか**を選べます（チェックしない場合は「未分類」になります）
+· 🔍 間違いノート：検索欄が常時表示されなくなり、タイトルバーの **🔍 ボタン**で開く方式に（他の場所をタップ、または戻るで閉じる）
+· 🗂 間違いノートに **「管理」** を追加：分類の縦リストで **✏️ 名前変更** と **複数選択して削除** が可能。削除前に確認し、**その分類の問題も一緒に削除するか**を選べます（チェックしない場合は「未分類」になります）
 
 v0.5.0
-· 設定を再構成：「💾 データ管理」を追加。「このアプリについて」をサブページ化（上にアプリ情報、下に更新内容）
-· データ管理：バックアップ書き出し（画像と会話を含む 1 つの JSON）／読み込み（同名の分類・タグは再利用、同じ問題文はスキップ。既存データは上書きしません）／すべてのデータを削除（確認あり）
+· ⚙️ 設定を再構成：「💾 データ管理」を追加。「このアプリについて」をサブページ化（上にアプリ情報、下に更新内容）
+· 💾 データ管理：バックアップ書き出し（画像と会話を含む 1 つの JSON）／読み込み（同名の分類・タグは再利用、同じ問題文はスキップ。既存データは上書きしません）／すべてのデータを削除（確認あり）
 · 「🔑 API 管理」：キー設定に加えて累計利用状況（呼び出し回数・入力/出力 tokens、リセット可）。入力欄の下に「API Key は常に端末内に暗号化して保存されます」と表示
-· 復習は既定で解答を隠す：まず自分で思い出し、「解答を見る」で展開。上部に「{i}/{n} 問目」の進捗を表示
-· 間違いノートに全文検索を追加（問題文と解答）
-· 直接質問と追加質問に数式入力バーを追加：∫ ∑ √ π などの記号＋LaTeX テンプレート（分数・上下付き・積分区間など）
-· やり直しモードのインターフェースを予約（手書きで解き直し → 添削を再利用 → 習熟度を自動更新）。UI は後続版で
-· 会話（解答／添削／類似問題）内の画像を**タップで全画面表示**：ピンチで拡大、ドラッグで移動、✕ か戻るで閉じる
-· 「すべてのデータを削除」は**確認文の入力**が必要になり、確定ボタンは赤色。「API Key は暗号化保存」の注記は緑色に
+· 📖 復習は既定で解答を隠す：まず自分で思い出し、「解答を見る」で展開。上部に「{i}/{n} 問目」の進捗を表示
+· 🔍 間違いノートに全文検索を追加（問題文と解答）
+· 🧮 直接質問と追加質問に数式入力バーを追加：∫ ∑ √ π などの記号＋LaTeX テンプレート（分数・上下付き・積分区間など）
+· 🔌 やり直しモードのインターフェースを予約（手書きで解き直し → 添削を再利用 → 習熟度を自動更新）。UI は後続版で
+· 🔍 会話（解答／添削／類似問題）内の画像を**タップで全画面表示**：ピンチで拡大、ドラッグで移動、✕ か戻るで閉じる
+· 🛡 「すべてのデータを削除」は**確認文の入力**が必要になり、確定ボタンは赤色。「API Key は暗号化保存」の注記は緑色に
 
 v0.5.0_beta
-· 「アプリの言語」を追加：設定 → 🌐 言語設定 で システムに従う / 简体中文 / 繁體中文 / English / 日本語 / 한국어 から選択。すぐに反映され、再起動は不要
-· 画面の文言を全面的に多言語化：ホーム、撮影、直接質問、解答、添削、間違いノート、復習、設定、通知など
-· 「AI の回答言語」と「アプリの言語」は別々の設定に：前者は AI の解答言語、後者はアプリ画面の言語
+· 🌐 「アプリの言語」を追加：設定 → 🌐 言語設定 で システムに従う / 简体中文 / 繁體中文 / English / 日本語 / 한국어 から選択。すぐに反映され、再起動は不要
+· 🌐 画面の文言を全面的に多言語化：ホーム、撮影、直接質問、解答、添削、間違いノート、復習、設定、通知など
+· 🧩 「AI の回答言語」と「アプリの言語」は別々の設定に：前者は AI の解答言語、後者はアプリ画面の言語
 
 v0.4.9
-· 撮影した問題のバブルは元の画像だけを表示：AI が文字起こしした問題文は表示しません（問題文は保存され、ノート・検索・編集には影響しません。過去のセッションも同様）。直接質問では入力した文章をそのまま表示
-· 設定に「🌐 言語設定」→「AI の回答言語」を追加：システムに従う / 問題文に合わせる / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский
-· 言語設定は撮影解答・直接質問・追加質問・添削・類似問題に適用（数式は LaTeX のまま）
+· 🎨 撮影した問題のバブルは元の画像だけを表示：AI が文字起こしした問題文は表示しません（問題文は保存され、ノート・検索・編集には影響しません。過去のセッションも同様）。直接質問では入力した文章をそのまま表示
+· 🌐 設定に「🌐 言語設定」→「AI の回答言語」を追加：システムに従う / 問題文に合わせる / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский
+· 🌐 言語設定は撮影解答・直接質問・追加質問・添削・類似問題に適用（数式は LaTeX のまま）
 
 v0.4.8
-· 問題文・最初の質問を、元の画像つきの薄緑のユーザーバブルで統一表示：1枚撮影、2枚撮影、直接質問、添削、ノート、復習すべて同じ
-· 復習画面を1列に変更：行いっぱいの幅で画像が大きく見やすく
-· R8 による難読化＋リソース圧縮を標準化（release）：APK 約 4.4MB（従来約 30MB）。過去のセッションはそのまま読めます
+· 🎨 問題文・最初の質問を、元の画像つきの薄緑のユーザーバブルで統一表示：1枚撮影、2枚撮影、直接質問、添削、ノート、復習すべて同じ
+· 🎨 復習画面を1列に変更：行いっぱいの幅で画像が大きく見やすく
+· 📦 R8 による難読化＋リソース圧縮を標準化（release）：APK 約 4.4MB（従来約 30MB）。過去のセッションはそのまま読めます
 
 v0.4.7.5（暫定版）
-· R8 によるコード縮小・難読化＋リソース圧縮を有効化（release のみ）。APK が大幅に小さく。過去のセッションは互換
-· 設定に「📝 更新内容」を追加
+· 📦 R8 によるコード縮小・難読化＋リソース圧縮を有効化（release のみ）。APK が大幅に小さく。過去のセッションは互換
+· 🆕 設定に「📝 更新内容」を追加
 
 v0.4.7
-· 直接質問が会話に「自分の質問＋添付画像」として表示されるように
-· 性能：ノート・復習の画像をキャッシュ＋縮小デコード（スクロールが滑らか、メモリ節約）
-· サイズ：KaTeX の不要な .woff を削除（woff2 は保持）。プレビュー用ツールは debug のみに
-· 撮影検索に「1枚 / 2枚」モードを追加：2枚を1問としてまとめて解答
-· さらなる効率化：API Key のメモリキャッシュ、Flow のキャッシュ、時刻フォーマッタの再利用、メッセージ一覧のキャッシュ、WebView の再描画スキップ、絞り込み結果のキャッシュ、分類・タグ名の事前読み込み
+· 🆕 直接質問が会話に「自分の質問＋添付画像」として表示されるように
+· ⚡ 性能：ノート・復習の画像をキャッシュ＋縮小デコード（スクロールが滑らか、メモリ節約）
+· 📦 サイズ：KaTeX の不要な .woff を削除（woff2 は保持）。プレビュー用ツールは debug のみに
+· 🆕 撮影検索に「1枚 / 2枚」モードを追加：2枚を1問としてまとめて解答
+· ⚡ さらなる効率化：API Key のメモリキャッシュ、Flow のキャッシュ、時刻フォーマッタの再利用、メッセージ一覧のキャッシュ、WebView の再描画スキップ、絞り込み結果のキャッシュ、分類・タグ名の事前読み込み
 
 v0.4.6
-· 「このアプリについて」をサブメニューにせず設定のトップに直接表示
-· 生成中の通知をタップすると生成中の画面に戻る
+· 🔄 「このアプリについて」をサブメニューにせず設定のトップに直接表示
+· 🆕 生成中の通知をタップすると生成中の画面に戻る
 
 v0.4.5
-· 設定をサブメニュー化：API Key / テーマ / 復習リマインダー / バックグラウンド実行 / このアプリについて
+· 🆕 設定をサブメニュー化：API Key / テーマ / 復習リマインダー / バックグラウンド実行 / このアプリについて
 
 v0.4.4
-· 保存時のタグ選択をスクロール可能なドロップダウンに（AI の自動選択は維持）
-· ノートのタグ絞り込みを「タグで検索」ボタン＋複数選択ドロップダウンに
+· 🆕 保存時のタグ選択をスクロール可能なドロップダウンに（AI の自動選択は維持）
+· 🆕 ノートのタグ絞り込みを「タグで検索」ボタン＋複数選択ドロップダウンに
 
 v0.4.3
-· モデルを DeepSeek-V4.1-Flash（deepseek-flash、ネイティブマルチモーダル）へ更新。視覚とテキストを統一
-· 修正：解答ページのタイトル「解答」が右側のボタンに押されて省略記号になる問題
+· 🔄 モデルを DeepSeek-V4.1-Flash（deepseek-flash、ネイティブマルチモーダル）へ更新。視覚とテキストを統一
+· 🐛 修正：解答ページのタイトル「解答」が右側のボタンに押されて省略記号になる問題
 
 v0.4.2
-· 復習リマインダーの通知をタップすると「復習」画面が開く
-· 設定に「自動起動を有効化」（Honor / Huawei / Xiaomi / OPPO / vivo 対応）
-· 撮影画面の右上に「✏️ 直接質問」：文字＋1〜3枚の画像で質問できる
-· 通知時刻をホイールで上下に選択
+· 🆕 復習リマインダーの通知をタップすると「復習」画面が開く
+· 🆕 設定に「自動起動を有効化」（Honor / Huawei / Xiaomi / OPPO / vivo 対応）
+· 🆕 撮影画面の右上に「✏️ 直接質問」：文字＋1〜3枚の画像で質問できる
+· 🆕 通知時刻をホイールで上下に選択
 
 v0.4.1
-· 復習後は自動で次の問題へ（同じ科目を優先）。今日分をすべて終えると終了して通知
-· 類似問題：AI が類似問題を出題（まず問題のみ表示、対話可）。「解答を見る」で解答表示
-· 復習リマインダー通知：オン/オフ＋時刻（1日1回）
-· 通知権限のリクエスト。再起動後にリマインダーを復元
+· 🆕 復習後は自動で次の問題へ（同じ科目を優先）。今日分をすべて終えると終了して通知
+· 🆕 類似問題：AI が類似問題を出題（まず問題のみ表示、対話可）。「解答を見る」で解答表示
+· 🆕 復習リマインダー通知：オン/オフ＋時刻（1日1回）
+· 🆕 通知権限のリクエスト。再起動後にリマインダーを復元
 
 v0.4.0
-· 復習機能：ホームに「📖 復習」を追加
-· エビングハウス式の自動スケジュール：新規の問題を 0/1/2/4/7/15/30 日の間隔で出題（review テーブル追加、DB v7）
-· 復習画面は「今日 / 今週」を切替、科目→知識ポイントでグループ化、2列ウォーターフォール
-· 問題を開くと下部が わかる / あいまい / わからない の3ボタンに。次回の出題時期が変わる
-· 類似問題 API を用意
+· 🆕 復習機能：ホームに「📖 復習」を追加
+· 🆕 エビングハウス式の自動スケジュール：新規の問題を 0/1/2/4/7/15/30 日の間隔で出題（review テーブル追加、DB v7）
+· 🆕 復習画面は「今日 / 今週」を切替、科目→知識ポイントでグループ化、2列ウォーターフォール
+· 🆕 問題を開くと下部が わかる / あいまい / わからない の3ボタンに。次回の出題時期が変わる
+· 🆕 類似問題 API を用意
 
 v0.3.9
-· 知識タグ：科目分類から分離、全体で共通、多対多
-· AI が自動でタグ付け（最大5個、既存タグを優先）。保存時・詳細画面で変更可能
-· ノート上部でタグの複数選択絞り込み。カードにタグを表示
-· データベース v5→v6（tags + question_tags）
+· 🆕 知識タグ：科目分類から分離、全体で共通、多対多
+· 🆕 AI が自動でタグ付け（最大5個、既存タグを優先）。保存時・詳細画面で変更可能
+· 🆕 ノート上部でタグの複数選択絞り込み。カードにタグを表示
+· 🆕 データベース v5→v6（tags + question_tags）
 
 v0.3.8
-· 修正：会話本文を単一の WebView に戻し安定スクロール。ノートから開いた後も滑らかに
-· 修正：問題のタイムスタンプは質問時刻を記録し、開いて戻っても更新されない
-· バージョン規約：独自データファイルの先頭4バイトにバージョン番号
-· キー方針：ソース／リポジトリに一切のキーを含めない
+· 🐛 修正：会話本文を単一の WebView に戻し安定スクロール。ノートから開いた後も滑らかに
+· 🐛 修正：問題のタイムスタンプは質問時刻を記録し、開いて戻っても更新されない
+· 🗂 バージョン規約：独自データファイルの先頭4バイトにバージョン番号
+· 🔐 キー方針：ソース／リポジトリに一切のキーを含めない
 
 v0.3.7
-· 分類の一括変更／一括削除：ノートで長押しして複数選択
-· 一括分類：既存 / 新規 / 未分類
-· 一括削除：完全削除（確認ダイアログ）
-· 選択カードにチェック印＋緑の枠
+· 🆕 分類の一括変更／一括削除：ノートで長押しして複数選択
+· 🆕 一括分類：既存 / 新規 / 未分類
+· 🆕 一括削除：完全削除（確認ダイアログ）
+· 🆕 選択カードにチェック印＋緑の枠
 
 v0.3.6
-· 問題の分類：保存時に「未分類 / 既存 / 新規」を選択。AI が科目を推定
-· AI は既存の分類を優先し、重複作成を避ける
-· ノート上部で分類絞り込み。詳細画面で分類変更
-· ノートを2列ウォーターフォールに。「未分類」を追加
-· データベース v4→v5（categories）
+· 🆕 問題の分類：保存時に「未分類 / 既存 / 新規」を選択。AI が科目を推定
+· 🆕 AI は既存の分類を優先し、重複作成を避ける
+· 🆕 ノート上部で分類絞り込み。詳細画面で分類変更
+· 🆕 ノートを2列ウォーターフォールに。「未分類」を追加
+· 🆕 データベース v4→v5（categories）
 
 v0.3.5
-· 追加質問に画像を添付可能（1〜3枚）。AI は画像と文字の両方を読んで解答
-· 入力欄のデザイン：角丸の入力欄＋カプセル型「送信」ボタン
-· 追加質問のバブルに添付画像のサムネイルを表示。画像はセッションと共に保存
-· 「次の問題を撮る」ボタンを削除。解答ページの戻るは撮影画面へ直行
-· 撮影／添削カメラでタップフォーカス＋フォーカス枠アニメーション
+· 🆕 追加質問に画像を添付可能（1〜3枚）。AI は画像と文字の両方を読んで解答
+· ✨ 入力欄のデザイン：角丸の入力欄＋カプセル型「送信」ボタン
+· 🆕 追加質問のバブルに添付画像のサムネイルを表示。画像はセッションと共に保存
+· 🔄 「次の問題を撮る」ボタンを削除。解答ページの戻るは撮影画面へ直行
+· 🆕 撮影／添削カメラでタップフォーカス＋フォーカス枠アニメーション
 
 v0.3.4
-· 添削：1枚／2枚撮影。AI が正誤を判定し、誤った手順を指摘して解説
-· アプリアイコンの文字を SA に変更
-· ノートの削除をソフト削除に（「復元」可能）
-· 追加質問欄のキーボード回避。図庫ボタンをシャッターと水平に
+· 🆕 添削：1枚／2枚撮影。AI が正誤を判定し、誤った手順を指摘して解説
+· 🆕 アプリアイコンの文字を SA に変更
+· 🔄 ノートの削除をソフト削除に（「復元」可能）
+· ✨ 追加質問欄のキーボード回避。図庫ボタンをシャッターと水平に
 
 v0.3.3
-· アプリアイコン（白地＋青い本）。ランチャー名 Study Assistant
-· 保存時に会話全体を保存。問題をタップして问答を続けられる
-· 範囲選択は赤い太線、四隅をドラッグ可能。APK 命名規約
+· 🆕 アプリアイコン（白地＋青い本）。ランチャー名 Study Assistant
+· 🆕 保存時に会話全体を保存。問題をタップして问答を続けられる
+· 🐛 範囲選択は赤い太線、四隅をドラッグ可能。APK 命名規約
 
 v0.3.2
-· 下部タブ：ホーム / 設定
-· テーマ：ライト / ダーク / システムに従う
-· Key 設定を設定画面へ移動。このアプリについてに作者とバージョン
-· 解答のスクロール修正。解答をチャットバブルに。初回起動時に Key 入力ダイアログ
+· 🆕 下部タブ：ホーム / 設定
+· 🎨 テーマ：ライト / ダーク / システムに従う
+· 🔑 Key 設定を設定画面へ移動。このアプリについてに作者とバージョン
+· 🐛 解答のスクロール修正。解答をチャットバブルに。初回起動時に Key 入力ダイアログ
 
 v0.3.1
-· 解答欄が Markdown に対応
-· 長い解答のスクロール修正。横幅の広い数式は自動縮小＋横スクロール
-· 撮影画面に「撮り直す」、问答画面に「次の問題を撮る」
-· 撮影画面に「アルバムから検索」。解答ページ上部で元画像を折りたたみ
-· ノートに切り抜き元画像を表示し、LaTeX 解答を閲覧可能
+· ✨ 解答欄が Markdown に対応
+· ✨ 長い解答のスクロール修正。横幅の広い数式は自動縮小＋横スクロール
+· 🆕 撮影画面に「撮り直す」、问答画面に「次の問題を撮る」
+· 🆕 撮影画面に「アルバムから検索」。解答ページ上部で元画像を折りたたみ
+· 🆕 ノートに切り抜き元画像を表示し、LaTeX 解答を閲覧可能
 
 v0.3.0
-· 撮影後の範囲選択：問題部分を切り抜くか、画像全体で認識
-· 再生成＋会話の継続（複数ターン）
-· API Key をアプリ内で入力（Android Keystore で暗号化保存）
-· KaTeX による数式レンダリング
+· 🆕 撮影後の範囲選択：問題部分を切り抜くか、画像全体で認識
+· 🆕 再生成＋会話の継続（複数ターン）
+· 🆕 API Key をアプリ内で入力（Android Keystore で暗号化保存）
+· 🆕 KaTeX による数式レンダリング
 
 v0.2（初期版）
-· 画像処理を DeepSeek に変更：画像を直接 DeepSeek の視覚モデルに送って認識・解答。Baidu OCR は廃止
+· 🔄 画像処理を DeepSeek に変更：画像を直接 DeepSeek の視覚モデルに送って認識・解答。Baidu OCR は廃止
 
 v0.1（プロジェクト開始）
-· プロジェクト構築：Baidu OCR で画像認識＋DeepSeek で解答。撮影検索・AI 解答・間違い整理の原型
+· 🆕 プロジェクト構築：Baidu OCR で画像認識＋DeepSeek で解答。撮影検索・AI 解答・間違い整理の原型
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7.5
+· 📂 첫 Key 입력 후 백업 폴더 설정 안내. 미설정·유효하지 않은 경로는 다시 안내하며 건너뛰기 가능. 선택하면 매일 백업을 켜고 유효한 경로가 없으면 스위치를 끄고 비활성화
+· 📝 이전 업데이트 기록의 이모지 보완; 백업 경로 설명과 폴더 링크 추가, Bak v3 JSON 가져오기 지원 명시
+
 v0.6.7.4
 · 🔔 업데이트의 지속 알림에 진행률·대기·검증 결과와 취소 동작을 표시하며, 누르면 앱 업데이트로 이동
 · 🛡️ Android 공통 알림과 백그라운드 다운로드 사용. 알림을 사용할 수 없어도 다운로드를 계속하며 업데이트 페이지에서 알림 설정 열기 가능
@@ -1577,8 +1593,8 @@ v0.6.2
 
 v0.6.1.4
 · 🗄 **자동 백업**: 설정 → 데이터 관리 → 「자동 백업」 —— 폴더를 선택하면 **매일 처음 앱을 열 때** 데이터베이스 전체를 JSON으로 백업하고 **최근 3개만** 보관합니다(오래된 것은 자동 정리, 자기가 쓴 파일만 삭제). 백업은 「백업 가져오기」로 바로 복원할 수 있고, 네트워크도 업로드도 없습니다
-· 백업은 「삭제 / 데이터 지우기」를 견뎌야 하므로 **일부러 앱 전용 폴더에 쓰지 않습니다**. 폴더를 한 번 선택해야 적용되고, 「지금 한 번 백업」으로 언제든 수동 실행하거나 스위치를 끌 수 있습니다
-· 이 버전부터 「업데이트 안내」는 Release에 직접 씁니다 —— 앱의 업데이트 페이지가 그 내용을 표시합니다
+· 🗄 백업은 「삭제 / 데이터 지우기」를 견뎌야 하므로 **일부러 앱 전용 폴더에 쓰지 않습니다**. 폴더를 한 번 선택해야 적용되고, 「지금 한 번 백업」으로 언제든 수동 실행하거나 스위치를 끌 수 있습니다
+· ⬆️ 이 버전부터 「업데이트 안내」는 Release에 직접 씁니다 —— 앱의 업데이트 페이지가 그 내용을 표시합니다
 
 v0.6.1.3
 · 🔍 **단위 테스트 첫 도입**: `app/src/test` 를 새로 만들고 22개 케이스로 **그동안 반복해서 걸렸던 순수 로직**을 검증합니다 —— 답안 파싱(문제 지문 재표시, 원문자 누출, 본문이 잘리지 않을 것), 버전 비교와 「같은 버전 새 빌드」 판정, 4개 언어 문구 테이블의 키 / 자리표시자 / 번체 변환. `tools/run-unit-tests.ps1` 로 로컬 실행하고 CI가 푸시마다 돌립니다
@@ -1638,15 +1654,15 @@ v0.5.7
 
 v0.5.6
 · **📊 "학습 통계" 페이지 추가**: 하단 바가 3개 탭으로 —— 📚 학습(기존 홈) / 📊 통계 / ⚙️ 설정
-· 통계: 오늘 복습, 최근 7일, 연속 일수, 복습 대기; 숙달도(미시작/학습 중/숙달); 최근 7일 추가(**30일** 전환 가능, 세로축 포함); 과목별
-· **Android 17 호환성 수정**: 정확한 알람 권한 추가 및 미허용 시 자동 대체(알림이 조용히 멈추지 않음); 자르기 화면 하단 버튼이 제스처 바를 피하도록
+· 📊 통계: 오늘 복습, 최근 7일, 연속 일수, 복습 대기; 숙달도(미시작/학습 중/숙달); 최근 7일 추가(**30일** 전환 가능, 세로축 포함); 과목별
+· 🛡 **Android 17 호환성 수정**: 정확한 알람 권한 추가 및 미허용 시 자동 대체(알림이 조용히 멈추지 않음); 자르기 화면 하단 버튼이 제스처 바를 피하도록
 
 v0.5.5
-· **메뉴 변경**: "직접 질문"을 촬영 페이지에서 **홈**으로 이동("사진으로 질문"과 "첨삭" 사이). 글/이미지로 바로 질문할 수 있습니다
-· **자르기 화면 자동 사전 선택**: 화면을 열면 문제 영역을 자동으로 잡아 줍니다(로컬 알고리즘과 AI 병렬, AI가 시간 내 응답하지 않으면 로컬/기본 박스로 대체). 두 손가락 확대/축소, 길게 눌러 건너뛰기
-· **2장 모드도 모든 사진을 자르기**: 2장 모드에서도 한 장씩 잘라내며, 2번째에서 뒤로 가면 1번째를 다시 자릅니다
-· **설정 정리**: 「일반」(API, AI 자르기 제한 시간 슬라이더) 추가, 「개인 설정」「알림 및 백그라운드」로 재분류
-· 홈으로 돌아가면 촬영·자르기 캐시를 모두 비웁니다
+· 🧭 **메뉴 변경**: "직접 질문"을 촬영 페이지에서 **홈**으로 이동("사진으로 질문"과 "첨삭" 사이). 글/이미지로 바로 질문할 수 있습니다
+· ✂️ **자르기 화면 자동 사전 선택**: 화면을 열면 문제 영역을 자동으로 잡아 줍니다(로컬 알고리즘과 AI 병렬, AI가 시간 내 응답하지 않으면 로컬/기본 박스로 대체). 두 손가락 확대/축소, 길게 눌러 건너뛰기
+· ✂️ **2장 모드도 모든 사진을 자르기**: 2장 모드에서도 한 장씩 잘라내며, 2번째에서 뒤로 가면 1번째를 다시 자릅니다
+· ⚙️ **설정 정리**: 「일반」(API, AI 자르기 제한 시간 슬라이더) 추가, 「개인 설정」「알림 및 백그라운드」로 재분류
+· 🧹 홈으로 돌아가면 촬영·자르기 캐시를 모두 비웁니다
 
 v0.5.4
 · ✏️ **첨삭 페이지 개편**: 촬영 후 바로 **전체 화면 첨삭 페이지**(풀이 UI 재사용, 제목 "첨삭")로 이동. 결과와 이후 대화는 **모두 스트리밍**, **이미지가 있는 추가 질문** 가능. 첨삭 중 "⏸ 첨삭 중단", 질문 중 "⏸ 중단", 대기 중 "🔄 다시 첨삭"
@@ -1659,161 +1675,161 @@ v0.5.4
 · 🔤 페이지 제목 통일. 첨삭 페이지 버튼 깨짐 수정
 
 v0.5.3
-· **풀이와 추가 질문에 스트리밍 출력 지원**: 생성되는 대로 표시(끝에 ▍ 커서). 긴 유도 과정도 통째로 기다릴 필요가 없습니다
-· 생성 중 **⏸ 중단** 가능. 중단·네트워크 끊김 후에는 끝에 파란 "**생성 계속**"이 생기고, 누르면 **중단 지점부터 이어서** 생성합니다(중복 없음)
-· **메시지를 길게 눌러 다중 선택**: 말풍선 오른쪽 위에 선택 원, 선택 시 빨간 테두리. 상단 왼쪽 "전체 선택/선택 해제", 오른쪽 "삭제/완료". 이 모드에서는 OS 길게 누르기 문자 선택이 비활성화됩니다
-· 대화를 열면 **맨 위에서 시작**. 오른쪽 아래 원형 버튼은 맨 위에서 **↓**(맨 아래로), 그 외에는 **↑**(맨 위로) — 모두 부드러운 스크롤
-· **유사 문제 페이지도 스트리밍**: 문제만 표시되고 정답은 "정답 보기" 전까지 숨김(준비 전에는 버튼 비활성). 추가 질문도 스트리밍
-· 복습: 제목이 "**복습 x/xx**"로 표시. 다음 문제로 넘어가면 **화면을 잠시 비우고 정답을 접은 뒤 맨 위로** 돌아갑니다
-· 페이지 제목 글자 크기 통일(풀이/오답/오답 노트/복습). 오답 노트 다중 선택 시에는 작은 글자 + "전체 선택" 추가
-· 오답 상세 바: 삭제는 분류 왼쪽. 생성 중에는 "⏸ 중단"이 나타나고 **삭제는 비활성**됩니다
+· 🌊 **풀이와 추가 질문에 스트리밍 출력 지원**: 생성되는 대로 표시(끝에 ▍ 커서). 긴 유도 과정도 통째로 기다릴 필요가 없습니다
+· ⏸ 생성 중 **⏸ 중단** 가능. 중단·네트워크 끊김 후에는 끝에 파란 "**생성 계속**"이 생기고, 누르면 **중단 지점부터 이어서** 생성합니다(중복 없음)
+· ☑️ **메시지를 길게 눌러 다중 선택**: 말풍선 오른쪽 위에 선택 원, 선택 시 빨간 테두리. 상단 왼쪽 "전체 선택/선택 해제", 오른쪽 "삭제/완료". 이 모드에서는 OS 길게 누르기 문자 선택이 비활성화됩니다
+· ⬆️⬇️ 대화를 열면 **맨 위에서 시작**. 오른쪽 아래 원형 버튼은 맨 위에서 **↓**(맨 아래로), 그 외에는 **↑**(맨 위로) — 모두 부드러운 스크롤
+· 🧩 **유사 문제 페이지도 스트리밍**: 문제만 표시되고 정답은 "정답 보기" 전까지 숨김(준비 전에는 버튼 비활성). 추가 질문도 스트리밍
+· 🔁 복습: 제목이 "**복습 x/xx**"로 표시. 다음 문제로 넘어가면 **화면을 잠시 비우고 정답을 접은 뒤 맨 위로** 돌아갑니다
+· 🔤 페이지 제목 글자 크기 통일(풀이/오답/오답 노트/복습). 오답 노트 다중 선택 시에는 작은 글자 + "전체 선택" 추가
+· 🗂 오답 상세 바: 삭제는 분류 왼쪽. 생성 중에는 "⏸ 중단"이 나타나고 **삭제는 비활성**됩니다
 
 v0.5.2
-· **수식 키보드를 얇은 띠로 변경**: 기본적으로 작게 '수식 키보드'만 표시하고, 탭하면 기호 줄과 LaTeX 템플릿 줄이 펼쳐지며 다시 탭하면 접힙니다 — 입력 영역을 차지하지 않습니다
-· UI를 **세로 방향으로 고정**: 기기를 돌려도 화면이 회전하지 않습니다(이전에는 고정되지 않아 가로 방향에서 일부 페이지 배치가 깨졌습니다. 대형 화면 기기에서는 시스템이 이 고정을 무시할 수 있습니다)
+· 🧮 **수식 키보드를 얇은 띠로 변경**: 기본적으로 작게 '수식 키보드'만 표시하고, 탭하면 기호 줄과 LaTeX 템플릿 줄이 펼쳐지며 다시 탭하면 접힙니다 — 입력 영역을 차지하지 않습니다
+· 📱 UI를 **세로 방향으로 고정**: 기기를 돌려도 화면이 회전하지 않습니다(이전에는 고정되지 않아 가로 방향에서 일부 페이지 배치가 깨졌습니다. 대형 화면 기기에서는 시스템이 이 고정을 무시할 수 있습니다)
 
 v0.5.1
-· 오답 노트: 검색창이 항상 자리를 차지하지 않고, 제목 표시줄의 **🔍 버튼**으로 엽니다(다른 곳을 탭하거나 뒤로 가면 닫힘)
-· 오답 노트에 **'관리'** 추가: 분류 세로 목록에서 **✏️ 이름 변경**과 **다중 선택 삭제**가 가능합니다. 삭제 전 확인하며, **해당 분류의 문제도 함께 삭제할지** 선택할 수 있습니다(선택하지 않으면 '미분류'로 바뀝니다)
+· 🔍 오답 노트: 검색창이 항상 자리를 차지하지 않고, 제목 표시줄의 **🔍 버튼**으로 엽니다(다른 곳을 탭하거나 뒤로 가면 닫힘)
+· 🗂 오답 노트에 **'관리'** 추가: 분류 세로 목록에서 **✏️ 이름 변경**과 **다중 선택 삭제**가 가능합니다. 삭제 전 확인하며, **해당 분류의 문제도 함께 삭제할지** 선택할 수 있습니다(선택하지 않으면 '미분류'로 바뀝니다)
 
 v0.5.0
-· 설정 재구성: '💾 데이터 관리' 추가, '정보'를 하위 페이지로 변경(위는 앱 정보, 아래는 업데이트 내역)
-· 데이터 관리: 백업 내보내기(이미지와 대화를 포함한 단일 JSON) / 백업 가져오기(같은 이름의 분류·태그는 재사용, 문제 문장이 같으면 건너뜀 — 기존 데이터를 덮어쓰지 않음) / 모든 데이터 삭제(확인 절차)
-· '🔑 API 관리': 키 설정과 함께 누적 사용량(호출 횟수, 입력/출력 tokens, 초기화 가능)을 표시하고, 입력창 아래에 'API Key는 항상 기기 내에 암호화되어 저장됩니다'를 안내
-· 복습은 기본적으로 정답을 숨김: 먼저 스스로 떠올린 뒤 '정답 보기'로 펼침. 상단에 '{i}/{n}' 진행 표시
-· 오답 노트에 전체 검색 추가(문제 문장과 풀이)
-· 직접 질문과 추가 질문에 수식 입력 바 추가: ∫ ∑ √ π 기호와 LaTeX 템플릿(분수, 위/아래 첨자, 적분 구간 등)
-· 다시 풀기 모드의 인터페이스를 미리 마련해 둠(손으로 다시 풀기 → 채점 재사용 → 숙련도 자동 갱신). UI는 다음 버전에서
-· 대화(풀이/채점/유사 문제) 안의 이미지를 **탭하면 전체 화면으로 확대**: 두 손가락 확대, 드래그 이동, ✕ 또는 뒤로 가기로 닫기
-· '모든 데이터 삭제'는 **확인 문장을 직접 입력**해야 실행되며 확인 버튼이 빨간색입니다. 'API Key 암호화 저장' 안내는 초록색으로
+· ⚙️ 설정 재구성: '💾 데이터 관리' 추가, '정보'를 하위 페이지로 변경(위는 앱 정보, 아래는 업데이트 내역)
+· 💾 데이터 관리: 백업 내보내기(이미지와 대화를 포함한 단일 JSON) / 백업 가져오기(같은 이름의 분류·태그는 재사용, 문제 문장이 같으면 건너뜀 — 기존 데이터를 덮어쓰지 않음) / 모든 데이터 삭제(확인 절차)
+· 🔑 '🔑 API 관리': 키 설정과 함께 누적 사용량(호출 횟수, 입력/출력 tokens, 초기화 가능)을 표시하고, 입력창 아래에 'API Key는 항상 기기 내에 암호화되어 저장됩니다'를 안내
+· 📖 복습은 기본적으로 정답을 숨김: 먼저 스스로 떠올린 뒤 '정답 보기'로 펼침. 상단에 '{i}/{n}' 진행 표시
+· 🔍 오답 노트에 전체 검색 추가(문제 문장과 풀이)
+· 🧮 직접 질문과 추가 질문에 수식 입력 바 추가: ∫ ∑ √ π 기호와 LaTeX 템플릿(분수, 위/아래 첨자, 적분 구간 등)
+· 🔌 다시 풀기 모드의 인터페이스를 미리 마련해 둠(손으로 다시 풀기 → 채점 재사용 → 숙련도 자동 갱신). UI는 다음 버전에서
+· 🔍 대화(풀이/채점/유사 문제) 안의 이미지를 **탭하면 전체 화면으로 확대**: 두 손가락 확대, 드래그 이동, ✕ 또는 뒤로 가기로 닫기
+· 🛡 '모든 데이터 삭제'는 **확인 문장을 직접 입력**해야 실행되며 확인 버튼이 빨간색입니다. 'API Key 암호화 저장' 안내는 초록색으로
 
 v0.5.0_beta
-· '앱 언어' 추가: 설정 → 🌐 언어 설정에서 시스템 설정 따르기 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 선택. 즉시 적용되며 재시작이 필요 없습니다
-· 화면 문구를 전면 다국어화: 홈, 촬영, 직접 질문, 풀이, 채점, 오답 노트, 복습, 설정, 알림 등
-· 'AI 답변 언어'와 '앱 언어'가 별도 설정으로 분리: 전자는 AI가 답하는 언어, 후자는 앱 화면 언어
+· 🌐 '앱 언어' 추가: 설정 → 🌐 언어 설정에서 시스템 설정 따르기 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 선택. 즉시 적용되며 재시작이 필요 없습니다
+· 🌐 화면 문구를 전면 다국어화: 홈, 촬영, 직접 질문, 풀이, 채점, 오답 노트, 복습, 설정, 알림 등
+· 🧩 'AI 답변 언어'와 '앱 언어'가 별도 설정으로 분리: 전자는 AI가 답하는 언어, 후자는 앱 화면 언어
 
 v0.4.9
-· 촬영 문제의 말풍선은 원본 이미지만 표시: AI가 옮겨 적은 문제 문장은 더 이상 표시하지 않습니다(문장은 저장되며 노트·검색·편집에 영향 없음, 이전 세션도 동일). 직접 질문은 입력한 문장을 그대로 표시
-· 설정에 '🌐 언어 설정' → 'AI 답변 언어' 추가: 시스템 설정 따르기 / 문제 언어 따르기 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский
-· 언어 설정은 촬영 풀이, 직접 질문, 추가 질문, 채점, 유사 문제에 적용됩니다(수식은 LaTeX 유지)
+· 🎨 촬영 문제의 말풍선은 원본 이미지만 표시: AI가 옮겨 적은 문제 문장은 더 이상 표시하지 않습니다(문장은 저장되며 노트·검색·편집에 영향 없음, 이전 세션도 동일). 직접 질문은 입력한 문장을 그대로 표시
+· 🌐 설정에 '🌐 언어 설정' → 'AI 답변 언어' 추가: 시스템 설정 따르기 / 문제 언어 따르기 / 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Русский
+· 🌐 언어 설정은 촬영 풀이, 직접 질문, 추가 질문, 채점, 유사 문제에 적용됩니다(수식은 LaTeX 유지)
 
 v0.4.8
-· 문제와 첫 질문을 원본 이미지가 포함된 연녹색 사용자 말풍선으로 통일: 1장 촬영, 2장 촬영, 직접 질문, 채점, 노트, 복습 모두 동일
-· 복습 화면을 1열로 변경: 한 줄 전체 폭, 이미지가 더 크고 선명하게
-· R8 난독화 + 리소스 축소를 기본으로 적용(release): APK 약 4.4MB(기존 약 30MB), 이전 세션 호환 유지
+· 🎨 문제와 첫 질문을 원본 이미지가 포함된 연녹색 사용자 말풍선으로 통일: 1장 촬영, 2장 촬영, 직접 질문, 채점, 노트, 복습 모두 동일
+· 🎨 복습 화면을 1열로 변경: 한 줄 전체 폭, 이미지가 더 크고 선명하게
+· 📦 R8 난독화 + 리소스 축소를 기본으로 적용(release): APK 약 4.4MB(기존 약 30MB), 이전 세션 호환 유지
 
 v0.4.7.5 (임시 버전)
-· R8 코드 축소/난독화 + 리소스 축소 활성화(release 전용). APK 크기 대폭 감소, 이전 세션 호환
-· 설정에 '📝 업데이트 내역' 추가
+· 📦 R8 코드 축소/난독화 + 리소스 축소 활성화(release 전용). APK 크기 대폭 감소, 이전 세션 호환
+· 🆕 설정에 '📝 업데이트 내역' 추가
 
 v0.4.7
-· 직접 질문이 대화에 '내 질문 + 첨부 이미지'로 표시됩니다
-· 성능: 노트·복습 목록 이미지를 캐시 + 축소 디코딩(스크롤이 부드럽고 메모리 절약)
-· 용량: 불필요한 KaTeX .woff 삭제(woff2 유지), 미리보기 도구는 debug 전용으로
-· 촬영 검색에 '1장 / 2장' 모드 추가: 두 장을 한 문제로 함께 풀이
-· 추가 최적화: API Key 메모리 캐시, Flow 캐시, 시간 포매터 재사용, 메시지 목록 캐시, WebView 재렌더링 생략, 필터 결과 캐시, 분류/태그 이름 사전 로드
+· 🆕 직접 질문이 대화에 '내 질문 + 첨부 이미지'로 표시됩니다
+· ⚡ 성능: 노트·복습 목록 이미지를 캐시 + 축소 디코딩(스크롤이 부드럽고 메모리 절약)
+· 📦 용량: 불필요한 KaTeX .woff 삭제(woff2 유지), 미리보기 도구는 debug 전용으로
+· 🆕 촬영 검색에 '1장 / 2장' 모드 추가: 두 장을 한 문제로 함께 풀이
+· ⚡ 추가 최적화: API Key 메모리 캐시, Flow 캐시, 시간 포매터 재사용, 메시지 목록 캐시, WebView 재렌더링 생략, 필터 결과 캐시, 분류/태그 이름 사전 로드
 
 v0.4.6
-· '정보'를 하위 메뉴가 아니라 설정 첫 화면에 바로 표시
-· 생성 중 알림을 탭하면 생성 중인 화면으로 돌아갑니다
+· 🔄 '정보'를 하위 메뉴가 아니라 설정 첫 화면에 바로 표시
+· 🆕 생성 중 알림을 탭하면 생성 중인 화면으로 돌아갑니다
 
 v0.4.5
-· 설정을 하위 메뉴로 개편: API Key / 테마 / 복습 알림 / 백그라운드 실행 / 정보
+· 🆕 설정을 하위 메뉴로 개편: API Key / 테마 / 복습 알림 / 백그라운드 실행 / 정보
 
 v0.4.4
-· 문제 저장 시 태그 선택을 스크롤 가능한 드롭다운으로(AI 자동 선택 유지)
-· 노트의 태그 필터를 '태그로 검색' 버튼 + 다중 선택 드롭다운으로
+· 🆕 문제 저장 시 태그 선택을 스크롤 가능한 드롭다운으로(AI 자동 선택 유지)
+· 🆕 노트의 태그 필터를 '태그로 검색' 버튼 + 다중 선택 드롭다운으로
 
 v0.4.3
-· 모델을 DeepSeek-V4.1-Flash(deepseek-flash, 네이티브 멀티모달)로 업그레이드. 시각과 텍스트 통합
-· 수정: 풀이 화면 제목 '풀이'가 오른쪽 버튼에 밀려 말줄임표가 되던 문제
+· 🔄 모델을 DeepSeek-V4.1-Flash(deepseek-flash, 네이티브 멀티모달)로 업그레이드. 시각과 텍스트 통합
+· 🐛 수정: 풀이 화면 제목 '풀이'가 오른쪽 버튼에 밀려 말줄임표가 되던 문제
 
 v0.4.2
-· 복습 알림을 탭하면 '복습' 화면이 바로 열립니다
-· 설정에 '자동 시작 한 번에 켜기'(Honor/Huawei/Xiaomi/OPPO/vivo 대응)
-· 촬영 화면 오른쪽 위 '✏️ 직접 질문': 텍스트 + 1~3장 이미지로 질문
-· 알림 시간을 휠로 위아래 선택
+· 🆕 복습 알림을 탭하면 '복습' 화면이 바로 열립니다
+· 🆕 설정에 '자동 시작 한 번에 켜기'(Honor/Huawei/Xiaomi/OPPO/vivo 대응)
+· 🆕 촬영 화면 오른쪽 위 '✏️ 직접 질문': 텍스트 + 1~3장 이미지로 질문
+· 🆕 알림 시간을 휠로 위아래 선택
 
 v0.4.1
-· 복습 후 자동으로 다음 문제로(같은 과목 우선). 오늘 분을 모두 끝내면 종료하고 안내
-· 유사 문제: AI가 유사 문제를 출제(먼저 문제만 표시, 대화 가능), '정답 보기'를 눌러야 정답 표시
-· 복습 알림: 켜기/끄기 + 시간(하루 한 번)
-· 알림 권한 요청, 재부팅 후 알림 자동 복원
+· 🆕 복습 후 자동으로 다음 문제로(같은 과목 우선). 오늘 분을 모두 끝내면 종료하고 안내
+· 🆕 유사 문제: AI가 유사 문제를 출제(먼저 문제만 표시, 대화 가능), '정답 보기'를 눌러야 정답 표시
+· 🆕 복습 알림: 켜기/끄기 + 시간(하루 한 번)
+· 🆕 알림 권한 요청, 재부팅 후 알림 자동 복원
 
 v0.4.0
-· 복습 기능: 홈에 '📖 복습' 추가
-· 에빙하우스 자동 스케줄: 새 오답을 0/1/2/4/7/15/30일 간격으로 배치(review 테이블 추가, DB v7)
-· 복습 화면 '오늘 / 이번 주' 탭, 과목→지식 포인트 그룹, 2열 워터폴
-· 문제를 열면 하단이 익숙함 / 애매함 / 모름 3버튼으로 바뀌어 다음 출제 시점 변경
-· 유사 문제 API 준비
+· 🆕 복습 기능: 홈에 '📖 복습' 추가
+· 🆕 에빙하우스 자동 스케줄: 새 오답을 0/1/2/4/7/15/30일 간격으로 배치(review 테이블 추가, DB v7)
+· 🆕 복습 화면 '오늘 / 이번 주' 탭, 과목→지식 포인트 그룹, 2열 워터폴
+· 🆕 문제를 열면 하단이 익숙함 / 애매함 / 모름 3버튼으로 바뀌어 다음 출제 시점 변경
+· 🆕 유사 문제 API 준비
 
 v0.3.9
-· 지식 태그: 과목 분류와 분리, 전역 공통, 다대다
-· AI 자동 태깅(최대 5개, 기존 태그 우선). 저장 시/상세 화면에서 수정 가능
-· 노트 상단에서 태그 다중 선택 필터, 카드에 태그 표시
-· 데이터베이스 v5→v6(tags + question_tags)
+· 🆕 지식 태그: 과목 분류와 분리, 전역 공통, 다대다
+· 🆕 AI 자동 태깅(최대 5개, 기존 태그 우선). 저장 시/상세 화면에서 수정 가능
+· 🆕 노트 상단에서 태그 다중 선택 필터, 카드에 태그 표시
+· 🆕 데이터베이스 v5→v6(tags + question_tags)
 
 v0.3.8
-· 수정: 대화 본문을 단일 WebView로 되돌려 스크롤 안정화. 노트에서 열어도 부드럽게
-· 수정: 문제 타임스탬프는 질문 시각을 기록하고, 열었다 나가도 갱신되지 않음
-· 버전 규칙: 사용자 데이터 파일 앞 4바이트에 버전 번호 기록
-· 키 정책: 소스/저장소에 어떤 키도 포함하지 않음
+· 🐛 수정: 대화 본문을 단일 WebView로 되돌려 스크롤 안정화. 노트에서 열어도 부드럽게
+· 🐛 수정: 문제 타임스탬프는 질문 시각을 기록하고, 열었다 나가도 갱신되지 않음
+· 🗂 버전 규칙: 사용자 데이터 파일 앞 4바이트에 버전 번호 기록
+· 🔐 키 정책: 소스/저장소에 어떤 키도 포함하지 않음
 
 v0.3.7
-· 분류 일괄 변경 / 일괄 삭제: 노트에서 길게 눌러 다중 선택
-· 일괄 분류: 기존 / 새로 만들기 / 미분류
-· 일괄 삭제: 완전 삭제(확인 대화상자)
-· 선택 카드에 체크 표시 + 초록 테두리
+· 🆕 분류 일괄 변경 / 일괄 삭제: 노트에서 길게 눌러 다중 선택
+· 🆕 일괄 분류: 기존 / 새로 만들기 / 미분류
+· 🆕 일괄 삭제: 완전 삭제(확인 대화상자)
+· 🆕 선택 카드에 체크 표시 + 초록 테두리
 
 v0.3.6
-· 문제 분류: 저장 시 '미분류 / 기존 / 새로 만들기' 선택, AI가 과목 추정
-· AI는 기존 분류를 우선 사용해 중복 생성을 방지
-· 노트 상단 분류 필터, 상세 화면에서 분류 변경
-· 노트를 2열 워터폴로 변경, '미분류' 추가
-· 데이터베이스 v4→v5(categories)
+· 🆕 문제 분류: 저장 시 '미분류 / 기존 / 새로 만들기' 선택, AI가 과목 추정
+· 🆕 AI는 기존 분류를 우선 사용해 중복 생성을 방지
+· 🆕 노트 상단 분류 필터, 상세 화면에서 분류 변경
+· 🆕 노트를 2열 워터폴로 변경, '미분류' 추가
+· 🆕 데이터베이스 v4→v5(categories)
 
 v0.3.5
-· 추가 질문에 이미지 첨부 가능(1~3장). AI가 이미지와 텍스트를 함께 읽고 답변
-· 입력줄 디자인: 둥근 입력창 + 캡슐형 '전송' 버튼
-· 추가 질문 말풍선에 첨부 이미지 썸네일 표시, 이미지는 세션과 함께 저장
-· '다음 문제 촬영' 버튼 제거, 풀이 화면에서 뒤로 가면 촬영 화면으로
-· 촬영/채점 카메라에서 탭 초점 + 초점 애니메이션 지원
+· 🆕 추가 질문에 이미지 첨부 가능(1~3장). AI가 이미지와 텍스트를 함께 읽고 답변
+· ✨ 입력줄 디자인: 둥근 입력창 + 캡슐형 '전송' 버튼
+· 🆕 추가 질문 말풍선에 첨부 이미지 썸네일 표시, 이미지는 세션과 함께 저장
+· 🔄 '다음 문제 촬영' 버튼 제거, 풀이 화면에서 뒤로 가면 촬영 화면으로
+· 🆕 촬영/채점 카메라에서 탭 초점 + 초점 애니메이션 지원
 
 v0.3.4
-· 채점: 1장/2장 촬영, AI가 정오를 판단하고 틀린 단계를 짚어 설명
-· 앱 아이콘 글자를 SA로 변경
-· 노트 삭제를 소프트 삭제로(복원 가능)
-· 추가 질문 입력창 키보드 회피, 갤러리 버튼을 셔터와 같은 높이로
+· 🆕 채점: 1장/2장 촬영, AI가 정오를 판단하고 틀린 단계를 짚어 설명
+· 🆕 앱 아이콘 글자를 SA로 변경
+· 🔄 노트 삭제를 소프트 삭제로(복원 가능)
+· ✨ 추가 질문 입력창 키보드 회피, 갤러리 버튼을 셔터와 같은 높이로
 
 v0.3.3
-· 앱 아이콘(흰 배경 + 파란 책), 런처 이름 Study Assistant
-· 저장 시 전체 대화를 저장, 문제를 탭해 대화를 이어갈 수 있음
-· 선택 영역은 굵은 빨간색, 네 모서리를 드래그 가능, APK 이름 규칙
+· 🆕 앱 아이콘(흰 배경 + 파란 책), 런처 이름 Study Assistant
+· 🆕 저장 시 전체 대화를 저장, 문제를 탭해 대화를 이어갈 수 있음
+· 🐛 선택 영역은 굵은 빨간색, 네 모서리를 드래그 가능, APK 이름 규칙
 
 v0.3.2
-· 하단 탭: 홈 / 설정
-· 테마: 라이트 / 다크 / 시스템 설정 따르기
-· Key 설정을 설정 화면으로 이동, 정보에 만든이와 버전 표시
-· 답변 스크롤 수정, 답변을 채팅 말풍선으로, 첫 실행 시 Key 입력 대화상자
+· 🆕 하단 탭: 홈 / 설정
+· 🎨 테마: 라이트 / 다크 / 시스템 설정 따르기
+· 🔑 Key 설정을 설정 화면으로 이동, 정보에 만든이와 버전 표시
+· 🐛 답변 스크롤 수정, 답변을 채팅 말풍선으로, 첫 실행 시 Key 입력 대화상자
 
 v0.3.1
-· 답변 영역 Markdown 지원
-· 긴 답변 스크롤 수정, 넓은 수식은 자동 축소 + 가로 스크롤
-· 촬영 화면에 '다시 촬영', 대화 화면에 '다음 문제 촬영'
-· 촬영 화면에 '앨범에서 검색', 답변 페이지 상단에서 원본 이미지 접기
-· 노트에 잘라낸 원본 이미지를 표시하고 LaTeX 풀이 확인 가능
+· ✨ 답변 영역 Markdown 지원
+· ✨ 긴 답변 스크롤 수정, 넓은 수식은 자동 축소 + 가로 스크롤
+· 🆕 촬영 화면에 '다시 촬영', 대화 화면에 '다음 문제 촬영'
+· 🆕 촬영 화면에 '앨범에서 검색', 답변 페이지 상단에서 원본 이미지 접기
+· 🆕 노트에 잘라낸 원본 이미지를 표시하고 LaTeX 풀이 확인 가능
 
 v0.3.0
-· 촬영 후 영역 선택: 문제 부분만 잘라내거나 전체 이미지로 인식
-· 다시 생성 + 대화 이어가기(다중 턴)
-· API Key 앱 내 입력(Android Keystore 암호화 저장)
-· KaTeX 수식 렌더링
+· 🆕 촬영 후 영역 선택: 문제 부분만 잘라내거나 전체 이미지로 인식
+· 🆕 다시 생성 + 대화 이어가기(다중 턴)
+· 🆕 API Key 앱 내 입력(Android Keystore 암호화 저장)
+· 🆕 KaTeX 수식 렌더링
 
 v0.2 (초기 버전)
-· 이미지 처리를 DeepSeek로 전환: 이미지를 DeepSeek 비전 모델에 직접 보내 인식·풀이. Baidu OCR 제거
+· 🔄 이미지 처리를 DeepSeek로 전환: 이미지를 DeepSeek 비전 모델에 직접 보내 인식·풀이. Baidu OCR 제거
 
 v0.1 (프로젝트 시작)
-· 프로젝트 구축: Baidu OCR 이미지 인식 + DeepSeek 풀이. 사진 검색·AI 풀이·오답 정리 초기 형태
+· 🆕 프로젝트 구축: Baidu OCR 이미지 인식 + DeepSeek 풀이. 사진 검색·AI 풀이·오답 정리 초기 형태
 """.trimIndent()
 
 /** 按界面语言取更新内容（繁體中文由简体自动转换） */

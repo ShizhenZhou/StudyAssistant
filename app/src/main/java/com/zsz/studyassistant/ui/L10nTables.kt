@@ -1,6 +1,12 @@
 package com.zsz.studyassistant.ui
 
 private val B14_ZH = mapOf(
+    "data.autoBackup.setupTitle" to "确认自动备份路径",
+    "data.autoBackup.setupDesc" to "请选择备份文件夹。选好后默认开启每日自动备份，也可关闭。跳过后，若下次启动仍没有可用路径，将再次提醒。",
+    "data.autoBackup.setupSkip" to "跳过",
+    "data.autoBackup.setupDone" to "完成",
+    "data.autoBackup.pathLabel" to "保存路径：",
+    "data.autoBackup.openFolderFailed" to "无法打开此文件夹，请检查文件管理应用及文件夹权限。",
     "update.notif.observing" to "正在同步下载状态，系统任务继续运行",
     "update.notif.channel" to "应用更新下载",
     "update.notif.title" to "正在下载更新 v{v}",
@@ -67,11 +73,17 @@ private val B14_ZH = mapOf(
     "data.backupJob.failed" to "备份未完成，可重试或手动导出",
     "data.backupJob.timeLimit" to "本次备份超出后台时限，请在备份管理中手动导出；原有数据和备份不变。",
     "data.export.desc" to "含错题、图片及学习记录；不含密钥、设置和草稿。",
-    "data.import.desc" to "选择备份文件；分卷须选齐。校验确认后导入，相同题号跳过。",
+    "data.import.desc" to "选择备份文件；分卷须选齐。校验确认后导入，相同题号跳过。支持 Bak v3 的 JSON 文件。",
     "data.autoBackup.desc" to "每天打开应用后约 30 秒由系统择机备份；当天已有完整手动或自动备份、错题本为空时跳过；其他日期即使内容未变也备份一次。等待中的自动计划可用“立即备份一次”接管，离开页面后仍由系统后台执行。开始前若完整自动备份超过 {n} 套，先保留最新 2 套；新备份成功后保留最近 {n} 套，包含旧命名自动备份。手动备份、损坏、缺卷和无法识别的文件不清理。",
     "data.autoBackup.count" to "手动备份：{manual} 套 · 自动备份：{automatic} 套"
 )
 private val B14_EN = mapOf(
+    "data.autoBackup.setupTitle" to "Confirm automatic backup folder",
+    "data.autoBackup.setupDesc" to "Choose a backup folder to enable daily backups. You can turn them off. If skipped, we will remind you on a later launch while no usable folder is configured.",
+    "data.autoBackup.setupSkip" to "Skip",
+    "data.autoBackup.setupDone" to "Done",
+    "data.autoBackup.pathLabel" to "Save location: ",
+    "data.autoBackup.openFolderFailed" to "Unable to open this folder. Check the file manager and folder access.",
     "update.notif.observing" to "Refreshing download status; the system transfer continues",
     "update.notif.channel" to "App update downloads",
     "update.notif.title" to "Downloading update v{v}",
@@ -138,11 +150,17 @@ private val B14_EN = mapOf(
     "data.backupJob.failed" to "Backup incomplete; retry or export manually",
     "data.backupJob.timeLimit" to "The backup exceeded the background time limit. Export manually from Backup management; existing data and backups are unchanged.",
     "data.export.desc" to "Includes questions, images and study records; excludes keys, settings and drafts.",
-    "data.import.desc" to "Select a backup or all its parts. Validate and confirm to import; existing question IDs are skipped.",
+    "data.import.desc" to "Select a backup or all its parts. Validate and confirm to import; existing question IDs are skipped. Bak v3 JSON files are supported.",
     "data.autoBackup.desc" to "Opening the app schedules backup with a 30-second delay; backup is skipped if the notebook is empty or a complete manual or automatic backup exists today; unchanged content still receives a new daily backup. Back up now can replace a pending automatic plan; work continues independently of the page. Before starting, more than {n} complete automatic sets are reduced to the latest 2. After success, keeps {n}, including legacy automatic backups. Manual, corrupt, incomplete and unrecognized files are preserved.",
     "data.autoBackup.count" to "Manual: {manual} sets · Automatic: {automatic} sets"
 )
 private val B14_JA = mapOf(
+    "data.autoBackup.setupTitle" to "自動バックアップの保存先を確認",
+    "data.autoBackup.setupDesc" to "フォルダを選ぶと毎日の自動バックアップが有効になります。オフにもできます。スキップ後も有効な保存先がない場合、次回起動時に再度案内します。",
+    "data.autoBackup.setupSkip" to "スキップ",
+    "data.autoBackup.setupDone" to "完了",
+    "data.autoBackup.pathLabel" to "保存先：",
+    "data.autoBackup.openFolderFailed" to "フォルダを開けません。ファイル管理アプリとアクセス権を確認してください。",
     "update.notif.observing" to "状態を更新中。システムのダウンロードは続行中",
     "update.notif.channel" to "アプリ更新のダウンロード",
     "update.notif.title" to "更新 v{v} をダウンロード中",
@@ -209,11 +227,17 @@ private val B14_JA = mapOf(
     "data.backupJob.failed" to "バックアップ未完了。再試行または手動エクスポートしてください",
     "data.backupJob.timeLimit" to "バックグラウンド実行時間を超えました。バックアップ管理から手動でエクスポートしてください。既存データとバックアップは変更していません。",
     "data.export.desc" to "問題・画像・学習記録を含みます。キー・設定・下書きは含みません。",
-    "data.import.desc" to "バックアップを選択。分巻は全巻を選び、検証・確認後に読み込みます。同じ問題IDはスキップします。",
+    "data.import.desc" to "バックアップを選択。分巻は全巻を選び、検証・確認後に読み込みます。同じ問題IDはスキップします。Bak v3 の JSON ファイルにも対応。",
     "data.autoBackup.desc" to "アプリ起動後30秒の遅延で予約。本日の完全な手動・自動バックアップや空の問題集はスキップ。他の日は変更がなくても1日1回バックアップ。待機中の自動予約は「今すぐバックアップ」で置き換え、画面を閉じてもシステムで実行。開始前に完全な自動バックアップが {n} セットを超えた場合は最新2セットを残し、成功後は旧名称分も含め最新 {n} セットを保持。手動・破損・欠巻・不明なファイルは削除しません。",
     "data.autoBackup.count" to "手動：{manual} セット · 自動：{automatic} セット"
 )
 private val B14_KO = mapOf(
+    "data.autoBackup.setupTitle" to "자동 백업 폴더 확인",
+    "data.autoBackup.setupDesc" to "폴더를 선택하면 매일 자동 백업이 켜지며 끌 수도 있습니다. 건너뛴 뒤에도 사용 가능한 경로가 없으면 다음 실행 시 다시 안내합니다.",
+    "data.autoBackup.setupSkip" to "건너뛰기",
+    "data.autoBackup.setupDone" to "완료",
+    "data.autoBackup.pathLabel" to "저장 경로: ",
+    "data.autoBackup.openFolderFailed" to "폴더를 열 수 없습니다. 파일 관리자와 폴더 접근 권한을 확인하세요.",
     "update.notif.observing" to "진행 상태를 동기화하는 중이며 시스템 다운로드는 계속됩니다",
     "update.notif.channel" to "앱 업데이트 다운로드",
     "update.notif.title" to "업데이트 v{v} 다운로드 중",
@@ -280,7 +304,7 @@ private val B14_KO = mapOf(
     "data.backupJob.failed" to "백업 미완료. 다시 시도하거나 수동으로 내보내세요",
     "data.backupJob.timeLimit" to "백그라운드 실행 시간을 초과했습니다. 백업 관리에서 수동으로 내보내세요. 기존 데이터와 백업은 유지됩니다.",
     "data.export.desc" to "문제·이미지·학습 기록을 포함하며 키·설정·초안은 제외합니다.",
-    "data.import.desc" to "백업 또는 모든 분할 파일을 선택하세요. 검증·확인 후 가져오며 같은 문제 ID는 건너뜁니다.",
+    "data.import.desc" to "백업 또는 모든 분할 파일을 선택하세요. 검증·확인 후 가져오며 같은 문제 ID는 건너뜁니다. Bak v3 JSON 파일도 지원합니다.",
     "data.autoBackup.desc" to "앱을 열면 30초 지연으로 예약합니다. 오늘의 완전한 수동·자동 백업이나 빈 노트는 건너뜁니다. 다른 날에는 내용이 같아도 하루 한 번 백업합니다. 대기 중인 자동 예약은 지금 백업으로 대체하며 화면을 닫아도 시스템이 실행합니다. 시작 전 완전한 자동 백업이 {n}세트를 초과하면 최신 2세트만 남기고 성공 후에는 기존 이름을 포함해 최신 {n}세트를 유지합니다. 수동·손상·누락·알 수 없는 파일은 삭제하지 않습니다.",
     "data.autoBackup.count" to "수동 백업: {manual}세트 · 자동 백업: {automatic}세트"
 )

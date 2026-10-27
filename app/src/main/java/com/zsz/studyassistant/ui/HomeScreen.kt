@@ -66,6 +66,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
     var showDialog by remember { mutableStateOf(false) }
     // 首次打开且未配 Key → 自动弹填 Key 对话框
     LaunchedEffect(keyOk) { if (!keyOk) showDialog = true }
+    BackupSetupPrompt(vm, ready = keyOk && !showDialog)
 
     Box(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(

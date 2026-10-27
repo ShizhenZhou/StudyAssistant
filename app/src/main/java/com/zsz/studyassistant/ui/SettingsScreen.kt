@@ -995,11 +995,20 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     var showBackupInfo by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
     var folderSummary by remember { mutableStateOf<com.zsz.studyassistant.data.BackupRetention.FolderSummary?>(null) }
+    var folderUsable by remember { mutableStateOf(false) }
     var folderReadFailed by remember { mutableStateOf(false) }
     var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
     var autoFailure by remember { mutableStateOf(AutoBackup.lastFailure(context)) }
     var status by remember { mutableStateOf(com.zsz.studyassistant.data.BackupJobs.status(context)) }
     var refresh by remember { mutableStateOf(0) }
+    val folderLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(folderLifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refresh++
+        }
+        folderLifecycle.addObserver(observer)
+        onDispose { folderLifecycle.removeObserver(observer) }
+    }
     var requesting by remember { mutableStateOf(false) }
     var canNotify by remember { mutableStateOf(com.zsz.studyassistant.data.BackupNotifications.canNotify(context)) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -1044,6 +1053,15 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         val documentId = tree?.let { runCatching { android.provider.DocumentsContract.getTreeDocumentId(it) }.getOrNull() }
         // The displayed path follows the actual selection even when the inventory is unreadable.
         autoFolder = backupFolderLabel(documentId, null, internalStorage)
+        folderUsable = false
+        val validFolder = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.zsz.studyassistant.data.BackupFolderAccess.isUsable(context, tree)
+        }
+        if (AutoBackup.treeUri(context) == tree) {
+            folderUsable = validFolder
+            if (!validFolder) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AutoBackup.setEnabled(context, false) }
+            autoEnabled = AutoBackup.isEnabled(context)
+        }
         folderSummary = null
         autoLast = 0L
         folderReadFailed = false
@@ -1096,12 +1114,8 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             scope.launch {
                 try {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        try {
-                            context.contentResolver.takePersistableUriPermission(uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                        } catch (_: SecurityException) { /* The worker reports unusable provider permissions. */ }
-                        AutoBackup.setTreeUri(context, uri)
-                        com.zsz.studyassistant.data.BackupJobs.requestNow(context)
+                        if (!com.zsz.studyassistant.data.BackupFolderAccess.select(context, uri))
+                            throw java.io.IOException("Backup directory is unavailable")
                     }
                     refresh++
                     if (AutoBackup.isEnabled(context) && com.zsz.studyassistant.data.BackupNotifications.needsPermission(context) &&
@@ -1117,7 +1131,11 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     }
     if (autoFolder == null) Text(s["data.autoBackup.noFolder"],
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-    else BackupFolderPath(autoFolder!!)
+    else BackupFolderPath(autoFolder!!, s["data.autoBackup.pathLabel"]) {
+        if (!openBackupFolder(context, AutoBackup.treeUri(context))) {
+            feedback.show(s["data.autoBackup.openFolderFailed"], isError = true)
+        }
+    }
     Spacer(Modifier.height(6.dp))
     Text((if (folderReadFailed) s["data.autoBackup.countFailed"] else s.format("data.autoBackup.count",
         "manual" to (folderSummary?.manual?.toString() ?: "…"),
@@ -1151,7 +1169,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     Spacer(Modifier.height(8.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(s["data.autoBackup.daily"], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = autoEnabled, onCheckedChange = { on ->
+        Switch(checked = autoEnabled && folderUsable, enabled = folderUsable, onCheckedChange = { on ->
             autoEnabled = on
             scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AutoBackup.setEnabled(context, on) } }
         })

@@ -34,6 +34,7 @@ object AppNav {
     const val OPEN_UPDATE_EXTRA = "open_app_update"
 
     // ── NavHost 路由（节点）──────────────────────────────────────────────
+    // Home startup: API Key dialog → optional automatic-backup folder setup (dialogs, not navigation nodes).
     const val HOME = "home"
     const val CAMERA = "camera"
     const val CROP = "crop"

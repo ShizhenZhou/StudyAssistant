@@ -2,6 +2,11 @@ package com.zsz.studyassistant.ui
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextDecoration
 import android.provider.DocumentsContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,7 +24,7 @@ internal fun backupFolderLabel(documentId: String?, displayName: String?, intern
     val volume = documentId?.substringBefore(':', "")
     return if (!volume.isNullOrEmpty() && documentId.contains(':') &&
         (volume == "primary" || volume.matches(Regex("[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}")))) {
-        (if (volume == "primary") "$internalStorage/" else "$volume:/") + documentId.substringAfter(':').trimStart('/')
+        (if (volume == "primary") "$internalStorage/" else "$volume:/") + documentId.substringAfter(':').trimStart('/', ' ')
     } else displayName ?: documentId
 }
 
@@ -42,18 +47,35 @@ internal fun shortenBackupPath(path: String, fits: (String) -> Boolean): String 
 }
 
 @Composable
-internal fun BackupFolderPath(path: String) {
+internal fun BackupFolderPath(path: String, label: String, onClick: () -> Unit) {
     val measurer = rememberTextMeasurer()
     val style = MaterialTheme.typography.bodySmall
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val available = with(density) { maxWidth.roundToPx() }
         val shortened = shortenBackupPath(path) {
-            measurer.measure(it, style = style, softWrap = false).size.width <= available
+            measurer.measure(label + it, style = style, softWrap = false).size.width <= available
         }
-        Text(shortened, maxLines = 1, softWrap = false, style = style,
-            color = MaterialTheme.colorScheme.outline)
+        Text(label + shortened, maxLines = 1, softWrap = false, style = style,
+            color = Color(0xFF2196F3), textDecoration = TextDecoration.Underline,
+            modifier = Modifier.clickable(role = Role.Button, onClick = onClick))
     }
+}
+
+/** Uses only SAF content URIs; browsing never changes the configured backup directory. */
+internal fun openBackupFolder(context: Context, tree: Uri?): Boolean {
+    if (tree == null) return false
+    val document = runCatching {
+        DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+    }.getOrNull() ?: return false
+    val view = Intent(Intent.ACTION_VIEW).setDataAndType(document, DocumentsContract.Document.MIME_TYPE_DIR)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(view) }.isSuccess) return true
+    // Some file managers do not handle directory VIEW. The official picker can still browse it.
+    val browse = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        .putExtra(DocumentsContract.EXTRA_INITIAL_URI, document)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    return runCatching { context.startActivity(browse) }.isSuccess
 }
 
 /** The system picker may ignore the hint or fall back if the provider is unavailable. */
