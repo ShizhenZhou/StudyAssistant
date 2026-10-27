@@ -8,15 +8,19 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import com.zsz.studyassistant.MainActivity
-import com.zsz.studyassistant.R
 import com.zsz.studyassistant.ui.AppNav
+import com.zsz.studyassistant.ui.AppThemeColor
+import com.zsz.studyassistant.ui.appColorScheme
 import com.zsz.studyassistant.ui.UiLangStore
 import com.zsz.studyassistant.ui.stringsFor
 
@@ -40,6 +44,18 @@ internal object UpdateDownloadNotifications {
     } catch (_: Exception) { false }
     fun canReplaceNative(context: Context): Boolean = canPost(context) &&
         ContextCompat.checkSelfPermission(context, "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION") == PackageManager.PERMISSION_GRANTED
+
+    private fun accentColor(context: Context): Int {
+        val settings = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val dark = when (settings.getString("theme", "system")) {
+            "light" -> false
+            "dark" -> true
+            else -> context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        }
+        val scheme = appColorScheme(dark, AppThemeColor.fromId(settings.getString("theme_color", null)),
+            settings.getInt("theme_color_custom", 0xFF6750A4.toInt()))
+        return ColorUtils.setAlphaComponent(scheme.primary.toArgb(), 255)
+    }
 
     fun build(context: Context, task: UpdateDownloads.Snapshot?, messageKey: String? = null): Notification {
         ensureChannel(context)
@@ -66,11 +82,9 @@ internal object UpdateDownloadNotifications {
         val open = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(AppNav.OPEN_UPDATE_EXTRA, true)
-        val appearance = UpdateDownloadIcon.appearance(context)
         val note = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_update_download)
-            .setLargeIcon(appearance.bitmap)
-            .setColor(appearance.accent)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setColor(accentColor(context))
             .setContentTitle(title).setContentText(text)
             .setContentIntent(PendingIntent.getActivity(context, NOTIFICATION_ID, open,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
