@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7.3
+· ⬇️ 更新下载交由 Android 系统执行，离开更新页或关闭界面后继续；重新进入恢复任务与进度
+· 📶 断网时保留系统任务并等待恢复，服务器允许时尝试续传；任务失效后可重新下载，也可主动取消
+· 🛡️ 安装包复制到私有目录后校验大小、摘要、签名及版本，安装前再次检查；同版本换包不混用旧下载
+
 v0.6.7.2
 · 📁 内部存储路径使用本地化名称；切换底栏后再进入设置回到主页，旋转屏幕仍保留当前子页
 · 💬 气泡文字居中并按内容收缩；自动备份失败使用简短红字和蓝色“查看详情”，可直达备份管理
@@ -448,6 +453,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7.3
+· ⬇️ Android manages update downloads independently of the page; returning restores the task and progress
+· 📶 Network interruptions retain the system task for retry and supported resumption; ended tasks can be downloaded again or canceled explicitly
+· 🛡️ Verify the private APK copy for size, digest, signature and version, and recheck before installation; replacement assets keep separate tasks
+
 v0.6.7.2
 · 📁 Localize the internal-storage path label; returning to Settings after a tab switch opens its main page, while rotation keeps the current child
 · 💬 Center feedback text in content-sized bubbles; automatic backup failures show a short message with a blue details link to Backup management
@@ -891,6 +901,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7.3
+· ⬇️ 更新のダウンロードをシステムに移し、ページを離れても続行。戻るとタスクと進捗を復元
+· 📶 通信切断時はシステムの再試行・対応サーバーからの再開を待機。終了したタスクは再ダウンロードでき、明示的な取消にも対応
+· 🛡️ 非公開領域にコピーしたAPKのサイズ・ハッシュ・署名・バージョンを検証し、インストール直前も再確認。同じ版の差し替えは別タスク
+
 v0.6.7.2
 · 📁 内部ストレージ名を翻訳し、タブを切り替えて設定に戻るとホームを表示。画面回転では現在の子ページを維持
 · 💬 気泡を内容に合わせて中央揃えにし、自動バックアップ失敗は短い赤字と青い詳細リンクでバックアップ管理へ移動
@@ -1334,6 +1349,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7.3
+· ⬇️ 업데이트 다운로드를 시스템이 관리하여 페이지를 나가도 계속하며 돌아오면 작업과 진행률을 복원합니다
+· 📶 네트워크 중단 시 시스템 재시도와 지원되는 이어받기를 기다립니다. 종료된 작업은 다시 다운로드하거나 직접 취소할 수 있습니다
+· 🛡️ 비공개 영역의 APK 크기·해시·서명·버전을 검증하고 설치 직전 다시 확인합니다. 같은 버전의 교체 파일은 별도 작업으로 관리합니다
+
 v0.6.7.2
 · 📁 내부 저장소 이름을 번역하고 탭 전환 후 설정으로 돌아오면 홈을 엽니다. 화면 회전 시 현재 하위 페이지는 유지합니다
 · 💬 메시지를 가운데 정렬하고 내용에 맞게 축소합니다. 자동 백업 실패는 짧은 빨간 문구와 백업 관리로 가는 파란 상세 링크로 표시합니다

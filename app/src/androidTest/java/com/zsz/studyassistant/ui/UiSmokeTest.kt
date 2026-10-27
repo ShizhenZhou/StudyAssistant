@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.ui
 
+import androidx.activity.compose.setContent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -101,6 +102,49 @@ class UiSmokeTest {
         }
         return scenario
     }
+    @Test fun updatePageRestoresWaitingAndCompletedTasksAfterLeaving() = kotlinx.coroutines.runBlocking {
+        val backend = com.zsz.studyassistant.data.UpdateDownloadsIntegrationTest.FakeTransfers()
+        val release = com.zsz.studyassistant.data.UpdateChecker.ReleaseInfo("v9.0", "9.0", "synthetic", "fixture.apk",
+            "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/fixture.apk", "a".repeat(64), 7, 1234)
+        fun repository() = com.zsz.studyassistant.data.UpdateDownloads(context, backend) { file, _ ->
+            val ok = file.readText() == "fixture"
+            com.zsz.studyassistant.data.UpdateChecker.VerifyResult(ok, ok, ok, null)
+        }
+        val store = repository()
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val releaseQuery = java.util.concurrent.CountDownLatch(1)
+        try {
+            store.cancel(); store.start(release)
+            backend.queryEntered = entered; backend.queryRelease = releaseQuery
+            launch().use { scenario ->
+                fun showPage(repo: com.zsz.studyassistant.data.UpdateDownloads) {
+                    scenario.onActivity { activity -> activity.setContent {
+                        androidx.compose.runtime.CompositionLocalProvider(LocalStrings provides s, LocalUiLang provides UiLang.EN) {
+                            androidx.compose.material3.MaterialTheme {
+                                androidx.compose.foundation.layout.Column { UpdatePage(repo) }
+                            }
+                        }
+                    } }
+                }
+                showPage(store)
+                assertTrue(entered.await(3, java.util.concurrent.TimeUnit.SECONDS))
+                waitFor(s["update.restoring"])
+                assertNull(clickable(instrumentation.uiAutomation.rootInActiveWindow, s["update.check"]))
+                scenario.onActivity { it.setContent { androidx.compose.material3.Text("Away from update page") } }
+                backend.current = backend.current!!.copy(status = com.zsz.studyassistant.data.UpdateDownloads.TransferPhase.WAITING)
+                releaseQuery.countDown()
+                assertEquals(1, backend.enqueues)
+                showPage(repository())
+                waitFor(s["update.waiting"])
+                backend.file!!.writeText("fixture")
+                backend.current = backend.current!!.copy(status = com.zsz.studyassistant.data.UpdateDownloads.TransferPhase.SUCCESS, bytes = 7)
+                waitFor(s["update.verified"])
+                assertEquals(1, backend.enqueues)
+                assertNotNull(store.forInstall()!!.file)
+            }
+        } finally { releaseQuery.countDown(); backend.queryRelease=null; store.cancel() }
+    }
+
     @Test fun leavingSettingsThroughEitherBottomTabClearsItsInternalPage() {
         launch().use { scenario ->
             tap(s["nav.settings"])

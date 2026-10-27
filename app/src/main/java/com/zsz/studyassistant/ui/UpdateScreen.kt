@@ -44,8 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.zsz.studyassistant.data.UpdateChecker
+import com.zsz.studyassistant.data.UpdateDownloads
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
 
 /** 红点 / 链接配色：不跟主题走 —— 红点要显眼，仓库链接按要求用**蓝色** */
 internal val BADGE_RED = Color(0xFFE53935)
@@ -106,7 +109,7 @@ suspend fun silentUpdateCheck(context: Context) {
 }
 
 /** 页面阶段 */
-private enum class Phase { IDLE, CHECKING, UP_TO_DATE, FOUND, DOWNLOADING, VERIFYING, READY, FAILED }
+private enum class Phase { RESTORING, IDLE, CHECKING, UP_TO_DATE, FOUND, DOWNLOADING, WAITING, VERIFYING, READY, FAILED }
 
 /** 是否已允许「安装未知应用」（Android 8+ 需要；更低版本视为允许） */
 private fun canInstallApk(context: Context): Boolean = try {
@@ -124,16 +127,20 @@ internal fun formatCheckTime(ms: Long): String {
 
 /** ⬆️ 应用更新：当前版本 + 检查更新按钮 + 灰字提示 + 下载/校验/安装 + 更新历史 */
 @Composable
-fun UpdatePage() {
+internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
     val context = LocalContext.current
     val s = LocalStrings.current
     val scope = rememberCoroutineScope()
 
+    val downloads = remember(context.applicationContext, taskStore) { taskStore ?: UpdateDownloads(context.applicationContext) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var observingDownload by remember { mutableStateOf(true) }
     val installed = remember { UpdateChecker.installedVersion(context) }
-    var phase by remember { mutableStateOf(Phase.IDLE) }
+    var phase by remember { mutableStateOf(Phase.RESTORING) }
+    var operationGeneration by remember { mutableIntStateOf(0) }
+    var downloadActionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var latest by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
     var progress by remember { mutableIntStateOf(-1) }
-    var apk by remember { mutableStateOf<File?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
     var verifiedSha by remember { mutableStateOf<Boolean?>(null) }
@@ -142,29 +149,82 @@ fun UpdatePage() {
     var skipped by remember { mutableStateOf(UpdateChecker.skippedVersion(context)) }
     var lastCheck by remember { mutableStateOf(UpdateChecker.lastCheckAt(context)) }
 
-    fun goInstall() {
-        val f = apk ?: return
-        if (!canInstallApk(context)) { permNeeded = true; openUnknownSourcesSettings(context); return }
-        permNeeded = false
-        try {
-            val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", f)
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    fun showDownload(task: UpdateDownloads.Snapshot) {
+        latest = task.release
+        sameVersion = !UpdateChecker.isNewer(task.release.version, installed)
+        progress = task.progress
+        verifiedSha = task.phase == UpdateDownloads.Phase.READY && task.release.assetSha256 != null
+        message = task.errorKey?.let { s[it] }
+        phase = when (task.phase) {
+            UpdateDownloads.Phase.DOWNLOADING -> Phase.DOWNLOADING
+            UpdateDownloads.Phase.WAITING -> Phase.WAITING
+            UpdateDownloads.Phase.READY -> Phase.READY
+            UpdateDownloads.Phase.FAILED -> Phase.FAILED
+        }
+    }
+    // Observing the task belongs to the page; the actual transfer belongs to Android.
+    LaunchedEffect(downloads, lifecycleOwner, s["update.background"]) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                if (observingDownload) {
+                    val generation = operationGeneration
+                    val task = downloads.snapshot()
+                    if (observingDownload && generation == operationGeneration) {
+                        if (task == null) {
+                            if (phase == Phase.RESTORING) phase = Phase.IDLE
+                        } else {
+                            val alreadyInstalled = task.phase == UpdateDownloads.Phase.READY &&
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { !UpdateChecker.hasUpdate(context, task.release) }
+                            if (observingDownload && generation == operationGeneration) {
+                                if (alreadyInstalled) {
+                                    downloads.cancel(task.token)
+                                    if (observingDownload && generation == operationGeneration) {
+                                        // A stale downloaded package says nothing about the latest release online.
+                                        latest = null; phase = Phase.IDLE
+                                    }
+                                } else showDownload(task)
+                            }
+                        }
+                        permNeeded = !canInstallApk(context)
+                    }
+                }
+                kotlinx.coroutines.delay(1000)
             }
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            message = e.message
-            phase = Phase.FAILED
+        }
+    }
+    fun goInstall() {
+        val generation = ++operationGeneration
+        observingDownload = false
+        phase = Phase.VERIFYING
+        scope.launch {
+            try {
+                val task = downloads.forInstall()
+                if (generation != operationGeneration) return@launch
+                if (task == null) { phase = Phase.FAILED; message = s["update.downloadMissing"]; return@launch }
+                showDownload(task)
+                observingDownload = true
+                val file = task.file ?: return@launch
+                if (task.phase != UpdateDownloads.Phase.READY) return@launch
+                if (!canInstallApk(context)) { permNeeded = true; openUnknownSourcesSettings(context); return@launch }
+                permNeeded = false
+                val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
+                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) { if (generation == operationGeneration) { observingDownload = false; phase = Phase.READY; message = s["update.installFailed"] } }
         }
     }
 
     fun startCheck() {
+        val generation = ++operationGeneration
+        observingDownload = false
         phase = Phase.CHECKING
         message = null
         scope.launch {
             val rel = UpdateChecker.fetchLatest()
+            if (generation != operationGeneration) return@launch
             if (rel == null) {
                 phase = Phase.FAILED
                 message = s["update.netError"]
@@ -191,35 +251,31 @@ fun UpdatePage() {
 
     fun startDownload() {
         val rel = latest ?: return
-        phase = Phase.DOWNLOADING
-        progress = 0
-        message = null
+        val generation = ++operationGeneration
+        phase = Phase.DOWNLOADING; progress = 0; message = null
+        observingDownload = false
+        val handoff = downloads.enqueue(rel)
+        downloadActionJob = handoff
         scope.launch {
-            val directory = UpdateChecker.downloadDir(context)
-            val token = java.util.UUID.randomUUID().toString()
-            val partial = File(directory, "$token.part")
-            val ready = File(directory, "$token.apk")
-            var handedOff = false
             try {
-                val ok = UpdateChecker.download(rel.assetUrl, partial) { p -> progress = p }
-                if (!ok) { phase = Phase.FAILED; message = s["update.netError"]; return@launch }
-                phase = Phase.VERIFYING
-                val verified = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    val result = UpdateChecker.verify(context, partial, rel.assetSha256, rel.version)
-                    if (result.ok) check(partial.renameTo(ready))
-                    result
-                }
-                verifiedSha = verified.shaOk && rel.assetSha256 != null
-                if (!verified.ok) { phase = Phase.FAILED; message = s["update.verifyFailed"]; return@launch }
-                apk = ready; handedOff = true; phase = Phase.READY
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) { phase = Phase.FAILED; message = s["update.verifyFailed"] }
-            finally {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
-                    partial.delete()
-                    if (!handedOff) ready.delete()
-                }
+                val task = handoff.await()
+                if (generation == operationGeneration) { showDownload(task); observingDownload = true }
             }
+            catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) { if (generation == operationGeneration) { phase = Phase.FAILED; message = s["update.downloadUnavailable"] } }
+        }
+    }
+    fun cancelDownload() {
+        val generation = ++operationGeneration
+        downloadActionJob?.cancel()
+        observingDownload = false
+        scope.launch {
+            try {
+                downloads.cancel()
+                if (generation == operationGeneration) { phase = Phase.FOUND; progress = -1; message = null }
+            }
+            catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) { if (generation == operationGeneration) { phase = Phase.FAILED; message = s["update.downloadUnavailable"] } }
         }
     }
 
@@ -230,7 +286,7 @@ fun UpdatePage() {
     Spacer(Modifier.height(16.dp))
 
     // ── 检查更新：圆角大按钮 ──
-    val busy = phase == Phase.CHECKING || phase == Phase.DOWNLOADING || phase == Phase.VERIFYING
+    val busy = phase == Phase.RESTORING || phase == Phase.CHECKING || phase == Phase.DOWNLOADING || phase == Phase.WAITING || phase == Phase.VERIFYING
     Button(
         onClick = { startCheck() },
         shape = smoothPill(),
@@ -258,6 +314,7 @@ fun UpdatePage() {
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             when (phase) {
+                Phase.RESTORING -> Text(s["update.restoring"], style = MaterialTheme.typography.bodyMedium)
                 Phase.IDLE -> Text(s["update.check"], style = MaterialTheme.typography.bodyMedium)
                 Phase.CHECKING -> Text(s["update.checking"], style = MaterialTheme.typography.bodyMedium)
                 Phase.UP_TO_DATE -> Text(s["update.upToDate"], style = MaterialTheme.typography.bodyMedium)
@@ -317,9 +374,10 @@ fun UpdatePage() {
                         Text(if (skipped != null && skipped == relVer) s["update.unskip"] else s["update.skip"])
                     }
                 }
-                Phase.DOWNLOADING -> {
+                Phase.DOWNLOADING, Phase.WAITING -> {
                     Text(
-                        if (progress >= 0) s.format("update.downloading", "p" to "$progress") else s["update.download"],
+                        if (phase == Phase.WAITING) s["update.waiting"]
+                        else if (progress >= 0) s.format("update.downloading", "p" to "$progress") else s["update.download"],
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(10.dp))
@@ -331,9 +389,14 @@ fun UpdatePage() {
                     } else {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp).clip(smoothPill()))
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text(s["update.background"], style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline)
+                    androidx.compose.material3.TextButton(onClick = { cancelDownload() }) { Text(s["update.cancelDownload"]) }
                 }
                 Phase.VERIFYING -> Text(s["update.verifying"], style = MaterialTheme.typography.bodyMedium)
                 Phase.READY -> {
+                    message?.let { Text(it, color = BADGE_RED, style = MaterialTheme.typography.bodySmall) }
                     Text(
                         if (verifiedSha == true) s["update.verified"] else s["update.verifiedSigner"],
                         style = MaterialTheme.typography.bodyMedium,
