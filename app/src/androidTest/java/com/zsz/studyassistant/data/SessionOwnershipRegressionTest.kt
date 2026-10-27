@@ -138,6 +138,7 @@ class SessionOwnershipRegressionTest {
         val releaseOld = gate(); val oldEntered = gate()
         val releaseNew = gate(); val newEntered = gate()
         var oldJob: Job? = null
+        var newJob: Job? = null
         main {
             model.classifyRequest = { q, _, _, _, _, _ ->
                 if (q == "first") {
@@ -146,19 +147,29 @@ class SessionOwnershipRegressionTest {
                     "old category" to listOf("old tag")
                 } else { newEntered.complete(Unit); releaseNew.await(); "new category" to listOf("new tag") }
             }
-            model.loadQuestion(question("first", 10000)); model.classifyCurrentQuestion()
+            // Classification normally starts in an unsaved session. Loading a notebook fixture
+            // also starts unrelated DAO metadata reads that can overwrite these suggestions.
+            model.startNewQuestion(); field("questionText").set(model, "first"); model.classifyCurrentQuestion()
             oldJob = field("classificationJob").get(model) as Job
         }
         withTimeout(8000) { oldEntered.await() }
-        main { model.loadQuestion(question("second", 20000)); model.classifyCurrentQuestion() }
+        main {
+            model.startNewQuestion(); field("questionText").set(model, "second"); model.classifyCurrentQuestion()
+            newJob = field("classificationJob").get(model) as Job
+        }
         withTimeout(8000) { newEntered.await() }
         assertTrue(oldJob!!.isCancelled)
         releaseOld.complete(Unit); withTimeout(8000) { oldJob!!.join() }
-        assertTrue("Old finally cleared the current request's busy flag", field("classifying").getBoolean(model))
-        assertNull(model.suggestedCategory); assertTrue(model.suggestedTags.isEmpty())
+        main {
+            assertTrue("Old finally cleared the current request's busy flag", field("classifying").getBoolean(model))
+            assertNull(model.suggestedCategory); assertTrue(model.suggestedTags.isEmpty())
+        }
         releaseNew.complete(Unit)
-        await { !field("classifying").getBoolean(model) }
-        assertEquals("new category", model.suggestedCategory); assertEquals(listOf("new tag"), model.suggestedTags)
+        withTimeout(8000) { newJob!!.join() }
+        main {
+            assertFalse(field("classifying").getBoolean(model))
+            assertEquals("new category", model.suggestedCategory); assertEquals(listOf("new tag"), model.suggestedTags)
+        }
     }
     @Test fun similarFollowupSendsAnswerAndAllImagesExactlyOnceFromFrozenSnapshot() = runBlocking {
         val captured = CompletableDeferred<Pair<String, List<DeepSeekMessage>>>()
