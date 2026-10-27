@@ -1,6 +1,13 @@
 package com.zsz.studyassistant.ui
 
 private val B14_ZH = mapOf(
+    "data.manualBackup" to "✋ 手动备份",
+    "data.export" to "导出到指定位置",
+    "data.autoBackup.info" to "ⓘ 自动备份说明",
+    "data.autoBackup.expanded" to "已展开",
+    "data.autoBackup.collapsed" to "已收起",
+    "feedback.details" to "查看详情",
+    "feedback.backupFailed" to "备份失败",
     "data.backupJob.today" to "当天已有完整备份，已跳过自动计划",
     "data.autoBackup.countFailed" to "无法读取备份数量，请检查文件夹权限",
     "data.backupJob.retention" to "正在检查已有自动备份…",
@@ -36,12 +43,19 @@ private val B14_ZH = mapOf(
     "data.backupJob.canceled" to "备份已取消",
     "data.backupJob.failed" to "备份未完成，可重试或手动导出",
     "data.backupJob.timeLimit" to "本次备份超出后台时限，请在备份管理中手动导出；原有数据和备份不变。",
-    "data.export.desc" to "导出压缩备份包（含错题、图片、复习和搜题记录）。优先单文件，较大时分卷；不含 API Key、设置和本机草稿。",
-    "data.import.desc" to "选择备份包；分卷须一次选齐，文件顺序不限。兼容 v3 JSON 备份。校验并确认后才导入，相同题目编号直接跳过，本机已有内容保留。",
+    "data.export.desc" to "含错题、图片及学习记录；不含密钥、设置和草稿。",
+    "data.import.desc" to "选择备份文件；分卷须选齐。校验确认后导入，相同题号跳过。",
     "data.autoBackup.desc" to "每天打开应用后约 30 秒由系统择机备份；当天已有完整手动或自动备份、错题本为空时跳过；其他日期即使内容未变也备份一次。等待中的自动计划可用“立即备份一次”接管，离开页面后仍由系统后台执行。开始前若完整自动备份超过 {n} 套，先保留最新 2 套；新备份成功后保留最近 {n} 套，包含旧命名自动备份。手动备份、损坏、缺卷和无法识别的文件不清理。",
     "data.autoBackup.count" to "手动备份：{manual} 套 · 自动备份：{automatic} 套"
 )
 private val B14_EN = mapOf(
+    "data.manualBackup" to "✋ Manual backup",
+    "data.export" to "Export to a chosen location",
+    "data.autoBackup.info" to "ⓘ About automatic backup",
+    "data.autoBackup.expanded" to "Expanded",
+    "data.autoBackup.collapsed" to "Collapsed",
+    "feedback.details" to "View details",
+    "feedback.backupFailed" to "Backup failed",
     "data.backupJob.today" to "A complete backup already exists today; automatic scheduling skipped",
     "data.autoBackup.countFailed" to "Unable to read backup counts; check folder access",
     "data.backupJob.retention" to "Checking existing automatic backups…",
@@ -77,12 +91,19 @@ private val B14_EN = mapOf(
     "data.backupJob.canceled" to "Backup canceled",
     "data.backupJob.failed" to "Backup incomplete; retry or export manually",
     "data.backupJob.timeLimit" to "The backup exceeded the background time limit. Export manually from Backup management; existing data and backups are unchanged.",
-    "data.export.desc" to "Export a compressed backup with questions, images, reviews and search history. One file when possible, multiple parts when large. API keys, settings and local drafts are excluded.",
-    "data.import.desc" to "Select a backup, or all its parts together in any order. Legacy v3 JSON is supported. Import starts after validation and confirmation; existing question IDs and local content are preserved.",
+    "data.export.desc" to "Includes questions, images and study records; excludes keys, settings and drafts.",
+    "data.import.desc" to "Select a backup or all its parts. Validate and confirm to import; existing question IDs are skipped.",
     "data.autoBackup.desc" to "Opening the app schedules backup with a 30-second delay; backup is skipped if the notebook is empty or a complete manual or automatic backup exists today; unchanged content still receives a new daily backup. Back up now can replace a pending automatic plan; work continues independently of the page. Before starting, more than {n} complete automatic sets are reduced to the latest 2. After success, keeps {n}, including legacy automatic backups. Manual, corrupt, incomplete and unrecognized files are preserved.",
     "data.autoBackup.count" to "Manual: {manual} sets · Automatic: {automatic} sets"
 )
 private val B14_JA = mapOf(
+    "data.manualBackup" to "✋ 手動バックアップ",
+    "data.export" to "保存先を選んで書き出す",
+    "data.autoBackup.info" to "ⓘ 自動バックアップについて",
+    "data.autoBackup.expanded" to "展開済み",
+    "data.autoBackup.collapsed" to "折りたたみ",
+    "feedback.details" to "詳細を見る",
+    "feedback.backupFailed" to "バックアップ失敗",
     "data.backupJob.today" to "本日分の完全なバックアップがあるため自動予約をスキップ",
     "data.autoBackup.countFailed" to "件数を読み取れません。フォルダーのアクセス権を確認してください",
     "data.backupJob.retention" to "既存の自動バックアップを確認中…",
@@ -118,12 +139,19 @@ private val B14_JA = mapOf(
     "data.backupJob.canceled" to "バックアップをキャンセルしました",
     "data.backupJob.failed" to "バックアップ未完了。再試行または手動エクスポートしてください",
     "data.backupJob.timeLimit" to "バックグラウンド実行時間を超えました。バックアップ管理から手動でエクスポートしてください。既存データとバックアップは変更していません。",
-    "data.export.desc" to "問題・画像・復習・検索履歴を圧縮して保存します。通常は1ファイル、大きい場合は分巻。APIキー・設定・端末内の下書きは含みません。",
-    "data.import.desc" to "バックアップを選んでください。分巻は順不同で全巻を一度に選択します。旧v3 JSONにも対応。検証・確認後に追加し、同じIDと既存内容は維持します。",
+    "data.export.desc" to "問題・画像・学習記録を含みます。キー・設定・下書きは含みません。",
+    "data.import.desc" to "バックアップを選択。分巻は全巻を選び、検証・確認後に読み込みます。同じ問題IDはスキップします。",
     "data.autoBackup.desc" to "アプリ起動後30秒の遅延で予約。本日の完全な手動・自動バックアップや空の問題集はスキップ。他の日は変更がなくても1日1回バックアップ。待機中の自動予約は「今すぐバックアップ」で置き換え、画面を閉じてもシステムで実行。開始前に完全な自動バックアップが {n} セットを超えた場合は最新2セットを残し、成功後は旧名称分も含め最新 {n} セットを保持。手動・破損・欠巻・不明なファイルは削除しません。",
     "data.autoBackup.count" to "手動：{manual} セット · 自動：{automatic} セット"
 )
 private val B14_KO = mapOf(
+    "data.manualBackup" to "✋ 수동 백업",
+    "data.export" to "위치를 선택하여 내보내기",
+    "data.autoBackup.info" to "ⓘ 자동 백업 안내",
+    "data.autoBackup.expanded" to "펼쳐짐",
+    "data.autoBackup.collapsed" to "접힘",
+    "feedback.details" to "자세히 보기",
+    "feedback.backupFailed" to "백업 실패",
     "data.backupJob.today" to "오늘의 완전한 백업이 있어 자동 예약을 건너뛰었습니다",
     "data.autoBackup.countFailed" to "백업 수를 읽을 수 없습니다. 폴더 접근 권한을 확인하세요",
     "data.backupJob.retention" to "기존 자동 백업 확인 중…",
@@ -159,8 +187,8 @@ private val B14_KO = mapOf(
     "data.backupJob.canceled" to "백업 취소됨",
     "data.backupJob.failed" to "백업 미완료. 다시 시도하거나 수동으로 내보내세요",
     "data.backupJob.timeLimit" to "백그라운드 실행 시간을 초과했습니다. 백업 관리에서 수동으로 내보내세요. 기존 데이터와 백업은 유지됩니다.",
-    "data.export.desc" to "문제, 이미지, 복습 및 검색 기록을 압축하여 내보냅니다. 기본은 단일 파일이며 크면 분할합니다. API 키, 설정 및 기기 내 초안은 제외됩니다.",
-    "data.import.desc" to "백업을 선택하세요. 분할 파일은 순서에 관계없이 한 번에 모두 선택하세요. v3 JSON도 지원합니다. 검증 및 확인 후 가져오며 같은 ID와 기존 내용은 유지됩니다.",
+    "data.export.desc" to "문제·이미지·학습 기록을 포함하며 키·설정·초안은 제외합니다.",
+    "data.import.desc" to "백업 또는 모든 분할 파일을 선택하세요. 검증·확인 후 가져오며 같은 문제 ID는 건너뜁니다.",
     "data.autoBackup.desc" to "앱을 열면 30초 지연으로 예약합니다. 오늘의 완전한 수동·자동 백업이나 빈 노트는 건너뜁니다. 다른 날에는 내용이 같아도 하루 한 번 백업합니다. 대기 중인 자동 예약은 지금 백업으로 대체하며 화면을 닫아도 시스템이 실행합니다. 시작 전 완전한 자동 백업이 {n}세트를 초과하면 최신 2세트만 남기고 성공 후에는 기존 이름을 포함해 최신 {n}세트를 유지합니다. 수동·손상·누락·알 수 없는 파일은 삭제하지 않습니다.",
     "data.autoBackup.count" to "수동 백업: {manual}세트 · 자동 백업: {automatic}세트"
 )

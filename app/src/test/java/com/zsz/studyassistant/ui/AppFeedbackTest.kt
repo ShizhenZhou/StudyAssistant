@@ -29,6 +29,19 @@ class AppFeedbackTest {
         while (state.hostState.currentSnackbarData?.visuals?.message != message) yield()
     }
 
+    @Test fun `automatic backup failure is concise with a working details action`() = checkFeedback { state ->
+        var opened = false
+        val strings = stringsFor(UiLang.ZH_CN)
+        state.showBackupFailure(strings, automatic = true) { opened = true }
+        val data = state.hostState.currentSnackbarData!!
+        assertEquals("自动备份失败", data.visuals.message)
+        assertEquals("查看详情", data.visuals.actionLabel)
+        assertEquals(SnackbarDuration.Long, data.visuals.duration)
+        data.performAction()
+        yield()
+        assertTrue(opened)
+    }
+
     @Test fun `ordinary feedback is short and failures last longer`() = checkFeedback { state ->
         state.show("Backup completed")
         assertEquals(SnackbarDuration.Short, state.hostState.currentSnackbarData!!.visuals.duration)

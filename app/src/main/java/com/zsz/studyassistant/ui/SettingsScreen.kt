@@ -55,6 +55,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import kotlin.math.pow
 import kotlin.math.ln
 import kotlin.math.abs
@@ -898,6 +900,7 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
 /** Backup management uses a private, validated tree before any picker or database write. */
 @Composable
 private fun BackupSettings(vm: MainViewModel) {
+    val context = LocalContext.current
     val s = LocalStrings.current
     var showParts by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearDataMessage() }
@@ -909,7 +912,7 @@ private fun BackupSettings(vm: MainViewModel) {
         style = MaterialTheme.typography.bodyMedium
     )
     Spacer(Modifier.height(16.dp))
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+    val exportLauncher = rememberLauncherForActivityResult(remember { BackupExportDocument() }) { uri ->
         if (uri == null) vm.discardPreparedExport() else vm.writePreparedBackup(uri)
     }
     val exportTreeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -956,7 +959,7 @@ private fun BackupSettings(vm: MainViewModel) {
             title = { Text(s["data.export"]) },
             text = { Text(s.format("data.backupParts", "n" to "${vm.preparedExport!!.files.size}")) },
             confirmButton = { TextButton(shape = smoothPill(), onClick = {
-                showParts = false; exportTreeLauncher.launch(null)
+                showParts = false; exportTreeLauncher.launch(AutoBackup.treeUri(context))
             }) { Text(s["common.ok"]) } },
             dismissButton = { TextButton(shape = smoothPill(), onClick = {
                 showParts = false; vm.discardPreparedExport()
@@ -983,6 +986,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     val scope = rememberCoroutineScope()
     val feedback = LocalAppFeedback.current
     var autoFolder by remember { mutableStateOf(AutoBackup.treeUri(context)?.lastPathSegment) }
+    var showBackupInfo by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
     var folderSummary by remember { mutableStateOf<com.zsz.studyassistant.data.BackupRetention.FolderSummary?>(null) }
     var folderReadFailed by remember { mutableStateOf(false) }
@@ -1030,15 +1034,24 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         if (vm.dataBusy || vm.preparedExport != null) return@LaunchedEffect
         val tree = AutoBackup.treeUri(context)
         val operation = kotlinx.coroutines.currentCoroutineContext()
+        val documentId = tree?.let { runCatching { android.provider.DocumentsContract.getTreeDocumentId(it) }.getOrNull() }
+        // The displayed path follows the actual selection even when the inventory is unreadable.
+        autoFolder = backupFolderLabel(documentId, null)
+        folderSummary = null
+        autoLast = 0L
+        folderReadFailed = false
         try {
-            val details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                (AutoBackup.folderName(context) ?: tree?.lastPathSegment) to
-                    if (tree == null) com.zsz.studyassistant.data.BackupRetention.FolderSummary()
-                    else com.zsz.studyassistant.data.BackupRetention.folderSummary(context, tree) { operation.ensureActive() }
+            val label = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                backupFolderLabel(documentId, AutoBackup.folderName(context))
+            }
+            if (AutoBackup.treeUri(context) == tree) autoFolder = label
+            val summary = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                if (tree == null) com.zsz.studyassistant.data.BackupRetention.FolderSummary()
+                else com.zsz.studyassistant.data.BackupRetention.folderSummary(context, tree) { operation.ensureActive() }
             }
             if (AutoBackup.treeUri(context) == tree) {
-                autoFolder = details.first; folderSummary = details.second
-                autoLast = details.second.latestAt; folderReadFailed = false
+                folderSummary = summary
+                autoLast = summary.latestAt; folderReadFailed = false
             }
         } catch (error: kotlinx.coroutines.CancellationException) { throw error }
         catch (_: Exception) {
@@ -1095,13 +1108,13 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             }
         }
     }
-    Text(if (autoFolder == null) s["data.autoBackup.noFolder"] else s.format("data.autoBackup.folder", "name" to autoFolder!!),
-        style = MaterialTheme.typography.bodySmall,
-        color = if (autoFolder == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
+    if (autoFolder == null) Text(s["data.autoBackup.noFolder"],
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    else BackupFolderPath(autoFolder!!)
     Spacer(Modifier.height(6.dp))
     Text((if (folderReadFailed) s["data.autoBackup.countFailed"] else s.format("data.autoBackup.count",
         "manual" to (folderSummary?.manual?.toString() ?: "…"),
-        "automatic" to (folderSummary?.automatic?.toString() ?: "…"))) + " · " +
+        "automatic" to (folderSummary?.automatic?.toString() ?: "…"))) + if (folderReadFailed) "" else "\n" +
         if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     if (status.phaseKey.isNotEmpty()) {
@@ -1147,7 +1160,14 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         Text(s[if (status.errorKey != null && !status.active) "data.backupRetry" else "data.autoBackup.now"])
     }
     Spacer(Modifier.height(4.dp))
-    Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    TextButton(shape = smoothPill(), onClick = { showBackupInfo = !showBackupInfo },
+        modifier = Modifier.fillMaxWidth().then(Modifier.semantics {
+            stateDescription = s[if (showBackupInfo) "data.autoBackup.expanded" else "data.autoBackup.collapsed"]
+        })) { Text(s["data.autoBackup.info"], style = MaterialTheme.typography.bodySmall) }
+    if (showBackupInfo) {
+        Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    }
     Spacer(Modifier.height(16.dp))
 }
 /** 🐞 崩溃日志子页：导出 / 清空（本机记录，不上传） */

@@ -29,7 +29,7 @@ object BackupJobs {
     data class Status(val phaseKey: String = "", val errorKey: String? = null, val progressBytes: Long = 0, val active: Boolean = false, val automatic: Boolean = true) {
         val canRequestNow: Boolean get() = BackupTaskPolicy.canRequestNow(active, automatic, phaseKey)
     }
-    data class Notice(val automatic: Boolean, val snapshotAt: Long)
+    data class Notice(val automatic: Boolean, val snapshotAt: Long, val failed: Boolean = false)
     private val events = MutableSharedFlow<Notice>(extraBufferCapacity = 1)
     val notices: SharedFlow<Notice> = events
     @Volatile private var foreground = false
@@ -221,6 +221,7 @@ object BackupJobs {
         return true
     }
     internal fun notifyFailure(context: Context, automatic: Boolean) {
+        if (foreground) events.tryEmit(Notice(automatic, System.currentTimeMillis(), failed = true))
         if (BackupTaskPolicy.shouldNotifyFailure(automatic, foreground, terminal = true)) BackupNotifications.failure(context)
     }
     internal fun notifySuccess(automatic: Boolean, at: Long) { if (foreground) events.tryEmit(Notice(automatic, at)) }

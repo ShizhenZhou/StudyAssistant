@@ -172,7 +172,9 @@ class MainActivity : ComponentActivity() {
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
                     LaunchedEffect(viewModel.openBackupManagementPage) {
-                        if (viewModel.openBackupManagementPage) AppNav.switchTab(nav, AppNav.SETTINGS)
+                        if (viewModel.openBackupManagementPage && nav.currentDestination?.route != AppNav.SETTINGS) {
+                            AppNav.switchTab(nav, AppNav.SETTINGS)
+                        }
                     }
                     val showBottomBar = current == AppNav.HOME || current == AppNav.STATS || current == AppNav.SETTINGS
 
@@ -185,7 +187,12 @@ class MainActivity : ComponentActivity() {
                         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                             com.zsz.studyassistant.data.BackupJobs.notices.collect { notice ->
                                 if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
-                                    feedback.show(strings[if (notice.automatic) "data.autoBackup.success" else "data.backupSuccess"])
+                                    if (notice.failed) feedback.showBackupFailure(strings, notice.automatic) {
+                                        viewModel.openBackupManagementPage = true
+                                    } else {
+                                        feedback.dismiss("backup")
+                                        feedback.show(strings[if (notice.automatic) "data.autoBackup.success" else "data.backupSuccess"])
+                                    }
                                 }
                             }
                         }

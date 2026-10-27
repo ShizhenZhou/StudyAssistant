@@ -10,7 +10,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.MainViewModel
-import com.zsz.studyassistant.data.AutoBackup
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -83,10 +88,9 @@ class AppFeedbackState(private val scope: CoroutineScope) {
         }
     }
 
-    fun backupResult(result: AutoBackup.Result, strings: Strings) {
-        if (result.ok) show(strings["feedback.backupDone"], source = "backup")
-        else show(strings.format("data.autoBackup.failed", "msg" to
-            strings[result.errorKey ?: "data.autoBackup.storageFailed"]), isError = true, source = "backup")
+    fun showBackupFailure(strings: Strings, automatic: Boolean, onDetails: () -> Unit) {
+        show(strings[if (automatic) "data.backupNotifyFailed" else "feedback.backupFailed"],
+            isError = true, source = "backup", actionLabel = strings["feedback.details"], onAction = onDetails)
     }
 }
 
@@ -134,13 +138,32 @@ private fun FeedbackHost(state: AppFeedbackState) {
             val failure = (data.visuals as? FeedbackVisuals)?.isError == true
             val errorRed = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f)
                 Color(0xFFFF8A80) else Color(0xFFB3261E)
-            Snackbar(
-                snackbarData = data,
-                shape = RoundedCornerShape(if ((data.visuals as? FeedbackVisuals)?.undo == true) 12.dp else 28.dp),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            val visuals = data.visuals as? FeedbackVisuals
+            Surface(
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                shape = RoundedCornerShape(if (visuals?.undo == true) 12.dp else 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = if (failure) errorRed else MaterialTheme.colorScheme.onSurface,
-                actionColor = if (failure) errorRed else MaterialTheme.colorScheme.primary,
-            )
+                shadowElevation = 6.dp,
+            ) {
+                Row(Modifier.width(IntrinsicSize.Max).padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Text(data.visuals.message, modifier = Modifier.weight(1f, fill = false),
+                        textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+                    data.visuals.actionLabel?.let { label ->
+                        Spacer(Modifier.width(12.dp))
+                        val detailsLink = visuals?.source == "backup" && failure
+                        Text(label,
+                            modifier = Modifier.clickable(onClick = data::performAction)
+                                .widthIn(min = 48.dp).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically),
+                            color = if (detailsLink) {
+                                if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFF90CAF9) else Color(0xFF1565C0)
+                            } else MaterialTheme.colorScheme.primary,
+                            textDecoration = if (detailsLink) TextDecoration.Underline else TextDecoration.None,
+                            textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
         }
     }
 }

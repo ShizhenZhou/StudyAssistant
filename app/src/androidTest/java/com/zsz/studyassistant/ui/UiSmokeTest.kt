@@ -33,6 +33,14 @@ class UiSmokeTest {
         }
         error("Missing UI text: $text")
     }
+    private fun waitUntilAbsent(text: String) {
+        val deadline = android.os.SystemClock.uptimeMillis() + 8000
+        while (android.os.SystemClock.uptimeMillis() < deadline) {
+            if (find(instrumentation.uiAutomation.rootInActiveWindow, text) == null) return
+            Thread.sleep(80)
+        }
+        error("UI text did not disappear: $text")
+    }
     private fun clickable(node: AccessibilityNodeInfo?, text: String, visibleOnly: Boolean = true): AccessibilityNodeInfo? {
         if (node == null) return null
         if (node.text?.toString() == text || node.contentDescription?.toString() == text) {
@@ -111,6 +119,54 @@ class UiSmokeTest {
             waitFor(s["settings.aiManage"])
         }
     }
+    @Test fun foregroundBackupFailureDetailsOpensBackupAndExplanationExpands() {
+        launch().use { scenario ->
+            waitFor("Settings")
+            // Wait for the STARTED notice collector, then emit a final synthetic foreground failure.
+            Thread.sleep(200)
+            scenario.onActivity { com.zsz.studyassistant.data.BackupJobs.notifyFailure(context, automatic = true) }
+            waitFor(s["data.backupNotifyFailed"])
+            tap(s["feedback.details"])
+            waitFor(s["data.manualBackup"])
+            val explanation = s.format("data.autoBackup.desc", "n" to "${com.zsz.studyassistant.data.AutoBackup.KEEP}")
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, explanation))
+            tap(s["data.autoBackup.info"])
+            waitFor(explanation)
+            tap(s["data.autoBackup.info"])
+            waitUntilAbsent(explanation)
+            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            waitFor(s["data.crash"])
+            // Opening details from within Settings must not recreate the tab and lose the target.
+            scenario.onActivity { com.zsz.studyassistant.data.BackupJobs.notifyFailure(context, automatic = true) }
+            waitFor(s["data.backupNotifyFailed"])
+            tap(s["feedback.details"])
+            waitFor(s["data.manualBackup"])
+        }
+    }
+
+    @Test fun exportPickerStartsAtTheConfiguredAutomaticFolder() {
+        check(context.packageName == "com.zsz.studyassistant.integration")
+        val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        val previous = preferences.getString("auto_backup_tree", null)
+        val tree = android.net.Uri.parse("content://com.android.externalstorage.documents/tree/primary%3ADocuments%2FStudy")
+        try {
+            preferences.edit().putString("auto_backup_tree", tree.toString()).commit()
+            val intent = BackupExportDocument().createIntent(context, "backup.zip")
+            val expected = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree,
+                android.provider.DocumentsContract.getTreeDocumentId(tree))
+            @Suppress("DEPRECATION")
+            val actual = intent.getParcelableExtra<android.net.Uri>(android.provider.DocumentsContract.EXTRA_INITIAL_URI)
+            assertEquals(expected, actual)
+            assertEquals("backup.zip", intent.getStringExtra(android.content.Intent.EXTRA_TITLE))
+            assertEquals("application/zip", intent.type)
+            preferences.edit().remove("auto_backup_tree").commit()
+            assertFalse(BackupExportDocument().createIntent(context, "backup.zip")
+                .hasExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI))
+        } finally {
+            preferences.edit().apply { if (previous == null) remove("auto_backup_tree") else putString("auto_backup_tree", previous) }.commit()
+        }
+    }
+
     @Test fun backupFailureEntryOpensBackupAndReturnsToDataManagement() {
         launch(openBackup = true).use { scenario ->
             waitFor(s["data.manualBackup"])

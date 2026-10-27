@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7.2
+· 💬 气泡文字居中并按内容收缩；自动备份失败使用简短红字和蓝色“查看详情”，可直达备份管理
+· ✋ 精简手动备份和导入说明，导出到指定位置时默认打开自动备份文件夹，仍可更改
+· 📂 备份路径单行显示，超长从左侧省略；备份数量与时间分行，自动备份说明点击展开
+
 v0.6.7.1
 · 📂 从实际备份文件夹分别统计手动、自动备份套数，分卷合并计数；读取失败不再显示为零
 · 🗓️ 按手机本地日期每天备份一次；当天已有任一完整手动或自动备份则跳过，其他日期即使内容未变也备份
@@ -442,6 +447,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7.2
+· 💬 Center feedback text in content-sized bubbles; automatic backup failures show a short message with a blue details link to Backup management
+· ✋ Simplify manual backup and import text; export initially opens the automatic backup folder while allowing another location
+· 📂 Show the folder on one line with leading truncation; separate counts and time, and expand automatic backup notes on demand
+
 v0.6.7.1
 · 📂 Count manual and automatic sets directly from the selected folder; multipart sets count once and read failures are separate from zero
 · 🗓️ Back up once per local calendar day; skip if any complete manual or automatic backup exists today, otherwise back up even unchanged content
@@ -879,6 +889,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7.2
+· 💬 気泡を内容に合わせて中央揃えにし、自動バックアップ失敗は短い赤字と青い詳細リンクでバックアップ管理へ移動
+· ✋ 手動バックアップと読み込みの説明を簡潔にし、書き出し先は自動バックアップのフォルダを初期表示（変更可能）
+· 📂 フォルダは1行で左側を省略し、件数と日時を改行。自動バックアップの説明はタップで展開
+
 v0.6.7.1
 · 📂 実際のフォルダーから手動・自動のセット数を別々に集計。分巻は1セット、読み取り失敗は0件と区別
 · 🗓️ 端末の現地日付で1日1回バックアップ。本日の完全な手動・自動バックアップがあればスキップし、他の日は変更がなくても実行
@@ -1316,6 +1331,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7.2
+· 💬 메시지를 가운데 정렬하고 내용에 맞게 축소합니다. 자동 백업 실패는 짧은 빨간 문구와 백업 관리로 가는 파란 상세 링크로 표시합니다
+· ✋ 수동 백업·가져오기 설명을 줄이고 내보내기 위치는 자동 백업 폴더를 기본으로 열며 변경할 수 있습니다
+· 📂 폴더 경로는 한 줄로 왼쪽을 줄이고 개수와 시간을 나눕니다. 자동 백업 안내는 눌러 펼칩니다
+
 v0.6.7.1
 · 📂 실제 폴더에서 수동·자동 백업 세트를 각각 집계. 분할은 한 세트로 계산하고 읽기 실패를 0과 구분
 · 🗓️ 기기의 현지 날짜로 하루 한 번 백업. 오늘의 완전한 수동·자동 백업이 있으면 건너뛰며 다른 날에는 내용이 같아도 실행
