@@ -84,7 +84,7 @@ class UiSmokeTest {
         }
         error("Not clickable: $text")
     }
-    private fun launch(openBackup: Boolean = false): ActivityScenario<MainActivity> {
+    private fun launch(openBackup: Boolean = false, openUpdate: Boolean = false): ActivityScenario<MainActivity> {
         check(context.packageName=="com.zsz.studyassistant.integration")
         UiLangStore.save(context,UiLang.EN)
         // These journeys cover navigation, independently of the upgrade-prompt policy tests.
@@ -92,7 +92,8 @@ class UiSmokeTest {
             .putInt("data_upgrade_seen_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION)
             .putInt("data_upgrade_prompted_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION).commit()
         val scenario=ActivityScenario.launch<MainActivity>(android.content.Intent(context, MainActivity::class.java)
-            .putExtra(AppNav.OPEN_BACKUP_EXTRA, openBackup))
+            .putExtra(AppNav.OPEN_BACKUP_EXTRA, openBackup)
+            .putExtra(AppNav.OPEN_UPDATE_EXTRA, openUpdate))
         val deadline=android.os.SystemClock.uptimeMillis()+8000
         while(android.os.SystemClock.uptimeMillis()<deadline) {
             val root=instrumentation.uiAutomation.rootInActiveWindow
@@ -232,6 +233,37 @@ class UiSmokeTest {
                 .hasExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI))
         } finally {
             preferences.edit().apply { if (previous == null) remove("auto_backup_tree") else putString("auto_backup_tree", previous) }.commit()
+        }
+    }
+
+    @Test fun updateNotificationEntryOpensUpdateAndReturnsToSettings() {
+        launch(openUpdate = true).use { scenario ->
+            waitFor(s["update.current"])
+            scenario.onActivity { activity ->
+                assertFalse(activity.intent.hasExtra(AppNav.OPEN_UPDATE_EXTRA))
+                activity.onBackPressedDispatcher.onBackPressed()
+            }
+            waitFor(s["settings.aiManage"])
+        }
+    }
+
+    @Test fun updateNotificationNewIntentOpensUpdateFromAnotherSettingsChild() {
+        launch(openBackup = true).use { scenario ->
+            waitFor(s["data.manualBackup"])
+            scenario.onActivity { activity ->
+                activity.startActivity(android.content.Intent(context, MainActivity::class.java)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .putExtra(AppNav.OPEN_UPDATE_EXTRA, true))
+            }
+            waitFor(s["update.current"])
+            scenario.onActivity { activity ->
+                assertFalse(activity.intent.hasExtra(AppNav.OPEN_UPDATE_EXTRA))
+                activity.onBackPressedDispatcher.onBackPressed()
+            }
+            waitFor(s["settings.aiManage"])
+            scenario.recreate()
+            waitFor(s["settings.aiManage"])
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, s["update.current"]))
         }
     }
 

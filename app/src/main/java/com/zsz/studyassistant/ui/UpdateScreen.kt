@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.zsz.studyassistant.data.UpdateChecker
 import com.zsz.studyassistant.data.UpdateDownloads
+import com.zsz.studyassistant.data.UpdateDownloadMonitor
+import com.zsz.studyassistant.data.UpdateDownloadNotifications
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.isActive
@@ -143,6 +145,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
     var progress by remember { mutableIntStateOf(-1) }
     var message by remember { mutableStateOf<String?>(null) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
+    var notificationsAllowed by remember { mutableStateOf(UpdateDownloadNotifications.canPost(context)) }
     var verifiedSha by remember { mutableStateOf<Boolean?>(null) }
     var sameVersion by remember { mutableStateOf(false) }   // true = 同一版本的新构建
     // 「跳过此版本」记在本地（UpdateChecker 里持久化）；skipped 只影响**提示**，不影响手动下载
@@ -166,6 +169,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
     LaunchedEffect(downloads, lifecycleOwner, s["update.background"]) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                notificationsAllowed = UpdateDownloadNotifications.canPost(context)
                 if (observingDownload) {
                     val generation = operationGeneration
                     val task = downloads.snapshot()
@@ -182,7 +186,10 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
                                         // A stale downloaded package says nothing about the latest release online.
                                         latest = null; phase = Phase.IDLE
                                     }
-                                } else showDownload(task)
+                                } else {
+                                    showDownload(task)
+                                    UpdateDownloadMonitor.ensureForRestored(context, task)
+                                }
                             }
                         }
                         permNeeded = !canInstallApk(context)
@@ -254,7 +261,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
         val generation = ++operationGeneration
         phase = Phase.DOWNLOADING; progress = 0; message = null
         observingDownload = false
-        val handoff = downloads.enqueue(rel)
+        val notification = UpdateDownloadMonitor.request(context)
+        val handoff = downloads.enqueue(rel, notification = notification)
         downloadActionJob = handoff
         scope.launch {
             try {
@@ -426,6 +434,14 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
                     }
                 }
             }
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Text(s["update.notif.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    if (!notificationsAllowed) {
+        androidx.compose.material3.TextButton(onClick = { UpdateDownloadNotifications.openSettings(context) }) {
+            Text(s["update.notif.settings"])
         }
     }
 

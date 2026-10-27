@@ -30,6 +30,9 @@ object AppNav {
     /** System backup-failure notification → settings → data → backup. */
     const val OPEN_BACKUP_EXTRA = "open_backup_management"
 
+    /** Update download notification → settings → update; Back returns to Settings. */
+    const val OPEN_UPDATE_EXTRA = "open_app_update"
+
     // ── NavHost 路由（节点）──────────────────────────────────────────────
     const val HOME = "home"
     const val CAMERA = "camera"
@@ -129,7 +132,7 @@ object AppNav {
      * │                        ├── data.tags     标签整理
      * │                        ├── data.crash    崩溃日志
      * │                        └── data.upgrade  数据升级 / 修复
-     * ├── update      应用更新
+     * ├── update      应用更新（下载通知可直达，返回设置主页）
      * └── about       关于
      * ```
      */

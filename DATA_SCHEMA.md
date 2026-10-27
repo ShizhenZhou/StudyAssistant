@@ -353,3 +353,8 @@ BAIDU_SECRET_KEY=
 独立 `SharedPreferences("update_download")/session` 记录公开 Release 元数据、系统下载 ID、随机任务 UUID、就绪标记及允许的错误键。旧版没有此记录，缺失时正常从空任务开始；无效记录不解析任意文件路径，也不删除无法确认归属的系统任务。
 系统 DownloadManager 使用应用专属 externalFiles/Download/updates/<UUID>.part；唯一任务 MIME 标签用于在入队崩溃窗口恢复尚无本地 URI 的系统任务。下载成功后流式复制至私有 cache/updates/<UUID>.checking，大小/摘要/签名/包名/版本校验成功才改为 .apk；安装前再验。网络等待由系统保留任务；系统永久失败可重下，不伪称始终可续传。只删除明确属于该任务的文件和下载 ID。
 这些文件和公开任务元数据不属于错题库或备份，不包含 API Key；不修改数据库和备份格式。旧更新缓存不因本次升级被批量删除。
+
+
+## 更新通知归属（v0.6.7.4）
+
+更新任务 session 新增 appNotification 布尔字段，旧记录读端默认 false，继续保留原生 DownloadManager 通知与既有进度，不重建或删除旧任务。新任务只有在应用通知权限/渠道可用且前台监控已成功建立后才设为 true，并将系统任务设置为 HIDDEN，避免双通知；权限或服务不可用则为 false 并保持系统 VISIBLE。前台服务仅监控/校验任务，停止监控不停止系统传输；取消按钮必须匹配任务 UUID。数据库与备份格式不变。

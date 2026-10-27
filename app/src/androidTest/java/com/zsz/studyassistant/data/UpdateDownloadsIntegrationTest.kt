@@ -24,6 +24,47 @@ class UpdateDownloadsIntegrationTest {
     @Before fun prepare() = runBlocking { repo().cancel() }
     @After fun cleanup() = runBlocking { repo().cancel() }
 
+    @Test fun oneFailedObservationDoesNotTerminateOrDuplicateTheDownload() = runBlocking {
+        val old = repo().start(rel, appNotification = true)
+        backend.throwQueries = 1
+        val transient = repo().snapshot()!!
+        assertEquals(UpdateDownloads.Phase.WAITING, transient.phase)
+        assertTrue(transient.appNotification)
+        assertEquals("update.downloadUnavailable", transient.errorKey)
+        val recovered = repo().snapshot()!!
+        assertEquals(UpdateDownloads.Phase.DOWNLOADING, recovered.phase)
+        assertEquals(old.token, recovered.token)
+        assertEquals(1, backend.enqueues)
+    }
+    @Test fun notificationHandshakeSelectsExactlyOneNotificationOwner() = runBlocking {
+        val rejected = UpdateDownloadMonitor.Request()
+        rejected.ready.complete(false)
+        assertFalse(repo().enqueue(rel, rejected).await().appNotification)
+        assertFalse(backend.appNotification)
+        repo().cancel()
+        val accepted = UpdateDownloadMonitor.Request()
+        accepted.ready.complete(true)
+        val task = repo().enqueue(rel, accepted).await()
+        assertTrue(task.appNotification)
+        assertTrue(backend.appNotification)
+        assertTrue(repo().snapshot()!!.appNotification)
+    }
+    @Test fun rejectedHiddenSystemNotificationFallsBackWithoutDuplicateTransfer() = runBlocking {
+        backend.rejectAppNotification = true
+        val accepted = UpdateDownloadMonitor.Request().also { it.ready.complete(true) }
+        val task = repo().enqueue(rel, accepted).await()
+        assertFalse(task.appNotification)
+        assertFalse(backend.appNotification)
+        assertEquals(1, backend.enqueues)
+    }
+    @Test fun oldNativeTaskIsReusedWithoutAnExtraAppNotification() = runBlocking {
+        val old = repo().start(rel)
+        val accepted = UpdateDownloadMonitor.Request().also { it.ready.complete(true) }
+        val same = repo().enqueue(rel, accepted).await()
+        assertEquals(old.token, same.token)
+        assertFalse(same.appNotification)
+        assertEquals(1, backend.enqueues)
+    }
     @Test fun disappearingUiAwaitDoesNotCancelTheEnqueueHandoff() = runBlocking {
         val request = repo().enqueue(rel)
         val ui = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default)
@@ -115,15 +156,21 @@ class UpdateDownloadsIntegrationTest {
         var current: UpdateDownloads.Transfer? = null
         var file: File? = null
         var enqueues = 0
+        var appNotification = false
+        var rejectAppNotification = false
+        var throwQueries = 0
         var queryEntered: java.util.concurrent.CountDownLatch? = null
         var queryRelease: java.util.concurrent.CountDownLatch? = null
-        override fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File): Long {
+        override fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File, appNotification: Boolean): Long {
+            if (appNotification && rejectAppNotification) throw SecurityException("synthetic native visibility rejection")
+            this.appNotification = appNotification
             enqueues++;file=destination;destination.writeText("fix")
             current=UpdateDownloads.Transfer(enqueues.toLong(), release.assetUrl, destination.toURI().toString(),
                 UpdateDownloads.TransferPhase.RUNNING, 3, 7, destination.nameWithoutExtension)
             return enqueues.toLong()
         }
         override fun query(id: Long): UpdateDownloads.Transfer? {
+            if (throwQueries > 0) { throwQueries--; throw java.io.IOException("synthetic temporary query failure") }
             queryEntered?.countDown()
             queryRelease?.await(8, java.util.concurrent.TimeUnit.SECONDS)
             return current?.takeIf { it.id==id }

@@ -119,6 +119,12 @@ fun SettingsTab(vm: MainViewModel) {
             vm.openBackupManagementPage = false
         }
     }
+    LaunchedEffect(vm.openUpdatePage) {
+        if (vm.openUpdatePage) {
+            page = AppNav.SettingsPages.UPDATE
+            vm.openUpdatePage = false
+        }
+    }
     val s = LocalStrings.current
 
     when (page) {

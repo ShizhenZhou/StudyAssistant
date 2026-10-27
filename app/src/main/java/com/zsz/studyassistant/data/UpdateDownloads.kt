@@ -30,15 +30,15 @@ internal class UpdateDownloads(
     data class Transfer(val id: Long, val url: String, val localUri: String?, val status: TransferPhase,
         val bytes: Long, val total: Long, val token: String)
     interface Backend {
-        fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File): Long
+        fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File, appNotification: Boolean): Long
         fun query(id: Long): Transfer?
         fun find(url: String, destination: File): Transfer?
         fun remove(id: Long)
     }
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
-        val progress: Int = -1, val file: File? = null, val errorKey: String? = null)
+        val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false)
     private data class Record(val token: String, val release: UpdateChecker.ReleaseInfo,
-        val id: Long = -1, val ready: Boolean = false, val error: String? = null)
+        val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false)
     companion object {
         private val mutex = Mutex()
         private val handoffScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
@@ -47,10 +47,15 @@ internal class UpdateDownloads(
     private suspend fun <T> locked(block: () -> T): T = withContext(Dispatchers.IO) { mutex.withLock { block() } }
 
     /** The request handoff itself also survives a page disappearing immediately after the tap. */
-    fun enqueue(release: UpdateChecker.ReleaseInfo): kotlinx.coroutines.Deferred<Snapshot> =
-        handoffScope.async { start(release) }
+    fun enqueue(release: UpdateChecker.ReleaseInfo, notification: UpdateDownloadMonitor.Request? = null): kotlinx.coroutines.Deferred<Snapshot> =
+        handoffScope.async {
+            try {
+                val ownsNotification = notification != null && kotlinx.coroutines.withTimeoutOrNull(3000) { notification.ready.await() } == true
+                start(release, ownsNotification).also { notification?.bound(it) }
+            } catch (error: Throwable) { notification?.aborted(); throw error }
+        }
 
-    suspend fun start(release: UpdateChecker.ReleaseInfo): Snapshot = locked {
+    suspend fun start(release: UpdateChecker.ReleaseInfo, appNotification: Boolean = false): Snapshot = locked {
         val uri = Uri.parse(release.assetUrl)
         require(uri.scheme == "https" && uri.host == "github.com" && uri.userInfo == null &&
             uri.path?.startsWith("/${UpdateChecker.REPO}/releases/download/") == true)
@@ -61,22 +66,27 @@ internal class UpdateDownloads(
             if (existing.phase != Phase.FAILED) return@locked existing
         }
         cancelLocked()
-        val pending = Record(UUID.randomUUID().toString(), release)
+        var pending = Record(UUID.randomUUID().toString(), release, appNotification = appNotification)
         write(pending) // A crash around enqueue can recover by this exact destination token.
         val destination = partial(pending)
         destination.parentFile?.mkdirs()
-        val id = backend.enqueue(release, destination)
+        val id = try { backend.enqueue(release, destination, pending.appNotification) }
+        catch (error: SecurityException) {
+            if (!pending.appNotification) throw error
+            pending = pending.copy(appNotification = false); write(pending)
+            backend.enqueue(release, destination, false)
+        }
         require(id >= 0)
         val record = pending.copy(id = id)
         try { write(record) }
         catch (error: Exception) { backend.remove(id); throw error }
-        Snapshot(record.token, release, Phase.DOWNLOADING, 0)
+        status(record, Phase.DOWNLOADING, 0)
     }
 
     suspend fun snapshot(): Snapshot? = locked {
         val record = read() ?: return@locked null
         try { snapshotLocked(record) }
-        catch (_: Exception) { Snapshot(record.token, record.release, Phase.FAILED, errorKey = "update.downloadUnavailable") }
+        catch (_: Exception) { status(record, Phase.WAITING, errorKey = "update.downloadUnavailable") }
     }
 
     suspend fun forInstall(): Snapshot? = locked {
@@ -84,7 +94,7 @@ internal class UpdateDownloads(
         if (!record.ready) return@locked snapshotLocked(record)
         val file = ready(record)
         if (!valid(file, record.release)) return@locked fail(record, "update.verifyFailed")
-        Snapshot(record.token, record.release, Phase.READY, 100, file)
+        status(record, Phase.READY, 100, file)
     }
 
     suspend fun cancel(expectedToken: String? = null) = locked {
@@ -94,10 +104,10 @@ internal class UpdateDownloads(
     private fun snapshotLocked(initial: Record): Snapshot {
         if (initial.ready) {
             val file = ready(initial)
-            return if (file.isFile) Snapshot(initial.token, initial.release, Phase.READY, 100, file)
+            return if (file.isFile) status(initial, Phase.READY, 100, file)
             else fail(initial, "update.downloadMissing")
         }
-        initial.error?.let { return Snapshot(initial.token, initial.release, Phase.FAILED, errorKey = it) }
+        initial.error?.let { return status(initial, Phase.FAILED, errorKey = it) }
         var record = initial
         val transfer = if (record.id < 0) {
             backend.find(record.release.assetUrl, partial(record))?.also {
@@ -110,8 +120,8 @@ internal class UpdateDownloads(
         val total = transfer.total.takeIf { it > 0 } ?: record.release.assetSize
         val percent = if (total > 0) (transfer.bytes.coerceAtLeast(0).toDouble() / total * 100).toInt().coerceIn(0, 100) else -1
         return when (transfer.status) {
-            TransferPhase.QUEUED, TransferPhase.RUNNING -> Snapshot(record.token, record.release, Phase.DOWNLOADING, percent)
-            TransferPhase.WAITING -> Snapshot(record.token, record.release, Phase.WAITING, percent)
+            TransferPhase.QUEUED, TransferPhase.RUNNING -> status(record, Phase.DOWNLOADING, percent)
+            TransferPhase.WAITING -> status(record, Phase.WAITING, percent)
             TransferPhase.FAILED -> fail(record, "update.downloadInterrupted")
             TransferPhase.SUCCESS -> complete(record)
         }
@@ -131,7 +141,7 @@ internal class UpdateDownloads(
             write(record.copy(ready = true, error = null))
             // Failure to tidy an OS row must not invalidate a verified package.
             runCatching { backend.remove(record.id) }
-            return Snapshot(record.token, record.release, Phase.READY, 100, output)
+            return status(record, Phase.READY, 100, output)
         } finally { candidate.delete() }
     }
 
@@ -142,7 +152,7 @@ internal class UpdateDownloads(
         if (removeTransfer) removeOwned(record)
         partial(record).delete(); ready(record).delete(); checking(record).delete()
         write(record.copy(ready = false, error = key))
-        return Snapshot(record.token, record.release, Phase.FAILED, errorKey = key)
+        return status(record, Phase.FAILED, errorKey = key)
     }
     private fun cancelLocked() {
         val record = read() ?: return
@@ -159,6 +169,9 @@ internal class UpdateDownloads(
             val uri = Uri.parse(transfer.localUri)
             uri.scheme == "file" && File(checkNotNull(uri.path)).canonicalFile == partial(record).canonicalFile
         }.getOrDefault(false))
+
+    private fun status(record: Record, phase: Phase, progress: Int = -1, file: File? = null, errorKey: String? = null) =
+        Snapshot(record.token, record.release, phase, progress, file, errorKey, record.appNotification)
 
     private fun partial(record: Record): File {
         val root = checkNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))
@@ -178,12 +191,12 @@ internal class UpdateDownloads(
         Record(token, UpdateChecker.ReleaseInfo(obj.getString("tag"), obj.getString("version"), obj.getString("notes"),
             obj.getString("name"), obj.getString("url"), obj.optString("sha").takeIf { it.isNotBlank() },
             obj.getLong("size"), obj.getLong("uploaded")), obj.getLong("id"), obj.optBoolean("ready"),
-            obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted") })
+            obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted") }, obj.optBoolean("appNotification", false))
     }.getOrNull()
     private fun write(record: Record) {
         val rel = record.release
         val obj = JSONObject().put("token", record.token).put("id", record.id).put("ready", record.ready)
-            .put("error", record.error ?: "").put("tag", rel.tagName).put("version", rel.version).put("notes", rel.notes)
+            .put("appNotification", record.appNotification).put("error", record.error ?: "").put("tag", rel.tagName).put("version", rel.version).put("notes", rel.notes)
             .put("name", rel.assetName).put("url", rel.assetUrl).put("sha", rel.assetSha256 ?: "")
             .put("size", rel.assetSize).put("uploaded", rel.assetUploadedAt)
         check(prefs.edit().putString("session", obj.toString()).commit())
@@ -191,7 +204,7 @@ internal class UpdateDownloads(
 
     private class SystemBackend(private val context: Context) : Backend {
         private val manager get() = checkNotNull(context.getSystemService(DownloadManager::class.java))
-        override fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File): Long {
+        override fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File, appNotification: Boolean): Long {
             val strings = stringsFor(UiLangStore.load(context))
             val request = DownloadManager.Request(Uri.parse(release.assetUrl))
                 // Do not inherit the system user-agent's device/build identifiers.
@@ -201,7 +214,7 @@ internal class UpdateDownloads(
                 // MIME is an immediately queryable ownership tag, including before COLUMN_LOCAL_URI exists.
                 .setMimeType("$MIME_PREFIX${destination.nameWithoutExtension}").setTitle("Study Assistant v${release.version}")
                 .setDescription(strings["update.background"])
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+                .setNotificationVisibility(if (appNotification) DownloadManager.Request.VISIBILITY_HIDDEN else DownloadManager.Request.VISIBILITY_VISIBLE)
                 .setAllowedOverMetered(true).setAllowedOverRoaming(false)
             return manager.enqueue(request)
         }

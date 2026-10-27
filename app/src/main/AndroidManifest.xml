@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <!-- Used only after our own foreground progress notification is established. -->
+    <uses-permission android:name="android.permission.DOWNLOAD_WITHOUT_NOTIFICATION" />
     <!-- Android 12+ 精确闹钟（复习提醒）；未授予时退化为非精确闹钟 -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -51,6 +54,10 @@
             android:name=".data.AnswerForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <service android:name=".data.UpdateDownloadMonitor" android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <receiver android:name=".data.UpdateDownloadActionReceiver" android:exported="false" />
 
         <!-- 应用内更新：把 cacheDir/updates 里的 APK 以 content:// 交给系统安装器
              （Android 7+ 禁止直接传 file://，必须用 FileProvider） -->

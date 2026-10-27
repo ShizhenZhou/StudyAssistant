@@ -1876,6 +1876,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 供设置页使用：从提示/警示"直达"数据升级子页（设置页消费后清零） */
     var openBackupManagementPage by mutableStateOf(false)
 
+    var openUpdatePage by mutableStateOf(false)
+
     var openDataUpgradePage by mutableStateOf(false)
 
     private var upgradePromptChecked = false

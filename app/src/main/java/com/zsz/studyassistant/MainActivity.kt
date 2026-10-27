@@ -97,6 +97,10 @@ class MainActivity : ComponentActivity() {
             intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
             viewModel.openBackupManagementPage = true
         }
+        if (intent.getBooleanExtra(AppNav.OPEN_UPDATE_EXTRA, false)) {
+            intent.removeExtra(AppNav.OPEN_UPDATE_EXTRA)
+            viewModel.openUpdatePage = true
+        }
         if (intent.getBooleanExtra("open_review", false)) {
             intent.removeExtra("open_review")
             viewModel.requestReviewNavigation()
@@ -128,6 +132,10 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(AppNav.OPEN_BACKUP_EXTRA, false) == true) {
             intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
             viewModel.openBackupManagementPage = true
+        }
+        if (intent?.getBooleanExtra(AppNav.OPEN_UPDATE_EXTRA, false) == true) {
+            intent.removeExtra(AppNav.OPEN_UPDATE_EXTRA)
+            viewModel.openUpdatePage = true
         }
         enableEdgeToEdge()
         setContent {
@@ -173,6 +181,11 @@ class MainActivity : ComponentActivity() {
                     val current = backStack?.destination?.route
                     LaunchedEffect(viewModel.openBackupManagementPage) {
                         if (viewModel.openBackupManagementPage && nav.currentDestination?.route != AppNav.SETTINGS) {
+                            AppNav.switchTab(nav, AppNav.SETTINGS)
+                        }
+                    }
+                    LaunchedEffect(viewModel.openUpdatePage) {
+                        if (viewModel.openUpdatePage && nav.currentDestination?.route != AppNav.SETTINGS) {
                             AppNav.switchTab(nav, AppNav.SETTINGS)
                         }
                     }

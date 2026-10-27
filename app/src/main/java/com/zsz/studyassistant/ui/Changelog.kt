@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7.4
+· 🔔 更新下载新增持续进度通知，显示等待、下载与校验结果，可取消下载；点按通知返回应用更新页
+· 🛡️ 使用 Android 通用通知与后台下载接口；通知不可用时继续系统下载，可在更新页打开通知设置
+· 💊 实时胶囊由手机系统决定是否展示，不依赖荣耀专用 SDK；具体展示效果仍需真机确认
+
 v0.6.7.3
 · ⬇️ 更新下载交由 Android 系统执行，离开更新页或关闭界面后继续；重新进入恢复任务与进度
 · 📶 断网时保留系统任务并等待恢复，服务器允许时尝试续传；任务失效后可重新下载，也可主动取消
@@ -453,6 +458,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7.4
+· 🔔 Update downloads show ongoing progress, waiting and verification results, with a cancel action; tapping opens App update
+· 🛡️ Uses standard Android notifications and background downloads. Downloads continue when notifications are unavailable; notification settings are accessible from App update
+· 💊 Live capsule display depends on the phone system, without an Honor-specific SDK; appearance still requires device verification
+
 v0.6.7.3
 · ⬇️ Android manages update downloads independently of the page; returning restores the task and progress
 · 📶 Network interruptions retain the system task for retry and supported resumption; ended tasks can be downloaded again or canceled explicitly
@@ -901,6 +911,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7.4
+· 🔔 更新の継続通知で進捗・待機・検証結果を表示し、取消も可能。通知をタップするとアプリ更新へ移動
+· 🛡️ Android 共通の通知・背面ダウンロード機能を使用。通知が使えなくても取得を続行し、更新ページから通知設定を開けます
+· 💊 ライブカプセルの表示は端末システム次第で、Honor 専用 SDK は使用しません。実際の表示は実機確認が必要です
+
 v0.6.7.3
 · ⬇️ 更新のダウンロードをシステムに移し、ページを離れても続行。戻るとタスクと進捗を復元
 · 📶 通信切断時はシステムの再試行・対応サーバーからの再開を待機。終了したタスクは再ダウンロードでき、明示的な取消にも対応
@@ -1349,6 +1364,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7.4
+· 🔔 업데이트의 지속 알림에 진행률·대기·검증 결과와 취소 동작을 표시하며, 누르면 앱 업데이트로 이동
+· 🛡️ Android 공통 알림과 백그라운드 다운로드 사용. 알림을 사용할 수 없어도 다운로드를 계속하며 업데이트 페이지에서 알림 설정 열기 가능
+· 💊 실시간 캡슐은 휴대전화 시스템에 따라 표시되며 Honor 전용 SDK를 사용하지 않음. 실제 표시는 기기 확인 필요
+
 v0.6.7.3
 · ⬇️ 업데이트 다운로드를 시스템이 관리하여 페이지를 나가도 계속하며 돌아오면 작업과 진행률을 복원합니다
 · 📶 네트워크 중단 시 시스템 재시도와 지원되는 이어받기를 기다립니다. 종료된 작업은 다시 다운로드하거나 직접 취소할 수 있습니다

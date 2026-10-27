@@ -1,6 +1,20 @@
 package com.zsz.studyassistant.ui
 
 private val B14_ZH = mapOf(
+    "update.notif.observing" to "正在同步下载状态，系统任务继续运行",
+    "update.notif.channel" to "应用更新下载",
+    "update.notif.title" to "正在下载更新 v{v}",
+    "update.notif.genericTitle" to "Study Assistant 应用更新",
+    "update.notif.preparing" to "正在连接系统下载服务…",
+    "update.notif.progress" to "已下载 {p}%",
+    "update.notif.ready" to "下载已校验，点按进入安装",
+    "update.notif.readyTitle" to "更新已准备好",
+    "update.notif.failed" to "更新下载未完成，点按查看并重试",
+    "update.notif.failureTitle" to "更新下载未完成",
+    "update.notif.waiting" to "等待网络或系统允许继续",
+    "update.notif.monitorPaused" to "系统下载仍会继续，返回应用查看进度",
+    "update.notif.settings" to "下载通知设置",
+    "update.notif.hint" to "允许通知后可显示下载进度；实时胶囊是否出现由系统决定。",
     "update.restoring" to "正在恢复下载任务…",
     "update.background" to "可离开此页面，系统会继续下载；断网后等待网络恢复并尝试续传。",
     "update.waiting" to "等待网络或系统允许继续下载，已有进度保留。",
@@ -58,6 +72,20 @@ private val B14_ZH = mapOf(
     "data.autoBackup.count" to "手动备份：{manual} 套 · 自动备份：{automatic} 套"
 )
 private val B14_EN = mapOf(
+    "update.notif.observing" to "Refreshing download status; the system transfer continues",
+    "update.notif.channel" to "App update downloads",
+    "update.notif.title" to "Downloading update v{v}",
+    "update.notif.genericTitle" to "Study Assistant app update",
+    "update.notif.preparing" to "Connecting to the system download service…",
+    "update.notif.progress" to "Downloaded {p}%",
+    "update.notif.ready" to "Download verified. Tap to install",
+    "update.notif.readyTitle" to "Update ready",
+    "update.notif.failed" to "Update download incomplete. Tap to view and retry",
+    "update.notif.failureTitle" to "Update download incomplete",
+    "update.notif.waiting" to "Waiting for network or system approval",
+    "update.notif.monitorPaused" to "Android continues downloading. Return to the app to view progress",
+    "update.notif.settings" to "Download notification settings",
+    "update.notif.hint" to "Allow notifications to show download progress. Live capsule availability is determined by the system.",
     "update.restoring" to "Restoring download task…",
     "update.background" to "You can leave this page. Android continues downloading and attempts to resume when connectivity returns.",
     "update.waiting" to "Waiting for network or system approval; downloaded progress is retained.",
@@ -115,6 +143,20 @@ private val B14_EN = mapOf(
     "data.autoBackup.count" to "Manual: {manual} sets · Automatic: {automatic} sets"
 )
 private val B14_JA = mapOf(
+    "update.notif.observing" to "状態を更新中。システムのダウンロードは続行中",
+    "update.notif.channel" to "アプリ更新のダウンロード",
+    "update.notif.title" to "更新 v{v} をダウンロード中",
+    "update.notif.genericTitle" to "Study Assistant アプリ更新",
+    "update.notif.preparing" to "システムのダウンロード機能に接続中…",
+    "update.notif.progress" to "{p}% ダウンロード済み",
+    "update.notif.ready" to "検証済みです。タップしてインストール",
+    "update.notif.readyTitle" to "更新の準備完了",
+    "update.notif.failed" to "更新のダウンロードが未完了です。タップして確認・再試行",
+    "update.notif.failureTitle" to "更新のダウンロード未完了",
+    "update.notif.waiting" to "通信やシステムの許可を待っています",
+    "update.notif.monitorPaused" to "システムのダウンロードは続行します。アプリで進捗を確認してください",
+    "update.notif.settings" to "ダウンロード通知の設定",
+    "update.notif.hint" to "通知を許可すると進捗を表示できます。ライブカプセルの表示はシステムが決定します。",
     "update.restoring" to "ダウンロードを復元中…",
     "update.background" to "このページを離れてもシステムがダウンロードを続行します。通信復旧後に再開を試みます。",
     "update.waiting" to "通信やシステムの許可を待っています。進捗は保持されています。",
@@ -172,6 +214,20 @@ private val B14_JA = mapOf(
     "data.autoBackup.count" to "手動：{manual} セット · 自動：{automatic} セット"
 )
 private val B14_KO = mapOf(
+    "update.notif.observing" to "진행 상태를 동기화하는 중이며 시스템 다운로드는 계속됩니다",
+    "update.notif.channel" to "앱 업데이트 다운로드",
+    "update.notif.title" to "업데이트 v{v} 다운로드 중",
+    "update.notif.genericTitle" to "Study Assistant 앱 업데이트",
+    "update.notif.preparing" to "시스템 다운로드 서비스에 연결 중…",
+    "update.notif.progress" to "{p}% 다운로드됨",
+    "update.notif.ready" to "다운로드 검증 완료. 눌러서 설치",
+    "update.notif.readyTitle" to "업데이트 준비 완료",
+    "update.notif.failed" to "업데이트 다운로드 미완료. 눌러서 확인하고 다시 시도",
+    "update.notif.failureTitle" to "업데이트 다운로드 미완료",
+    "update.notif.waiting" to "네트워크 또는 시스템 허용 대기 중",
+    "update.notif.monitorPaused" to "시스템 다운로드는 계속됩니다. 앱에서 진행률을 확인하세요",
+    "update.notif.settings" to "다운로드 알림 설정",
+    "update.notif.hint" to "알림을 허용하면 다운로드 진행률을 표시할 수 있습니다. 실시간 캡슐 표시 여부는 시스템이 결정합니다.",
     "update.restoring" to "다운로드 작업 복원 중…",
     "update.background" to "이 페이지를 나가도 시스템이 다운로드를 계속합니다. 네트워크 복구 후 이어받기를 시도합니다.",
     "update.waiting" to "네트워크 또는 시스템 허용을 기다리는 중이며 진행률은 유지됩니다.",
@@ -2121,7 +2177,7 @@ private val B10_ZH = mapOf(
         "· 🗄️ 压缩备份包支持图片去重、大备份分卷及旧 v3 JSON 导入；每天打开后约30秒择机自动备份，当天已有完整手动或自动备份则不排计划；可立即接管待执行计划并在离页后继续，自动备份含旧命名统一清理，超过3套先留最新2套、成功后留3套；空错题本不自动备份，前台成功气泡提示，后台最终失败发系统通知（需允许通知）\n" +
         "· 💾 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
         "· 🔎 AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
-        "· ⬆️ 更新由系统后台下载，返回页面恢复进度；安装前校验签名证书，并在 GitHub 提供摘要时核对 SHA-256"
+        "· ⬆️ 更新由系统后台下载，通知显示进度并可返回更新页；实时胶囊由系统决定。安装前校验签名证书及可用的 SHA-256"
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
@@ -2176,7 +2232,7 @@ private val B10_EN = mapOf(
         "· 🗄️ Compressed backups deduplicate images, split large sets and import legacy v3 JSON. Opening the app schedules backup after 30 seconds unless a complete backup exists today; Back up now replaces pending plans and work continues after leaving the page; includes legacy automatic sets in retention: over 3 before backup keeps 2, then 3 after success. Empty notebooks skip automatic backup; foreground success uses a bubble and final background failures post a system notification (permission required)\n" +
         "· 💾 Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
         "· 🔎 Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
-        "· ⬆️ Android downloads updates in the background and restores progress on return; verify the signing certificate and SHA-256 when GitHub provides a digest"
+        "· ⬆️ Android downloads updates in the background; progress notifications return to App update. Live capsules depend on the system. Verify the signing certificate and available SHA-256 before installation"
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
@@ -2231,7 +2287,7 @@ private val B10_JA = mapOf(
         "· 🗄️ 圧縮バックアップは画像の重複排除・分巻・旧v3 JSON読み込みに対応。起動後30秒で自動予約。本日分の完全なバックアップがあれば予約せず、即時実行で待機予約を置き換え、画面を閉じても継続。旧名称も含め開始前に3セット超なら最新2セット、成功後は3セット保持。空の問題集は自動保存せず、前面で成功を通知。背面での最終失敗はシステム通知（許可が必要）\n" +
         "· 💾 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
         "· 🔎 AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
-        "· ⬆️ 更新はシステムが背面でダウンロードし、戻ると進捗を復元。インストール前に署名証明書と提供されたSHA-256を検証"
+        "· ⬆️ 更新はシステムが背面で取得し、進捗通知から更新ページへ戻れます。ライブカプセルはシステム次第です。署名証明書と提供されたSHA-256をインストール前に検証"
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
@@ -2286,7 +2342,7 @@ private val B10_KO = mapOf(
         "· 🗄️ 압축 백업은 이미지 중복 제거, 분할 및 기존 v3 JSON 가져오기를 지원. 앱을 열면 30초 후 자동 백업을 예약하며 오늘의 완전한 백업이 있으면 예약하지 않음. 지금 백업으로 대기 예약을 대체하고 화면을 닫아도 계속하며 기존 이름도 포함해 시작 전 3세트 초과 시 최신 2세트, 성공 후 3세트 유지. 빈 노트는 자동 백업하지 않으며 앞에서 실행 중이면 성공 알림, 백그라운드 최종 실패는 시스템 알림 표시(권한 필요)\n" +
         "· 💾 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
         "· 🔎 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
-        "· ⬆️ 시스템이 백그라운드에서 업데이트를 다운로드하며 돌아오면 진행률을 복원. 설치 전 서명 인증서와 제공된 SHA-256을 확인"
+        "· ⬆️ 시스템이 백그라운드에서 업데이트를 다운로드하고 진행률 알림에서 업데이트 페이지로 이동. 실시간 캡슐은 시스템에 따라 표시. 설치 전 서명 인증서와 제공된 SHA-256 확인"
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (
