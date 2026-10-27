@@ -27,18 +27,21 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
     val scope = rememberCoroutineScope()
     var show by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var usable by rememberSaveable { mutableStateOf(false) }
+    var health by rememberSaveable { mutableStateOf(BackupFolderAccess.State.INVALID) }
+    val usable = health == BackupFolderAccess.State.AVAILABLE
     var enabled by rememberSaveable { mutableStateOf(false) }
     var failed by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(ready) {
+    var resumeGeneration by remember { mutableIntStateOf(0) }
+    LaunchedEffect(ready, resumeGeneration) {
         if (!ready || vm.backupSetupChecked) return@LaunchedEffect
-        val tree = AutoBackup.treeUri(context)
-        val valid = withContext(Dispatchers.IO) { BackupFolderAccess.isUsable(context, tree) }
-        if (AutoBackup.treeUri(context) != tree) return@LaunchedEffect
-        if (!valid) {
-            withContext(Dispatchers.IO) { AutoBackup.setEnabled(context, false) }
-            usable = false; enabled = false; show = true
+        val observed = withContext(Dispatchers.IO) { BackupFolderAccess.refresh(context) }
+        if (observed == null || !BackupFolderAccess.isCurrent(context, observed)) {
+            resumeGeneration++
+            return@LaunchedEffect
         }
+        health = observed.health.state
+        enabled = AutoBackup.isEnabled(context)
+        if (health != BackupFolderAccess.State.AVAILABLE) show = true
         vm.backupSetupChecked = true
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -46,9 +49,11 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
         if (uri != null) scope.launch {
             busy = true; failed = false
             try {
-                usable = withContext(Dispatchers.IO) { BackupFolderAccess.select(context, uri) }
-                failed = !usable
-                enabled = usable && AutoBackup.isEnabled(context)
+                val selected = withContext(Dispatchers.IO) { BackupFolderAccess.select(context, uri) }
+                failed = !selected
+                // Failed selection leaves the previous directory and its enabled intent intact.
+                if (selected) health = BackupFolderAccess.State.AVAILABLE
+                enabled = AutoBackup.isEnabled(context)
                 val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
                 if (enabled && com.zsz.studyassistant.data.BackupNotifications.needsPermission(context) &&
                     !preferences.getBoolean("backup_failure_permission_asked", false)) {
@@ -58,7 +63,6 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
             } finally { busy = false }
         }
     }
-    var resumeGeneration by remember { mutableIntStateOf(0) }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -69,12 +73,10 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
     }
     LaunchedEffect(show, busy, resumeGeneration) {
         if (!show || busy) return@LaunchedEffect
-        val tree = AutoBackup.treeUri(context)
-        val valid = withContext(Dispatchers.IO) { BackupFolderAccess.isUsable(context, tree) }
-        if (AutoBackup.treeUri(context) == tree) {
-            usable = valid
-            if (!valid) withContext(Dispatchers.IO) { AutoBackup.setEnabled(context, false) }
-            enabled = valid && AutoBackup.isEnabled(context)
+        val observed = withContext(Dispatchers.IO) { BackupFolderAccess.refresh(context, scheduleIfAvailable = true) }
+        if (observed != null && BackupFolderAccess.isCurrent(context, observed)) {
+            health = observed.health.state
+            enabled = AutoBackup.isEnabled(context)
         }
     }
     if (!show) return
@@ -84,7 +86,12 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
         text = { Column(Modifier.verticalScroll(rememberScrollState())) {
             Text(s["data.autoBackup.setupDesc"], style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(12.dp))
-            if (usable) {
+            if (health != BackupFolderAccess.State.AVAILABLE) {
+                Text(s[if (health == BackupFolderAccess.State.TEMPORARILY_UNAVAILABLE)
+                    "data.autoBackup.temporarilyUnavailable" else "data.autoBackup.invalidFolder"],
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            if (AutoBackup.treeUri(context) != null) {
                 val tree = AutoBackup.treeUri(context)
                 val id = tree?.let { runCatching { android.provider.DocumentsContract.getTreeDocumentId(it) }.getOrNull() }
                 val path = backupFolderLabel(id, null, s["data.autoBackup.internalStorage"])
@@ -95,7 +102,7 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(s["data.autoBackup.daily"], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = usable && enabled, enabled = usable && !busy, onCheckedChange = { on ->
+                Switch(checked = enabled && health != BackupFolderAccess.State.INVALID, enabled = usable && !busy, onCheckedChange = { on ->
                     enabled = on
                     scope.launch { withContext(Dispatchers.IO) { AutoBackup.setEnabled(context, on) } }
                 })

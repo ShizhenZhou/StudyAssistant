@@ -102,9 +102,11 @@ object UpdateChecker {
         context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
     } catch (e: Exception) { 0L }
 
+    private val installedDigestCache = InstalledApkDigestCache()
+
     /** 本机**已安装 APK 自身**的 SHA-256（读 packageCodePath）：用于判断发布物内容是否变了 */
     fun installedApkSha256(context: Context): String? = try {
-        sha256(File(context.packageCodePath))
+        installedDigestCache.read(File(context.packageCodePath), installedLastUpdateTime(context), ::sha256)
     } catch (e: Exception) {
         Log.w(TAG, "hash installed apk failed: ${e.message}")
         null

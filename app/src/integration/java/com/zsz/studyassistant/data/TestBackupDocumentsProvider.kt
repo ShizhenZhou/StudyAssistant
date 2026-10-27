@@ -19,9 +19,10 @@ class TestBackupDocumentsProvider : DocumentsProvider() {
         @Volatile var corruptReads = false
         @Volatile var returnExistingId: String? = null
         @Volatile var denyListing = false
+        @Volatile var metadataFault: String? = null
         fun reset(context: Context) {
             check(context.packageName == "com.zsz.studyassistant.integration")
-            writeGate = null; denyAccess = false; corruptReads = false; returnExistingId = null; denyListing = false
+            writeGate = null; denyAccess = false; corruptReads = false; returnExistingId = null; denyListing = false; metadataFault = null
             File(context.filesDir, "saf-fixture").listFiles()?.filter { it.isFile }?.forEach { check(it.delete()) }
         }
     }
@@ -60,8 +61,16 @@ class TestBackupDocumentsProvider : DocumentsProvider() {
         }) }
         return cursor
     }
-    override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor {
-        access(); return cursor(projection).also { row(it, documentId) }
+    override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor? {
+        access()
+        when (metadataFault) {
+            "io" -> throw java.io.IOException("Synthetic temporary metadata IO failure")
+            "missing-file" -> throw java.io.FileNotFoundException("Synthetic unavailable mount")
+            "provider" -> throw IllegalStateException("Synthetic provider restart")
+            "null" -> return null
+            "empty" -> return cursor(projection)
+        }
+        return cursor(projection).also { row(it, documentId) }
     }
     override fun queryChildDocuments(parentDocumentId: String, projection: Array<out String>?, sortOrder: String?): Cursor {
         access(); require(parentDocumentId == "root")

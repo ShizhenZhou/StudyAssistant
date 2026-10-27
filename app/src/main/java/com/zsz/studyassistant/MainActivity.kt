@@ -76,11 +76,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         com.zsz.studyassistant.data.BackupJobs.setForeground(true)
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val tree = com.zsz.studyassistant.data.AutoBackup.treeUri(applicationContext)
-            if (tree != null && !com.zsz.studyassistant.data.BackupFolderAccess.isUsable(applicationContext, tree)) {
-                if (com.zsz.studyassistant.data.AutoBackup.treeUri(applicationContext) == tree)
-                    com.zsz.studyassistant.data.AutoBackup.setEnabled(applicationContext, false)
-            } else com.zsz.studyassistant.data.BackupJobs.onAppOpened(applicationContext)
+            com.zsz.studyassistant.data.BackupFolderAccess.refresh(applicationContext, scheduleIfAvailable = true)
         }
     }
 
@@ -105,8 +101,8 @@ class MainActivity : ComponentActivity() {
             intent.removeExtra(AppNav.OPEN_UPDATE_EXTRA)
             viewModel.openUpdatePage = true
         }
-        if (intent.getBooleanExtra("open_review", false)) {
-            intent.removeExtra("open_review")
+        if (intent.getBooleanExtra(AppNav.OPEN_REVIEW_EXTRA, false)) {
+            intent.removeExtra(AppNav.OPEN_REVIEW_EXTRA)
             viewModel.requestReviewNavigation()
         }
     }
@@ -128,8 +124,8 @@ class MainActivity : ComponentActivity() {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
             }
         }
-        if (intent?.getBooleanExtra("open_review", false) == true) {
-            intent.removeExtra("open_review")
+        if (intent?.getBooleanExtra(AppNav.OPEN_REVIEW_EXTRA, false) == true) {
+            intent.removeExtra(AppNav.OPEN_REVIEW_EXTRA)
             viewModel.requestReviewNavigation()
         }
         com.zsz.studyassistant.data.BackupNotifications.ensureChannel(this)

@@ -33,6 +33,9 @@ object AppNav {
     /** Update download notification → settings → update; Back returns to Settings. */
     const val OPEN_UPDATE_EXTRA = "open_app_update"
 
+    /** Review notification → the current review entry. */
+    const val OPEN_REVIEW_EXTRA = "open_review"
+
     // ── NavHost 路由（节点）──────────────────────────────────────────────
     // Home startup: API Key dialog → optional automatic-backup folder setup (dialogs, not navigation nodes).
     const val HOME = "home"

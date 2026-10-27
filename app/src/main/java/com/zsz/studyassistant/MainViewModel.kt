@@ -1109,6 +1109,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *   ② 在分类对话框打开期间异步返回，把用户刚取消勾选的标签"复活"（取消勾选时常失灵）。
      *   现在唯一的调用点是**解答完成**时（`continueGeneration` 的 onDone），拿到的建议只影响"还没存"的题。
      */
+    // Replaceable request boundaries let integration fixtures control completion without network access.
+    internal var classifyRequest: suspend (String, List<String>, List<String>, List<ByteArray>, Boolean, Boolean) -> Pair<String?, List<String>> =
+        { q, categories, tags, images, category, tag -> StudyAssistant.classifyQuestion(q, categories, tags, images, category, tag) }
+    private var classificationJob: Job? = null
+    private var classificationOwner: Any? = null
+
     fun classifyCurrentQuestion(needCategory: Boolean = true, needTags: Boolean = true) {
         if (classifying) return
         val q = questionText
@@ -1121,16 +1127,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (q.isBlank() && imgs.isEmpty()) {
             return
         }
+        val owner = Any()
+        val binding = sessionRecordBinding
+        val categories = categoryNames.toList()
+        val tags = tagNames.toList()
+        val images = imgs.map { it.copyOf() }
+        val request = classifyRequest
+        classificationOwner = owner
         classifying = true
-        viewModelScope.launch {
+        classificationJob = viewModelScope.launch {
             try {
-                val (c, t) = StudyAssistant.classifyQuestion(q, categoryNames, tagNames, imgs, needCategory, needTags)
+                val (c, t) = request(q, categories, tags, images, needCategory, needTags)
+                if (classificationOwner !== owner || sessionRecordBinding !== binding) return@launch
                 // 已有分类（来自库/用户选择）优先，AI 只补空的
                 if (!c.isNullOrBlank() && suggestedCategory == null) suggestedCategory = c
                 if (t.isNotEmpty()) suggestedTags = t
             } finally {
                 // ★ 必须放 finally：请求异常/被取消时也要复位，否则标志卡死 → 之后所有分类都被跳过
-                classifying = false
+                if (classificationOwner === owner && sessionRecordBinding === binding) {
+                    classificationOwner = null
+                    classificationJob = null
+                    classifying = false
+                }
             }
         }
     }
@@ -1156,6 +1174,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
 
     fun stopActiveGeneration() {
+        classificationOwner = null
+        classificationJob?.cancel()
+        classificationJob = null
+        classifying = false
         checkpointDraft()
         activeDraft=null
         val stopping = streamOwner
@@ -1252,6 +1274,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else if (questionText.isNotBlank()) {
             msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
         }
+        msgs.addAll(chatMessages(items))
+        return msgs
+    }
+
+    private fun chatMessages(items: List<ChatItem>): List<DeepSeekMessage> {
+        val msgs = mutableListOf<DeepSeekMessage>()
         for (item in items) {
             when (item.role) {
                 "assistant" -> msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.content)))
@@ -2517,28 +2545,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (reviewBusy) return
         reviewBusy = true
         val epoch = reviewEpoch
+        val seq = callSeq
+        val binding = sessionRecordBinding
+        fun ownsSession() = epoch == reviewEpoch && seq == callSeq && binding === sessionRecordBinding
         viewModelScope.launch {
             try {
                 if(id !in committedReviewIds) withContext(kotlinx.coroutines.NonCancellable) {
                     commitReview(id, level)
                     if(epoch==reviewEpoch) committedReviewIds.add(id)
                 }
-                if (epoch == reviewEpoch) advanceReview(id, onNoMore)
+                if (ownsSession()) advanceReview(id, epoch, onNoMore)
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) {
-                if(epoch==reviewEpoch) error = com.zsz.studyassistant.ui.stringsFor(uiLang)[
+                if(ownsSession()) error = com.zsz.studyassistant.ui.stringsFor(uiLang)[
                     if(id in committedReviewIds) "review.loadFailed" else "review.saveFailed"]
             }
             finally { if (epoch == reviewEpoch) reviewBusy = false }
         }
     }
-    private suspend fun advanceReview(answered: QuestionId?, onNoMore: () -> Unit) {
+    private suspend fun advanceReview(answered: QuestionId?, epoch: Long, onNoMore: () -> Unit) {
+        val seq = callSeq
+        val binding = sessionRecordBinding
+        fun ownsSession() = epoch == reviewEpoch && seq == callSeq && binding === sessionRecordBinding
+        if (!ownsSession()) return
         val wasQueued=reviewQueue.any { it.id==answered }
         val remaining = reviewQueue.filter { it.id != answered }
         reviewQueue = remaining
         if(wasQueued) reviewDone = (reviewDone + 1).coerceAtMost(reviewTotal)
         for (candidate in remaining) {
+            if (!ownsSession()) return
+            if (!canOpenSavedQuestion(candidate.id, ::ownsSession)) return
+            if (!ownsSession()) return
             val full = dao.heavyOnce(candidate.id)
+            if (!ownsSession()) return
             if (full != null && !full.deleted && full.id !in deletionState.value.questionIds) {
                 redoMessage = null
                 loadQuestion(full, keepReview = true)
@@ -2556,10 +2595,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (reviewBusy) return
         reviewBusy = true
         val epoch = reviewEpoch
+        val seq = callSeq
+        val binding = sessionRecordBinding
+        fun ownsSession() = epoch == reviewEpoch && seq == callSeq && binding === sessionRecordBinding
         viewModelScope.launch {
-            try { advanceReview(savedQuestionId ?: redoQuestionId, onNoMore) }
+            try { if (ownsSession()) advanceReview(savedQuestionId ?: redoQuestionId, epoch, onNoMore) }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { if(epoch==reviewEpoch) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.loadFailed"] }
+            catch (_: Exception) { if(ownsSession()) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.loadFailed"] }
             finally { if (epoch == reviewEpoch) reviewBusy = false }
         }
     }
@@ -2805,6 +2847,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSimilar()
     }
 
+    internal var similarChatRequest: suspend (String, List<DeepSeekMessage>, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> String =
+        { model, messages, owner, onDelta -> StudyAssistant.chatStream(model, messages, owner = owner, onDelta = onDelta) }
+
     fun sendSimilar(text: String, images: List<ByteArray> = emptyList()) {
         val qTitle = similarQuestion ?: return
         val txt = text.trim()
@@ -2822,23 +2867,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         similarStreamOwner = owner
         similarBusy = true
         similarStreamingText = ""
-        val baseCount = similarMessages.size
+        val history = similarMessages.map { it.copy(images = it.images?.toList()) }
+        val baseCount = history.size
+        val msgs = buildList {
+            add(StudyAssistant.systemMessage(aiLang, customPromptText()))
+            add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
+            similarAnswer?.takeIf { it.isNotBlank() }?.let { add(DeepSeekMessage("assistant", JsonPrimitive(it))) }
+            addAll(chatMessages(history))
+        }
+        val model = if (history.any { !it.images.isNullOrEmpty() }) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        val request = similarChatRequest
         similarJob = viewModelScope.launch {
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = StringBuilder()
             var lastEmit = 0L
             try {
-                val msgs = mutableListOf<DeepSeekMessage>()
-                // 同类题链路：2026-10-13 起也带上用户的「自定义要求」
-                msgs.add(StudyAssistant.systemMessage(aiLang, customPromptText()))
-                msgs.add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
-                for (m in similarMessages) msgs.add(DeepSeekMessage(if (m.role == "assistant") "assistant" else "user", JsonPrimitive(m.content)))
-                if (images.isNotEmpty()) msgs.add(StudyAssistant.userMessageWithImages(txt, images))
-                else msgs.add(DeepSeekMessage("user", JsonPrimitive(txt)))
-                val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
                 val reply = withContext(Dispatchers.IO) {
-                    StudyAssistant.chatStream(model, msgs, owner = owner, onDelta = { delta ->
+                    request(model, msgs, owner) { delta ->
                         sb.append(delta)
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -2848,7 +2894,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 if (mySeq == similarSeq) similarStreamingText = snapshot
                             }
                         }
-                    })
+                    }
                 }
                 if (mySeq == similarSeq) {
                     thinkingDone = true
@@ -2885,9 +2931,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var similarSavedQuestionId by mutableStateOf<QuestionId?>(null)
         private set
 
+    // A followup can finish while the first insert is waiting for the write mutex.
+    private var similarSavingQuestionId: QuestionId? = null
+    private var similarSaveOwner: Any? = null
+
     private fun similarChats() = listOf(ChatItem(0,"question",similarQuestion.orEmpty()), ChatItem(1,"assistant",similarAnswer.orEmpty())) + similarMessages.mapIndexed { i,m -> m.copy(id=(i+2).toLong()) }
     private suspend fun persistSimilarConversation() {
-        val id=similarSavedQuestionId ?: return
+        val id = (similarSavedQuestionId ?: similarSavingQuestionId)?.takeIf { it == similarIdentity } ?: return
         if(id in deletionState.value.questionIds) return
         val chats=similarChats()
         val payload=com.zsz.studyassistant.data.SavePayload(id,similarCreatedAt,similarQuestion.orEmpty(),similarAnswer.orEmpty(),json.encodeToString(chats))
@@ -2901,6 +2951,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val id = similarIdentity
         val created = similarCreatedAt
         val seq = similarSeq
+        val conversationJson = json.encodeToString(similarChats())
+        val selectedTagIds = tagIds.toList()
+        val selectedTagNames = tagNames.toList()
         val answerText = buildString {
             similarAnswer?.let { append(it) }
             for (m in similarMessages) {
@@ -2909,15 +2962,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 append(m.content)
             }
         }
+        val owner = Any()
+        similarSaveOwner = owner
+        similarSavingQuestionId = id
         viewModelScope.launch {
             try {
                 notebookWriteMutex.withLock {
                     AppDatabase.get(getApplication()).withTransaction {
                         if (!dao.questionExists(id)) {
                             val cid = if (!name.isNullOrBlank()) dao.insertCategory(Category(name=name.trim())) else categoryId
-                            dao.insertQuestionWithId(Question(id,title,answerText,created,categoryId=cid,conversationJson=json.encodeToString(similarChats())))
-                            val finalIds = tagIds.distinct().toMutableList()
-                            for (tn in tagNames.take(5)) {
+                            dao.insertQuestionWithId(Question(id,title,answerText,created,categoryId=cid,conversationJson=conversationJson))
+                            val finalIds = selectedTagIds.distinct().toMutableList()
+                            for (tn in selectedTagNames.take(5)) {
                                 val n = tn.trim()
                                 if (n.isBlank()) continue
                                 val tid = dao.getAllTagsOnce().firstOrNull { it.name==n }?.id ?: dao.insertTag(Tag(name=n))
@@ -2925,15 +2981,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             }
                             dao.insertQuestionTags(finalIds.take(5).map { QuestionTag(id,it) })
                             dao.insertReview(Review(id,nextReviewAt=System.currentTimeMillis()))
+                        } else {
+                            // Re-saving the same identity advances only its frozen content snapshot.
+                            // Existing notebook classification, tags and review scheduling remain authoritative.
+                            dao.updateAnswerContent(id, title, answerText, conversationJson)
                         }
                     }
                 }
-                if (seq == similarSeq) { similarSavedQuestionId = id; persistSimilarConversation() }
+                if (id == similarIdentity) similarSavedQuestionId = id
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (seq == similarSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)
                     .format("data.failed", "msg" to tagWriteError(e))
+            } finally {
+                if (similarSaveOwner === owner) {
+                    similarSaveOwner = null
+                    similarSavingQuestionId = null
+                }
             }
         }
     }
@@ -3183,13 +3248,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 错题本 getAll 已取完整字段；复习与历史入口在调用前 heavyOnce。
      * historySession 仅保留当前记录身份；返回来路仍由 AppNav 决定。
      */
-    private suspend fun canOpenSavedQuestion(id: QuestionId): Boolean = solveSessionWriteMutex.withLock {
+    private suspend fun canOpenSavedQuestion(id: QuestionId, ownsSession: () -> Boolean = { true }): Boolean = solveSessionWriteMutex.withLock {
         try {
             val scan=withContext(Dispatchers.IO) { pendingSaveStore.scan() }
             val blocked=scan.unreadable>0 || scan.entries.any { it.payload.id==id } || id in pendingNotebookContent || id in deletionState.value.questionIds
-            if(blocked) error=com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]
+            if(blocked && ownsSession()) error=com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]
             !blocked
-        } catch (_: Exception) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]; false }
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) {
+            if (ownsSession()) error=com.zsz.studyassistant.ui.stringsFor(uiLang)["save.resolveFirst"]
+            false
+        }
     }
     fun openNotebookQuestion(id: QuestionId, onReady: () -> Unit) {
         val seq = callSeq

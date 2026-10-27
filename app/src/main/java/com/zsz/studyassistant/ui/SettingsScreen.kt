@@ -995,7 +995,8 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     var showBackupInfo by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var autoEnabled by remember { mutableStateOf(AutoBackup.isEnabled(context)) }
     var folderSummary by remember { mutableStateOf<com.zsz.studyassistant.data.BackupRetention.FolderSummary?>(null) }
-    var folderUsable by remember { mutableStateOf(false) }
+    var folderHealth by remember { mutableStateOf<com.zsz.studyassistant.data.BackupFolderAccess.State?>(null) }
+    val folderUsable = folderHealth == com.zsz.studyassistant.data.BackupFolderAccess.State.AVAILABLE
     var folderReadFailed by remember { mutableStateOf(false) }
     var autoLast by remember { mutableStateOf(AutoBackup.lastBackupAt(context)) }
     var autoFailure by remember { mutableStateOf(AutoBackup.lastFailure(context)) }
@@ -1053,15 +1054,16 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         val documentId = tree?.let { runCatching { android.provider.DocumentsContract.getTreeDocumentId(it) }.getOrNull() }
         // The displayed path follows the actual selection even when the inventory is unreadable.
         autoFolder = backupFolderLabel(documentId, null, internalStorage)
-        folderUsable = false
-        val validFolder = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.zsz.studyassistant.data.BackupFolderAccess.isUsable(context, tree)
+        folderHealth = null
+        val observed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.zsz.studyassistant.data.BackupFolderAccess.refresh(context, scheduleIfAvailable = true)
         }
-        if (AutoBackup.treeUri(context) == tree) {
-            folderUsable = validFolder
-            if (!validFolder) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AutoBackup.setEnabled(context, false) }
-            autoEnabled = AutoBackup.isEnabled(context)
+        if (observed == null || !com.zsz.studyassistant.data.BackupFolderAccess.isCurrent(context, observed)) {
+            refresh++
+            return@LaunchedEffect
         }
+        folderHealth = observed.health.state
+        autoEnabled = AutoBackup.isEnabled(context)
         folderSummary = null
         autoLast = 0L
         folderReadFailed = false
@@ -1136,6 +1138,11 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             feedback.show(s["data.autoBackup.openFolderFailed"], isError = true)
         }
     }
+    if (folderHealth != null && !folderUsable) {
+        Text(s[if (folderHealth == com.zsz.studyassistant.data.BackupFolderAccess.State.TEMPORARILY_UNAVAILABLE)
+            "data.autoBackup.temporarilyUnavailable" else "data.autoBackup.invalidFolder"],
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
     Spacer(Modifier.height(6.dp))
     Text((if (folderReadFailed) s["data.autoBackup.countFailed"] else s.format("data.autoBackup.count",
         "manual" to (folderSummary?.manual?.toString() ?: "…"),
@@ -1169,7 +1176,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     Spacer(Modifier.height(8.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(s["data.autoBackup.daily"], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = autoEnabled && folderUsable, enabled = folderUsable, onCheckedChange = { on ->
+        Switch(checked = autoEnabled && folderHealth != com.zsz.studyassistant.data.BackupFolderAccess.State.INVALID, enabled = folderUsable, onCheckedChange = { on ->
             autoEnabled = on
             scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AutoBackup.setEnabled(context, on) } }
         })
@@ -1180,7 +1187,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             color = MaterialTheme.colorScheme.error)
         TextButton(onClick = { requestFailureNotifications() }) { Text(s["data.backupNotifyEnable"]) }
     }
-    Button(shape = smoothPill(), enabled = autoFolder != null && !vm.dataBusy && !autoWriting && vm.preparedBackup == null && vm.preparedExport == null,
+    Button(shape = smoothPill(), enabled = folderUsable && !vm.dataBusy && !autoWriting && vm.preparedBackup == null && vm.preparedExport == null,
         onClick = { backupNow() }, modifier = Modifier.fillMaxWidth()) {
         Text(s[if (status.errorKey != null && !status.active) "data.backupRetry" else "data.autoBackup.now"])
     }

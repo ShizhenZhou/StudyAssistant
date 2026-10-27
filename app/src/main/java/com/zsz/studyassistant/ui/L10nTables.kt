@@ -1,6 +1,8 @@
 package com.zsz.studyassistant.ui
 
 private val B14_ZH = mapOf(
+    "data.autoBackup.temporarilyUnavailable" to "备份目录暂时无法访问。已保留自动备份设置，将在下次打开应用时重试。",
+    "data.autoBackup.invalidFolder" to "备份目录已失效或授权已撤销，请重新选择目录。",
     "data.autoBackup.setupTitle" to "确认自动备份路径",
     "data.autoBackup.setupDesc" to "请选择备份文件夹。选好后默认开启每日自动备份，也可关闭。跳过后，若下次启动仍没有可用路径，将再次提醒。",
     "data.autoBackup.setupSkip" to "跳过",
@@ -78,6 +80,8 @@ private val B14_ZH = mapOf(
     "data.autoBackup.count" to "手动备份：{manual} 套 · 自动备份：{automatic} 套"
 )
 private val B14_EN = mapOf(
+    "data.autoBackup.temporarilyUnavailable" to "The backup folder is temporarily unavailable. Your automatic backup setting is retained; we will retry when you next open the app.",
+    "data.autoBackup.invalidFolder" to "The backup folder is invalid or its permission was revoked. Choose a folder again.",
     "data.autoBackup.setupTitle" to "Confirm automatic backup folder",
     "data.autoBackup.setupDesc" to "Choose a backup folder to enable daily backups. You can turn them off. If skipped, we will remind you on a later launch while no usable folder is configured.",
     "data.autoBackup.setupSkip" to "Skip",
@@ -155,6 +159,8 @@ private val B14_EN = mapOf(
     "data.autoBackup.count" to "Manual: {manual} sets · Automatic: {automatic} sets"
 )
 private val B14_JA = mapOf(
+    "data.autoBackup.temporarilyUnavailable" to "バックアップ先に一時的にアクセスできません。自動バックアップ設定を保持し、次回起動時に再試行します。",
+    "data.autoBackup.invalidFolder" to "バックアップ先が無効、またはアクセス権が取り消されています。保存先を選び直してください。",
     "data.autoBackup.setupTitle" to "自動バックアップの保存先を確認",
     "data.autoBackup.setupDesc" to "フォルダを選ぶと毎日の自動バックアップが有効になります。オフにもできます。スキップ後も有効な保存先がない場合、次回起動時に再度案内します。",
     "data.autoBackup.setupSkip" to "スキップ",
@@ -232,6 +238,8 @@ private val B14_JA = mapOf(
     "data.autoBackup.count" to "手動：{manual} セット · 自動：{automatic} セット"
 )
 private val B14_KO = mapOf(
+    "data.autoBackup.temporarilyUnavailable" to "백업 폴더에 일시적으로 접근할 수 없습니다. 자동 백업 설정을 유지하며 다음 앱 실행 시 다시 시도합니다.",
+    "data.autoBackup.invalidFolder" to "백업 폴더가 유효하지 않거나 권한이 취소되었습니다. 폴더를 다시 선택하세요.",
     "data.autoBackup.setupTitle" to "자동 백업 폴더 확인",
     "data.autoBackup.setupDesc" to "폴더를 선택하면 매일 자동 백업이 켜지며 끌 수도 있습니다. 건너뛴 뒤에도 사용 가능한 경로가 없으면 다음 실행 시 다시 안내합니다.",
     "data.autoBackup.setupSkip" to "건너뛰기",

@@ -11,6 +11,7 @@ import com.zsz.studyassistant.MainActivity
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -20,6 +21,16 @@ class UiSmokeTest {
     private val instrumentation=InstrumentationRegistry.getInstrumentation()
     private val context get()=instrumentation.targetContext
     private val s get()=stringsFor(UiLang.EN)
+    @Before fun initializeSyntheticUiState() {
+        check(context.packageName == "com.zsz.studyassistant.integration")
+        // adb install -r retains this isolated package's synthetic setup from earlier runs.
+        // Never read credentials or rely on another test to leave the no-key startup state.
+        com.zsz.studyassistant.data.ApiKeyStore.saveKey(context, "")
+        UiLangStore.save(context, UiLang.EN)
+        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit()
+            .putBoolean("notify_enabled", false)
+            .putBoolean("backup_failure_permission_asked", true).commit()
+    }
     private fun find(node: AccessibilityNodeInfo?, text: String): AccessibilityNodeInfo? {
         if(node==null) return null
         if(node.text?.toString()==text || node.contentDescription?.toString()==text) return node
@@ -90,19 +101,129 @@ class UiSmokeTest {
         // These journeys cover navigation, independently of the upgrade-prompt policy tests.
         context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit()
             .putInt("data_upgrade_seen_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION)
-            .putInt("data_upgrade_prompted_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION).commit()
+            .putInt("data_upgrade_prompted_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION)
+            // Individual backup tests may reset preferences after @Before; suppress unrelated
+            // system permission prompts again without changing their folder/job fixtures.
+            .putBoolean("notify_enabled", false)
+            .putBoolean("backup_failure_permission_asked", true).commit()
         val scenario=ActivityScenario.launch<MainActivity>(android.content.Intent(context, MainActivity::class.java)
             .putExtra(AppNav.OPEN_BACKUP_EXTRA, openBackup)
             .putExtra(AppNav.OPEN_UPDATE_EXTRA, openUpdate))
-        val deadline=android.os.SystemClock.uptimeMillis()+8000
-        while(android.os.SystemClock.uptimeMillis()<deadline) {
-            val root=instrumentation.uiAutomation.rootInActiveWindow
-            if(find(root,"Later")!=null) { tap("Later");break }
-            if(find(root,"Settings")!=null) break
-            Thread.sleep(80)
+        try {
+            when {
+                openUpdate -> waitFor(s["update.current"])
+                openBackup -> waitFor(s["data.manualBackup"])
+                else -> {
+                    // The bottom bar can appear before Home's asynchronous key dialog.
+                    waitFor(s["home.key.later"])
+                    tap(s["home.key.later"])
+                    waitUntilAbsent(s["home.key.title"])
+                    waitFor(s["home.camera"])
+                }
+            }
+            return scenario
+        } catch (failure: Throwable) {
+            scenario.close()
+            throw failure
         }
-        return scenario
     }
+    @Test fun notificationPendingIntentsStayIndependentInBothCreationOrders() {
+        check(context.packageName == "com.zsz.studyassistant.integration")
+        UiLangStore.save(context, UiLang.EN)
+        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit()
+            .putInt("data_upgrade_seen_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION)
+            .putInt("data_upgrade_prompted_schema", com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION).commit()
+        val entries = com.zsz.studyassistant.data.NotificationIntents
+        for (reviewFirst in listOf(false, true)) {
+            var answer: android.app.PendingIntent? = null
+            var review: android.app.PendingIntent? = null
+            var alarm: android.app.PendingIntent? = null
+            try {
+                // These are real system PendingIntent tokens, using the production factories.
+                if (reviewFirst) {
+                    review = entries.reviewReminder(context)
+                    alarm = entries.alarmClock(context)
+                    answer = entries.answerRunning(context)
+                } else {
+                    answer = entries.answerRunning(context)
+                    alarm = entries.alarmClock(context)
+                    review = entries.reviewReminder(context)
+                }
+                val answerIntent = requireNotNull(answer)
+                val reviewIntent = requireNotNull(review)
+                val alarmIntent = requireNotNull(alarm)
+                assertNotEquals(answer, review)
+                assertNotEquals(answer, alarm)
+                assertNotEquals(review, alarm)
+                assertEquals(answer, entries.answerRunning(context))
+                assertEquals(review, entries.reviewReminder(context))
+                assertEquals(alarm, entries.alarmClock(context))
+                // ActivityScenario filters lifecycle events by its original intent action.
+                // MainActivity replaces its intent on delivery, so match the final real entry
+                // before recreate/close; intermediate sends still assert their delivered actions.
+                val launchIntent = android.content.Intent(context, MainActivity::class.java)
+                    .setAction("${context.packageName}.notification.ALARM_CLOCK")
+                ActivityScenario.launch<MainActivity>(launchIntent).use { scenario ->
+                    fun sendAndWait(pending: android.app.PendingIntent, action: String) {
+                        pending.send()
+                        var delivered = false
+                        val deadline = android.os.SystemClock.uptimeMillis() + 8000
+                        while (!delivered && android.os.SystemClock.uptimeMillis() < deadline) {
+                            scenario.onActivity { delivered = it.intent.action == "${context.packageName}.notification.$action" }
+                            if (!delivered) Thread.sleep(80)
+                        }
+                        assertTrue("PendingIntent was not delivered: $action", delivered)
+                        instrumentation.waitForIdleSync()
+                    }
+                    waitFor(s["home.key.later"])
+                    tap(s["home.key.later"])
+                    waitUntilAbsent(s["home.key.title"])
+                    waitFor(s["home.camera"])
+                    tap(s["home.ask"])
+                    waitFor(s["ask.pageTitle"])
+                    val original = java.util.concurrent.atomic.AtomicReference<MainActivity>()
+                    scenario.onActivity { original.set(it) }
+                    // Sending the actual notification contentIntent exercises the same OS delivery
+                    // as a tap, without granting notifications or driving the system shade.
+                    sendAndWait(answerIntent, "ANSWER_RUNNING")
+                    waitFor(s["ask.pageTitle"])
+                    waitUntilAbsent(s["review.tab.today"])
+                    scenario.onActivity { assertSame(original.get(), it) }
+                    sendAndWait(reviewIntent, "REVIEW_REMINDER")
+                    waitFor(s["review.tab.today"])
+                    scenario.onActivity { activity ->
+                        assertSame(original.get(), activity)
+                        assertFalse(activity.intent.hasExtra(AppNav.OPEN_REVIEW_EXTRA))
+                        activity.onBackPressedDispatcher.onBackPressed()
+                    }
+                    waitFor(s["home.key.later"])
+                    tap(s["home.key.later"])
+                    waitFor(s["home.camera"])
+                    waitUntilAbsent(s["review.tab.today"])
+                    // Recreating the alarm-clock entry must not turn an answer tap into a review.
+                    entries.alarmClock(context)
+                    sendAndWait(answerIntent, "ANSWER_RUNNING")
+                    waitFor(s["home.camera"])
+                    waitUntilAbsent(s["review.tab.today"])
+                    sendAndWait(alarmIntent, "ALARM_CLOCK")
+                    waitFor(s["home.camera"])
+                    waitUntilAbsent(s["review.tab.today"])
+                    scenario.onActivity { activity ->
+                        assertSame(original.get(), activity)
+                        assertEquals(androidx.lifecycle.Lifecycle.State.RESUMED, activity.lifecycle.currentState)
+                    }
+                    scenario.recreate()
+                    waitFor(s["home.key.later"])
+                    tap(s["home.key.later"])
+                    waitFor(s["home.camera"])
+                    waitUntilAbsent(s["review.tab.today"])
+                }
+            } finally {
+                answer?.cancel(); review?.cancel(); alarm?.cancel()
+            }
+        }
+    }
+
     @Test fun updatePageRestoresWaitingAndCompletedTasksAfterLeaving() = kotlinx.coroutines.runBlocking {
         val backend = com.zsz.studyassistant.data.UpdateDownloadsIntegrationTest.FakeTransfers()
         val release = com.zsz.studyassistant.data.UpdateChecker.ReleaseInfo("v9.0", "9.0", "synthetic", "fixture.apk",

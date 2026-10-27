@@ -2,7 +2,6 @@ package com.zsz.studyassistant.data
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -10,7 +9,6 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.zsz.studyassistant.MainActivity
 
 /**
  * 生成答案期间的前台服务：让进程保持前台优先级，切到后台也不被系统冻结，
@@ -28,15 +26,7 @@ class AnswerForegroundService : Service() {
                 NotificationChannel(CHANNEL_ID, s["notif.answer.channel"], NotificationManager.IMPORTANCE_LOW)
             )
         }
-        val contentIntent = PendingIntent.getActivity(
-            this, 0,
-            // ★ CLEAR_TOP + SINGLE_TOP：复用已有的 MainActivity 实例并把任务带到前台，
-            //   这样"生成中点头通知"会回到原来的解题页，而不是新建实例、跳回主页
-            Intent(this, MainActivity::class.java).addFlags(
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            ),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val contentIntent = NotificationIntents.answerRunning(this)
         val n = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Study Assistant")
