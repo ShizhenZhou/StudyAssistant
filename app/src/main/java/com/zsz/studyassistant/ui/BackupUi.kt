@@ -15,11 +15,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import com.zsz.studyassistant.data.AutoBackup
 
 /** Logical SAF path, not a guessed filesystem location for cloud providers. */
-internal fun backupFolderLabel(documentId: String?, displayName: String?): String? {
+internal fun backupFolderLabel(documentId: String?, displayName: String?, internalStorage: String): String? {
     val volume = documentId?.substringBefore(':', "")
     return if (!volume.isNullOrEmpty() && documentId.contains(':') &&
         (volume == "primary" || volume.matches(Regex("[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}")))) {
-        volume + ":/" + documentId.substringAfter(':').trimStart('/')
+        (if (volume == "primary") "$internalStorage/" else "$volume:/") + documentId.substringAfter(':').trimStart('/')
     } else displayName ?: documentId
 }
 

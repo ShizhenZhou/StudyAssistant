@@ -1030,19 +1030,20 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         }
     }
     val autoWriting = requesting || !status.canRequestNow
-    LaunchedEffect(context, refresh, vm.dataBusy, vm.preparedExport == null) {
+    val internalStorage = s["data.autoBackup.internalStorage"]
+    LaunchedEffect(context, refresh, vm.dataBusy, vm.preparedExport == null, internalStorage) {
         if (vm.dataBusy || vm.preparedExport != null) return@LaunchedEffect
         val tree = AutoBackup.treeUri(context)
         val operation = kotlinx.coroutines.currentCoroutineContext()
         val documentId = tree?.let { runCatching { android.provider.DocumentsContract.getTreeDocumentId(it) }.getOrNull() }
         // The displayed path follows the actual selection even when the inventory is unreadable.
-        autoFolder = backupFolderLabel(documentId, null)
+        autoFolder = backupFolderLabel(documentId, null, internalStorage)
         folderSummary = null
         autoLast = 0L
         folderReadFailed = false
         try {
             val label = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                backupFolderLabel(documentId, AutoBackup.folderName(context))
+                backupFolderLabel(documentId, AutoBackup.folderName(context), internalStorage)
             }
             if (AutoBackup.treeUri(context) == tree) autoFolder = label
             val summary = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

@@ -1,6 +1,7 @@
 package com.zsz.studyassistant.ui
 
 private val B14_ZH = mapOf(
+    "data.autoBackup.internalStorage" to "内部存储",
     "data.manualBackup" to "✋ 手动备份",
     "data.export" to "导出到指定位置",
     "data.autoBackup.info" to "ⓘ 自动备份说明",
@@ -49,6 +50,7 @@ private val B14_ZH = mapOf(
     "data.autoBackup.count" to "手动备份：{manual} 套 · 自动备份：{automatic} 套"
 )
 private val B14_EN = mapOf(
+    "data.autoBackup.internalStorage" to "Internal storage",
     "data.manualBackup" to "✋ Manual backup",
     "data.export" to "Export to a chosen location",
     "data.autoBackup.info" to "ⓘ About automatic backup",
@@ -97,6 +99,7 @@ private val B14_EN = mapOf(
     "data.autoBackup.count" to "Manual: {manual} sets · Automatic: {automatic} sets"
 )
 private val B14_JA = mapOf(
+    "data.autoBackup.internalStorage" to "内部ストレージ",
     "data.manualBackup" to "✋ 手動バックアップ",
     "data.export" to "保存先を選んで書き出す",
     "data.autoBackup.info" to "ⓘ 自動バックアップについて",
@@ -145,6 +148,7 @@ private val B14_JA = mapOf(
     "data.autoBackup.count" to "手動：{manual} セット · 自動：{automatic} セット"
 )
 private val B14_KO = mapOf(
+    "data.autoBackup.internalStorage" to "내부 저장소",
     "data.manualBackup" to "✋ 수동 백업",
     "data.export" to "위치를 선택하여 내보내기",
     "data.autoBackup.info" to "ⓘ 자동 백업 안내",

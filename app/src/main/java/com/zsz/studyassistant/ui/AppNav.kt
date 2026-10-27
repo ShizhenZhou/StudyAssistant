@@ -103,11 +103,14 @@ object AppNav {
         nav.navigate(REVIEW) { launchSingleTop = true }
     }
 
-    /** 底部页签：回三大主页（清栈，保证"从任何深度点页签都回到那一页"） */
+    /** 底部页签始终重建目标主页，丢弃已离开页签的子页状态；配置重建仍由各页保存状态。 */
     fun switchTab(nav: NavHostController, route: String) {
         nav.navigate(route) {
-            popUpTo(HOME) { inclusive = true }
+            // HOME itself may already have been removed by a previous tab switch.
+            // The graph remains present, so this also removes any old Settings entry and its saved child.
+            popUpTo(nav.graph.id) { inclusive = false; saveState = false }
             launchSingleTop = true
+            restoreState = false
         }
     }
 

@@ -6,6 +6,7 @@ package com.zsz.studyassistant.ui
  */
 internal val CHANGELOG_ZH: String = """
 v0.6.7.2
+· 📁 内部存储路径使用本地化名称；切换底栏后再进入设置回到主页，旋转屏幕仍保留当前子页
 · 💬 气泡文字居中并按内容收缩；自动备份失败使用简短红字和蓝色“查看详情”，可直达备份管理
 · ✋ 精简手动备份和导入说明，导出到指定位置时默认打开自动备份文件夹，仍可更改
 · 📂 备份路径单行显示，超长从左侧省略；备份数量与时间分行，自动备份说明点击展开
@@ -448,6 +449,7 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.6.7.2
+· 📁 Localize the internal-storage path label; returning to Settings after a tab switch opens its main page, while rotation keeps the current child
 · 💬 Center feedback text in content-sized bubbles; automatic backup failures show a short message with a blue details link to Backup management
 · ✋ Simplify manual backup and import text; export initially opens the automatic backup folder while allowing another location
 · 📂 Show the folder on one line with leading truncation; separate counts and time, and expand automatic backup notes on demand
@@ -890,6 +892,7 @@ v0.1 (project start)
 
 internal val CHANGELOG_JA: String = """
 v0.6.7.2
+· 📁 内部ストレージ名を翻訳し、タブを切り替えて設定に戻るとホームを表示。画面回転では現在の子ページを維持
 · 💬 気泡を内容に合わせて中央揃えにし、自動バックアップ失敗は短い赤字と青い詳細リンクでバックアップ管理へ移動
 · ✋ 手動バックアップと読み込みの説明を簡潔にし、書き出し先は自動バックアップのフォルダを初期表示（変更可能）
 · 📂 フォルダは1行で左側を省略し、件数と日時を改行。自動バックアップの説明はタップで展開
@@ -1332,6 +1335,7 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.6.7.2
+· 📁 내부 저장소 이름을 번역하고 탭 전환 후 설정으로 돌아오면 홈을 엽니다. 화면 회전 시 현재 하위 페이지는 유지합니다
 · 💬 메시지를 가운데 정렬하고 내용에 맞게 축소합니다. 자동 백업 실패는 짧은 빨간 문구와 백업 관리로 가는 파란 상세 링크로 표시합니다
 · ✋ 수동 백업·가져오기 설명을 줄이고 내보내기 위치는 자동 백업 폴더를 기본으로 열며 변경할 수 있습니다
 · 📂 폴더 경로는 한 줄로 왼쪽을 줄이고 개수와 시간을 나눕니다. 자동 백업 안내는 눌러 펼칩니다

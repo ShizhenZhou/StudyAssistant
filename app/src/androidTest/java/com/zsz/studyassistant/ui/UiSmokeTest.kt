@@ -101,6 +101,30 @@ class UiSmokeTest {
         }
         return scenario
     }
+    @Test fun leavingSettingsThroughEitherBottomTabClearsItsInternalPage() {
+        launch().use { scenario ->
+            tap(s["nav.settings"])
+            waitFor(s["settings.aiManage"])
+            for (tab in listOf("nav.learn", "nav.stats", "nav.learn")) {
+                tap(s["settings.aiManage"])
+                tap(s["settings.customPrompt"])
+                // Rotation is not a tab switch: retain the user's current child page.
+                scenario.recreate()
+                waitFor(s["settings.customPrompt"])
+                tap(s[tab])
+                if (tab == "nav.learn") {
+                    // The synthetic package has no API key; each new Home opens its setup dialog.
+                    waitFor(s["home.key.later"])
+                    tap(s["home.key.later"])
+                    waitFor(s["home.camera"])
+                } else waitFor(s["stats.title"])
+                tap(s["nav.settings"])
+                waitFor(s["settings.aiManage"])
+                waitUntilAbsent(s["settings.customPrompt"])
+            }
+        }
+    }
+
     @Test fun settingsChildrenReturnToTheirOwnParents() {
         launch().use { scenario ->
             tap("Settings")
