@@ -10,6 +10,7 @@ v0.6.7.6
 · 🧠 分类请求绑定当前会话；同类题追问保留标准解答和历史附图，当前问题只发送一次
 · 📂 区分目录失效与临时不可访问，保留自动备份开启意图，恢复后按原规则继续
 · 🔔 隔离复习提醒与答案生成通知的跳转；缓存安装包摘要，减少更新页重复读取
+· 🎨 更新下载通知的进度条随应用主题配色，胶囊保留独立百分比显示
 
 v0.6.7.5
 · 📂 首次填写 Key 后引导选择自动备份路径；未配置或路径失效时再次提醒，可跳过；选好自动开启每日备份，无有效路径时开关关闭并置灰
@@ -473,6 +474,7 @@ v0.6.7.6
 · 🧠 Classification is bound to its session; similar-problem follow-ups retain the standard answer and earlier images, sending the current question once
 · 📂 Distinguish invalid folders from temporary access failures, preserving automatic backup preferences for recovery
 · 🔔 Separate review and answer notification destinations; cache the installed APK digest to avoid repeated update-page reads
+· 🎨 Update-download notification progress bars follow the app theme; the capsule keeps a separate percentage
 
 v0.6.7.5
 · 📂 Guide backup folder setup after the first Key entry; remind when missing or unavailable, with a skip option. A selected folder enables daily backups; otherwise the switch stays off and disabled
@@ -936,6 +938,7 @@ v0.6.7.6
 · 🧠 分類要求を会話に紐付け。同類問題の追加質問には標準解答と過去の添付画像を保持し、現在の質問は一度だけ送信
 · 📂 無効な保存先と一時的なアクセス不能を区別し、自動バックアップ設定を保持して復旧後に再開
 · 🔔 復習通知と解答生成通知の遷移を分離。インストール済みAPKの要約値をキャッシュし、更新画面の反復読込を削減
+· 🎨 更新ダウンロード通知の進捗バーをアプリのテーマ色に統一。カプセルは進捗率のみ表示
 
 v0.6.7.5
 · 📂 初回のキー入力後に保存先を案内。未設定・無効な場合は再案内し、スキップも可能。選択後は毎日バックアップを有効化し、有効な保存先がなければスイッチを無効化
@@ -1399,6 +1402,7 @@ v0.6.7.6
 · 🧠 분류 요청을 현재 대화에 연결; 유사 문제 추가 질문에 표준 해설과 이전 이미지를 유지하고 현재 질문은 한 번만 전송
 · 📂 무효한 폴더와 일시적인 접근 실패를 구분해 자동 백업 설정을 유지하고 복구 후 기존 규칙대로 재개
 · 🔔 복습 알림과 답변 생성 알림의 이동 경로 분리; 설치 APK 해시를 캐시해 업데이트 화면의 반복 읽기 감소
+· 🎨 업데이트 다운로드 알림 진행 표시줄에 앱 테마 색상 적용; 캡슐은 진행률만 표시
 
 v0.6.7.5
 · 📂 첫 Key 입력 후 백업 폴더 설정 안내. 미설정·유효하지 않은 경로는 다시 안내하며 건너뛰기 가능. 선택하면 매일 백업을 켜고 유효한 경로가 없으면 스위치를 끄고 비활성화
