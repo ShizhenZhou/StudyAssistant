@@ -45,6 +45,50 @@ class UpdateDownloadNotificationsIntegrationTest {
             UpdateDownloadNotifications.clear(context)
         }
     }
+    @Test fun runningServicePublishesChangingProgressAfterPageLeaves() = kotlinx.coroutines.runBlocking {
+        if (android.os.Build.VERSION.SDK_INT >= 33) androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
+        val backend = UpdateDownloadsIntegrationTest.FakeTransfers()
+        val downloads = UpdateDownloads(context, backend)
+        val original = UpdateDownloadMonitor.downloadsFactory
+        var request: UpdateDownloadMonitor.Request? = null
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        val hold = androidx.test.platform.app.InstrumentationRegistry.getArguments()
+            .getString("notificationProbeHoldMs")?.toLongOrNull()?.coerceIn(0, 10_000) ?: 0
+        suspend fun awaitProgress(percent: Int) {
+            kotlinx.coroutines.withTimeout(6000) {
+                while (manager.activeNotifications.none { it.id == UpdateDownloadNotifications.NOTIFICATION_ID &&
+                    it.notification.extras.getInt(Notification.EXTRA_PROGRESS, -1) == percent &&
+                    NotificationCompat.getShortCriticalText(it.notification) == "$percent%" }) kotlinx.coroutines.delay(100)
+            }
+            if (hold > 0) kotlinx.coroutines.delay(hold)
+        }
+        try {
+            downloads.cancel()
+            UpdateDownloadMonitor.downloadsFactory = { downloads }
+            androidx.test.core.app.ActivityScenario.launch<com.zsz.studyassistant.MainActivity>(
+                android.content.Intent(context, com.zsz.studyassistant.MainActivity::class.java)).use { scenario ->
+                scenario.onActivity { request = UpdateDownloadMonitor.request(it) }
+                assertNotNull(request)
+                assertTrue(kotlinx.coroutines.withTimeout(4000) { request!!.ready.await() })
+                val started = downloads.start(rel, appNotification = true)
+                backend.current = backend.current!!.copy(bytes = 1, total = 100)
+                request!!.bound(started)
+                awaitProgress(1)
+                backend.current = backend.current!!.copy(bytes = 37)
+                awaitProgress(37)
+                scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+                backend.current = backend.current!!.copy(bytes = 82)
+                awaitProgress(82)
+            }
+        } finally {
+            request?.aborted()
+            context.stopService(android.content.Intent(context, UpdateDownloadMonitor::class.java))
+            UpdateDownloadNotifications.clear(context)
+            UpdateDownloadMonitor.downloadsFactory = original
+            downloads.cancel()
+        }
+    }
     @Test fun activeNotificationShowsActualProgressAndRequestsOptionalPromotion() {
         val note = UpdateDownloadNotifications.build(context, task(UpdateDownloads.Phase.DOWNLOADING))
         assertTrue(note.flags and Notification.FLAG_ONGOING_EVENT != 0)

@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.zsz.studyassistant.MainActivity
+import com.zsz.studyassistant.R
 import com.zsz.studyassistant.ui.AppNav
 import com.zsz.studyassistant.ui.UiLangStore
 import com.zsz.studyassistant.ui.stringsFor
@@ -65,8 +66,11 @@ internal object UpdateDownloadNotifications {
         val open = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(AppNav.OPEN_UPDATE_EXTRA, true)
+        val appearance = UpdateDownloadIcon.appearance(context)
         val note = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setSmallIcon(R.drawable.ic_stat_update_download)
+            .setLargeIcon(appearance.bitmap)
+            .setColor(appearance.accent)
             .setContentTitle(title).setContentText(text)
             .setContentIntent(PendingIntent.getActivity(context, NOTIFICATION_ID, open,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))

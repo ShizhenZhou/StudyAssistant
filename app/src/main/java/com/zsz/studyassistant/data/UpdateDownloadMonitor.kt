@@ -51,7 +51,7 @@ class UpdateDownloadMonitor : Service() {
             lease?.ready?.complete(false); stopSelf(startId); return START_NOT_STICKY
         }
         if (observer?.isActive != true) observer = scope.launch {
-            val downloads = UpdateDownloads(applicationContext)
+            val downloads = downloadsFactory(applicationContext)
             while (isActive) {
                 try {
                 val current = latestRequest
@@ -105,6 +105,7 @@ class UpdateDownloadMonitor : Service() {
         super.onDestroy()
     }
     companion object {
+        internal var downloadsFactory: (Context) -> UpdateDownloads = { UpdateDownloads(it) }
         @Volatile private var latestRequest: Request? = null
         @Volatile private var running = false
         private var lastRestoreAttempt = 0L
