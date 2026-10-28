@@ -91,6 +91,22 @@ class ReleaseTest(unittest.TestCase):
         with patch.object(release,"command",side_effect=AssertionError("No process should run")):
             self.assertEqual(tool.start("9.9.9")["runId"],123)
             self.assertEqual(tool.start("9.9.9")["runId"],123)
+    def test_release_requires_both_android_api_suites_to_succeed(self):
+        class SourceReached(Exception): pass
+        run = dict(event="workflow_dispatch", head_branch="main", conclusion="success", display_title="release: fixture", head_sha="a"*40)
+        good = [dict(name=f"Android emulator tests (API {api})", conclusion="success") for api in (35, 36)]
+        for jobs, accepted in [(good, True), (good[:1], False), (good[1:], False),
+                ([good[0], dict(good[1], conclusion="failure")], False),
+                ([dict(name="Android emulator tests", conclusion="success")], False)]:
+            class FakeGitHub:
+                def api(self, path):
+                    return {"jobs": jobs} if path.endswith("/jobs") else run
+            tool = release.Release(self.root, FakeGitHub())
+            def reached(commit): raise SourceReached()
+            tool.assert_source = reached
+            with self.assertRaises(SourceReached if accepted else release.ReleaseError):
+                tool.verify(123)
+
     def test_identity_and_debug_candidates_are_rejected(self):
         good="package: name='com.zsz.studyassistant' versionCode='99' versionName='9.9.9'\nsdkVersion:'28'\ntargetSdkVersion:'37'"
         self.assertEqual(apk_identity(good)["versionCode"],99)

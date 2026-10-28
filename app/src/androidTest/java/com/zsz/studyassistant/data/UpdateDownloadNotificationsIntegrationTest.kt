@@ -101,6 +101,27 @@ class UpdateDownloadNotificationsIntegrationTest {
         assertEquals(1, note.actions.size)
         assertEquals(stringsFor(UiLangStore.load(context))["update.cancelDownload"], note.actions[0].title.toString())
     }
+    @Test fun progressTemplateMatchesSystemAndKeepsUnknownTotalsIndeterminate() {
+        for (percent in listOf(-1, 0, 37, 82, 100)) {
+            val note = UpdateDownloadNotifications.build(context, task(UpdateDownloads.Phase.DOWNLOADING).copy(progress = percent))
+            val style = NotificationCompat.Style.extractStyleFromNotification(note)
+            if (android.os.Build.VERSION.SDK_INT >= 36) {
+                assertTrue(style is NotificationCompat.ProgressStyle)
+                val progress = style as NotificationCompat.ProgressStyle
+                assertEquals(percent < 0, progress.isProgressIndeterminate)
+                assertEquals(100, progress.progressMax)
+                if (percent >= 0) assertEquals(percent, progress.progress)
+                assertEquals(note.color, progress.progressSegments.single().color)
+                assertEquals("android.app.Notification$" + "ProgressStyle", note.extras.getString(Notification.EXTRA_TEMPLATE))
+            } else {
+                assertNull(style)
+                assertEquals(100, note.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
+                assertEquals(percent.coerceAtLeast(0), note.extras.getInt(Notification.EXTRA_PROGRESS))
+                assertEquals(percent < 0, note.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE))
+            }
+            assertEquals(if (percent >= 0) "$percent%" else null, NotificationCompat.getShortCriticalText(note))
+        }
+    }
     @Test fun waitingKeepsProgressWithoutClaimingActiveCapsule() {
         val note = UpdateDownloadNotifications.build(context, task(UpdateDownloads.Phase.WAITING))
         assertTrue(note.flags and Notification.FLAG_ONGOING_EVENT != 0)
@@ -114,6 +135,7 @@ class UpdateDownloadNotificationsIntegrationTest {
             assertTrue(note.flags and Notification.FLAG_AUTO_CANCEL != 0)
             assertFalse(NotificationCompat.isRequestPromotedOngoing(note))
             assertTrue(note.actions.isNullOrEmpty())
+            assertNull(NotificationCompat.Style.extractStyleFromNotification(note))
             assertNotNull(note.contentIntent)
         }
     }

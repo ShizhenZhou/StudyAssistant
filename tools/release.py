@@ -165,7 +165,8 @@ class Release:
         if run["event"] != "workflow_dispatch" or run["head_branch"] != "main" or run["conclusion"] != "success" or not run.get("display_title", "").startswith("release:"):
             raise ReleaseError("A successful main release-candidate run is required.")
         jobs = self.github.api(f"actions/runs/{run_id}/jobs")["jobs"]
-        if not jobs or any(j["conclusion"] != "success" for j in jobs) or not any(j["name"] == "Android emulator tests" for j in jobs):
+        required_android = {"Android emulator tests (API 35)", "Android emulator tests (API 36)"}
+        if not jobs or any(j["conclusion"] != "success" for j in jobs) or not required_android.issubset({j["name"] for j in jobs}):
             raise ReleaseError("The full test workflow, including Android, must succeed.")
         commit = run["head_sha"]
         self.assert_source(commit)

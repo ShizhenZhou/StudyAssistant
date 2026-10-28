@@ -10,7 +10,7 @@
 ## 唯一CI工作流
 
 - Develop push / main PR 自动 mode=check：全量JVM、工具回归、SQLite校验；不编译设备测试包或正式包。
-- 手动 mode=device：上述检查加独立测试包和Android35模拟器运行。
+- 手动 mode=device：上述检查加独立测试包，在 Android 35、36 模拟器并行运行同一套测试，分别覆盖旧通知回退与进度型通知；不重复编译测试包。
 - 手动 mode=release：上述完整检查与模拟器，加一次R8 release编译；产物是未签名候选APK及公开清单，不读取本机凭据或GitHub签名Secrets。
 - main push / tag不重复触发CI。正式候选只允许main，可提供expected_sha防止触发时源码漂移。发布准备提交使用[skip ci]避免Develop重复检查。
 - 候选包附件仅允许*-candidate.apk与release-manifest.json；清单含提交、版本、UTC时间、摘要、代码资源摘要、公开证书指纹与测试数量，不含本机路径或凭据。

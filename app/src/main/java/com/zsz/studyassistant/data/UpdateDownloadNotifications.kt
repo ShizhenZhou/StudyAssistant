@@ -82,9 +82,10 @@ internal object UpdateDownloadNotifications {
         val open = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(AppNav.OPEN_UPDATE_EXTRA, true)
+        val color = accentColor(context)
         val note = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setColor(accentColor(context))
+            .setColor(color)
             .setContentTitle(title).setContentText(text)
             .setContentIntent(PendingIntent.getActivity(context, NOTIFICATION_ID, open,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
@@ -95,7 +96,16 @@ internal object UpdateDownloadNotifications {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setRequestPromotedOngoing(promote)
             .setShortCriticalText(if (promote && percent >= 0) "$percent%" else null)
-        if (ongoing) note.setProgress(100, percent.coerceAtLeast(0), percent < 0)
+        if (ongoing) {
+            if (Build.VERSION.SDK_INT >= 36) {
+                note.setStyle(NotificationCompat.ProgressStyle()
+                    .addProgressSegment(NotificationCompat.ProgressStyle.Segment(100).setColor(color))
+                    .setProgress(percent.coerceAtLeast(0))
+                    .setProgressIndeterminate(percent < 0))
+            } else {
+                note.setProgress(100, percent.coerceAtLeast(0), percent < 0)
+            }
+        }
         if (ongoing && task != null) {
             val cancel = Intent(context, UpdateDownloadActionReceiver::class.java)
                 .setAction(CANCEL_ACTION).setData(Uri.parse("studyassistant-update-cancel:${task.token}"))
