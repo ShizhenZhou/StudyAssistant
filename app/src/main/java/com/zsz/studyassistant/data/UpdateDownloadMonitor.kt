@@ -45,6 +45,7 @@ class UpdateDownloadMonitor : Service() {
             if (!UpdateDownloadNotifications.canPost(this)) {
                 lease?.ready?.complete(false); stopSelf(startId); return START_NOT_STICKY
             }
+            UpdateDownloadNotifications.clearTerminal(this)
             startForeground(UpdateDownloadNotifications.NOTIFICATION_ID, UpdateDownloadNotifications.build(this, null))
             running = true
             lease?.ready?.complete(true)
@@ -98,8 +99,8 @@ class UpdateDownloadMonitor : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 UpdateDownloadNotifications.clear(this)
             } else {
-                stopForeground(STOP_FOREGROUND_DETACH)
-                UpdateDownloadNotifications.post(this, note)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                UpdateDownloadNotifications.postTerminal(this, note)
             }
         } finally { stopSelf() }
     }

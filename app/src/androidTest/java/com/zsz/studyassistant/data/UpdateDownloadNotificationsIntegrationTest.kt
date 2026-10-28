@@ -182,7 +182,7 @@ class UpdateDownloadNotificationsIntegrationTest {
         suspend fun <T> awaitStage(name: String, block: suspend () -> T): T = try {
             kotlinx.coroutines.withTimeout(8000) { block() }
         } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
-            val notices = manager.activeNotifications.filter { it.id == UpdateDownloadNotifications.NOTIFICATION_ID }
+            val notices = manager.activeNotifications.filter { it.id in setOf(UpdateDownloadNotifications.NOTIFICATION_ID, UpdateDownloadNotifications.TERMINAL_ID) }
                 .map { "flags=${it.notification.flags}, progress=${it.notification.extras.getInt(Notification.EXTRA_PROGRESS, -1)}, short=${NotificationCompat.getShortCriticalText(it.notification)}" }
             throw AssertionError("Completion stage $name timed out; notices=$notices", error)
         }
@@ -190,9 +190,10 @@ class UpdateDownloadNotificationsIntegrationTest {
             var result: Notification? = null
             while (result == null) {
                 result = manager.activeNotifications.firstOrNull {
-                    it.id == UpdateDownloadNotifications.NOTIFICATION_ID &&
+                    it.id == (if (ongoing) UpdateDownloadNotifications.NOTIFICATION_ID else UpdateDownloadNotifications.TERMINAL_ID) &&
                         NotificationCompat.getShortCriticalText(it.notification) == done &&
-                        (it.notification.flags and Notification.FLAG_ONGOING_EVENT != 0) == ongoing
+                        (it.notification.flags and Notification.FLAG_ONGOING_EVENT != 0) == ongoing &&
+                        (ongoing || manager.activeNotifications.none { old -> old.id == UpdateDownloadNotifications.NOTIFICATION_ID })
                 }?.notification
                 if (result == null) kotlinx.coroutines.delay(50)
             }
@@ -225,6 +226,12 @@ class UpdateDownloadNotificationsIntegrationTest {
                 assertEquals(0, settled.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
                 assertFalse(settled.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE))
                 assertNotNull(settled.contentIntent)
+                // A new request removes the preceding ordinary completion notice.
+                scenario.onActivity { request = UpdateDownloadMonitor.request(it) }
+                assertTrue(kotlinx.coroutines.withTimeout(4000) { request!!.ready.await() })
+                awaitStage("new request clears previous completion") {
+                    while (manager.activeNotifications.any { it.id == UpdateDownloadNotifications.TERMINAL_ID }) kotlinx.coroutines.delay(50)
+                }
             }
         } finally {
             request?.aborted()

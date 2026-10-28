@@ -28,6 +28,7 @@ import com.zsz.studyassistant.ui.stringsFor
 internal object UpdateDownloadNotifications {
     const val CHANNEL_ID = "update_download_progress"
     const val NOTIFICATION_ID = 2003
+    const val TERMINAL_ID = 2005
     const val CANCEL_ACTION = "com.zsz.studyassistant.CANCEL_UPDATE_DOWNLOAD"
     const val TOKEN_EXTRA = "update_task_token"
 
@@ -125,8 +126,17 @@ internal object UpdateDownloadNotifications {
     fun post(context: Context, note: Notification) {
         if (canPost(context)) runCatching { context.getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, note) }
     }
+    // Use a different identity from the FGS notification: its asynchronous removal must
+    // never restore ongoing flags on the final, dismissible completion notice.
+    fun postTerminal(context: Context, note: Notification) {
+        if (canPost(context)) runCatching { context.getSystemService(NotificationManager::class.java)?.notify(TERMINAL_ID, note) }
+    }
+    fun clearTerminal(context: Context) {
+        runCatching { context.getSystemService(NotificationManager::class.java)?.cancel(TERMINAL_ID) }
+    }
     fun clear(context: Context) {
         runCatching { context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID) }
+        clearTerminal(context)
     }
     fun openSettings(context: Context) {
         runCatching {
