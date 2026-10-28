@@ -267,6 +267,52 @@ class UiSmokeTest {
         } finally { releaseQuery.countDown(); backend.queryRelease=null; store.cancel() }
     }
 
+    @Test fun installedLegacyDownloadIsClearedWithoutCheckingOnline() = restoredUnknownCompatibility(true)
+
+    @Test fun futureLegacyDownloadStillRequiresCompatibilityCheck() = restoredUnknownCompatibility(false)
+
+    private fun restoredUnknownCompatibility(installed: Boolean) = kotlinx.coroutines.runBlocking {
+        val backend = com.zsz.studyassistant.data.UpdateDownloadsIntegrationTest.FakeTransfers()
+        val checker = com.zsz.studyassistant.data.UpdateChecker
+        val version = if (installed) checker.installedVersion(context) else "99.0.0"
+        val release = com.zsz.studyassistant.data.UpdateChecker.ReleaseInfo("v$version", version, "synthetic", "fixture.apk",
+            "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v$version/fixture.apk",
+            checker.installedApkSha256(context), 7, minSdk = 28)
+        val store = com.zsz.studyassistant.data.UpdateDownloads(context, backend)
+        val prefs = context.getSharedPreferences("update_download", android.content.Context.MODE_PRIVATE)
+        try {
+            store.cancel(); store.start(release)
+            // Old clients retain a download record with no compatibility metadata after installation.
+            val legacy = org.json.JSONObject(prefs.getString("session", null)!!).put("ready", true)
+            legacy.remove("minSdk")
+            prefs.edit().putString("session", legacy.toString()).commit()
+            assertEquals("update.compatibilityUnknown", store.snapshot()!!.errorKey)
+            // Mount the injected page directly: the normal update route uses the OS backend,
+            // which is deliberately unavailable to this no-network synthetic package.
+            ActivityScenario.launch<MainActivity>(android.content.Intent(context, MainActivity::class.java)).use { scenario ->
+                scenario.onActivity { activity -> activity.setContent {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalStrings provides s, LocalUiLang provides UiLang.EN) {
+                        androidx.compose.material3.MaterialTheme {
+                            androidx.compose.foundation.layout.Column { UpdatePage(store) }
+                        }
+                    }
+                } }
+                if (installed) {
+                    val deadline = android.os.SystemClock.uptimeMillis() + 8000
+                    while (prefs.contains("session") && android.os.SystemClock.uptimeMillis() < deadline) Thread.sleep(80)
+                    assertFalse("Installed legacy task must be forgotten without a network check", prefs.contains("session"))
+                    waitUntilAbsent(s["update.compatibilityUnknown"])
+                    assertNotNull(clickable(instrumentation.uiAutomation.rootInActiveWindow, s["update.check"]))
+                } else {
+                    waitFor(s["update.compatibilityUnknown"])
+                    assertTrue(prefs.contains("session"))
+                    assertNull(backend.current)
+                }
+                assertEquals(1, backend.enqueues)
+            }
+        } finally { store.cancel() }
+    }
+
     @Test fun leavingSettingsThroughEitherBottomTabClearsItsInternalPage() {
         launch().use { scenario ->
             tap(s["nav.settings"])

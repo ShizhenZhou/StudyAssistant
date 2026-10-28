@@ -10,6 +10,7 @@ v0.6.7.9
 · 💾 修复同题号删除后重新保存或从备份恢复时，后续答案和追问可能无法写回的问题。
 · 📦 发布自动生成最低系统版本与安装包摘要清单，避免依靠版本号或更新说明猜测兼容性。
 · 🔒 修复特殊字符导致对话显示中断的问题，更新公式组件以修补已知拒绝服务漏洞，并收紧对话页面访问权限。
+· ⬆️ 修复升级后进入更新页时，已安装版本的旧下载记录误报“无法确认系统要求”；新版本兼容拦截保持有效。
 · **这是 Android 9–15 版本的最后一次更新。**
 
 v0.6.7.8
@@ -493,6 +494,7 @@ v0.6.7.9
 · 💾 Fix answer and follow-up updates being blocked after a problem with the same ID is saved again or restored from backup following deletion.
 · 📦 Releases automatically include the minimum Android version and APK digest, without guessing compatibility from version numbers or release notes.
 · 🔒 Fix conversation rendering failures caused by special characters, update the math renderer to address a known denial-of-service vulnerability, and restrict page access permissions.
+· ⬆️ Fix an incorrect system-requirements warning caused by an already installed download record when reopening the update page after upgrading; keep compatibility checks for newer releases.
 · **This is the final update for Android 9–15.**
 
 v0.6.7.8
@@ -976,6 +978,7 @@ v0.6.7.9
 · 💾 削除後に同じ問題IDで再保存またはバックアップから復元した際、解答や追加質問の更新が保存されない問題を修正。
 · 📦 リリース時に最低AndroidバージョンとAPKのハッシュを自動生成し、バージョン番号や説明文による推測を不要に。
 · 🔒 特殊文字で会話表示が停止する問題を修正。数式描画の既知のサービス拒否脆弱性を修正し、ページのアクセス権限を制限。
+· ⬆️ 更新後に更新画面を開くと、インストール済みの古いダウンロード記録でシステム要件の警告が出る問題を修正。新バージョンの互換性確認は維持。
 · **Android 9～15 向けの更新は今回が最後です。**
 
 v0.6.7.8
@@ -1459,6 +1462,7 @@ v0.6.7.9
 · 💾 삭제한 문제를 동일한 ID로 다시 저장하거나 백업에서 복원한 후 답변과 후속 질문 변경이 저장되지 않는 문제를 수정했습니다.
 · 📦 배포 시 최소 Android 버전과 APK 해시를 자동 생성하여 버전 번호나 설명으로 호환성을 추측하지 않습니다.
 · 🔒 특수 문자로 대화 표시가 중단되는 문제를 수정하고, 수식 렌더러의 알려진 서비스 거부 취약점을 해결하며 페이지 접근 권한을 제한했습니다.
+· ⬆️ 업그레이드 후 업데이트 화면에서 이미 설치한 버전의 다운로드 기록 때문에 시스템 요구 사항 경고가 표시되는 문제를 수정했습니다. 새 버전의 호환성 검사는 유지됩니다.
 · **Android 9~15를 위한 마지막 업데이트입니다.**
 
 v0.6.7.8

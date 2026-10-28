@@ -181,8 +181,11 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
                         if (task == null) {
                             if (phase == Phase.RESTORING) phase = Phase.IDLE
                         } else {
-                            val alreadyInstalled = task.phase == UpdateDownloads.Phase.READY &&
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { !UpdateChecker.hasUpdate(context, task.release) }
+                            // Upgrading can turn a legacy installed task into FAILED because its
+                            // record predates compatibility metadata. Retire obsolete tasks in any phase.
+                            val alreadyInstalled = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                !UpdateChecker.hasUpdate(context, task.release)
+                            }
                             if (observingDownload && generation == operationGeneration) {
                                 if (alreadyInstalled) {
                                     downloads.cancel(task.token)
