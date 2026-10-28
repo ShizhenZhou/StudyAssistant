@@ -16,6 +16,243 @@ import release
 from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
 
 class ReleaseTest(unittest.TestCase):
+    def test_real_verify_replacement_keeps_original_baseline_across_remote_switch(self):
+        import shutil
+        from verification import digest
+        for failure in ('list releases','replacement marker network','delete 2','download 4','delete 1',None):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                root=Path(temporary); work=root/'.local-notes/release-state/artifacts/42';work.mkdir(parents=True)
+                old=self.apk('old.apk',code=b'old synthetic source')
+                new=self.apk('new.apk',code=b'new synthetic source')
+                old_plan=dict(schema=1,policy=1,commit='c'*40,base=None,changedFiles=[],devices=[],mode='release')
+                plan=dict(old_plan,commit='a'*40,base='c'*40)
+                old_manifest=dict(self.manifest(old),schema=2,commit='c'*40,planSha256=digest(old_plan))
+                manifest=dict(self.manifest(new),schema=2,planSha256=digest(plan))
+                def evidence(m,p,run):
+                    value=dict(schema=1,success=True,runId=run,attempt=1,plan=p,devices=[],build=dict(
+                        commit=m['commit'],runId=run,attempt=1,planSha256=digest(p),candidateSha256=m['candidateSha256'],jvm=m['jvm'],apks=None))
+                    out=io.BytesIO()
+                    with zipfile.ZipFile(out,'w') as archive:archive.writestr('verification.json',json.dumps(value))
+                    return out.getvalue()
+                old_meta=release.update_manifest(old,old_manifest,old_manifest)
+                old_meta['provenance']=dict(sourceCommit='c'*40,runId=43)
+                def asset(i,name,data):return dict(id=i,name=name,size=len(data),digest='sha256:'+release.hashlib.sha256(data).hexdigest())
+                class Fake:
+                    def __init__(self):
+                        self.data={1:old.read_bytes(),2:json.dumps(old_meta).encode()};self.failed=False;self.events=[];self.original_ci_success=True;self.tag_reads=0
+                        self.item=dict(id=7,tag_name='v9.9.9',draft=False,prerelease=False,html_url='https://example.invalid/release',
+                            assets=[asset(1,old.name,self.data[1]),asset(2,'update-manifest.json',self.data[2])])
+                    def boundary(self,event):
+                        self.events.append(event)
+                        if event==failure and not self.failed:self.failed=True;raise release.ReleaseError('synthetic interruption')
+                    def api(self,path,value=None,method=None,**kwargs):
+                        if path.startswith('git/ref/heads'):return {'object':{'sha':'a'*40}}
+                        if path.startswith('git/ref/tags'):
+                            self.tag_reads+=1
+                            if self.tag_reads==2:self.boundary('replacement marker network')
+                            return {'object':{'sha':'b'*40}}
+                        if path.startswith('commits/'):return {'sha':'b'*40}
+                        if path.startswith('actions/runs/'):
+                            run=int(path.split('/')[2]);m=manifest if run==42 else old_manifest
+                            if '/jobs?' in path:return {'jobs':[dict(id=i,name=n,conclusion='success') for i,n in enumerate(('build','Windows tool tests','Verification gate'))]}
+                            if '/artifacts?' in path:return {'artifacts':[dict(id=run*10+i,name=n,expired=False,archive_download_url=f'{run}-{kind}') for i,n,kind in ((1,'release-candidate','candidate'),(2,'verification-evidence','evidence'))]}
+                            return dict(id=run,head_sha=m['commit'],head_branch='main',event='workflow_dispatch',conclusion='success' if run==42 or self.original_ci_success else 'failure',display_title='release: fixture',path='.github/workflows/build.yml',run_attempt=1)
+                        if path.startswith('releases?'):self.boundary('list releases');return [self.item]
+                        if method=='DELETE':
+                            i=int(path.rsplit('/',1)[1]);self.item['assets']=[a for a in self.item['assets'] if a['id']!=i];self.boundary('delete '+str(i));return None
+                        if value:self.item.update(value)
+                        return self.item
+                    def call(self,*args):
+                        p=Path(args[3]);i=max(self.data)+1;self.data[i]=p.read_bytes()
+                        self.item['assets'].append(asset(i,p.name,self.data[i]));self.boundary('upload '+p.name)
+                    def download(self,path,**kwargs):
+                        if '/assets/' in path:
+                            i=int(path.split('/assets/')[1].split('?')[0]);self.boundary('download '+str(i))
+                            if not any(a['id']==i for a in self.item['assets']):raise release.ReleaseError('deleted artificial asset')
+                            for item in self.item['assets']:
+                                if item['id']==i:item['download_count']=item.get('download_count',0)+1
+                            return self.data[i]
+                        run,kind=path.split('-');m,p,apk=(manifest,plan,new) if run=='42' else (old_manifest,old_plan,old)
+                        return self_artifact(m,apk) if kind=='candidate' else evidence(m,p,int(run))
+                self_artifact=self.artifact;github=Fake();tool=release.Release(root,github)
+                def git(*args,**kwargs):return SimpleNamespace(returncode=0,stdout=b'a'*40 if args==('rev-parse','HEAD') else b'')
+                tool.git=git
+                def signed_identity(path,m):
+                    self.assertEqual(apk_payload(path),(m['payloadSha256'],m['buildUtc']))
+                    return release.update_manifest(path,m,m)
+                tool.signed_identity=signed_identity
+                def sign(args,**kwargs):
+                    destination=Path(args[args.index('-OutDir')+1])/f"StudyAssistant-{manifest['version']}-{manifest['buildUtc']}.apk"
+                    shutil.copy(args[args.index('-InApk')+1],destination)
+                (root/'tools').mkdir();shutil.copy(ROOT/'tools/check-secrets.py',root/'tools/check-secrets.py')
+                notes=root/'notes.md';notes.write_text('## 更新内容\nSynthetic replacement',encoding='utf-8')
+                with patch.object(release,'make_plan',return_value=plan),patch.object(release,'command',side_effect=sign):
+                    if failure:
+                        with self.assertRaises(release.ReleaseError):tool.publish(42,notes,replacement=True)
+                        self.assertTrue(github.failed,'must reach the selected remote boundary')
+                        if failure=='list releases':
+                            github.item.update(body='updated presentation',updated_at='2099-01-01T00:00:00Z')
+                            github.item['assets'].reverse()
+                            for item in github.item['assets']:item['uploader']={'login':'synthetic-uploader'}
+                        if failure=='replacement marker network':
+                            self.assertIn('replacement',tool.state)
+                            self.assertTrue((root/tool.state['signedPath']).with_name('update-manifest.json').exists())
+                        conflict=asset(99,'unexpected.apk',b'conflict');github.item['assets'].append(conflict)
+                        with self.assertRaises(release.ReleaseError):tool.publish(42,notes,replacement=True)
+                        github.item['assets'].remove(conflict)
+                    self.assertEqual(tool.publish(42,notes,replacement=True)['phase'],'archived')
+                    self.assertEqual(tool.publish(42,notes,replacement=True)['phase'],'archived')
+                    self.assertEqual(tool.verify(42)['phase'],'archived')
+                    github.original_ci_success=False
+                    with self.assertRaises(release.ReleaseError):tool.publish(42,notes,replacement=True)
+                    github.original_ci_success=True
+                    record=next(iter(tool.state['originalBaselineProof']['files'].values()))
+                    path=root/record['path'];path.write_bytes(path.read_bytes()+b'tampered')
+                    with self.assertRaises(release.ReleaseError):tool.publish(42,notes,replacement=True)
+
+    def test_build_states_bind_run_and_preserve_legacy(self):
+        legacy=self.root/'.local-notes/release-state/9.9.9.json'
+        legacy.parent.mkdir(parents=True); legacy.write_text('legacy sentinel')
+        tool=release.Release(self.root)
+        tool.bind_build('9.9.9','a'*40,42,'20261024120000')
+        first=tool.path; tool.state['signedSha256']='b'*64; tool.save()
+        tool.bind_build('9.9.9','c'*40,43,'20261025120000')
+        self.assertNotEqual(first,tool.path); self.assertNotIn('signedSha256',tool.state)
+        tool.bind_build('9.9.9','a'*40,42,'20261024120000')
+        self.assertEqual(tool.state['signedSha256'],'b'*64)
+        self.assertEqual(legacy.read_text(),'legacy sentinel')
+        with self.assertRaises(release.ReleaseError): tool.bind_build('9.9.9','c'*40,42,'20261024120000')
+        with self.assertRaises(release.ReleaseError): tool.bind_build('9.9.9','a'*40,42,'20261025120000')
+
+    def test_legacy_status_is_repeatable_without_modifying_original_state(self):
+        folder=self.root/'.local-notes/release-state';folder.mkdir(parents=True)
+        legacy=folder/'9.9.9.json'
+        original=json.dumps(dict(schema=1,version='9.9.9',commit='a'*40))
+        legacy.write_text(original)
+        tool=release.Release(self.root)
+        self.assertEqual(tool.load_status('9.9.9'),tool.load_status('9.9.9'))
+        self.assertEqual(legacy.read_text(),original)
+
+    def test_replacement_resumes_remote_mutations_without_switching_manifest_early(self):
+        old=self.root/'old.apk'; old.write_bytes(b'old artificial apk')
+        new=self.root/'new.apk'; new.write_bytes(b'new artificial apk')
+        meta=self.root/'update-manifest.json'; meta.write_bytes(b'new artificial manifest')
+        def asset(i,name,data):
+            return dict(id=i,name=name,size=len(data),digest='sha256:'+release.hashlib.sha256(data).hexdigest())
+        for fail_at in range(1,8):
+            class Fake:
+                def __init__(self):
+                    self.assets=[asset(1,old.name,old.read_bytes()),asset(2,meta.name,b'old manifest')]
+                    self.data={1:old.read_bytes(),2:b'old manifest'}; self.count=0; self.failed=False; self.events=[]
+                def boundary(self,event):
+                    self.events.append(event); self.count+=1
+                    if self.count==fail_at and not self.failed:
+                        self.failed=True; raise release.ReleaseError('artificial interruption')
+                def api(self,path,value=None,method=None,**kwargs):
+                    if method=='DELETE':
+                        i=int(path.rsplit('/',1)[1]); self.assets=[a for a in self.assets if a['id']!=i]
+                        self.boundary('delete '+str(i)); return None
+                    return dict(id=7,assets=list(self.assets),draft=False,prerelease=False,tag_name='v9.9.9')
+                def call(self,*args):
+                    p=Path(args[3]); i=max(self.data)+1; data=p.read_bytes()
+                    self.data[i]=data; self.assets.append(asset(i,p.name,data)); self.boundary('upload '+p.name)
+                def download(self,path,**kwargs):
+                    i=int(path.split('/assets/')[1].split('?')[0]); self.boundary('download '+str(i)); return self.data[i]
+            github=Fake(); tool=release.Release(self.root,github)
+            tool.state=dict(version='9.9.9',replacement=dict(releaseId=7,oldAssets=list(github.assets)))
+            tool.save=lambda:None
+            for attempt in range(3):
+                try: tool.replace_assets(dict(id=7),{new.name:new,meta.name:meta}); break
+                except release.ReleaseError:
+                    if not github.failed: raise
+            self.assertEqual({a['name'] for a in github.assets},{new.name,meta.name})
+            self.assertLess(github.events.index('download 3'),github.events.index('delete 2'))
+            self.assertLess(github.events.index('upload update-manifest.json'),github.events.index('delete 1'))
+            github.assets.append(asset(90,'unexpected.apk',b'conflict'))
+            with self.assertRaises(release.ReleaseError): tool.replace_assets(dict(id=7),{new.name:new,meta.name:meta})
+            github.assets.pop()
+            github.assets[0]['digest']='sha256:'+'0'*64
+            with self.assertRaises(release.ReleaseError): tool.replace_assets(dict(id=7),{new.name:new,meta.name:meta})
+
+    def test_explicit_publish_replacement_preserves_tag_and_archives_final_provenance(self):
+        import shutil
+        work=self.root/'.local-notes/release-state/artifacts/42'; work.mkdir(parents=True)
+        signed=Path(shutil.move(self.apk('new.apk'),work/'new.apk'))
+        manifest=dict(self.manifest(signed),schema=2,planSha256='d'*64)
+        notes=self.root/'notes.md'; notes.write_text('## 更新内容\nArtificial update',encoding='utf-8')
+        (self.root/'tools').mkdir(); shutil.copy(ROOT/'tools/check-secrets.py',self.root/'tools/check-secrets.py')
+        def asset(i,name,data): return dict(id=i,name=name,size=len(data),digest='sha256:'+release.hashlib.sha256(data).hexdigest())
+        class Fake:
+            def __init__(self):
+                self.data={1:b'artificial old apk',2:b'artificial old metadata'}
+                self.item=dict(id=7,tag_name='v9.9.9',draft=False,prerelease=False,html_url='https://example.invalid/release',
+                    assets=[asset(1,'old.apk',self.data[1]),asset(2,'update-manifest.json',self.data[2])])
+                self.tag_mutations=[]; self.fail_body=True
+            def api(self,path,value=None,method=None,**kwargs):
+                if path.startswith('git/ref'): return {'object':{'sha':'c'*40}}
+                if path.startswith('commits/'): return {'sha':'c'*40}
+                if path.startswith('releases?'): return [self.item]
+                if method=='DELETE': self.item['assets']=[a for a in self.item['assets'] if a['id']!=int(path.rsplit('/',1)[1])]; return None
+                if value:
+                    self.item.update(value)
+                    if self.fail_body:
+                        self.fail_body=False; raise release.ReleaseError('Interrupted after body PATCH')
+                return self.item
+            def call(self,*args):
+                p=Path(args[3]); i=max(self.data)+1; self.data[i]=p.read_bytes()
+                self.item['assets'].append(asset(i,p.name,self.data[i]))
+            def download(self,path,**kwargs): return self.data[int(path.split('/assets/')[1].split('?')[0])]
+        github=Fake(); tool=release.Release(self.root,github)
+        tool.bind_build('9.9.9','a'*40,42,manifest['buildUtc'])
+        tool.state.update(manifest=manifest,signedPath=str(signed.relative_to(self.root)),signedSha256=sha256(signed))
+        tool.save(); tool.verify=lambda run,**kwargs:None
+        tool.signed_identity=lambda path,m:release.update_manifest(path,m,m)
+        tool.proven_published_source=lambda item:'c'*40
+        git_calls=[]
+        def git(*args,**kwargs): git_calls.append(args); return SimpleNamespace(returncode=0)
+        tool.git=git
+        with self.assertRaises(release.ReleaseError): tool.publish(42,notes)
+        self.assertNotIn('replacement',tool.state)
+        with self.assertRaises(release.ReleaseError): tool.publish(42,notes,replacement=True)
+        self.assertEqual(tool.publish(42,notes,replacement=True)['phase'],'archived')
+        tool.publish(42,notes,replacement=True)
+        self.assertTrue(all(args[0]=='merge-base' for args in git_calls))
+        metadata=json.loads((work/'update-manifest.json').read_text(encoding='utf-8'))
+        self.assertEqual(metadata['provenance'],dict(sourceCommit='a'*40,runId=42))
+        self.assertEqual(metadata['apkSha256'],sha256(signed))
+        self.assertEqual({a['name'] for a in github.item['assets']},{signed.name,'update-manifest.json'})
+        self.assertEqual(len(list((self.root/'history_apk').iterdir())),2)
+
+    def test_normal_start_rejects_existing_tag_before_checks_or_dispatch(self):
+        source=self.root/'app/build.gradle.kts'; source.parent.mkdir(parents=True)
+        source.write_text('val appVersionName = "9.9.9"')
+        class Fake:
+            def api(self,path,**kwargs):
+                if path=='git/ref/tags/v9.9.9': return {'object':{'sha':'c'*40}}
+                raise AssertionError('Unexpected mutation or release request')
+        tool=release.Release(self.root,Fake())
+        tool.git=lambda *args,**kwargs:SimpleNamespace(stdout=b'' if args[0]=='status' else b'a'*40,returncode=0)
+        with patch.object(release,'command',side_effect=AssertionError('No checks or signing')):
+            with self.assertRaises(release.ReleaseError):tool.start('9.9.9')
+        self.assertNotIn('replacement',tool.state)
+
+    def test_replacement_start_requires_explicit_flag_and_reaches_existing_checks(self):
+        source=self.root/'app/build.gradle.kts';source.parent.mkdir(parents=True)
+        source.write_text('val appVersionName = "9.9.9"')
+        class ChecksReached(Exception): pass
+        class Fake:
+            def api(self,path,**kwargs):
+                if path.startswith('git/ref/tags/'): return {'object':{'sha':'c'*40}}
+                if path=='releases/tags/v9.9.9':return dict(id=7,draft=False,prerelease=False)
+                raise AssertionError('No dispatch before Basic')
+        tool=release.Release(self.root,Fake());tool.proven_published_source=lambda item:'c'*40
+        def git(*args,**kwargs):
+            return SimpleNamespace(stdout=b'' if args[0]=='status' else b'[skip ci]' if args[0]=='log' else b'a'*40,returncode=0)
+        tool.git=git
+        with patch.object(release,'command',side_effect=ChecksReached):
+            with self.assertRaises(ChecksReached):tool.start('9.9.9',replacement=True)
+        self.assertTrue(tool.state['replacementRequested'])
+
     def setUp(self):
         folder = ROOT / "app/build/tool-tests"; folder.mkdir(parents=True, exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=folder); self.addCleanup(self.temp.cleanup)
@@ -123,7 +360,7 @@ class ReleaseTest(unittest.TestCase):
     def test_modern_verify_consumes_evidence_before_any_signing(self):
         from verification import digest
         apk = self.apk("input.apk")
-        plan = dict(schema=1, policy=1, commit="a"*40, base=None, changedFiles=[], devices=[])
+        plan = dict(schema=1, policy=1, commit="a"*40, base=None, changedFiles=[], devices=[], mode="release")
         manifest = dict(self.manifest(apk), schema=2, planSha256=digest(plan))
         evidence = dict(schema=1, success=True, runId=42, attempt=1, plan=plan, devices=[],
                         build=dict(commit="a"*40, runId=42, attempt=1, planSha256=digest(plan),
@@ -145,8 +382,11 @@ class ReleaseTest(unittest.TestCase):
                 return out.getvalue()
         tool = release.Release(self.root, FakeGitHub())
         tool.assert_source = lambda commit: None
-        with patch.object(release, "make_plan", return_value=plan), patch.object(release, "command", side_effect=SigningReached):
+        with patch.object(release, "make_plan", return_value={k: v for k, v in plan.items() if k != "mode"}), patch.object(release, "command", side_effect=SigningReached):
             with self.assertRaises(SigningReached): tool.verify(42)
+            artifacts[0]['id']=99
+            with self.assertRaises(release.ReleaseError):tool.verify(42)
+            artifacts[0]['id']=1
             evidence["build"]["candidateSha256"] = "0"*64
             with self.assertRaises(ValueError): tool.verify(42)
 
@@ -223,3 +463,81 @@ class ReleaseTest(unittest.TestCase):
         self.assertNotIn("secrets.RELEASE_",workflow)
         self.assertNotIn("secrets.properties <<",workflow)
         self.assertNotIn("path: .",workflow)
+
+
+class PublishedBaselineTest(unittest.TestCase):
+    setUp = ReleaseTest.setUp
+    apk = ReleaseTest.apk
+    manifest = ReleaseTest.manifest
+    artifact = ReleaseTest.artifact
+    def baseline_fixture(self, provenance=True):
+        import hashlib
+        from verification import digest
+        candidate = self.apk("candidate.apk")
+        signed = self.apk("published.apk", signature=b"synthetic")
+        plan = dict(schema=1, policy=1, commit="a"*40, base=None, changedFiles=[], devices=[])
+        manifest = dict(self.manifest(candidate), schema=2, planSha256=digest(plan))
+        evidence = dict(schema=1, success=True, runId=42, attempt=1, plan=plan, devices=[],
+            build=dict(commit="a"*40, runId=42, attempt=1, planSha256=digest(plan),
+                       candidateSha256=manifest["candidateSha256"], jvm=manifest["jvm"], apks=None))
+        meta = release.update_manifest(signed, manifest, manifest)
+        if provenance: meta["provenance"] = dict(sourceCommit="a"*40, runId=42)
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w") as archive: archive.writestr("verification.json", json.dumps(evidence))
+        data = {"candidate": self.artifact(manifest, candidate), "evidence": out.getvalue(),
+                "apk": signed.read_bytes(), "metadata": json.dumps(meta).encode()}
+        def asset(name, key, ident):
+            return dict(id=ident, name=name, size=len(data[key]), digest="sha256:" + hashlib.sha256(data[key]).hexdigest())
+        published = dict(id=7, tag_name="v9.9.9", draft=False, prerelease=False,
+                         assets=[asset(signed.name, "apk", 1), asset("update-manifest.json", "metadata", 2)],
+                         body="sourceCommit: " + "f"*40, target_commitish="f"*40)
+        run = dict(head_sha="a"*40, conclusion="success", head_branch="main", event="workflow_dispatch",
+                   display_title="release: fixture", path=".github/workflows/build.yml", run_attempt=1)
+        class GitHub:
+            def api(self, path, **kwargs):
+                if path.startswith("commits/"): return dict(sha="b"*40)
+                if "/artifacts?" in path:
+                    return dict(artifacts=[dict(name=n, expired=False, archive_download_url=url) for n, url in
+                        [("release-candidate", "candidate"), ("verification-evidence", "evidence")]])
+                return run
+            def download(self, url, **kwargs):
+                if "/assets/1?" in url: return data["apk"]
+                if "/assets/2?" in url: return data["metadata"]
+                return data[url]
+        tool = release.Release(self.root, GitHub())
+        tool.git = lambda *args, **kwargs: SimpleNamespace(returncode=0)
+        return tool, published, run, data, meta
+
+    def test_public_provenance_binds_exact_apk_and_ci_payload(self):
+        tool, published, run, data, meta = self.baseline_fixture()
+        self.assertEqual(tool.published_baseline(published), "a"*40)
+        run["conclusion"] = "failure"
+        self.assertEqual(tool.published_baseline(published), "b"*40)
+        run["conclusion"] = "success"; run["head_sha"] = "c"*40
+        self.assertEqual(tool.published_baseline(published), "b"*40)
+        run["head_sha"] = "a"*40
+        data["apk"] += b"changed"
+        self.assertEqual(tool.published_baseline(published), "b"*40)
+
+    def test_legacy_replacement_requires_matching_local_state_not_body(self):
+        tool, published, run, data, meta = self.baseline_fixture(False)
+        self.assertEqual(tool.published_baseline(published), "b"*40)
+        folder = self.root / ".local-notes/release-state"; folder.mkdir(parents=True)
+        path = folder / "replacement.json"
+        state = dict(published=True, phase="archived", releaseId=7, version="9.9.9",
+                     signedSha256=meta["apkSha256"], commit="a"*40, runId=42)
+        path.write_text(json.dumps(state))
+        self.assertEqual(tool.published_baseline(published), "a"*40)
+        state["signedSha256"] = "0"*64; path.write_text(json.dumps(state))
+        self.assertEqual(tool.published_baseline(published), "b"*40)
+        tool.git = lambda *args, **kwargs: SimpleNamespace(returncode=1)
+        self.assertIsNone(tool.published_baseline(published))
+
+    def test_readonly_legacy_state_migration_does_not_make_baseline_ambiguous(self):
+        tool,published,run,data,meta=self.baseline_fixture(False)
+        folder=self.root/'.local-notes/release-state'; folder.mkdir(parents=True)
+        state=dict(published=True,phase='archived',releaseId=7,version='9.9.9',
+            signedSha256=meta['apkSha256'],commit='a'*40,runId=42)
+        for name in ('legacy.json','migrated-build.json'):
+            (folder/name).write_text(json.dumps(state))
+        self.assertEqual(tool.published_baseline(published),'a'*40)

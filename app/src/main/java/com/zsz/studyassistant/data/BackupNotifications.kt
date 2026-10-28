@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -28,7 +27,7 @@ object BackupNotifications {
         )
     }
 
-    fun needsPermission(context: Context): Boolean = Build.VERSION.SDK_INT >= 33 &&
+    fun needsPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
 
     fun canNotify(context: Context): Boolean {

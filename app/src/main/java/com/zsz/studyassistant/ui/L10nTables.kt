@@ -2722,7 +2722,7 @@ private val B11_KO = mapOf(
 )
 private val B12_ZH = mapOf(
     "about.tech" to "技术与兼容",
-    "about.tech.body" to "最低 Android API {api} · DB v{db} · 备份 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · 备份 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "本机仅保留最近 20 次分析的编号、耗时、模式、状态码及分组数量等诊断；不含标签名称、题目、响应原文或密钥。只有手动导出才写到所选位置。",
     "tagMerge.diagnosticId" to "最近诊断编号：{id}",
     "tagMerge.exportDiagnostics" to "导出分析诊断",
@@ -2773,7 +2773,7 @@ private val B13_ZH = mapOf(
 internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
-    "about.tech.body" to "Minimum Android API {api} · DB v{db} · Backup v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "Minimum Android 16 · API {api} · DB v{db} · Backup v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "Only the last 20 local diagnostics are kept: ID, duration, mode, HTTP status and group counts. No label names, questions, raw responses or keys. Files leave app storage only through manual export.",
     "tagMerge.diagnosticId" to "Latest diagnostic ID: {id}",
     "tagMerge.exportDiagnostics" to "Export analysis diagnostics",
@@ -2824,7 +2824,7 @@ private val B13_EN = mapOf(
 internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
-    "about.tech.body" to "最低 Android API {api} · DB v{db} · バックアップ v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · バックアップ v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "端末に直近20回の番号・所要時間・モード・状態コード・候補数などのみを保持。タグ名・問題・応答原文・キーは含みません。手動出力時のみ選択先へ書き込みます。",
     "tagMerge.diagnosticId" to "直近の診断番号：{id}",
     "tagMerge.exportDiagnostics" to "分析診断を出力",
@@ -2875,7 +2875,7 @@ private val B13_JA = mapOf(
 internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
-    "about.tech.body" to "최소 Android API {api} · DB v{db} · 백업 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "최소 Android 16 · API {api} · DB v{db} · 백업 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "기기에 최근 20회 진단 번호·시간·모드·상태 코드·그룹 수만 보관합니다. 태그 이름·문제·응답 원문·키는 포함하지 않으며 수동 내보내기 때만 선택한 위치에 씁니다.",
     "tagMerge.diagnosticId" to "최근 진단 번호: {id}",
     "tagMerge.exportDiagnostics" to "분석 진단 내보내기",

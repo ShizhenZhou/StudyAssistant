@@ -11,7 +11,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-POLICY = 1
+POLICY = 3
 MAIN = "app/src/main/java/com/zsz/studyassistant/"
 ANDROID = "app/src/androidTest/"
 
@@ -44,14 +44,68 @@ def source_digest(root, prefixes=None):
     return digest(values)
 
 
-BUILD_INPUTS = ["app", "gradle", "gradlew", "gradlew.bat", "build.gradle.kts", "settings.gradle.kts", "gradle.properties", "tools"]
+# Test-only and prose edits do not change production APK bytes. Tool implementations
+# are separate inputs for the actions they control, rather than every Gradle output.
+GRADLE_INPUTS = ["gradle", "gradlew", "gradlew.bat", "build.gradle.kts", "settings.gradle.kts", "gradle.properties", "app/build.gradle.kts", "app/proguard-rules.pro"]
+MAIN_INPUTS = GRADLE_INPUTS + ["app/src/main"]
+BUILD_INPUTS = MAIN_INPUTS + ["app/src/integration", "app/src/androidTest"]
+
+
+def task_inputs(tasks):
+    values = set(MAIN_INPUTS)
+    if any("UnitTest" in t for t in tasks): values.update(["app/src/test", "README.md"])
+    if any("Integration" in t for t in tasks): values.update(["app/src/integration", "app/src/androidTest"])
+    if any("Release" in t for t in tasks): values.add("app/src/release")
+    if any("Debug" in t for t in tasks): values.add("app/src/debug")
+    return sorted(values)
+
+
+def platform_constraints(min_sdk, policy=POLICY):
+    if policy not in (2, 3):
+        raise ValueError("Unknown verification policy")
+    if not isinstance(min_sdk, int) or min_sdk < 1 or min_sdk > 37:
+        raise ValueError("Unsupported actual minSdk")
+    apis = [35, 36] if min_sdk <= 35 else ([36, 37] if policy == 2 else [36]) if min_sdk == 36 else [37]
+    return dict(minSdk=min_sdk, abi="x86_64", platforms=[dict(api=api, imageApi="37.0" if api == 37 else str(api), target="google_apis", arch="x86_64") for api in apis])
+
+
+def actual_min_sdk(root=ROOT):
+    text = (Path(root) / "app/build.gradle.kts").read_text(encoding="utf-8")
+    values = re.findall(r"(?m)^\s*minSdk\s*=\s*(\d+)\s*$", text)
+    if len(values) != 1: raise ValueError("Cannot establish actual minSdk from source")
+    return int(values[0])
+
+
+def validate_plan(plan):
+    policy = plan.get("policy")
+    if policy == 1:
+        constraints = platform_constraints(28)  # Archived policy 1 always used API35/36.
+    elif policy in (2, POLICY):
+        constraints = plan.get("platformConstraints", {})
+        if constraints != platform_constraints(constraints.get("minSdk"), policy):
+            raise ValueError("Invalid platform constraints")
+    else:
+        raise ValueError("Unknown verification policy")
+    apis = [r.get("api") for r in plan["devices"]]
+    allowed = [r["api"] for r in constraints["platforms"]]
+    if len(set(apis)) != len(apis) or any(api not in allowed for api in apis):
+        raise ValueError("Plan API constraints mismatch")
+    if policy in (2, POLICY):
+        inventory = plan.get("inventory")
+        if not inventory or inventory != sorted(set(inventory)):
+            raise ValueError("Missing exact test inventory")
+        expected = device_plan(plan["policyPaths"], inventory, bool(plan.get("base")), constraints["minSdk"], plan.get("platformMigration", False), policy)
+        if plan.get("mode") == "check": expected = []
+        if plan["devices"] != expected: raise ValueError("Device plan differs from declared policy inputs")
+    return constraints
 
 
 def environment_identity():
     # Values/paths never go in public reports; hashes only. CI device evidence uses getprop instead.
     values = {k: os.environ.get(k, "") for k in ("JAVA_HOME", "ANDROID_HOME", "ANDROID_SDK_ROOT", "GRADLE_USER_HOME", "JAVA_OPTS", "GRADLE_OPTS", "PATH")}
     for key, name in [("JAVA_HOME", "release"), ("ANDROID_HOME", "build-tools/36.0.0/source.properties"),
-                      ("ANDROID_HOME", "platforms/android-37/source.properties")]:
+                      ("ANDROID_HOME", "platforms/android-37/source.properties"),
+                      ("ANDROID_HOME", "platforms/android-37.0/source.properties")]:
         path = Path(values[key]) / name if values[key] else None
         values[key + "/" + name] = file_sha(path) if path and path.is_file() else "missing"
     return digest([platform.platform(), sys.version, values])
@@ -88,10 +142,11 @@ def select_tests(inventory, selectors=()):
     return sorted(chosen)
 
 
-def device_plan(changed, inventory, baseline_known=True):
+def device_plan(changed, inventory, baseline_known=True, min_sdk=28, platform_migration=False, policy=POLICY):
     """Only audited narrow mappings may reduce scope; unknown paths require full coverage."""
     groups = set()
-    full = not baseline_known
+    full = not baseline_known or platform_migration
+    required_apis = [p["api"] for p in platform_constraints(min_sdk, policy)["platforms"]]
     for path in changed:
         if path.startswith(("docs/", "app/src/test/")) or path in ("README.md", "AGENTS.md", "DATA_SCHEMA.md", "@version-only"):
             continue
@@ -108,7 +163,7 @@ def device_plan(changed, inventory, baseline_known=True):
             groups.add("capture")
         elif path.startswith(ANDROID) and path.endswith("Test.kt"):
             name = Path(path).stem
-            if name == "UpdateDownloadsIntegrationTest":
+            if name in ("UpdateDownloadsIntegrationTest", "UpdatePageIntegrationTest", "UpdateDownloadNotificationsIntegrationTest"):
                 groups.add("notifications")  # FakeTransfers is shared by notifications and the update page.
                 continue
             if name not in ("UpdateDownloadNotificationsIntegrationTest", "CaptureFlowStoreIntegrationTest", "CaptureRecoveryIntegrationTest", "CaptureUiRegressionTest"):
@@ -122,17 +177,17 @@ def device_plan(changed, inventory, baseline_known=True):
         else:
             full = True
     if full:
-        return [dict(api=api, tests=sorted(inventory), reason="full: unknown/shared inputs or no verified baseline") for api in (35, 36)]
+        return [dict(api=api, tests=sorted(inventory), reason="full: unknown/shared inputs or no verified baseline") for api in required_apis]
     selected = {t for t in groups if "#" in t}
     if "notifications" in groups:
-        selected.update(t for t in inventory if any(c in t for c in (".UpdateDownloadsIntegrationTest#", ".UpdateDownloadNotificationsIntegrationTest#"))
+        selected.update(t for t in inventory if any(c in t for c in (".UpdateDownloadsIntegrationTest#", ".UpdateDownloadNotificationsIntegrationTest#", ".UpdatePageIntegrationTest#"))
                         or ".UiSmokeTest#updateNotification" in t
                         or t.endswith(".UiSmokeTest#updatePageRestoresWaitingAndCompletedTasksAfterLeaving"))
     if "capture" in groups:
         selected.update(t for t in inventory if any(c in t for c in (".CaptureFlowStoreIntegrationTest#", ".CaptureRecoveryIntegrationTest#", ".CaptureUiRegressionTest#")))
     if groups and not selected:
         raise ValueError("Required device group has no tests")
-    apis = (35, 36) if "notifications" in groups or any("#" in g for g in groups) else (36,)
+    apis = required_apis if "notifications" in groups or any("#" in g for g in groups) else [max(required_apis)]
     return [dict(api=api, tests=sorted(selected), reason="affected device paths") for api in apis] if selected else []
 
 
@@ -157,8 +212,17 @@ def make_plan(root=ROOT, base=None):
             return re.sub(r'(?m)^(\s*(?:val appVersionName\s*=|versionCode\s*=?)\s*).+$', r'\1<version>', text.replace("\r\n", "\n"))
         if without_version(before) == without_version(after):
             policy_paths[policy_paths.index("app/build.gradle.kts")] = "@version-only"
+    min_sdk = actual_min_sdk(root)
+    migration = False
+    if base_sha:
+        previous = git(root, "show", base_sha + ":app/build.gradle.kts")
+        old = re.search(r"(?m)^\s*minSdk\s*=\s*(\d+)\s*$", previous)
+        migration = not old or int(old[1]) != min_sdk
+    inventory = android_inventory(root)
     return dict(schema=1, policy=POLICY, commit=commit, base=base_sha, changedFiles=changed,
-                devices=device_plan(policy_paths, android_inventory(root), bool(base_sha)))
+                policyPaths=policy_paths, inventory=inventory, platformMigration=migration,
+                platformConstraints=platform_constraints(min_sdk),
+                devices=device_plan(policy_paths, inventory, bool(base_sha), min_sdk, migration))
 
 
 def instrumentation_results(text, expected):
@@ -244,6 +308,7 @@ class EvidenceStore:
 
 def validate_device_evidence(plan, artifact, reports, run_id, attempt):
     expected = {item["api"]: item for item in plan["devices"]}
+    if len(expected) != len(plan["devices"]): raise ValueError("Duplicate plan API")
     if len(reports) != len(expected) or len({r.get("api") for r in reports}) != len(reports):
         raise ValueError("Missing/duplicate device evidence")
     for report in reports:
@@ -254,6 +319,10 @@ def validate_device_evidence(plan, artifact, reports, run_id, attempt):
             raise ValueError("Invalid evidence attempt")
         if report.get("success") is not True or report.get("skipped") != [] or report.get("tests") != item["tests"] or report.get("passed") != item["tests"]:
             raise ValueError("Incomplete device coverage")
+        if plan.get("policy") in (2, POLICY):
+            minimum = plan["platformConstraints"]["minSdk"]
+            if report.get("targetMinSdk") != minimum or type(report.get("testMinSdk")) is not int or not 1 <= report["testMinSdk"] <= report["api"]:
+                raise ValueError("Device APK minimum SDK differs from plan")
         if not report.get("fingerprint") or report.get("abi") != "x86_64":
             raise ValueError("Missing/wrong device environment")
         if any(report.get(k) != artifact.get(k) or not re.fullmatch(r"[0-9a-f]{64}", str(artifact.get(k, ""))) for k in ("targetSha256", "testSha256")):
@@ -264,8 +333,11 @@ def validate_ci_evidence(report, manifest, run_id, attempt):
     if report.get("schema") != 1 or report.get("success") is not True or report.get("runId") != run_id or not 1 <= report.get("attempt", 0) <= attempt:
         raise ValueError("Invalid CI verification report")
     plan, build = report["plan"], report["build"]
-    if plan.get("schema") != 1 or plan.get("policy") != POLICY or plan.get("commit") != manifest["commit"]:
+    if plan.get("schema") != 1 or plan.get("policy") not in (1, 2, POLICY) or plan.get("commit") != manifest["commit"]:
         raise ValueError("Verification plan/source mismatch")
+    constraints = validate_plan(plan)
+    if plan["policy"] in (2, POLICY) and "minSdk" in manifest and manifest["minSdk"] != constraints["minSdk"]:
+        raise ValueError("Candidate minimum SDK differs from plan")
     if digest(plan) != manifest.get("planSha256") or build.get("planSha256") != digest(plan):
         raise ValueError("Verification plan was changed")
     if build.get("commit") != manifest["commit"] or build.get("runId") != run_id or not 1 <= build.get("attempt", 0) <= report["attempt"]:

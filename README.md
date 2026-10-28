@@ -4,7 +4,7 @@
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
 ![CI](https://github.com/ShizhenZhou/StudyAssistant/actions/workflows/build.yml/badge.svg)
-![Platform](https://img.shields.io/badge/Android-9%2B%20(API%2028)-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek-V4/V4.1 与 GPT-6.1 Sol 辅助编写。
@@ -40,7 +40,7 @@
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（一次性备份任务）· AlarmManager · Android Keystore。
 
-构建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **28**（Android **9+**）、build-tools **36.0.0**。当前备份格式 v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
+构建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
 
 ## 版本记录
 
@@ -48,6 +48,43 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 > 下面 v0.6.3 / v0.6.3.1 / v0.6.3.2 / v0.6.3.3 中与导出有关的条目**只是历史记录**，代码已全部删除。
 >
 > 📌 **版本号约定（现行）**：`0.x.x`（三段）与 `0.x.x.x`（四段）**都要**在 README「版本记录」+ App 内「更新内容」（简 / 英 / 日 / 韩 4 份，繁體由简体自动转换）各记一次；`versionCode` **每次发版 +1**。更早小节里「`0.x.x.x` 不改更新内容、只发 Release」的说法**已作废**。
+
+### v0.6.8
+
+- 🛡️ 无法查询安装授权时停止安装，避免误判为已授权。
+- 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
+- 🔔 统一 Android 16 下载进度与完成通知，保留通知授权、取消和恢复检查。
+- 🛠️ 精简旧系统兼容分支，完善按构建身份续跑的发布校验与显式同版本替换流程。
+
+<details>
+<summary>EN</summary>
+
+- 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
+- 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
+- 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
+- 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
+
+</details>
+
+<details>
+<summary>JA</summary>
+
+- 🛡️ インストール権限を確認できない場合は、許可済みと判断せず停止。
+- 📱 Android 16（API 36）以降が必要です。Android 9～15 では v0.6.7.9 をご利用ください。
+- 🔔 Android 16 のダウンロード進捗・完了通知に統一し、通知権限・取消・再開の確認を維持。
+- 🛠️ 旧OSの互換分岐を整理し、ビルド単位で再開できるリリース検証と明示的な同バージョン置換を改善。
+
+</details>
+
+<details>
+<summary>KO</summary>
+
+- 🛡️ 설치 권한을 확인할 수 없으면 허용된 것으로 간주하지 않고 설치를 중단합니다.
+- 📱 Android 16(API 36) 이상이 필요합니다. Android 9~15에서는 v0.6.7.9를 사용하세요.
+- 🔔 Android 16 다운로드 진행 및 완료 알림을 통일하고 권한·취소·복구 확인을 유지합니다.
+- 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
+
+</details>
 
 ### v0.6.7.9
 

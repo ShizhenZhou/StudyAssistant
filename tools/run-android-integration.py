@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 from verification import (BUILD_INPUTS, EvidenceStore, android_inventory, digest, environment_identity,
-                          file_sha, git, instrumentation_results, select_tests, source_digest, write_json)
+                          file_sha, git, instrumentation_results, select_tests, source_digest, validate_plan, write_json)
 
 ROOT = Path(__file__).resolve().parents[1]
 APK_PATHS = ("app/build/outputs/apk/integration/app-integration.apk",
@@ -73,6 +73,12 @@ def passed_count(text, expected):
     return expected
 
 
+def execution_identity(build, report):
+    # Runner/parser edits invalidate execution evidence without rebuilding unchanged APKs.
+    implementation = source_digest(ROOT, ["tools/run-android-integration.py", "tools/verification.py"])
+    return digest([build, report["api"], report["fingerprint"], report["abi"], environment_identity(), implementation])
+
+
 def run(serial, expected=None, selectors=(), api=None, force=False, report_path=None):
     require_emulator_serial(serial)
     sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
@@ -83,10 +89,14 @@ def run(serial, expected=None, selectors=(), api=None, force=False, report_path=
     if checked([adb, "-s", serial, "shell", "getprop", "ro.kernel.qemu"]).strip() != "1":
         raise RuntimeError("Selected device is not an emulator. No installation performed.")
     target, tests = [ROOT / path for path in APK_PATHS]
+    minimums = []
     for path, package in [(target, "com.zsz.studyassistant.integration"), (tests, "com.zsz.studyassistant.integration.test")]:
         badging = checked([aapt, "dump", "badging", path])
         if not re.search(r"^package: name='" + re.escape(package) + "'", badging, re.M):
             raise RuntimeError("Unexpected APK package. No installation performed.")
+        minimum = re.search(r"(?m)^sdkVersion:\s*'(\d+)'", badging)
+        if not minimum: raise ValueError("APK minimum SDK is unavailable; no installation performed")
+        minimums.append(int(minimum[1]))
     manifest = checked([aapt, "dump", "xmltree", tests, "AndroidManifest.xml"])
     if not re.search(r'android:targetPackage[^\n]*"com\.zsz\.studyassistant\.integration"', manifest):
         raise RuntimeError("Unexpected instrumentation target. No installation performed.")
@@ -96,15 +106,17 @@ def run(serial, expected=None, selectors=(), api=None, force=False, report_path=
         raise ValueError("Expected test count cannot override the selected inventory")
     def prop(name): return checked([adb, "-s", serial, "shell", "getprop", name]).strip()
     actual_api = int(prop("ro.build.version.sdk"))
+    if actual_api < max(minimums): raise ValueError("Emulator API is below actual APK minSdk; no installation performed")
     if api is not None and api != actual_api: raise ValueError("Selected emulator API differs from plan")
     report = dict(schema=1, commit=git(ROOT, "rev-parse", "HEAD"), runId=int(os.environ.get("GITHUB_RUN_ID", "0")),
                   attempt=int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")), api=actual_api,
+                  targetMinSdk=minimums[0], testMinSdk=minimums[1],
                   fingerprint=prop("ro.build.fingerprint"), abi=prop("ro.product.cpu.abi"),
                   targetSha256=build["targetSha256"], testSha256=build["testSha256"], tests=chosen,
                   passed=[], skipped=[], success=False)
     report_path = report_path or ROOT / "app/build/android-integration" / f"evidence-api-{actual_api}.json"
     store = EvidenceStore(ROOT / ".local-notes/verification/android")
-    identity = digest([build, report["api"], report["fingerprint"], report["abi"], environment_identity()])
+    identity = execution_identity(build, report)
     cached = None if force or os.environ.get("CI") == "true" else store.find(identity, chosen)
     if cached:
         report.update(success=True, passed=chosen)
@@ -158,6 +170,7 @@ def main():
         selectors = args.test
         if args.plan:
             plan = json.loads(args.plan.read_text(encoding="utf-8"))
+            validate_plan(plan)
             rows = [r for r in plan["devices"] if r["api"] == args.api]
             if plan["commit"] != git(ROOT, "rev-parse", "HEAD") or len(rows) != 1: raise ValueError("Wrong plan/source/API")
             selectors = rows[0]["tests"]

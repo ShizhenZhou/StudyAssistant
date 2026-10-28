@@ -27,6 +27,24 @@ class BackupRepositoryIntegrationTest {
     }
     private fun workspace() = File(context.cacheDir, "backup-fixture-${UUID.randomUUID()}").apply { mkdirs() }
 
+    @Test fun inMemoryExportUsesRoomTransactionAndPreservesPermanentIdentity() = runBlocking {
+        val source=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).build()
+        val target=database(); val work=workspace()
+        try {
+            val id=QuestionIdentity.create(1700000000099)
+            source.questionDao().insert(Question(id,"synthetic in-memory question","answer",1700000000099))
+            source.questionDao().insertSolveSession(SolveSession(id,1700000000099,1700000000100,
+                "ask","synthetic history","answer",savedQuestionId=id))
+            val archive=BackupRepository(context,source).export(File(work,"export"))
+            val repo=BackupRepository(context,target)
+            val prepared=repo.prepareImportFiles(archive.files,File(work,"import"))
+            assertEquals(1,repo.merge(prepared).questions)
+            assertEquals("synthetic in-memory question",target.questionDao().heavyOnce(id)!!.text)
+            assertEquals(id,target.questionDao().solveSessionOnce(id)!!.savedQuestionId)
+            assertEquals("answer",source.questionDao().heavyOnce(id)!!.answer)
+        } finally { source.close(); closeFixture(target); work.deleteRecursively() }
+    }
+
     @Test fun archiveRoundTripPreservesFieldsAndGlobalImageDedup() = runBlocking {
         val source=database(); val target=database(); val work=workspace()
         try {

@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -27,11 +26,9 @@ class AnswerForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (synchronized(owners) { owners.isEmpty() }) { stopSelf(startId); return START_NOT_STICKY }
         val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(this))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getSystemService(NotificationManager::class.java)?.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, s["notif.answer.channel"], NotificationManager.IMPORTANCE_LOW)
-            )
-        }
+        getSystemService(NotificationManager::class.java)?.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, s["notif.answer.channel"], NotificationManager.IMPORTANCE_LOW)
+        )
         val contentIntent = NotificationIntents.answerRunning(this)
         val n = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)

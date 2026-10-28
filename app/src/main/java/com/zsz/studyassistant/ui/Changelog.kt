@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8
+· 🛡️ 无法查询安装授权时停止安装，避免误判为已授权。
+· 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
+· 🔔 统一 Android 16 下载进度与完成通知，保留通知授权、取消和恢复检查。
+· 🛠️ 精简旧系统兼容分支，完善按构建身份续跑的发布校验与显式同版本替换流程。
+
 v0.6.7.9
 · 🛡️ 更新前先读取安装包兼容清单；系统低于新版要求时不下载安装，恢复下载与安装前再次校验。
 · 💾 修复同题号删除后重新保存或从备份恢复时，后续答案和追问可能无法写回的问题。
@@ -489,6 +495,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8
+· 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
+· 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
+· 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
+· 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
+
 v0.6.7.9
 · 🛡️ Check package compatibility metadata before updating; block incompatible downloads and installations, and recheck restored downloads and packages before installation.
 · 💾 Fix answer and follow-up updates being blocked after a problem with the same ID is saved again or restored from backup following deletion.
@@ -973,6 +985,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8
+· 🛡️ インストール権限を確認できない場合は、許可済みと判断せず停止。
+· 📱 Android 16（API 36）以降が必要です。Android 9～15 では v0.6.7.9 をご利用ください。
+· 🔔 Android 16 のダウンロード進捗・完了通知に統一し、通知権限・取消・再開の確認を維持。
+· 🛠️ 旧OSの互換分岐を整理し、ビルド単位で再開できるリリース検証と明示的な同バージョン置換を改善。
+
 v0.6.7.9
 · 🛡️ 更新前に互換性情報を確認し、必要なAndroidバージョンを満たさない場合はダウンロード・インストールを停止。再開時とインストール前にも再確認。
 · 💾 削除後に同じ問題IDで再保存またはバックアップから復元した際、解答や追加質問の更新が保存されない問題を修正。
@@ -1457,6 +1475,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8
+· 🛡️ 설치 권한을 확인할 수 없으면 허용된 것으로 간주하지 않고 설치를 중단합니다.
+· 📱 Android 16(API 36) 이상이 필요합니다. Android 9~15에서는 v0.6.7.9를 사용하세요.
+· 🔔 Android 16 다운로드 진행 및 완료 알림을 통일하고 권한·취소·복구 확인을 유지합니다.
+· 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
+
 v0.6.7.9
 · 🛡️ 업데이트 전에 호환성 정보를 확인하고 필요한 Android 버전을 충족하지 않으면 다운로드와 설치를 차단합니다. 재개 및 설치 전에도 다시 확인합니다.
 · 💾 삭제한 문제를 동일한 ID로 다시 저장하거나 백업에서 복원한 후 답변과 후속 질문 변경이 저장되지 않는 문제를 수정했습니다.

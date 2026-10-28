@@ -16,12 +16,13 @@ def read(path):
 
 def plan():
     value = make_plan(base=os.environ.get("BASE_SHA") or None)
-    if os.environ.get("MODE") == "check": value["devices"] = []
+    value["mode"] = os.environ.get("MODE", "check")
+    if value["mode"] == "check": value["devices"] = []
     write_json(FOLDER / "plan.json", value)
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
             out.write("devices=" + ("true" if value["devices"] else "false") + "\n")
-            out.write("matrix=" + json.dumps({"api": [r["api"] for r in value["devices"]] or [36]}) + "\n")
+            out.write("matrix=" + json.dumps({"include": [p for p in value["platformConstraints"]["platforms"] if p["api"] in [r["api"] for r in value["devices"]]] or [dict(api=36, imageApi="36", target="google_apis", arch="x86_64")]}) + "\n")
     print(json.dumps(value, indent=2))
 
 
@@ -47,6 +48,10 @@ def collect():
     value = read(FOLDER / "plan.json")
     required = "success" if value["devices"] else "skipped"
     if needs.get("android-device", {}).get("result") != required: raise ValueError("Device jobs do not match plan")
+    current = make_plan(base=value.get("base"))
+    current["mode"] = value.get("mode", "check")
+    if current["mode"] == "check": current["devices"] = []
+    if current != value: raise ValueError("CI plan differs from actual source policy")
     build_report = read(FOLDER / "build.json")
     report = dict(schema=1, runId=int(os.environ["GITHUB_RUN_ID"]), attempt=int(os.environ["GITHUB_RUN_ATTEMPT"]),
                   success=True, plan=value, build=build_report,

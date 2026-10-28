@@ -1513,7 +1513,7 @@ private fun NotifyBackgroundSettings() {
         prefs.edit().putBoolean("notify_enabled", enabled).apply()
         notifyEnabled = enabled
         ReminderScheduler.applySchedule(context)
-        if (enabled && android.os.Build.VERSION.SDK_INT >= 33) {
+        if (enabled) {
             notifyPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }

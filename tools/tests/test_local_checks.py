@@ -85,3 +85,58 @@ class LocalChecksTest(unittest.TestCase):
             first = run_step(root, store, "tool", cmd, "inputs")
             (store.folder / first["log"]).write_text("changed")
             self.assertFalse(run_step(root, store, "tool", cmd, "inputs")["reused"])
+
+    def test_basic_test_only_selects_real_test_compilation(self):
+        from unittest.mock import patch
+        import local_checks as local
+        for files, tasks in [(["app/src/androidTest/java/p/OneTest.kt", "README.md", "tools/example.py"], ["compileIntegrationAndroidTestKotlin"]),
+                             (["app/src/integration/java/p/Host.kt", "docs/development.md"], ["compileIntegrationAndroidTestKotlin"]),
+                             (["app/src/test/java/p/OneTest.kt"], ["testDebugUnitTest"]),
+                             (["README.md"], [])]:
+            with patch.object(local, "changed_files", return_value=("a"*40, files)), patch.object(local, "git", return_value="b"*40):
+                plan = local.plan_checks(Path("synthetic"))
+                self.assertEqual(plan["tasks"], tasks)
+                self.assertIn("does not assert a cache hit", plan["reuse"])
+
+    def test_scoped_inputs_ignore_docs_jvm_and_android_tests_for_main_compile(self):
+        from verification import task_inputs, source_digest
+        import subprocess
+        with tempfile.TemporaryDirectory(dir=TOOLS.parent / "app/build/tool-tests") as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            files = ["README.md", "app/src/main/Main.kt", "app/src/test/Jvm.kt", "app/src/androidTest/Device.kt"]
+            for name in files:
+                path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text("initial")
+            jvm_before = source_digest(root, task_inputs(["testDebugUnitTest"]))
+            compile_before = source_digest(root, task_inputs(["compileDebugKotlin"]))
+            apk_before = source_digest(root, task_inputs(["assembleIntegrationAndroidTest"]))
+            for name in [files[0], files[2]]:
+                (root / name).write_text("changed")
+                self.assertNotEqual(source_digest(root, task_inputs(["testDebugUnitTest"])), jvm_before)
+                self.assertEqual(source_digest(root, task_inputs(["compileDebugKotlin"])), compile_before)
+                self.assertEqual(source_digest(root, task_inputs(["assembleIntegrationAndroidTest"])), apk_before)
+            (root / files[3]).write_text("changed")
+            self.assertEqual(source_digest(root, task_inputs(["compileDebugKotlin"])), compile_before)
+            self.assertNotEqual(source_digest(root, task_inputs(["assembleIntegrationAndroidTest"])), apk_before)
+            (root / files[1]).write_text("changed")
+            self.assertNotEqual(source_digest(root, task_inputs(["compileDebugKotlin"])), compile_before)
+
+    def test_compile_output_directory_is_required_and_bound(self):
+        from local_checks import run_step
+        from verification import EvidenceStore
+        with tempfile.TemporaryDirectory(dir=TOOLS.parent / "app/build/tool-tests") as tmp:
+            root = Path(tmp); store = EvidenceStore(root / "evidence"); output = root / "classes"
+            cmd = [sys.executable, "-c", "from pathlib import Path; p=Path('classes/A.class'); p.parent.mkdir(exist_ok=True); p.write_text('fresh')"]
+            run_step(root, store, "gradle-compile", cmd, "inputs", outputs=[output])
+            self.assertTrue(run_step(root, store, "gradle-compile", cmd, "inputs", outputs=[output])["reused"])
+            (output / "A.class").unlink()
+            self.assertFalse(run_step(root, store, "gradle-compile", cmd, "inputs", outputs=[output])["reused"])
+
+    def test_basic_jvm_selector_preserves_changed_device_test_compilation(self):
+        from unittest.mock import patch
+        import local_checks as local
+        for path in ["app/src/androidTest/java/p/OneTest.kt", "app/src/integration/java/p/Host.kt"]:
+            with patch.object(local, "changed_files", return_value=("a"*40, [path, "README.md"])), patch.object(local, "git", return_value="b"*40):
+                plan = local.plan_checks(Path("synthetic"), selectors=["p.JvmTest"])
+                self.assertEqual(plan["tasks"], ["testDebugUnitTest", "compileIntegrationAndroidTestKotlin"])
+                self.assertEqual(plan["selectors"], ["p.JvmTest"])

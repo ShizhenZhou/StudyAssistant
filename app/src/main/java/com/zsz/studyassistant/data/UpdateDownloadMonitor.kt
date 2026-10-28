@@ -72,7 +72,7 @@ class UpdateDownloadMonitor : Service() {
                     task.copy(progress = lastTask!!.progress) else task
                 lastTask = visibleTask
                 val note = UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask)
-                if (task.phase == UpdateDownloads.Phase.READY && android.os.Build.VERSION.SDK_INT >= 36 && completionToken != task.token) {
+                if (task.phase == UpdateDownloads.Phase.READY && completionToken != task.token) {
                     completionToken = task.token
                     UpdateDownloadNotifications.post(this@UpdateDownloadMonitor,
                         UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask, completionChip = true))

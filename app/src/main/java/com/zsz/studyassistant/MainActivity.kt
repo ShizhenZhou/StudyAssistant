@@ -117,8 +117,7 @@ class MainActivity : ComponentActivity() {
         val askBackupNotifications = com.zsz.studyassistant.data.AutoBackup.isEnabled(this) &&
             com.zsz.studyassistant.data.AutoBackup.treeUri(this) != null &&
             !backupPreferences.getBoolean("backup_failure_permission_asked", false)
-        if (android.os.Build.VERSION.SDK_INT >= 33 &&
-            (com.zsz.studyassistant.data.ReminderScheduler.isEnabled(this) || askBackupNotifications)) {
+        if (com.zsz.studyassistant.data.ReminderScheduler.isEnabled(this) || askBackupNotifications) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 if (askBackupNotifications) backupPreferences.edit().putBoolean("backup_failure_permission_asked", true).apply()
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)

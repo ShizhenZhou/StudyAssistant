@@ -9,7 +9,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.util.Calendar
@@ -26,12 +25,10 @@ object ReminderScheduler {
 
     /** 启动时创建通知渠道（否则设置页通知管理会显示"未发布任何通知"） */
     fun ensureChannel(c: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(c))
-            c.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, s["notif.review.channel"], NotificationManager.IMPORTANCE_DEFAULT)
-            )
-        }
+        val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(c))
+        c.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, s["notif.review.channel"], NotificationManager.IMPORTANCE_DEFAULT)
+        )
     }
 
     private fun pending(c: Context): PendingIntent =
@@ -58,8 +55,7 @@ object ReminderScheduler {
             val showIntent = NotificationIntents.alarmClock(c)
             // Android 12+ 精确闹钟需要 SCHEDULE_EXACT_ALARM（14+ 起默认不授予）。
             // 没拿到就退化为 setAndAllowWhileIdle：不保证分秒不差，但 Doze 下也会触发，至少不漏提醒。
-            val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S ||
-                am.canScheduleExactAlarms()
+            val canExact = am.canScheduleExactAlarms()
             if (canExact) {
                 am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, showIntent), pending(c))
             } else {
@@ -82,7 +78,7 @@ class ReminderReceiver : BroadcastReceiver() {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             try { kotlinx.coroutines.withTimeout(7000) {
                 if (!ReminderScheduler.isEnabled(c)) return@withTimeout
-                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(c,
+                if (ContextCompat.checkSelfPermission(c,
                         Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return@withTimeout
                 val day = CalendarDay.now()
                 val dao = AppDatabase.get(c).questionDao()

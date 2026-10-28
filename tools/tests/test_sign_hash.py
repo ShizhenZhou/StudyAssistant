@@ -22,6 +22,6 @@ function Get-FileHash { throw 'Synthetic unavailable command' }
 Get-ReleaseFileHash DATA_PATH
 """.replace("SIGN_PATH",q(ROOT/"tools/sign-release.ps1")).replace("DATA_PATH",q(data))
             probe=tmp/"probe.ps1";probe.write_text(script,encoding="utf-8-sig")
-            result=subprocess.run([str(PS),"-NoProfile","-File",str(probe)],capture_output=True,timeout=30)
-            self.assertEqual(result.returncode,0)
+            result=subprocess.run([str(PS),"-NoProfile","-ExecutionPolicy","Bypass","-File",str(probe)],capture_output=True,timeout=30)
+            self.assertEqual(result.returncode,0,result.stderr.decode(errors="replace"))
             self.assertEqual(result.stdout.decode().strip(),hashlib.sha256(data.read_bytes()).hexdigest())

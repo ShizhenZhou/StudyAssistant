@@ -46,3 +46,49 @@ class AndroidRunnerTest(unittest.TestCase):
         for text in ["", "OK (0 tests)", "OK (15 tests)", "OK (16 tests)\nFAILURES!!!"]:
             with self.assertRaises(RuntimeError): RUNNER.passed_count(text, 16)
         self.assertEqual(RUNNER.passed_count("OK (16 tests)\n", 16), 16)
+
+    def test_below_actual_apk_min_sdk_is_rejected_before_install(self):
+        replies = ["1", "package: name='com.zsz.studyassistant.integration'\nsdkVersion:'36'",
+                   "package: name='com.zsz.studyassistant.integration.test'\nsdkVersion:'36'",
+                   'android:targetPackage="com.zsz.studyassistant.integration"', "35"]
+        with patch.dict(RUNNER.os.environ, {"ANDROID_HOME": "synthetic-sdk"}), patch.object(RUNNER, "checked", side_effect=replies) as tool, \
+             patch.object(RUNNER, "load_build", return_value={}), patch.object(RUNNER, "android_inventory", return_value=["p.One#one"]):
+            with self.assertRaisesRegex(ValueError, "below actual APK minSdk"): RUNNER.run("emulator-5554")
+            self.assertFalse(any("install" in call.args[0] for call in tool.call_args_list))
+
+    def test_runner_and_parser_edits_expire_execution_evidence_without_expiring_apks(self):
+        import subprocess
+        from verification import EvidenceStore
+        folder = Path(__file__).resolve().parents[2] / "app/build/tool-tests"
+        folder.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=folder) as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            for name in [*RUNNER.APK_PATHS, "app/src/main/Main.kt", "tools/run-android-integration.py", "tools/verification.py", "tools/unrelated.py"]:
+                path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text("synthetic")
+            report = dict(api=36, fingerprint="synthetic", abi="x86_64")
+            with patch.object(RUNNER, "ROOT", root), patch.object(RUNNER, "git", return_value="a"*40):
+                build = RUNNER.record_build()
+                identity = RUNNER.execution_identity(build, report)
+                store = EvidenceStore(root / "evidence")
+                record = store.begin(identity, ["p.One#one"])
+                (store.folder / record["log"]).write_text("synthetic pass")
+                store.finish(record, True)
+                self.assertIsNotNone(store.find(identity, ["p.One#one"]))
+                (root / "tools/unrelated.py").write_text("unrelated edit")
+                self.assertEqual(RUNNER.execution_identity(build, report), identity)
+                for name in ["tools/run-android-integration.py", "tools/verification.py"]:
+                    path = root / name; path.write_text("changed implementation")
+                    self.assertEqual(RUNNER.load_build(), build)
+                    changed = RUNNER.execution_identity(build, report)
+                    self.assertNotEqual(changed, identity)
+                    self.assertIsNone(store.find(changed, ["p.One#one"]))
+                    path.write_text("synthetic")
+
+    def test_ci_source_recalculation_has_complete_checkout_history(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/build.yml").read_text()
+        gate = workflow.split("  verification:\n", 1)[1]
+        checkout = gate.split("uses: actions/checkout@v4", 1)[1].split("- uses:", 1)[0]
+        self.assertIn("fetch-depth: 0", checkout)
+        ci = (Path(__file__).resolve().parents[1] / "ci-verification.py").read_text()
+        self.assertIn('current = make_plan(base=value.get("base"))', ci)

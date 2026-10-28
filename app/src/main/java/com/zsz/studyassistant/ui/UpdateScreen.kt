@@ -3,7 +3,6 @@ package com.zsz.studyassistant.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -113,11 +112,10 @@ suspend fun silentUpdateCheck(context: Context) {
 /** 页面阶段 */
 private enum class Phase { RESTORING, IDLE, CHECKING, UP_TO_DATE, FOUND, DOWNLOADING, WAITING, VERIFYING, READY, FAILED }
 
-/** 是否已允许「安装未知应用」（Android 8+ 需要；更低版本视为允许） */
-private fun canInstallApk(context: Context): Boolean = try {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls()
-    else true
-} catch (e: Exception) { true }
+/** 是否已允许「安装未知应用」 */
+internal fun canInstallApk(context: Context): Boolean = try {
+    context.packageManager.canRequestPackageInstalls()
+} catch (e: Exception) { false }
 
 /** 「上次检查时间」的显示格式：MM-dd HH:mm（当年不显示年份，跨年补上）。数据管理页的「上次备份」也用它 */
 internal fun formatCheckTime(ms: Long): String {

@@ -6,13 +6,21 @@ import subprocess
 import sys
 import time
 from verification import (ROOT, EvidenceStore, changed_files, digest, environment_identity,
-                          file_sha, git, source_digest, write_json)
+                          file_sha, git, source_digest, task_inputs, write_json)
 
 
 def run_step(root, store, name, command, identity, force=False, outputs=(), unchanged=lambda: True, family=None):
     cached = None if force else store.find(identity, [name], family)
+    def output_hash(path):
+        if path.is_file(): return file_sha(path)
+        if path.is_dir():
+            files = [(str(f.relative_to(path)), file_sha(f)) for f in sorted(path.rglob("*")) if f.is_file()]
+            return digest(files) if files else None
+        return None
     def output_hashes():
-        return {str(p.relative_to(root)): file_sha(p) if p.is_file() else None for p in outputs}
+        return {str(p.relative_to(root)): output_hash(p) for p in outputs}
+    if name.startswith("gradle") and not outputs:
+        cached = None  # A log alone cannot prove Gradle outputs still exist.
     if cached and outputs and (cached.get("outputs") != output_hashes() or any(v is None for v in output_hashes().values())):
         cached = None
     if cached:
@@ -43,13 +51,22 @@ def plan_checks(root, mode="Basic", selectors=(), base="origin/main", release=Fa
         raise ValueError("Release and CompileAndroidTests require -Mode Full")
     base_sha, changed = changed_files(root, base)
     tasks = []
+    android_changes = any(p.startswith(("app/src/androidTest/", "app/src/integration/")) for p in changed)
     if mode == "Full" or selectors:
         tasks.append("testDebugUnitTest")
-    elif any(p.startswith(("app/", "gradle/")) or p in ("gradlew", "gradlew.bat", "build.gradle.kts", "settings.gradle.kts", "gradle.properties") for p in changed):
-        tasks.append("compileDebugKotlin")
+    else:
+        jvm_changes = any(p.startswith("app/src/test/") for p in changed)
+        main_changes = any((p.startswith(("app/", "gradle/")) and not p.startswith(("app/src/test/", "app/src/androidTest/", "app/src/integration/"))) or
+                           p in ("gradlew", "gradlew.bat", "build.gradle.kts", "settings.gradle.kts", "gradle.properties") for p in changed)
+        if jvm_changes: tasks.append("testDebugUnitTest")
+        elif main_changes: tasks.append("compileDebugKotlin")
+    if mode == "Basic" and android_changes: tasks.append("compileIntegrationAndroidTestKotlin")
     if release: tasks.append("assembleRelease")
     if android: tasks.extend(["assembleIntegration", "assembleIntegrationAndroidTest"])
-    return dict(schema=1, mode=mode, base=base_sha, changedFiles=changed, tasks=tasks,
+    return dict(schema=1, steps=["diff", "diff-staged", "credentials", "tool-tests"] + tasks + (["sqlite"] if mode == "Full" and not selectors else []),
+                inputs={task: task_inputs([task]) for task in tasks},
+                reuse="Per-step content + environment + log + required output hashes; plan does not assert a cache hit. Full Git-visible source drift is audited throughout execution.",
+                mode=mode, base=base_sha, changedFiles=changed, tasks=tasks,
                 selectors=sorted(selectors), sqlite=mode == "Full" and not selectors,
                 credentialScope="current Git index", commit=git(root, "rev-parse", "HEAD"))
 
@@ -69,18 +86,34 @@ def execute(root, plan, force=False):
         tool_inputs = source_digest(root, ["tools", ".github", ".githooks", ".gitignore", "app/build.gradle.kts"])
         report["steps"].append(run_step(root, store, "tool-tests", python + ["-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_*.py"], digest(["tools", tool_inputs, env]), force,
                                        unchanged=lambda: source_digest(root) == source))
-        if plan["tasks"]:
-            command = [str(Path(root) / "gradlew.bat")] + plan["tasks"] + ["--console=plain", "-Pkotlin.compiler.execution.strategy=in-process"]
-            for selector in plan["selectors"]: command.extend(["--tests", selector])
+        for task in plan["tasks"]:
+            command = [str(Path(root) / "gradlew.bat"), task, "--console=plain", "-Pkotlin.compiler.execution.strategy=in-process"]
+            selectors = plan["selectors"] if task == "testDebugUnitTest" else []
+            for selector in selectors: command.extend(["--tests", selector])
+            inputs = source_digest(root, task_inputs([task]))
+            output_paths = {
+                "compileDebugKotlin": ["app/build/tmp/kotlin-classes/debug"],
+                "compileIntegrationAndroidTestKotlin": ["app/build/tmp/kotlin-classes/integrationAndroidTest"],
+                "testDebugUnitTest": ["app/build/test-results/testDebugUnitTest"],
+                "assembleIntegration": ["app/build/outputs/apk/integration/app-integration.apk"],
+                "assembleIntegrationAndroidTest": ["app/build/outputs/apk/androidTest/integration/app-integration-androidTest.apk"],
+                "assembleRelease": ["app/build/outputs/apk/release/app-release-unsigned.apk"],
+            }
+            if task == "testDebugUnitTest" and plan["sqlite"]:
+                output_paths[task] += ["app/build/identity-work/migration-plan.json", "app/build/identity-work/tag-merge-schema.sql",
+                                       "app/build/generated/source/kapt/debug/com/zsz/studyassistant/data/AppDatabase_Impl.java"]
+            identity = digest(["gradle-v2", inputs, env, task, selectors, plan["sqlite"]])
+            report["steps"].append(run_step(root, store, "gradle-" + task, command, identity, force,
+                outputs=[Path(root) / p for p in output_paths[task]],
+                unchanged=lambda: source_digest(root) == source,
+                family=digest(["gradle-v2", inputs, env])))
+        if plan["sqlite"]:
             outputs = [Path(root) / p for p in ("app/build/identity-work/migration-plan.json", "app/build/identity-work/tag-merge-schema.sql",
-                                                "app/build/generated/source/kapt/debug/com/zsz/studyassistant/data/AppDatabase_Impl.java")]
-            identity = digest(["gradle", source, env, plan["tasks"], plan["selectors"]])
-            step = run_step(root, store, "gradle", command, identity, force, outputs=outputs if plan["sqlite"] else (),
-                            unchanged=lambda: source_digest(root) == source, family=digest(["gradle", source, env]))
-            report["steps"].append(step)
-            if plan["sqlite"]:
-                inputs = [file_sha(p) for p in outputs]
-                report["steps"].append(run_step(root, store, "sqlite", python + ["tools/verify-identity-migration.py"], digest(["sqlite", source, env, inputs]), force))
+                       "app/build/generated/source/kapt/debug/com/zsz/studyassistant/data/AppDatabase_Impl.java")]
+            inputs = [file_sha(p) for p in outputs]
+            report["steps"].append(run_step(root, store, "sqlite", python + ["tools/verify-identity-migration.py"],
+                digest(["sqlite", source_digest(root, task_inputs(["compileDebugKotlin"]) + ["tools/verify-identity-migration.py"]), env, inputs]), force,
+                unchanged=lambda: source_digest(root) == source))
         if source_digest(root) != source:
             raise RuntimeError("Inputs changed while checks were running; evidence cannot certify the current tree")
         report["success"] = True

@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -39,7 +38,7 @@ internal object UpdateDownloadNotifications {
     }
     fun canPost(context: Context): Boolean = try {
         ensureChannel(context)
-        (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
             NotificationManagerCompat.from(context).areNotificationsEnabled() &&
             context.getSystemService(NotificationManager::class.java)?.getNotificationChannel(CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
     } catch (_: Exception) { false }
@@ -63,7 +62,7 @@ internal object UpdateDownloadNotifications {
         val strings = stringsFor(UiLangStore.load(context))
         val ongoing = messageKey == null && (task == null || task.phase == UpdateDownloads.Phase.DOWNLOADING || task.phase == UpdateDownloads.Phase.WAITING)
         val completed = messageKey == null && task?.phase == UpdateDownloads.Phase.READY
-        val showCompletion = completed && completionChip && Build.VERSION.SDK_INT >= 36
+        val showCompletion = completed && completionChip
         val promote = (ongoing && task?.phase == UpdateDownloads.Phase.DOWNLOADING) || showCompletion
         val percent = task?.progress ?: -1
         val title = when {
@@ -104,14 +103,10 @@ internal object UpdateDownloadNotifications {
                 else -> null
             })
         if (ongoing) {
-            if (Build.VERSION.SDK_INT >= 36) {
-                note.setStyle(NotificationCompat.ProgressStyle()
-                    .addProgressSegment(NotificationCompat.ProgressStyle.Segment(100).setColor(color))
-                    .setProgress(percent.coerceAtLeast(0))
-                    .setProgressIndeterminate(percent < 0))
-            } else {
-                note.setProgress(100, percent.coerceAtLeast(0), percent < 0)
-            }
+            note.setStyle(NotificationCompat.ProgressStyle()
+                .addProgressSegment(NotificationCompat.ProgressStyle.Segment(100).setColor(color))
+                .setProgress(percent.coerceAtLeast(0))
+                .setProgressIndeterminate(percent < 0))
         }
         if (ongoing && task != null) {
             val cancel = Intent(context, UpdateDownloadActionReceiver::class.java)

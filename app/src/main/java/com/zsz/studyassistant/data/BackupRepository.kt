@@ -3,7 +3,6 @@ package com.zsz.studyassistant.data
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
-import android.os.Build
 import androidx.room.withTransaction
 import java.io.*
 import java.util.concurrent.Executors
@@ -34,7 +33,7 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
                 // Force Room to open/migrate and validate first. Never copy an active WAL database.
                 val opened=db.openHelper.writableDatabase
                 val sourcePath=opened.path
-                if (Build.VERSION.SDK_INT >= 35 && sourcePath != null && sourcePath != ":memory:") {
+                if (!sourcePath.isNullOrEmpty() && sourcePath != ":memory:") {
                     val dispatcher=Executors.newSingleThreadExecutor { runnable -> Thread(runnable,"backup-read-snapshot") }.asCoroutineDispatcher()
                     try { withContext(dispatcher) {
                         SQLiteDatabase.openDatabase(sourcePath,null,SQLiteDatabase.OPEN_READONLY).use { source ->

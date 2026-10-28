@@ -103,5 +103,48 @@ class VerificationTest(unittest.TestCase):
                     dict(report, plan=dict(plan, devices=[dict(api=36, tests=["p.A#one"])]))]:
             with self.assertRaises(ValueError): v.validate_ci_evidence(bad, manifest, 42, 2)
 
+    def test_minimum_sdk_declares_platforms_and_first_migration_is_full(self):
+        v = self.api()
+        inventory = ["p.UpdatePageIntegrationTest#one", "p.Other#two"]
+        self.assertEqual([r["api"] for r in v.platform_constraints(28)["platforms"]], [35, 36])
+        platforms = v.platform_constraints(36)["platforms"]
+        self.assertEqual([(r["api"], r["imageApi"]) for r in platforms], [(36, "36")])
+        rows = v.device_plan(["README.md"], inventory, True, 36, True)
+        self.assertEqual([(r["api"], r["tests"]) for r in rows], [(36, sorted(inventory))])
+
+    def test_policy_constraints_cannot_remove_required_36_or_37(self):
+        v = self.api()
+        inventory = ["p.One#one"]
+        plan = dict(policy=2, base=None, policyPaths=[], inventory=inventory,
+                    platformMigration=True, platformConstraints=v.platform_constraints(36, policy=2),
+                    devices=v.device_plan([], inventory, False, 36, True, policy=2))
+        v.validate_plan(plan)
+        for bad in [dict(plan, policy=999), dict(plan, devices=plan["devices"][:1]),
+                    dict(plan, devices=plan["devices"][1:]),
+                    dict(plan, platformConstraints=v.platform_constraints(28))]:
+            with self.assertRaises(ValueError): v.validate_plan(bad)
+        v.validate_plan(dict(policy=1, devices=[dict(api=35), dict(api=36)]))
+
+    def test_policy_three_requires_complete_android16_coverage(self):
+        v = self.api()
+        inventory = ["p.One#one", "p.Two#two"]
+        plan = dict(policy=3, base=None, policyPaths=[], inventory=inventory,
+                    platformMigration=True, platformConstraints=v.platform_constraints(36),
+                    devices=v.device_plan([], inventory, False, 36, True))
+        v.validate_plan(plan)
+        self.assertEqual([(r["api"], r["tests"]) for r in plan["devices"]], [(36, inventory)])
+        for devices in ([], [dict(plan["devices"][0], tests=inventory[:1])], [dict(plan["devices"][0], api=37)]):
+            with self.assertRaises(ValueError): v.validate_plan(dict(plan, devices=devices))
+        self.assertEqual([p["api"] for p in v.platform_constraints(37)["platforms"]], [37])
+
+    def test_notification_group_includes_split_page_and_navigation_consumers(self):
+        v = self.api()
+        inventory = ["p.UpdatePageIntegrationTest#installedLegacy", "p.UpdatePageIntegrationTest#futureLegacy",
+                     "p.UpdatePageIntegrationTest#restore", "p.UiSmokeTest#updateNotificationEntry", "p.Other#one"]
+        for name in ("UpdateDownloadsIntegrationTest", "UpdatePageIntegrationTest", "UpdateDownloadNotificationsIntegrationTest"):
+            rows = v.device_plan(["app/src/androidTest/java/p/" + name + ".kt"], inventory, True, 36)
+            self.assertEqual([r["api"] for r in rows], [36])
+            self.assertEqual(rows[0]["tests"], sorted(inventory[:-1]))
+
 
 if __name__ == "__main__": unittest.main()
