@@ -447,7 +447,6 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
     }
 
     Spacer(Modifier.height(12.dp))
-    Text(s["update.notif.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     if (!notificationsAllowed) {
         androidx.compose.material3.TextButton(onClick = { UpdateDownloadNotifications.openSettings(context) }) {
             Text(s["update.notif.settings"])

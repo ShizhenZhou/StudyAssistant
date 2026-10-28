@@ -1153,10 +1153,12 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
     Spacer(Modifier.height(6.dp))
-    Text((if (folderReadFailed) s["data.autoBackup.countFailed"] else s.format("data.autoBackup.count",
+    Text(if (folderReadFailed) s["data.autoBackup.countFailed"] else s.format("data.autoBackup.count",
         "manual" to (folderSummary?.manual?.toString() ?: "…"),
-        "automatic" to (folderSummary?.automatic?.toString() ?: "…"))) + if (folderReadFailed) "" else "\n" +
-        if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
+        "automatic" to (folderSummary?.automatic?.toString() ?: "…")),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    // Last-backup information is independent of the automatic schedule and folder read errors.
+    Text(if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     if (status.systemDeferred) {
         Text(s["data.backupJob.systemDeferred"], style = MaterialTheme.typography.bodySmall,

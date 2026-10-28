@@ -53,6 +53,7 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 - 🔋 Pause UI data subscriptions and date polling in the background; refresh on return while answers and backups continue.
 - 🔔 Refresh download notifications only when progress or presentation changes, preserving cancellation, completion and permission recovery.
 - 🗄️ Add local diagnostics and an explanation for system-deferred backups without treating scheduling delays as damaged data.
+- 🖥️ Refine content on About, Data management, App updates and related pages.
 - 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
 
 ### v0.6.8

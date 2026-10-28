@@ -31,7 +31,6 @@ private val B14_ZH = mapOf(
     "update.notif.waiting" to "等待网络或系统允许继续",
     "update.notif.monitorPaused" to "系统下载仍会继续，返回应用查看进度",
     "update.notif.settings" to "下载通知设置",
-    "update.notif.hint" to "允许通知后可显示下载进度；实时胶囊是否出现由系统决定。",
     "update.restoring" to "正在恢复下载任务…",
     "update.background" to "可离开此页面，系统会继续下载；断网后等待网络恢复并尝试续传。",
     "update.waiting" to "等待网络或系统允许继续下载，已有进度保留。",
@@ -120,7 +119,6 @@ private val B14_EN = mapOf(
     "update.notif.waiting" to "Waiting for network or system approval",
     "update.notif.monitorPaused" to "Android continues downloading. Return to the app to view progress",
     "update.notif.settings" to "Download notification settings",
-    "update.notif.hint" to "Allow notifications to show download progress. Live capsule availability is determined by the system.",
     "update.restoring" to "Restoring download task…",
     "update.background" to "You can leave this page. Android continues downloading and attempts to resume when connectivity returns.",
     "update.waiting" to "Waiting for network or system approval; downloaded progress is retained.",
@@ -209,7 +207,6 @@ private val B14_JA = mapOf(
     "update.notif.waiting" to "通信やシステムの許可を待っています",
     "update.notif.monitorPaused" to "システムのダウンロードは続行します。アプリで進捗を確認してください",
     "update.notif.settings" to "ダウンロード通知の設定",
-    "update.notif.hint" to "通知を許可すると進捗を表示できます。ライブカプセルの表示はシステムが決定します。",
     "update.restoring" to "ダウンロードを復元中…",
     "update.background" to "このページを離れてもシステムがダウンロードを続行します。通信復旧後に再開を試みます。",
     "update.waiting" to "通信やシステムの許可を待っています。進捗は保持されています。",
@@ -298,7 +295,6 @@ private val B14_KO = mapOf(
     "update.notif.waiting" to "네트워크 또는 시스템 허용 대기 중",
     "update.notif.monitorPaused" to "시스템 다운로드는 계속됩니다. 앱에서 진행률을 확인하세요",
     "update.notif.settings" to "다운로드 알림 설정",
-    "update.notif.hint" to "알림을 허용하면 다운로드 진행률을 표시할 수 있습니다. 실시간 캡슐 표시 여부는 시스템이 결정합니다.",
     "update.restoring" to "다운로드 작업 복원 중…",
     "update.background" to "이 페이지를 나가도 시스템이 다운로드를 계속합니다. 네트워크 복구 후 이어받기를 시도합니다.",
     "update.waiting" to "네트워크 또는 시스템 허용을 기다리는 중이며 진행률은 유지됩니다.",
@@ -1626,7 +1622,7 @@ private val B7_ZH = mapOf(
     "data.autoBackup.desc" to "备份写入你选择的文件夹，只保留最近 {n} 份；不联网、不上传",
     "data.autoBackup.count" to "已保存 {n} 份",
     "data.autoBackup.last" to "上次备份：{t}",
-    "data.autoBackup.never" to "还没有备份过",
+    "data.autoBackup.never" to "上次备份：无",
     "data.autoBackup.now" to "立即备份一次",
     "data.autoBackup.done" to "已备份：{name}",
     "data.autoBackup.pruned" to "已清理旧备份 {n} 份",
@@ -1760,7 +1756,7 @@ private val B7_EN = mapOf(
     "data.autoBackup.desc" to "Written into the folder you choose, only the last {n} kept; no network, no upload",
     "data.autoBackup.count" to "{n} backup(s) kept",
     "data.autoBackup.last" to "Last backup: {t}",
-    "data.autoBackup.never" to "No backup yet",
+    "data.autoBackup.never" to "Last backup: None",
     "data.autoBackup.now" to "Back up now",
     "data.autoBackup.done" to "Backed up: {name}",
     "data.autoBackup.pruned" to "{n} old backup(s) removed",
@@ -1894,7 +1890,7 @@ private val B7_JA = mapOf(
     "data.autoBackup.desc" to "選んだフォルダに書き出し、最新 {n} 件だけ保持します。通信も送信もしません",
     "data.autoBackup.count" to "{n} 件を保存中",
     "data.autoBackup.last" to "前回のバックアップ：{t}",
-    "data.autoBackup.never" to "まだバックアップしていません",
+    "data.autoBackup.never" to "前回のバックアップ：なし",
     "data.autoBackup.now" to "今すぐバックアップ",
     "data.autoBackup.done" to "バックアップしました：{name}",
     "data.autoBackup.pruned" to "古いバックアップを {n} 件削除しました",
@@ -2027,7 +2023,7 @@ private val B7_KO = mapOf(
     "data.autoBackup.desc" to "선택한 폴더에 저장하며 최근 {n}개만 보관합니다. 네트워크·업로드 없음",
     "data.autoBackup.count" to "{n}개 보관 중",
     "data.autoBackup.last" to "마지막 백업: {t}",
-    "data.autoBackup.never" to "아직 백업한 적이 없습니다",
+    "data.autoBackup.never" to "마지막 백업: 없음",
     "data.autoBackup.now" to "지금 백업",
     "data.autoBackup.done" to "백업 완료: {name}",
     "data.autoBackup.pruned" to "오래된 백업 {n}개를 삭제했습니다",
@@ -2726,7 +2722,7 @@ private val B11_KO = mapOf(
 )
 private val B12_ZH = mapOf(
     "about.tech" to "技术与兼容",
-    "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · 备份 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "本机仅保留最近 20 次分析的编号、耗时、模式、状态码及分组数量等诊断；不含标签名称、题目、响应原文或密钥。只有手动导出才写到所选位置。",
     "tagMerge.diagnosticId" to "最近诊断编号：{id}",
     "tagMerge.exportDiagnostics" to "导出分析诊断",
@@ -2777,7 +2773,7 @@ private val B13_ZH = mapOf(
 internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
-    "about.tech.body" to "Minimum Android 16 · API {api} · DB v{db} · Backup v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "Minimum Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "Only the last 20 local diagnostics are kept: ID, duration, mode, HTTP status and group counts. No label names, questions, raw responses or keys. Files leave app storage only through manual export.",
     "tagMerge.diagnosticId" to "Latest diagnostic ID: {id}",
     "tagMerge.exportDiagnostics" to "Export analysis diagnostics",
@@ -2828,7 +2824,7 @@ private val B13_EN = mapOf(
 internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
-    "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · バックアップ v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "端末に直近20回の番号・所要時間・モード・状態コード・候補数などのみを保持。タグ名・問題・応答原文・キーは含みません。手動出力時のみ選択先へ書き込みます。",
     "tagMerge.diagnosticId" to "直近の診断番号：{id}",
     "tagMerge.exportDiagnostics" to "分析診断を出力",
@@ -2879,7 +2875,7 @@ private val B13_JA = mapOf(
 internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
-    "about.tech.body" to "최소 Android 16 · API {api} · DB v{db} · 백업 v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
+    "about.tech.body" to "최소 Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
     "tagMerge.diagnosticPrivacy" to "기기에 최근 20회 진단 번호·시간·모드·상태 코드·그룹 수만 보관합니다. 태그 이름·문제·응답 원문·키는 포함하지 않으며 수동 내보내기 때만 선택한 위치에 씁니다.",
     "tagMerge.diagnosticId" to "최근 진단 번호: {id}",
     "tagMerge.exportDiagnostics" to "분석 진단 내보내기",

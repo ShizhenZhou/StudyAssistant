@@ -87,9 +87,11 @@ class UiSmokeTest {
             if (offscreen != null && !offscreen.isVisibleToUser && !revealRequested) {
                 revealRequested = true
                 offscreen.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+                instrumentation.waitForIdleSync()
             } else if (offscreen == null || !offscreen.isVisibleToUser) {
                 val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
                 if (scrollable(root)?.performAction(action) != true) forward = !forward
+                instrumentation.waitForIdleSync()
             }
             Thread.sleep(120)
         }
@@ -336,6 +338,36 @@ class UiSmokeTest {
             waitFor(s["settings.aiManage"])
         }
     }
+    @Test fun lastBackupIsVisibleWithAutomaticBackupOnOrOffAndWithoutRecords() {
+        val provider = com.zsz.studyassistant.data.TestBackupDocumentsProvider
+        val preferences = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        val tree = android.provider.DocumentsContract.buildTreeDocumentUri(context.packageName + ".fixture.backups", "root")
+        val at = System.currentTimeMillis()
+        try {
+            for (hasBackup in listOf(false, true)) {
+                provider.reset(context)
+                if (hasBackup) {
+                    val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, "root")
+                    val uri = android.provider.DocumentsContract.createDocument(context.contentResolver, parent,
+                        "application/json", "study-assistant-auto-$at.json")!!
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use {
+                        it.write("""{"format":"study-assistant-backup","version":3,"exportedAt":$at,"questions":[],"categories":[],"tags":[],"questionTags":[],"reviews":[],"solveSessions":[]}""".toByteArray())
+                    }
+                }
+                for (enabled in listOf(false, true)) {
+                    preferences.edit().putString("auto_backup_tree", tree.toString()).putBoolean("auto_backup_enabled", enabled).commit()
+                    launch(openBackup = true).use {
+                        waitFor(if (hasBackup) s.format("data.autoBackup.last", "t" to formatCheckTime(at)) else s["data.autoBackup.never"])
+                    }
+                }
+            }
+        } finally {
+            com.zsz.studyassistant.data.BackupJobs.cancel(context)
+            preferences.edit().remove("auto_backup_tree").putBoolean("auto_backup_enabled", false).commit()
+            provider.reset(context)
+        }
+    }
+
     @Test fun foregroundBackupFailureDetailsOpensBackupAndExplanationExpands() {
         launch().use { scenario ->
             waitFor("Settings")

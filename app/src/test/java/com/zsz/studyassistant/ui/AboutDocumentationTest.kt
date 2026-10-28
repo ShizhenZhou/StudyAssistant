@@ -17,6 +17,12 @@ class AboutDocumentationTest {
             assertTrue(strings["settings.solveModel.desc"].contains(StudyAssistant.MODEL_TEXT))
         }
     }
+    @Test fun backupFormatUsesBakLabelInEveryLanguage() {
+        for (language in languages) {
+            val text = stringsFor(language).format("about.tech.body", "api" to "36", "db" to "10", "bak" to "4")
+            assertTrue(text.contains("Bak v4"))
+        }
+    }
     @Test fun privacyNamesDestinationsAndAvoidsOldBlanketNoUploadClaim() {
         val obsolete = listOf("也不上传内容", "也不上傳內容", "nothing is uploaded", "内容をアップロードしません", "내용을 업로드하지 않습니다")
         for (language in languages) {
