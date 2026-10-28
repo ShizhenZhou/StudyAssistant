@@ -1,5 +1,7 @@
 # Study Assistant 📚
 
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -52,39 +54,9 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 ### v0.6.8
 
 - 🛡️ 无法查询安装授权时停止安装，避免误判为已授权。
-- 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
 - 🔔 统一 Android 16 下载进度与完成通知，保留通知授权、取消和恢复检查。
 - 🛠️ 精简旧系统兼容分支，完善按构建身份续跑的发布校验与显式同版本替换流程。
-
-<details>
-<summary>EN</summary>
-
-- 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
-- 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
-- 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
-- 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
-
-</details>
-
-<details>
-<summary>JA</summary>
-
-- 🛡️ インストール権限を確認できない場合は、許可済みと判断せず停止。
-- 📱 Android 16（API 36）以降が必要です。Android 9～15 では v0.6.7.9 をご利用ください。
-- 🔔 Android 16 のダウンロード進捗・完了通知に統一し、通知権限・取消・再開の確認を維持。
-- 🛠️ 旧OSの互換分岐を整理し、ビルド単位で再開できるリリース検証と明示的な同バージョン置換を改善。
-
-</details>
-
-<details>
-<summary>KO</summary>
-
-- 🛡️ 설치 권한을 확인할 수 없으면 허용된 것으로 간주하지 않고 설치를 중단합니다.
-- 📱 Android 16(API 36) 이상이 필요합니다. Android 9~15에서는 v0.6.7.9를 사용하세요.
-- 🔔 Android 16 다운로드 진행 및 완료 알림을 통일하고 권한·취소·복구 확인을 유지합니다.
-- 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
-
-</details>
+- 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
 
 ### v0.6.7.9
 
@@ -95,42 +67,6 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 - ⬆️ 修复升级后进入更新页时，已安装版本的旧下载记录误报“无法确认系统要求”；新版本兼容拦截保持有效。
 - **这是 Android 9–15 版本的最后一次更新。**
 
-<details>
-<summary>EN</summary>
-
-- 🛡️ Check package compatibility metadata before updating; block incompatible downloads and installations, and recheck restored downloads and packages before installation.
-- 💾 Fix answer and follow-up updates being blocked after a problem with the same ID is saved again or restored from backup following deletion.
-- 📦 Releases automatically include the minimum Android version and APK digest, without guessing compatibility from version numbers or release notes.
-- 🔒 Fix conversation rendering failures caused by special characters, update the math renderer to address a known denial-of-service vulnerability, and restrict page access permissions.
-- ⬆️ Fix an incorrect system-requirements warning caused by an already installed download record when reopening the update page after upgrading; keep compatibility checks for newer releases.
-- **This is the final update for Android 9–15.**
-
-</details>
-
-<details>
-<summary>JA</summary>
-
-- 🛡️ 更新前に互換性情報を確認し、必要なAndroidバージョンを満たさない場合はダウンロード・インストールを停止。再開時とインストール前にも再確認。
-- 💾 削除後に同じ問題IDで再保存またはバックアップから復元した際、解答や追加質問の更新が保存されない問題を修正。
-- 📦 リリース時に最低AndroidバージョンとAPKのハッシュを自動生成し、バージョン番号や説明文による推測を不要に。
-- 🔒 特殊文字で会話表示が停止する問題を修正。数式描画の既知のサービス拒否脆弱性を修正し、ページのアクセス権限を制限。
-- ⬆️ 更新後に更新画面を開くと、インストール済みの古いダウンロード記録でシステム要件の警告が出る問題を修正。新バージョンの互換性確認は維持。
-- **Android 9～15 向けの更新は今回が最後です。**
-
-</details>
-
-<details>
-<summary>KO</summary>
-
-- 🛡️ 업데이트 전에 호환성 정보를 확인하고 필요한 Android 버전을 충족하지 않으면 다운로드와 설치를 차단합니다. 재개 및 설치 전에도 다시 확인합니다.
-- 💾 삭제한 문제를 동일한 ID로 다시 저장하거나 백업에서 복원한 후 답변과 후속 질문 변경이 저장되지 않는 문제를 수정했습니다.
-- 📦 배포 시 최소 Android 버전과 APK 해시를 자동 생성하여 버전 번호나 설명으로 호환성을 추측하지 않습니다.
-- 🔒 특수 문자로 대화 표시가 중단되는 문제를 수정하고, 수식 렌더러의 알려진 서비스 거부 취약점을 해결하며 페이지 접근 권한을 제한했습니다.
-- ⬆️ 업그레이드 후 업데이트 화면에서 이미 설치한 버전의 다운로드 기록 때문에 시스템 요구 사항 경고가 표시되는 문제를 수정했습니다. 새 버전의 호환성 검사는 유지됩니다.
-- **Android 9~15를 위한 마지막 업데이트입니다.**
-
-</details>
-
 ### v0.6.7.8
 
 - 📷 修正 Android 9 旋转照片缩放崩溃，统一照片方向与黑白图片预框选；拍题的解码、压缩与图库读取移至后台，任一图片读取失败时保留原顺序和进度。
@@ -138,36 +74,6 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 - 🛡️ 补齐 Android 15 及以上答案前台服务超时收尾，避免超时后未停止服务导致应用被系统终止。
 - 🧪 按改动范围选择验证，复用有效本地结果和同一 CI 的候选构件；发布门禁核对源码、构件与逐项验证证据。
 - 📌 versionCode **78**；保持 Android 9+。
-
-<details>
-<summary>English</summary>
-
-- 📷 Fix rotated-photo downsampling crashes on Android 9 and unify orientation and black-and-white crop detection. Photo capture decodes, compresses and imports images in the background; preserve order and progress if any input cannot be read.
-- 💾 Similar problems saved during generation now receive the final answer or interrupted fragment. Persist follow-up deletions before switching problems.
-- 🛡️ Stop the answer foreground service promptly at the Android 15+ time limit to prevent system termination for an overdue service.
-- 🧪 Select checks by change scope and reuse valid local results and candidates from the same CI run. Release gates verify source, artifacts and individual test evidence.
-
-</details>
-
-<details>
-<summary>日本語</summary>
-
-- 📷 Android 9 で回転写真の縮小時に発生するクラッシュを修正し、写真の向きと白黒画像の自動選択範囲を改善。撮影画面の画像読込・圧縮をバックグラウンドで行い、読込失敗時は順序と進捗を保持。
-- 💾 生成中に保存した類題へ最終解答や中断時の内容を追記。追加質問の削除も問題を切り替える前に保存。
-- 🛡️ Android 15 以降の制限時間到達時に解答生成のフォアグラウンドサービスを停止し、停止遅延によるアプリ強制終了を防止。
-- 🧪 変更範囲に応じて検証を選択し、有効なローカル結果と同じ CI の候補 APK を再利用。公開前にソース・成果物・各検証結果を照合。
-
-</details>
-
-<details>
-<summary>한국어</summary>
-
-- 📷 Android 9에서 회전 사진 축소 시 발생하는 충돌을 수정하고 사진 방향 및 흑백 이미지의 자동 선택 영역을 개선했습니다. 촬영 화면의 이미지 읽기와 압축을 백그라운드에서 수행하며, 읽기 실패 시 순서와 진행 상태를 유지합니다.
-- 💾 생성 중 저장한 유사 문제에 최종 답변 또는 중단된 내용을 반영합니다. 문제를 전환하기 전에 후속 질문 삭제도 저장합니다.
-- 🛡️ Android 15 이상에서 제한 시간에 도달한 답변 포그라운드 서비스를 종료하여 종료 지연으로 앱이 강제 종료되는 문제를 방지합니다.
-- 🧪 변경 범위에 맞는 검증을 선택하고 유효한 로컬 결과와 동일 CI 실행의 후보 APK를 재사용합니다. 배포 전에 소스, 산출물 및 개별 검증 결과를 확인합니다.
-
-</details>
 
 ### v0.6.7.7
 
@@ -723,7 +629,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 
 
 在 设置 → AI 管理 → API 管理 填写自己的 DeepSeek Key，获取和账户管理见 [DeepSeek 官方控制台](https://platform.deepseek.com)。
 
-按功能使用联网、相机、旧版相册读取（Android 12 及以下）、通知、复习闹钟/开机恢复、后台运行与应用安装权限；Android 13+ 选图使用系统照片选择器。无需位置、通讯录或麦克风权限。通知、精确闹钟和后台保活受系统授权及省电策略影响。
+按功能使用联网、相机、通知、复习闹钟/开机恢复、后台运行与应用安装权限；选图使用系统照片选择器。无需位置、通讯录或麦克风权限。通知、精确闹钟和后台保活受系统授权及省电策略影响。
 
 ## 许可证
 
