@@ -89,9 +89,14 @@ internal object BackupTree {
             out.writeInt(0x53415431); out.writeInt(tables.size); counts.forEach(out::writeLong); out.flush(); file.fd.sync()
         } }
     }
-    fun counts(root:File):LongArray=DataInputStream(File(root,"manifest").inputStream()).use { input ->
-        if(input.readInt()!=0x53415431 || input.readInt()!=tables.size) invalid()
-        LongArray(tables.size) { input.readLong().also { n -> if(n<0 || n>100_000_000) invalid() } }.also { if(input.read()!=-1) invalid() }
+    fun counts(root:File):LongArray {
+        val manifest=File(root,"manifest")
+        // A non-business ZIP may have no manifest; this is a format rejection, not a disk read failure.
+        if(!manifest.isFile) invalid()
+        return DataInputStream(manifest.inputStream()).use { input ->
+            if(input.readInt()!=0x53415431 || input.readInt()!=tables.size) invalid()
+            LongArray(tables.size) { input.readLong().also { n -> if(n<0 || n>100_000_000) invalid() } }.also { if(input.read()!=-1) invalid() }
+        }
     }
 
     /** Query only one key/length/chunk; no CursorWindow ever contains a full text or image. */
@@ -194,39 +199,48 @@ internal object BackupTree {
         fieldSize((file.length()+2)/3*4)
         return Base64.getEncoder().encodeToString(file.readBytes())
     }
+    /** Only wrap token reads backed by imagesJson's StringReader. Resource access, space
+     * checks and cancellation run outside this boundary and keep their original failures. */
+    private inline fun <T> jsonToken(read:()->T):T = try { read() }
+        catch(error:kotlinx.coroutines.CancellationException) { throw error }
+        catch(_:IllegalStateException) { invalid() }
+        catch(_:NumberFormatException) { invalid() }
+        catch(_:android.util.MalformedJsonException) { invalid() }
+        catch(_:EOFException) { invalid() }
+
     /** Stream messages, preserving all known and unknown scalar fields, roles, IDs and image order. */
     fun imagesJson(text:String,tree:File,restore:Boolean,conversation:Boolean,check:()->Unit):String {
         val output=LimitedStringWriter()
         JsonReader(StringReader(text)).use { input -> JsonWriter(output).use { out ->
-            input.beginArray(); out.beginArray()
+            jsonToken { input.beginArray() }; out.beginArray()
             var messages=0
-            while(input.hasNext()) {
+            while(jsonToken { input.hasNext() }) {
                 check()
                 if(conversation) {
-                    input.beginObject(); out.beginObject(); val seen=HashSet<String>(); var id=false; var role=false; var content=false
-                    while(input.hasNext()) {
-                        val key=input.nextName(); if(seen.size>=128 || !seen.add(key)) invalid(); out.name(key)
+                    jsonToken { input.beginObject() }; out.beginObject(); val seen=HashSet<String>(); var id=false; var role=false; var content=false
+                    while(jsonToken { input.hasNext() }) {
+                        val key=jsonToken { input.nextName() }; if(seen.size>=128 || !seen.add(key)) invalid(); out.name(key)
                         when(key) {
-                            "id" -> { out.value(input.nextLong()); id=true }
-                            "role" -> { out.value(input.nextString()); role=true }
-                            "content" -> { out.value(input.nextString()); content=true }
-                            "images" -> if(input.peek()==JsonToken.NULL) { input.nextNull(); out.nullValue() } else { imageArray(input,out,tree,restore,check) }
-                            "thinking" -> if(input.peek()==JsonToken.NULL) { input.nextNull(); out.nullValue() } else out.value(input.nextString())
-                            else -> transfer(input,out,0)
+                            "id" -> { out.value(jsonToken { input.nextLong() }); id=true }
+                            "role" -> { out.value(jsonToken { input.nextString() }); role=true }
+                            "content" -> { out.value(jsonToken { input.nextString() }); content=true }
+                            "images" -> if(jsonToken { input.peek() }==JsonToken.NULL) { jsonToken { input.nextNull() }; out.nullValue() } else { imageArray(input,out,tree,restore,check) }
+                            "thinking" -> if(jsonToken { input.peek() }==JsonToken.NULL) { jsonToken { input.nextNull() }; out.nullValue() } else out.value(jsonToken { input.nextString() })
+                            else -> jsonToken { transfer(input,out,0) }
                         }
                     }
                     if(!id || !role || !content) invalid()
-                    input.endObject(); out.endObject()
-                } else { out.value(imageValue(input.nextString(),tree,restore,check)); if(++messages>MAX_QUESTION_IMAGES) invalid() }
+                    jsonToken { input.endObject() }; out.endObject()
+                } else { out.value(imageValue(jsonToken { input.nextString() },tree,restore,check)); if(++messages>MAX_QUESTION_IMAGES) invalid() }
             }
-            input.endArray(); out.endArray(); if(input.peek()!=JsonToken.END_DOCUMENT) invalid()
+            jsonToken { input.endArray() }; out.endArray(); if(jsonToken { input.peek() }!=JsonToken.END_DOCUMENT) invalid()
         } }
         return output.toString()
     }
     private fun imageArray(input:JsonReader,out:JsonWriter,tree:File,restore:Boolean,check:()->Unit) {
-        input.beginArray(); out.beginArray(); var count=0
-        while(input.hasNext()) { if(++count>MAX_QUESTION_IMAGES) invalid(); out.value(imageValue(input.nextString(),tree,restore,check)) }
-        input.endArray(); out.endArray()
+        jsonToken { input.beginArray() }; out.beginArray(); var count=0
+        while(jsonToken { input.hasNext() }) { if(++count>MAX_QUESTION_IMAGES) invalid(); out.value(imageValue(jsonToken { input.nextString() },tree,restore,check)) }
+        jsonToken { input.endArray() }; out.endArray()
     }
     internal fun transfer(input:JsonReader,out:JsonWriter,depth:Int) {
         if(depth>32) invalid()
@@ -257,6 +271,7 @@ internal object BackupTree {
             var count=0L
             val directory=File(tree,table.name)
             if(!directory.exists()) { if(counts[ti]!=0L) invalid(); return@forEachIndexed }
+            if(!directory.isDirectory) invalid()
             Files.newDirectoryStream(directory.toPath()).use { entries ->
                 for(entry in entries) {
                     check(); val name=entry.fileName.toString()
@@ -267,8 +282,10 @@ internal object BackupTree {
             }
             if(count!=counts[ti]) invalid()
         }
-        if(!File(tree,"resources").exists()) return
-        Files.newDirectoryStream(File(tree,"resources").toPath()).use { entries ->
+        val resources=File(tree,"resources")
+        if(!resources.exists()) return
+        if(!resources.isDirectory) invalid()
+        Files.newDirectoryStream(resources.toPath()).use { entries ->
             for(entry in entries) {
                 check(); val name=entry.fileName.toString(); val file=entry.toFile()
                 if(!name.matches(Regex("[0-9a-f]{64}")) || !Files.isRegularFile(entry) || Files.isSymbolicLink(entry) || file.length()==0L) invalid()

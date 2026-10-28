@@ -57,11 +57,13 @@ internal object UpdateDownloadNotifications {
         return ColorUtils.setAlphaComponent(scheme.primary.toArgb(), 255)
     }
 
-    fun build(context: Context, task: UpdateDownloads.Snapshot?, messageKey: String? = null): Notification {
+    fun build(context: Context, task: UpdateDownloads.Snapshot?, messageKey: String? = null, completionChip: Boolean = false): Notification {
         ensureChannel(context)
         val strings = stringsFor(UiLangStore.load(context))
         val ongoing = messageKey == null && (task == null || task.phase == UpdateDownloads.Phase.DOWNLOADING || task.phase == UpdateDownloads.Phase.WAITING)
-        val promote = ongoing && task?.phase == UpdateDownloads.Phase.DOWNLOADING
+        val completed = messageKey == null && task?.phase == UpdateDownloads.Phase.READY
+        val showCompletion = completed && completionChip && Build.VERSION.SDK_INT >= 36
+        val promote = (ongoing && task?.phase == UpdateDownloads.Phase.DOWNLOADING) || showCompletion
         val percent = task?.progress ?: -1
         val title = when {
             messageKey != null || task == null -> strings["update.notif.genericTitle"]
@@ -91,11 +93,15 @@ internal object UpdateDownloadNotifications {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setOngoing(ongoing).setAutoCancel(!ongoing).setOnlyAlertOnce(true).setShowWhen(false)
+            .setOngoing(ongoing || showCompletion).setAutoCancel(!ongoing && !showCompletion).setOnlyAlertOnce(true).setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setRequestPromotedOngoing(promote)
-            .setShortCriticalText(if (promote && percent >= 0) "$percent%" else null)
+            .setShortCriticalText(when {
+                completed -> strings["update.notif.completedShort"]
+                promote && percent >= 0 -> "$percent%"
+                else -> null
+            })
         if (ongoing) {
             if (Build.VERSION.SDK_INT >= 36) {
                 note.setStyle(NotificationCompat.ProgressStyle()

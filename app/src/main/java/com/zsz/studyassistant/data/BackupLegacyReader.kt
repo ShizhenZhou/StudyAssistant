@@ -13,7 +13,7 @@ internal object BackupLegacyReader {
     private val json=Json { ignoreUnknownKeys=true }
     fun read(file:File,tree:File,check:()->Unit):Long {
         inspectHeader(file,check)
-        val raw=File(tree.parentFile,"legacy-capture").apply { if(!mkdir()) BackupTree.invalid() }
+        val raw=File(tree.parentFile,"legacy-capture").apply { if(!mkdir()) throw IOException("Cannot create private legacy capture") }
         BackupTree.tables.forEach { File(raw,it.name).mkdir() }
         val counts=LongArray(BackupTree.tables.size)
         var format:String?=null; var version:Int?=null; var snapshotAt=0L
@@ -83,6 +83,7 @@ internal object BackupLegacyReader {
         catch(e:BackupValidationException) { throw e }
         catch(_:java.nio.charset.CharacterCodingException) { BackupTree.invalid() }
         catch(e:IOException) { throw e }
+        catch(e:SecurityException) { throw e }
         catch(_:Exception) { BackupTree.invalid() }
     }
     /** Header fields may follow the payload: inspect without decoding any business DTO. */
@@ -112,6 +113,7 @@ internal object BackupLegacyReader {
         catch(error:BackupValidationException) { throw error }
         catch(_:java.nio.charset.CharacterCodingException) { BackupTree.invalid() }
         catch(error:IOException) { throw error }
+        catch(error:SecurityException) { throw error }
         catch(_:Exception) { BackupTree.invalid() }
     }
     private fun strictReader(file:File):Reader=InputStreamReader(file.inputStream(),Charsets.UTF_8.newDecoder()

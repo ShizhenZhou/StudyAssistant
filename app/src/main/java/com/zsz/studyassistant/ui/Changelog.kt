@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7.7
+· 📷 修正两张图片框选时的整图提交与模式切换；未授予相机权限或相机不可用时仍可从图库选图
+· 💾 拍题与框选进度保存为本机检查点，恢复图片顺序、已框结果和首次题号；主动返回主页或放弃后清理
+· 📂 备份检查区分文件损坏与本机空间、读取故障；检查不完整时报告失败并停止清理或自动调度
+· 🔔 下载校验完成后显示“安装包已下载完成”，胶囊短暂显示“已完成”，随后保留可划掉的完成通知
+
 v0.6.7.6
 · 🛡️ 复习切题先检查待保存冲突；同类题保存冻结完整快照，避免旧内容或其他会话串写
 · 🧠 分类请求绑定当前会话；同类题追问保留标准解答和历史附图，当前问题只发送一次
@@ -469,6 +475,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7.7
+· 📷 Fix whole-image submission and mode changes in two-image capture; gallery selection remains available without camera permission or a working camera
+· 💾 Save photo and crop progress locally, preserving image order, crop results and the original problem ID on recovery; clear it when explicitly returning home or discarding
+· 📂 Distinguish corrupt backups from local storage and read failures; incomplete checks report failure and stop cleanup or automatic scheduling
+· 🔔 Verified downloads show “APK download complete” and a brief “Done” chip, followed by a dismissible completion notification
+
 v0.6.7.6
 · 🛡️ Review transitions check pending-save conflicts; similar-problem saves capture a complete snapshot to prevent stale or mixed conversations
 · 🧠 Classification is bound to its session; similar-problem follow-ups retain the standard answer and earlier images, sending the current question once
@@ -933,6 +945,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7.7
+· 📷 2枚の画像の切り抜きで全体画像の送信とモード切替を修正。カメラ未許可・利用不可でもギャラリーから選択可能
+· 💾 撮影・切り抜きの進捗を端末内に保存し、画像順序・切り抜き結果・元の問題IDを復元。ホームへ戻るか破棄した場合は消去
+· 📂 破損したバックアップと端末の容量不足・読取障害を区別。不完全な確認では失敗を通知し、削除と自動予約を停止
+· 🔔 ダウンロード検証後に完了通知と短い「完了」表示を出し、その後は消去可能な完了通知を保持
+
 v0.6.7.6
 · 🛡️ 復習の切替前に未保存の競合を確認。同類問題は完全なスナップショットを保存し、古い内容や別会話の混入を防止
 · 🧠 分類要求を会話に紐付け。同類問題の追加質問には標準解答と過去の添付画像を保持し、現在の質問は一度だけ送信
@@ -1397,6 +1415,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7.7
+· 📷 두 이미지 자르기의 전체 이미지 제출과 모드 전환 수정; 카메라 권한이 없거나 카메라를 사용할 수 없어도 갤러리 선택 가능
+· 💾 촬영·자르기 진행 상태를 기기에 저장하여 이미지 순서, 자르기 결과, 최초 문제 ID 복원; 홈으로 돌아가거나 버리면 정리
+· 📂 손상된 백업과 기기 저장 공간·읽기 오류를 구분; 검사가 불완전하면 실패를 알리고 정리와 자동 예약 중단
+· 🔔 다운로드 검증 후 완료 알림과 짧은 “완료” 캡슐을 표시하고 이후 지울 수 있는 완료 알림 유지
+
 v0.6.7.6
 · 🛡️ 복습 전환 전에 미저장 충돌 확인; 유사 문제는 전체 스냅샷을 저장해 이전 내용이나 다른 대화의 혼입 방지
 · 🧠 분류 요청을 현재 대화에 연결; 유사 문제 추가 질문에 표준 해설과 이전 이미지를 유지하고 현재 질문은 한 번만 전송

@@ -177,6 +177,13 @@ class MainActivity : ComponentActivity() {
                 com.zsz.studyassistant.ui.AppFeedbackLayout(viewModel) {
                     val feedback = com.zsz.studyassistant.ui.LocalAppFeedback.current
                     val nav = rememberNavController()
+                    val captureNotice = viewModel.captureRecoveryNoticeKey
+                    LaunchedEffect(captureNotice) {
+                        if (captureNotice != null) {
+                            feedback.show(strings[captureNotice], isError = true, source = "capture")
+                            viewModel.consumeCaptureRecoveryNotice()
+                        }
+                    }
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
                     LaunchedEffect(viewModel.openBackupManagementPage) {
@@ -284,8 +291,8 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 // ⚠️ 路由常量与"谁能进谁、返回去哪"全部集中在 ui/AppNav.kt（页面树），这里只做绑定
                                 composable(AppNav.HOME) { HomeScreen(nav, viewModel) }
-                                composable(AppNav.CAMERA) { CameraScreen(nav, viewModel) }
-                                composable(AppNav.CROP) { CropScreen(nav, viewModel) }
+                                composable(AppNav.CAMERA) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CameraScreen(nav, viewModel) } }
+                                composable(AppNav.CROP) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CropScreen(nav, viewModel) } }
                                 composable(AppNav.GRADE) { GradeScreen(nav, viewModel) }
                                 // 解题页带上来路（home / camera / grade / history / notebook / review）
                                 composable(AppNav.SOLVE_PATTERN) { entry ->

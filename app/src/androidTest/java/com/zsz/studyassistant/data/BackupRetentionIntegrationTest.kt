@@ -296,4 +296,173 @@ class BackupRetentionIntegrationTest {
         } finally { work.deleteRecursively() }
     }
 
+    @Test fun localSpaceFailureCannotBecomeAnEmptyOrPartialFolderSummary() {
+        val documents = (1L..2L).map { legacy(it) }
+        for (failAt in 1..2) {
+            var copies = 0
+            try {
+                BackupRetention.folderSummary(context, tree, {}, { _, _ ->
+                    if (++copies == failAt) throw BackupValidationException("data.backupSpaceInsufficient")
+                })
+                fail("local space failure became a summary")
+            } catch (error: BackupValidationException) {
+                assertEquals("data.backupSpaceInsufficient", error.messageKey)
+            }
+            assertTrue(documents.all { file(it).isFile })
+            assertTrue(File(context.noBackupFilesDir, "backup-retention").listFiles().isNullOrEmpty())
+        }
+    }
+
+    @Test fun incompleteCatalogNeverStartsRetentionDeletion() = runBlocking {
+        val documents = (1L..5L).map { legacy(it) }
+        var copies = 0
+        try {
+            BackupRetention.preTrim(context, tree, {}, { _, _ ->
+                if (++copies == 5) throw java.io.IOException("synthetic private staging failure")
+            })
+            fail("partial catalog used for retention")
+        } catch (_: java.io.IOException) { }
+        assertTrue(documents.all { file(it).isFile })
+        assertTrue(File(context.noBackupFilesDir, "backup-retention").listFiles().isNullOrEmpty())
+    }
+
+    @Test fun archiveGroupRevalidationSpaceFailureIsNotSkippedAfterSuccessfulHeaderProbe() = runBlocking {
+        val work = workspace()
+        try {
+            val documents = external(business(work, 100), true)
+            var firstDirectory: File? = null
+            try {
+                BackupRetention.folderSummary(context, tree, {}, { directory, _ ->
+                    if (firstDirectory == null) firstDirectory = directory
+                    else if (directory != firstDirectory) throw BackupValidationException("data.backupSpaceInsufficient")
+                })
+                fail("group staging failure became an empty summary")
+            } catch (error: BackupValidationException) {
+                assertEquals("data.backupSpaceInsufficient", error.messageKey)
+            }
+            assertTrue(documents.all { file(it).isFile })
+        } finally { work.deleteRecursively() }
+    }
+
+    @Test fun providerReadFailureAfterSuccessfulListingPropagatesAndPreservesFiles() = runBlocking {
+        val documents = (1L..5L).map { legacy(it) }
+        var checks = 0
+        try {
+            BackupRetention.preTrim(context, tree) {
+                if (++checks == 2) TestBackupDocumentsProvider.denyAccess = true
+            }
+            fail("provider read failure used as a partial catalog")
+        } catch (_: SecurityException) {
+        } finally { TestBackupDocumentsProvider.denyAccess = false }
+        assertTrue(documents.all { file(it).isFile })
+    }
+
+    @Test fun truncatedLegacyIsPreservedAndSkippedWhileValidSummaryStillCounts() {
+        val valid = legacy(123)
+        val truncated = save("study-assistant-auto-truncated.json",
+            """{"format":"study-assistant-backup","version":3,"questions":[""".toByteArray())
+        val summary = BackupRetention.folderSummary(context, tree)
+        assertEquals(1, summary.automatic)
+        assertEquals(123L, summary.latestAt)
+        assertTrue(file(valid).isFile)
+        assertTrue(file(truncated).isFile)
+    }
+
+    @Test fun privateSqliteIoFailureIsNotReclassifiedAsMalformedBackup() = runBlocking {
+        val source = legacy(123)
+        val work = workspace()
+        val failure = android.database.sqlite.SQLiteDiskIOException("synthetic staging IO failure")
+        var validating = false
+        try {
+            try {
+                BackupRepository(context).prepareImportFiles(listOf(file(source)), File(work, "validate"),
+                    check = { if (validating) throw failure },
+                    progress = { phase, _ -> if (phase == "data.backupValidate") validating = true })
+                fail("SQLite disk failure hidden as backup validation")
+            } catch (error: android.database.sqlite.SQLiteDiskIOException) {
+                assertSame(failure, error)
+            }
+            assertTrue(file(source).isFile)
+        } finally { work.deleteRecursively() }
+    }
+
+    @Test fun ledgerVerificationProviderFailureCannotBeSkippedBeforeRetention() = runBlocking {
+        val documents = (1L..5L).map { legacy(it) }
+        val known = documents.last()
+        val local = file(known)
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(local.readBytes())
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        val entry = org.json.JSONObject().put("tree", tree.toString()).put("automatic", true)
+            .put("complete", true).put("id", "synthetic-ledger").put("at", 5L)
+            .put("parts", org.json.JSONArray().put(org.json.JSONObject()
+                .put("id", DocumentsContract.getDocumentId(known)).put("length", local.length()).put("sha", digest)))
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+            .putString(BackupRetention.LEDGER, org.json.JSONArray().put(entry).toString()).commit()
+        var checks = 0
+        try {
+            BackupRetention.preTrim(context, tree) {
+                if (++checks == 2) TestBackupDocumentsProvider.denyAccess = true
+            }
+            fail("ledger provider failure used as a partial catalog")
+        } catch (_: SecurityException) {
+        } finally { TestBackupDocumentsProvider.denyAccess = false }
+        assertTrue(documents.all { file(it).isFile })
+    }
+
+    @Test fun malformedBusinessJsonWithValidArchiveDigestsIsSkippedAndPreserved() = runBlocking {
+        val work = workspace()
+        try {
+            val malformed = listOf("{}", "[1]", """[{"id":"not-a-number","role":"user","content":"text"}]""")
+            val documents = malformed.mapIndexed { index, text ->
+                val original = business(work, 100L + index)
+                val treeDirectory = File(work, "malformed-tree-$index")
+                BackupArchive.readParts(original.files, treeDirectory)
+                val row = File(treeDirectory, "questions/000000000000.row")
+                val fields = java.io.DataInputStream(row.inputStream()).use { input ->
+                    List(BackupTree.tables.first { it.name == "questions" }.columns.size) {
+                        val length = input.readInt()
+                        if (length == -1) null else ByteArray(length).also { input.readFully(it) }
+                    }.toMutableList()
+                }
+                fields[5] = text.toByteArray(Charsets.UTF_8) // conversationJson
+                java.io.DataOutputStream(row.outputStream()).use { output ->
+                    fields.forEach { bytes ->
+                        output.writeInt(bytes?.size ?: -1)
+                        if (bytes != null) output.write(bytes)
+                    }
+                }
+                // Repack after mutation: ZIP CRC, block SHA and commit digests are all valid.
+                external(BackupArchive.writeTree(treeDirectory, File(work, "malformed-out-$index"), 100L + index), false)
+            }.flatten()
+            val valid = legacy(999)
+            val summary = BackupRetention.folderSummary(context, tree)
+            assertEquals(0, summary.manual)
+            assertEquals(1, summary.automatic)
+            assertEquals(999L, summary.latestAt)
+            assertTrue(documents.all { file(it).isFile })
+            assertTrue(file(valid).isFile)
+        } finally { work.deleteRecursively() }
+    }
+
+    @Test fun inMemoryBusinessJsonParserRejectsTypesAndPreservesOperationalFailures() {
+        val work = workspace()
+        try {
+            listOf("{}", "[false]").forEach { text ->
+                try {
+                    BackupTree.imagesJson(text, work, restore = true, conversation = false, check = {})
+                    fail("wrong image JSON type accepted")
+                } catch (error: BackupValidationException) { assertEquals("data.backupInvalid", error.messageKey) }
+            }
+            val ioFailure = java.io.IOException("synthetic image validation IO")
+            val spaceFailure = BackupValidationException("data.backupSpaceInsufficient")
+            val cancellation = CancellationException("synthetic image validation cancellation")
+            for (failure in listOf(ioFailure, spaceFailure, cancellation)) {
+                try {
+                    BackupTree.imagesJson("[1]", work, restore = true, conversation = true, check = { throw failure })
+                    fail("operational failure swallowed")
+                } catch (actual: Exception) { assertSame(failure, actual) }
+            }
+        } finally { work.deleteRecursively() }
+    }
+
 }

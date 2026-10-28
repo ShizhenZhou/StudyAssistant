@@ -864,6 +864,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var cropNeedsMore by mutableStateOf(false)
         private set
     private val cropResults = mutableListOf<ByteArray>()
+    private val captureFlowStore by lazy { com.zsz.studyassistant.data.CaptureFlowStore(getApplication()) }
+    private val captureRestoreMutex = kotlinx.coroutines.sync.Mutex()
+    private var captureRecoveryChecked = false
+    private var captureStartedAt = 0L
+    private var captureFlowRevision = 0L
+    private var captureWriteJob: kotlinx.coroutines.Job? = null
+    var captureRecoveryNoticeKey by mutableStateOf<String?>(null)
+        private set
+    fun consumeCaptureRecoveryNotice() { captureRecoveryNoticeKey = null }
+
+    /** Restore only the input/crop queue. Recovery must never start an AI request. */
+    suspend fun restoreCaptureFlowIfNeeded() = captureRestoreMutex.withLock {
+        if (captureRecoveryChecked || cropPaths.isNotEmpty()) return@withLock
+        val revision = captureFlowRevision
+        val restored = try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { captureFlowStore.read() }
+        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (_: Exception) {
+            if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryReadFailed"
+            null
+        }
+        if (revision != captureFlowRevision) return@withLock
+        captureRecoveryChecked = true
+        if (restored != null) {
+            cropPaths = restored.paths
+            cropIndex = restored.index
+            cropGrade = restored.grade
+            cropExpect = restored.expect
+            cropNeedsMore = restored.needsMore
+            cropResults.clear(); cropResults.addAll(restored.results)
+            captureStartedAt = restored.createdAt
+            captureIdentity = restored.questionId?.let { it to restored.createdAt }
+        }
+    }
+
+    private fun checkpointCaptureFlow() {
+        if (cropPaths.isEmpty()) return
+        captureRecoveryChecked = true
+        val revision = ++captureFlowRevision
+        val ticket = captureFlowStore.reserve()
+        val state = com.zsz.studyassistant.data.CaptureFlowState(cropPaths.toList(), cropIndex, cropGrade,
+            cropExpect, cropNeedsMore, cropResults.toList(), captureIdentity?.first, captureStartedAt)
+        captureWriteJob?.cancel()
+        captureWriteJob = viewModelScope.launch {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val job = kotlinx.coroutines.currentCoroutineContext()
+                    captureFlowStore.write(state, ticket) { job.ensureActive() }
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) {
+                if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryWriteFailed"
+            }
+        }
+    }
+
+    /** Test/lifecycle callers can wait for the latest durable checkpoint without blocking Main. */
+    internal suspend fun awaitCaptureCheckpoint() { captureWriteJob?.join() }
+
 
     val currentCropPath: String? get() = cropPaths.getOrNull(cropIndex)
     /**
@@ -877,6 +936,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
         val firstTime = System.currentTimeMillis()
+        captureStartedAt = firstTime
         captureIdentity = if (!grade) QuestionIdentity.create(firstTime) to firstTime else null
         cropPaths = paths
         cropIndex = 0
@@ -884,6 +944,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         cropExpect = maxOf(expect, paths.size).coerceAtLeast(1)
         cropNeedsMore = false
         cropResults.clear()
+        checkpointCaptureFlow()
     }
 
     /** 两张模式下又拍到 / 选到第 2 张 */
@@ -894,6 +955,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         cropPaths = cropPaths + path
         cropIndex = cropPaths.size - 1
         cropNeedsMore = false
+        checkpointCaptureFlow()
     }
 
     /** 提交当前这张的框选结果：还有下一张就前进；否则凑够张数就进入解题/批改，不够就回拍摄界面 */
@@ -906,6 +968,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             finishCropFlow()
         }
+        if (cropPaths.isNotEmpty()) checkpointCaptureFlow()
     }
 
     /** 长按「整张图片」：把剩下的（最多两张）全部按整图提交 */
@@ -914,7 +977,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             decode(cropPaths[cropIndex])?.let { cropResults.add(it) }
             cropIndex += 1
         }
-        if (cropResults.size < cropExpect) cropNeedsMore = true else finishCropFlow()
+        if (cropResults.size < cropExpect) { cropNeedsMore = true; checkpointCaptureFlow() } else finishCropFlow()
     }
 
     // History is created at initial input, before requesting AI. Both tables share
@@ -1158,6 +1221,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
         cropIndex -= 1
         cropNeedsMore = false
+        checkpointCaptureFlow()
     }
 
     /**
@@ -1212,16 +1276,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cancelCropFlow() {
+        captureRecoveryChecked = true
+        val revision = ++captureFlowRevision
+        val ticket = captureFlowStore.reserve()
+        captureWriteJob?.cancel()
+        captureWriteJob = viewModelScope.launch {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { captureFlowStore.clear(ticket) }
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) {
+                if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryClearFailed"
+            }
+        }
         cropPaths = emptyList()
         cropIndex = 0
+        cropGrade = false
+        cropExpect = 1
         cropNeedsMore = false
         cropResults.clear()
+        captureIdentity = null
+        captureStartedAt = 0L
     }
 
     private fun finishCropFlow() {
         val imgs = cropResults.toList()
         val grade = cropGrade
+        val identity = captureIdentity
         cancelCropFlow()
+        captureIdentity = identity
         if (imgs.isEmpty()) return
         if (grade) {
             if (imgs.size >= 2) startGrade(imgs[0], imgs[1]) else startGrade(imgs[0], null)

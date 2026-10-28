@@ -107,7 +107,8 @@ object BackupArchive {
     private fun decodePath(bytes: ByteArray): String = Charsets.UTF_8.newDecoder()
         .onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString()
     private fun space(directory: File, amount: Long) {
-        if (amount < 0 || directory.usableSpace < amount + RESERVE) tooLarge()
+        if (amount < 0) tooLarge()
+        if (directory.usableSpace < amount + RESERVE) throw BackupValidationException("data.backupSpaceInsufficient")
     }
     private fun removeOwned(file: File) {
         if (Files.isDirectory(file.toPath(), NOFOLLOW_LINKS)) {

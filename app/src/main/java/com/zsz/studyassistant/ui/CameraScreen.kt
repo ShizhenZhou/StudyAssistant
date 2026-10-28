@@ -14,12 +14,12 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCase
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -57,6 +58,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -67,7 +70,6 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.FrameLuma
-import com.zsz.studyassistant.data.StudyAssistant
 import com.zsz.studyassistant.data.autoExposureDeltaEv
 import com.zsz.studyassistant.data.clampAutoEv
 import com.zsz.studyassistant.data.lumaStats
@@ -75,6 +77,8 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -96,26 +100,16 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasPermission = granted }
 
-    if (!hasPermission) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(s["camera.permNeeded"])
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text(s["camera.grantPerm"]) }
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = { nav.popBackStack() }) { Text(s["common.back"]) }
-        }
-        return
-    }
-
     Box(Modifier.fillMaxSize()) {
         val previewView = remember { PreviewView(context) }
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
         var camera by remember { mutableStateOf<Camera?>(null) }
+        var cameraFailed by remember { mutableStateOf(false) }
+        var captureInFlight by remember { mutableStateOf(false) }
+        val screenActive = remember { java.util.concurrent.atomic.AtomicBoolean(true) }
+        var boundProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+        var cameraUseCases by remember { mutableStateOf<List<UseCase>>(emptyList()) }
         val scope = rememberCoroutineScope()
         // 预览帧亮度统计（单击对焦后用它自动调曝光）：分析在单线程 executor 上跑，避免占用主线程
         val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
@@ -124,25 +118,42 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         var autoEvJob by remember { mutableStateOf<Job?>(null) }
         DisposableEffect(Unit) {
             onDispose {
+                screenActive.set(false)
+                boundProvider?.let { provider -> runCatching { provider.unbind(*cameraUseCases.toTypedArray()) } }
                 autoEvJob?.cancel()
                 analysisExecutor.shutdown()
             }
         }
 
-        LaunchedEffect(lifecycleOwner) {
-            val provider = awaitCameraProvider(context)
-            provider.unbindAll()
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-            // ★ 亮度分析用例：只为「单击后自动调曝光」服务（每帧只扫 Y 平面的稀疏采样，开销很小）
-            val analysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-                .also { it.setAnalyzer(analysisExecutor) { proxy -> analyzeLuma(proxy, latestLuma) } }
-            camera = runCatching {
-                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture, analysis)
-            }.getOrElse {
-                // 某些设备不支持"预览 + 拍照 + 分析"三路同时 → 回退到原来的两路（只是没有自动曝光）
-                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+        LaunchedEffect(lifecycleOwner, hasPermission) {
+            if (!hasPermission) return@LaunchedEffect
+            camera = null
+            cameraFailed = false
+            try {
+                val provider = awaitCameraProvider(context)
+                boundProvider = provider
+                provider.unbindAll()
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { it.setAnalyzer(analysisExecutor) { proxy -> analyzeLuma(proxy, latestLuma) } }
+                cameraUseCases = listOf(preview, imageCapture, analysis)
+                camera = try {
+                    provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture, analysis)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Release a partial three-use-case binding before trying the simpler pair.
+                    provider.unbindAll()
+                    analysis.clearAnalyzer()
+                    provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                boundProvider?.let { provider -> runCatching { provider.unbind(*cameraUseCases.toTypedArray()) } }
+                cameraFailed = true
             }
         }
 
@@ -152,11 +163,32 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 单张 / 两张拍摄模式（两张：拍两张作为同一道题一起解答）
         // 记住上次的选择：下次进本页直接沿用（存 settings SharedPreferences）
-        var doubleMode by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.solveDouble(context)) }
+        var doubleMode by remember { mutableStateOf(if (vm.cropPaths.isNotEmpty()) vm.cropExpect > 1 else com.zsz.studyassistant.data.CapturePrefs.solveDouble(context)) }
         // 右上角开关：开 = 批改模式（拍题目 [+ 我的作答] → 批改结果），关 = 正常拍照搜题；状态同样记忆
-        var gradeMode by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.gradeToggle(context)) }
-        var firstBytes by remember { mutableStateOf<ByteArray?>(null) }
-        var awaitingSecond by remember { mutableStateOf(false) }
+        var gradeMode by remember { mutableStateOf(if (vm.cropPaths.isNotEmpty()) vm.cropGrade else com.zsz.studyassistant.data.CapturePrefs.gradeToggle(context)) }
+        var pendingModes by remember { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
+        fun applyModes(next: Pair<Boolean, Boolean>) {
+            vm.cancelCropFlow()
+            doubleMode = next.first
+            gradeMode = next.second
+            com.zsz.studyassistant.data.CapturePrefs.setSolveDouble(context, doubleMode)
+            com.zsz.studyassistant.data.CapturePrefs.setGradeToggle(context, gradeMode)
+        }
+        fun requestModes(next: Pair<Boolean, Boolean>) {
+            if (vm.cropPaths.isNotEmpty() || vm.cropNeedsMore) pendingModes = next
+            else applyModes(next)
+        }
+        pendingModes?.let { next ->
+            AlertDialog(
+                onDismissRequest = { pendingModes = null },
+                title = { Text(s["camera.discardTitle"]) },
+                text = { Text(s["camera.discardMessage"]) },
+                confirmButton = { TextButton(onClick = { pendingModes = null; applyModes(next) }) {
+                    Text(s["camera.discardConfirm"])
+                } },
+                dismissButton = { TextButton(onClick = { pendingModes = null }) { Text(s["common.cancel"]) } }
+            )
+        }
 
         // 拍照 / 选图统一进**框选流程**：
         //  · 单张模式 → 1 张进框选
@@ -177,7 +209,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             AppNav.openCrop(nav)
         }
 
-        AndroidView(
+        if (hasPermission) AndroidView(
             { previewView },
             modifier = Modifier
                 .fillMaxSize()
@@ -219,11 +251,24 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             FocusRing(center = fp, focused = focusDone)
         }
 
+        if (!hasPermission || cameraFailed) {
+            Column(
+                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(s[if (cameraFailed) "camera.unavailable" else "camera.permNeeded"])
+                if (!hasPermission) {
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text(s["camera.grantPerm"]) }
+                }
+            }
+        }
+
         // 系统相册（开启**有序选择**）：单张 → 进框选页；两张模式 → 第 1 张=题目、第 2 张=作答
         val gallerySingle = rememberLauncherForActivityResult(
             ActivityResultContracts.PickVisualMedia()
         ) { uri ->
-            if (uri != null) {
+            if (screenActive.get() && uri != null) {
                 uriToTempFile(context, uri, "gallery")?.let { processImageFile(it) }
                     ?: vm.showError(s["camera.errRead"])
             }
@@ -231,6 +276,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         val galleryMulti = rememberLauncherForActivityResult(
             ActivityResultContracts.PickMultipleVisualMedia(2)
         ) { uris ->
+            if (!screenActive.get()) return@rememberLauncherForActivityResult
             val files = uris.take(2).mapNotNull { uriToTempFile(context, it, "gallery") }
             if (files.isEmpty()) return@rememberLauncherForActivityResult
             // 已经在等第二张 → 只补一张（保留第一张的框选结果，别重置队列）
@@ -254,7 +300,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 if (doubleMode) galleryMulti.launch(imagePickRequest(maxItems = 2))
                 else gallerySingle.launch(imagePickRequest())
             },
-            enabled = !vm.busy,
+            enabled = !vm.busy && !captureInFlight,
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
@@ -262,6 +308,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .navigationBarsPadding()
                 .padding(start = 20.dp, bottom = 28.dp)
                 .size(60.dp)
+                .semantics { contentDescription = s["camera.gallery"] }
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 FlowerIcon(size = 34.dp)
@@ -271,23 +318,32 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         // 拍照解题（底部居中，圆形快门按钮）
         Surface(
             onClick = {
-                val file = File.createTempFile("capture", ".jpg", context.cacheDir)
-                val options = ImageCapture.OutputFileOptions.Builder(file).build()
-                imageCapture.takePicture(
-                    options,
-                    ContextCompat.getMainExecutor(context),
-                    object : ImageCapture.OnImageSavedCallback {
-                        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                            processImageFile(file)
+                if (captureInFlight || camera == null) return@Surface
+                captureInFlight = true
+                try {
+                    val file = File.createTempFile("capture", ".jpg", context.cacheDir)
+                    val options = ImageCapture.OutputFileOptions.Builder(file).build()
+                    imageCapture.takePicture(
+                        options,
+                        ContextCompat.getMainExecutor(context),
+                        object : ImageCapture.OnImageSavedCallback {
+                            override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                                captureInFlight = false
+                                if (screenActive.get()) processImageFile(file) else file.delete()
+                            }
+                            override fun onError(e: ImageCaptureException) {
+                                captureInFlight = false
+                                file.delete()
+                                if (screenActive.get()) vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
+                            }
                         }
-
-                        override fun onError(e: ImageCaptureException) {
-                            vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
-                        }
-                    }
-                )
+                    )
+                } catch (e: Exception) {
+                    captureInFlight = false
+                    vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
+                }
             },
-            enabled = !vm.busy,
+            enabled = !vm.busy && !captureInFlight && camera != null,
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
@@ -304,13 +360,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         // 右下角：单张/两张 切换（与图库、快门在同一水平线）
         Surface(
             onClick = {
-                doubleMode = !doubleMode
-                com.zsz.studyassistant.data.CapturePrefs.setSolveDouble(context, doubleMode)
-                // 切换模式时清掉未完成的框选队列，避免"模式与队列不一致"
-                vm.cancelCropFlow()
-                firstBytes = null; awaitingSecond = false
+                requestModes(!doubleMode to gradeMode)
             },
-            enabled = !vm.busy,
+            enabled = !vm.busy && !captureInFlight,
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
             modifier = Modifier
@@ -327,7 +379,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         // 两张模式提示；批改模式下改用批改文案（第 1 张题目、第 2 张我的作答）
         if (doubleMode) {
             Text(
-                if (vm.cropNeedsMore || awaitingSecond) {
+                if (vm.cropNeedsMore) {
                     if (gradeMode) s["grade.hint.answer"] else s["camera.hint.twoSecond"]
                 } else {
                     if (gradeMode) s["grade.hint.twoFirst"] else s["camera.hint.twoFirst"]
@@ -366,11 +418,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.width(6.dp))
             Switch(
                 checked = gradeMode,
+                enabled = !vm.busy && !captureInFlight,
                 onCheckedChange = {
-                    gradeMode = it
-                    com.zsz.studyassistant.data.CapturePrefs.setGradeToggle(context, it)
-                    firstBytes = null
-                    awaitingSecond = false
+                    requestModes(doubleMode to it)
                 }
             )
         }
@@ -379,11 +429,20 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
 
 private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider =
     suspendCancellableCoroutine { cont ->
-        val future = ProcessCameraProvider.getInstance(context)
-        future.addListener(
-            { cont.resume(future.get()) },
-            ContextCompat.getMainExecutor(context)
-        )
+        try {
+            val future = ProcessCameraProvider.getInstance(context)
+            future.addListener(
+                {
+                    if (cont.isActive) {
+                        try { cont.resume(future.get()) }
+                        catch (e: Exception) { cont.resumeWithException(e) }
+                    }
+                },
+                ContextCompat.getMainExecutor(context)
+            )
+        } catch (e: Exception) {
+            if (cont.isActive) cont.resumeWithException(e)
+        }
     }
 
 /**

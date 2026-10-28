@@ -36,6 +36,7 @@ class UpdateDownloadMonitor : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var observer: Job? = null
     private var lastTask: UpdateDownloads.Snapshot? = null
+    private var completionToken: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -70,6 +71,15 @@ class UpdateDownloadMonitor : Service() {
                     task.copy(progress = lastTask!!.progress) else task
                 lastTask = visibleTask
                 val note = UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask)
+                if (task.phase == UpdateDownloads.Phase.READY && android.os.Build.VERSION.SDK_INT >= 36 && completionToken != task.token) {
+                    completionToken = task.token
+                    UpdateDownloadNotifications.post(this@UpdateDownloadMonitor,
+                        UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask, completionChip = true))
+                    delay(COMPLETION_CHIP_MS)
+                    // Re-query ownership and state before leaving a dismissible completion notice.
+                    // Cancellation or a newer download during this interval must win.
+                    continue
+                }
                 if (task.phase == UpdateDownloads.Phase.READY || task.phase == UpdateDownloads.Phase.FAILED) {
                     finish(note); break
                 }
@@ -105,6 +115,8 @@ class UpdateDownloadMonitor : Service() {
         super.onDestroy()
     }
     companion object {
+        internal const val COMPLETION_CHIP_MS = 3000L
+        // Shared by progress monitoring and notification actions, including isolated test backends.
         internal var downloadsFactory: (Context) -> UpdateDownloads = { UpdateDownloads(it) }
         @Volatile private var latestRequest: Request? = null
         @Volatile private var running = false
@@ -137,7 +149,7 @@ class UpdateDownloadActionReceiver : BroadcastReceiver() {
         if (runCatching { UUID.fromString(token).toString() != token }.getOrDefault(true)) return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            try { UpdateDownloads(context.applicationContext).cancel(token) }
+            try { UpdateDownloadMonitor.downloadsFactory(context.applicationContext).cancel(token) }
             catch (_: Exception) { /* Retain the task if the OS cannot currently confirm ownership. */ }
             finally { pending.finish() }
         }

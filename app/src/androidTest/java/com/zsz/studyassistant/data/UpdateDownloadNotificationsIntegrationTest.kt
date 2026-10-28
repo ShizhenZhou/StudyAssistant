@@ -54,7 +54,7 @@ class UpdateDownloadNotificationsIntegrationTest {
         var request: UpdateDownloadMonitor.Request? = null
         val manager = context.getSystemService(android.app.NotificationManager::class.java)
         val hold = androidx.test.platform.app.InstrumentationRegistry.getArguments()
-            .getString("notificationProbeHoldMs")?.toLongOrNull()?.coerceIn(0, 10_000) ?: 0
+            .getString("notificationProbeHoldMs")?.toLongOrNull()?.coerceIn(0, 60_000) ?: 0
         suspend fun awaitProgress(percent: Int) {
             kotlinx.coroutines.withTimeout(6000) {
                 while (manager.activeNotifications.none { it.id == UpdateDownloadNotifications.NOTIFICATION_ID &&
@@ -127,6 +127,112 @@ class UpdateDownloadNotificationsIntegrationTest {
         assertTrue(note.flags and Notification.FLAG_ONGOING_EVENT != 0)
         assertFalse(NotificationCompat.isRequestPromotedOngoing(note))
         assertEquals(37, note.extras.getInt(Notification.EXTRA_PROGRESS))
+    }
+    @Test fun notificationActionCancelsTheSameBackendAsProgressMonitoring() = kotlinx.coroutines.runBlocking {
+        val backend = UpdateDownloadsIntegrationTest.FakeTransfers()
+        val downloads = UpdateDownloads(context, backend)
+        val original = UpdateDownloadMonitor.downloadsFactory
+        try {
+            downloads.cancel()
+            UpdateDownloadMonitor.downloadsFactory = { downloads }
+            val started = downloads.start(rel, appNotification = true)
+            val note = UpdateDownloadNotifications.build(context, started)
+            note.actions.single().actionIntent.send()
+            kotlinx.coroutines.withTimeout(5000) {
+                while (downloads.snapshot() != null) kotlinx.coroutines.delay(50)
+            }
+            assertNull(backend.current)
+        } finally {
+            UpdateDownloadMonitor.downloadsFactory = original
+            downloads.cancel()
+        }
+    }
+    @Test fun completionChipHasTextInsteadOfProgressAndThenBecomesDismissible() {
+        val done = stringsFor(UiLangStore.load(context))["update.notif.completedShort"]
+        val ready = task(UpdateDownloads.Phase.READY).copy(progress = 100)
+        val briefly = UpdateDownloadNotifications.build(context, ready, completionChip = true)
+        val modern = android.os.Build.VERSION.SDK_INT >= 36
+        assertEquals(done, NotificationCompat.getShortCriticalText(briefly))
+        assertFalse(NotificationCompat.getShortCriticalText(briefly).toString().contains("%"))
+        assertEquals(modern, NotificationCompat.isRequestPromotedOngoing(briefly))
+        assertEquals(modern, briefly.flags and Notification.FLAG_ONGOING_EVENT != 0)
+        assertNull(NotificationCompat.Style.extractStyleFromNotification(briefly))
+        assertEquals(0, briefly.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
+        assertFalse(briefly.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE))
+        assertTrue(briefly.actions.isNullOrEmpty())
+        val finalNote = UpdateDownloadNotifications.build(context, ready)
+        assertEquals(done, NotificationCompat.getShortCriticalText(finalNote))
+        assertEquals(0, finalNote.flags and Notification.FLAG_ONGOING_EVENT)
+        assertTrue(finalNote.flags and Notification.FLAG_AUTO_CANCEL != 0)
+        assertFalse(NotificationCompat.isRequestPromotedOngoing(finalNote))
+        assertNotNull(finalNote.contentIntent)
+        val failed = UpdateDownloadNotifications.build(context, task(UpdateDownloads.Phase.FAILED), completionChip = true)
+        assertNull(NotificationCompat.getShortCriticalText(failed))
+        assertFalse(NotificationCompat.isRequestPromotedOngoing(failed))
+    }
+    @Test fun serviceCompletionBecomesTextAndLeavesADismissibleNotice() = kotlinx.coroutines.runBlocking {
+        if (android.os.Build.VERSION.SDK_INT >= 33) androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
+        val backend = UpdateDownloadsIntegrationTest.FakeTransfers()
+        val downloads = UpdateDownloads(context, backend) { _, _ -> UpdateChecker.VerifyResult(true, true, true, null) }
+        val original = UpdateDownloadMonitor.downloadsFactory
+        var request: UpdateDownloadMonitor.Request? = null
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        val done = stringsFor(UiLangStore.load(context))["update.notif.completedShort"]
+        suspend fun <T> awaitStage(name: String, block: suspend () -> T): T = try {
+            kotlinx.coroutines.withTimeout(8000) { block() }
+        } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
+            val notices = manager.activeNotifications.filter { it.id == UpdateDownloadNotifications.NOTIFICATION_ID }
+                .map { "flags=${it.notification.flags}, progress=${it.notification.extras.getInt(Notification.EXTRA_PROGRESS, -1)}, short=${NotificationCompat.getShortCriticalText(it.notification)}" }
+            throw AssertionError("Completion stage $name timed out; notices=$notices", error)
+        }
+        suspend fun awaitNotice(ongoing: Boolean): Notification = awaitStage("completion ongoing=$ongoing") {
+            var result: Notification? = null
+            while (result == null) {
+                result = manager.activeNotifications.firstOrNull {
+                    it.id == UpdateDownloadNotifications.NOTIFICATION_ID &&
+                        NotificationCompat.getShortCriticalText(it.notification) == done &&
+                        (it.notification.flags and Notification.FLAG_ONGOING_EVENT != 0) == ongoing
+                }?.notification
+                if (result == null) kotlinx.coroutines.delay(50)
+            }
+            result
+        }
+        try {
+            downloads.cancel()
+            UpdateDownloadMonitor.downloadsFactory = { downloads }
+            androidx.test.core.app.ActivityScenario.launch<com.zsz.studyassistant.MainActivity>(
+                android.content.Intent(context, com.zsz.studyassistant.MainActivity::class.java)).use { scenario ->
+                scenario.onActivity { request = UpdateDownloadMonitor.request(it) }
+                assertTrue(kotlinx.coroutines.withTimeout(4000) { request!!.ready.await() })
+                val started = downloads.start(rel.copy(assetSize = 7), appNotification = true)
+                request!!.bound(started)
+                // Establish the running notification before testing its transition to completion.
+                awaitStage("running 42%") {
+                    while (manager.activeNotifications.none { it.id == UpdateDownloadNotifications.NOTIFICATION_ID &&
+                        it.notification.extras.getInt(Notification.EXTRA_PROGRESS, -1) == 42 }) kotlinx.coroutines.delay(50)
+                }
+                backend.file!!.writeText("fixture")
+                backend.current = backend.current!!.copy(status = UpdateDownloads.TransferPhase.SUCCESS, bytes = 7)
+                if (android.os.Build.VERSION.SDK_INT >= 36) {
+                    val briefly = awaitNotice(true)
+                    assertTrue(NotificationCompat.isRequestPromotedOngoing(briefly))
+                    assertTrue(briefly.actions.isNullOrEmpty())
+                }
+                val settled = awaitNotice(false)
+                assertTrue(settled.flags and Notification.FLAG_AUTO_CANCEL != 0)
+                assertFalse(NotificationCompat.isRequestPromotedOngoing(settled))
+                assertEquals(0, settled.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
+                assertFalse(settled.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE))
+                assertNotNull(settled.contentIntent)
+            }
+        } finally {
+            request?.aborted()
+            context.stopService(android.content.Intent(context, UpdateDownloadMonitor::class.java))
+            UpdateDownloadNotifications.clear(context)
+            UpdateDownloadMonitor.downloadsFactory = original
+            downloads.cancel()
+        }
     }
     @Test fun terminalStatesBecomeDismissibleAndHaveNoCancelAction() {
         for (phase in listOf(UpdateDownloads.Phase.READY, UpdateDownloads.Phase.FAILED)) {

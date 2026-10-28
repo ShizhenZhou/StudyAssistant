@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -588,7 +589,7 @@ private fun compressBitmap(bmp: Bitmap, quality: Int = 85): ByteArray {
  *  · 填满后**上滑** → 取消跳过
  */
 @Composable
-private fun HoldToSkipButton(
+internal fun HoldToSkipButton(
     text: String,
     holdHint: String,
     onTap: () -> Unit,
@@ -597,6 +598,10 @@ private fun HoldToSkipButton(
     modifier: Modifier = Modifier,
     holdMs: Long = 2000L
 ) {
+    val latestOnTap by rememberUpdatedState(onTap)
+    val latestOnSkip by rememberUpdatedState(onSkip)
+    val latestHoldEnabled by rememberUpdatedState(holdEnabled)
+    val latestHoldMs by rememberUpdatedState(holdMs)
     var progress by remember { mutableFloatStateOf(0f) }
     var armed by remember { mutableStateOf(false) }        // 是否已填满（等待松手）
     var slideCancel by remember { mutableStateOf(false) }  // 已上滑到取消区（填充变浅红）
@@ -613,10 +618,10 @@ private fun HoldToSkipButton(
                     val slideUpPx = 36.dp.toPx()
                     // 单张模式不需要长按：holdEnabled=false 时完全不填充，只保留单击
                     val job = scope.launch {
-                        if (!holdEnabled) return@launch
+                        if (!latestHoldEnabled) return@launch
                         val start = System.currentTimeMillis()
                         while (true) {
-                            val p = ((System.currentTimeMillis() - start).toFloat() / holdMs).coerceIn(0f, 1f)
+                            val p = ((System.currentTimeMillis() - start).toFloat() / latestHoldMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
                             progress = p
                             if (p >= 1f) { armed = true; break }   // 填满后停住，等松手
                             delay(16)
@@ -645,7 +650,7 @@ private fun HoldToSkipButton(
                     slideCancel = false
                     cancelled = false
                     progress = 0f
-                    if (doSkip) onSkip() else if (doTap) onTap()
+                    if (doSkip) latestOnSkip() else if (doTap) latestOnTap()
                 }
             },
         contentAlignment = Alignment.Center

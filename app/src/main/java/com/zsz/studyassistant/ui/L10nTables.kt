@@ -1,6 +1,14 @@
 package com.zsz.studyassistant.ui
 
 private val B14_ZH = mapOf(
+    "camera.unavailable" to "相机暂不可用，仍可从图库选择图片。",
+    "camera.gallery" to "从图库选择",
+    "camera.discardTitle" to "放弃当前图片并切换模式？",
+    "camera.discardMessage" to "当前拍题尚未完成。切换模式会清除已选图片及框选结果。",
+    "camera.discardConfirm" to "放弃并切换",
+    "camera.recoveryReadFailed" to "无法恢复上次拍题进度，请重新拍摄；错题本数据未受影响。",
+    "camera.recoveryWriteFailed" to "拍题进度暂未保存，退出前请完成本次拍题。",
+    "camera.recoveryClearFailed" to "拍题进度清理失败，请返回主页后重试。",
     "data.autoBackup.temporarilyUnavailable" to "备份目录暂时无法访问。已保留自动备份设置，将在下次打开应用时重试。",
     "data.autoBackup.invalidFolder" to "备份目录已失效或授权已撤销，请重新选择目录。",
     "data.autoBackup.setupTitle" to "确认自动备份路径",
@@ -16,7 +24,8 @@ private val B14_ZH = mapOf(
     "update.notif.preparing" to "正在连接系统下载服务…",
     "update.notif.progress" to "已下载 {p}%",
     "update.notif.ready" to "下载已校验，点按进入安装",
-    "update.notif.readyTitle" to "更新已准备好",
+    "update.notif.readyTitle" to "安装包已下载完成",
+    "update.notif.completedShort" to "已完成",
     "update.notif.failed" to "更新下载未完成，点按查看并重试",
     "update.notif.failureTitle" to "更新下载未完成",
     "update.notif.waiting" to "等待网络或系统允许继续",
@@ -80,6 +89,14 @@ private val B14_ZH = mapOf(
     "data.autoBackup.count" to "手动备份：{manual} 套 · 自动备份：{automatic} 套"
 )
 private val B14_EN = mapOf(
+    "camera.unavailable" to "Camera unavailable. You can still choose images from the gallery.",
+    "camera.gallery" to "Choose from gallery",
+    "camera.discardTitle" to "Discard current images and switch mode?",
+    "camera.discardMessage" to "This capture is unfinished. Switching mode will clear the selected images and crop results.",
+    "camera.discardConfirm" to "Discard and switch",
+    "camera.recoveryReadFailed" to "Could not restore the previous photo session. Take the photos again; your notebook is unchanged.",
+    "camera.recoveryWriteFailed" to "Photo progress could not be saved. Finish this session before leaving.",
+    "camera.recoveryClearFailed" to "Could not clear photo progress. Return home and try again.",
     "data.autoBackup.temporarilyUnavailable" to "The backup folder is temporarily unavailable. Your automatic backup setting is retained; we will retry when you next open the app.",
     "data.autoBackup.invalidFolder" to "The backup folder is invalid or its permission was revoked. Choose a folder again.",
     "data.autoBackup.setupTitle" to "Confirm automatic backup folder",
@@ -95,7 +112,8 @@ private val B14_EN = mapOf(
     "update.notif.preparing" to "Connecting to the system download service…",
     "update.notif.progress" to "Downloaded {p}%",
     "update.notif.ready" to "Download verified. Tap to install",
-    "update.notif.readyTitle" to "Update ready",
+    "update.notif.readyTitle" to "APK download complete",
+    "update.notif.completedShort" to "Done",
     "update.notif.failed" to "Update download incomplete. Tap to view and retry",
     "update.notif.failureTitle" to "Update download incomplete",
     "update.notif.waiting" to "Waiting for network or system approval",
@@ -159,6 +177,14 @@ private val B14_EN = mapOf(
     "data.autoBackup.count" to "Manual: {manual} sets · Automatic: {automatic} sets"
 )
 private val B14_JA = mapOf(
+    "camera.unavailable" to "カメラを利用できません。ギャラリーから画像を選択できます。",
+    "camera.gallery" to "ギャラリーから選択",
+    "camera.discardTitle" to "現在の画像を破棄してモードを切り替えますか？",
+    "camera.discardMessage" to "撮影がまだ完了していません。モードを切り替えると、選択した画像と切り抜き結果が消去されます。",
+    "camera.discardConfirm" to "破棄して切り替え",
+    "camera.recoveryReadFailed" to "前回の撮影状態を復元できませんでした。再撮影してください。ノートのデータは保持されています。",
+    "camera.recoveryWriteFailed" to "撮影の進捗を保存できませんでした。終了する前に今回の撮影を完了してください。",
+    "camera.recoveryClearFailed" to "撮影状態を消去できませんでした。ホームに戻って再試行してください。",
     "data.autoBackup.temporarilyUnavailable" to "バックアップ先に一時的にアクセスできません。自動バックアップ設定を保持し、次回起動時に再試行します。",
     "data.autoBackup.invalidFolder" to "バックアップ先が無効、またはアクセス権が取り消されています。保存先を選び直してください。",
     "data.autoBackup.setupTitle" to "自動バックアップの保存先を確認",
@@ -174,7 +200,8 @@ private val B14_JA = mapOf(
     "update.notif.preparing" to "システムのダウンロード機能に接続中…",
     "update.notif.progress" to "{p}% ダウンロード済み",
     "update.notif.ready" to "検証済みです。タップしてインストール",
-    "update.notif.readyTitle" to "更新の準備完了",
+    "update.notif.readyTitle" to "インストール用ファイルのダウンロード完了",
+    "update.notif.completedShort" to "完了",
     "update.notif.failed" to "更新のダウンロードが未完了です。タップして確認・再試行",
     "update.notif.failureTitle" to "更新のダウンロード未完了",
     "update.notif.waiting" to "通信やシステムの許可を待っています",
@@ -238,6 +265,14 @@ private val B14_JA = mapOf(
     "data.autoBackup.count" to "手動：{manual} セット · 自動：{automatic} セット"
 )
 private val B14_KO = mapOf(
+    "camera.unavailable" to "카메라를 사용할 수 없습니다. 갤러리에서 이미지를 선택할 수 있습니다.",
+    "camera.gallery" to "갤러리에서 선택",
+    "camera.discardTitle" to "현재 이미지를 버리고 모드를 전환할까요?",
+    "camera.discardMessage" to "아직 촬영이 완료되지 않았습니다. 모드를 전환하면 선택한 이미지와 자르기 결과가 지워집니다.",
+    "camera.discardConfirm" to "버리고 전환",
+    "camera.recoveryReadFailed" to "이전 촬영 상태를 복원하지 못했습니다. 다시 촬영해 주세요. 오답노트 데이터는 유지됩니다.",
+    "camera.recoveryWriteFailed" to "촬영 진행 상태를 저장하지 못했습니다. 나가기 전에 이번 촬영을 완료해 주세요.",
+    "camera.recoveryClearFailed" to "촬영 상태를 지우지 못했습니다. 홈으로 돌아가 다시 시도해 주세요.",
     "data.autoBackup.temporarilyUnavailable" to "백업 폴더에 일시적으로 접근할 수 없습니다. 자동 백업 설정을 유지하며 다음 앱 실행 시 다시 시도합니다.",
     "data.autoBackup.invalidFolder" to "백업 폴더가 유효하지 않거나 권한이 취소되었습니다. 폴더를 다시 선택하세요.",
     "data.autoBackup.setupTitle" to "자동 백업 폴더 확인",
@@ -253,7 +288,8 @@ private val B14_KO = mapOf(
     "update.notif.preparing" to "시스템 다운로드 서비스에 연결 중…",
     "update.notif.progress" to "{p}% 다운로드됨",
     "update.notif.ready" to "다운로드 검증 완료. 눌러서 설치",
-    "update.notif.readyTitle" to "업데이트 준비 완료",
+    "update.notif.readyTitle" to "설치 파일 다운로드 완료",
+    "update.notif.completedShort" to "완료",
     "update.notif.failed" to "업데이트 다운로드 미완료. 눌러서 확인하고 다시 시도",
     "update.notif.failureTitle" to "업데이트 다운로드 미완료",
     "update.notif.waiting" to "네트워크 또는 시스템 허용 대기 중",

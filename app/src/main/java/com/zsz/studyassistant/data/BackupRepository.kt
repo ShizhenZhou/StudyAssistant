@@ -112,7 +112,7 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
         val staged=File(directory,"validated.db")
         val stats=try { BackupTree.restore(tree,staged,stop) { progress("data.backupValidate",it) } }
             catch(_:android.database.sqlite.SQLiteFullException) { throw BackupValidationException("data.backupSpaceInsufficient") }
-            catch(_:android.database.sqlite.SQLiteException) { BackupTree.invalid() }
+            catch(_:android.database.sqlite.SQLiteConstraintException) { BackupTree.invalid() }
         File(directory,"ready").writeText("$snapshotAt\n${BackupTree.digest(staged,stop)}\n")
         return PreparedImport(directory,stats,snapshotAt)
     }

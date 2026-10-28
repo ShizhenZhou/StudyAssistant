@@ -3,11 +3,13 @@ package com.zsz.studyassistant.data
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import android.util.MalformedJsonException
 import org.json.JSONObject
+import org.json.JSONException
+import java.io.EOFException
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -53,8 +55,13 @@ object BackupRetention {
     }
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
 
-    suspend fun preTrim(context: Context, tree: Uri, check: () -> Unit = {}): Int = withContext(Dispatchers.IO) {
-        val sets = catalog(context, tree, check)
+    suspend fun preTrim(context: Context, tree: Uri, check: () -> Unit = {}): Int =
+        preTrim(context, tree, check, BackupTree::space)
+
+    // Per-call seam: synthetic low-space tests cannot alter concurrent production scans.
+    internal suspend fun preTrim(context: Context, tree: Uri, check: () -> Unit,
+        storageCheck: (File, Long) -> Unit): Int = withContext(Dispatchers.IO) {
+        val sets = catalog(context, tree, check, storageCheck = storageCheck)
         if (sets.size <= AutoBackup.KEEP) 0 else remove(context, tree, sets.sortedWith(compareByDescending<Set> { it.at }.thenBy { it.id }).drop(2), check)
     }
     suspend fun postTrim(context: Context, tree: Uri, newSetId: String, check: () -> Unit = {}): Int = withContext(Dispatchers.IO) {
@@ -77,15 +84,30 @@ object BackupRetention {
 
     /** Blocking IO API. Always scans current documents; ledger/cache state cannot hide valid backups. */
     fun folderSummary(context: Context, tree: Uri, check: () -> Unit = {}): FolderSummary =
-        kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-            val sets = catalog(context, tree, check, includeManual = true)
+        folderSummary(context, tree, check, BackupTree::space)
+
+    internal fun folderSummary(context: Context, tree: Uri, check: () -> Unit,
+        storageCheck: (File, Long) -> Unit): FolderSummary = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+            val sets = catalog(context, tree, check, includeManual = true, storageCheck = storageCheck)
             FolderSummary(sets.count { !it.automatic }, sets.count { it.automatic }, sets.maxOfOrNull { it.at } ?: 0L,
                 sets.map { AutoBackup.dayKey(it.at) }.toSet())
         }
 
-    private suspend fun catalog(context: Context, tree: Uri, check: () -> Unit, includeManual: Boolean = false): List<Set> {
+    /** Only proven format failures in already fixed local inputs may be skipped. Copy/provider,
+     * staging, space and unknown failures must abort the entire inventory before any deletion. */
+    private suspend fun <T> formatOrNull(read: suspend () -> T): T? = try { read() }
+        catch (error: BackupValidationException) {
+            if (error.messageKey in setOf("data.backupInvalid", "data.backupVersionUnsupported", "data.backupTooLarge")) null
+            else throw error
+        }
+        catch (_: EOFException) { null }
+        catch (_: MalformedJsonException) { null }
+        catch (_: java.nio.charset.CharacterCodingException) { null }
+
+    private suspend fun catalog(context: Context, tree: Uri, check: () -> Unit, includeManual: Boolean = false,
+        storageCheck: (File, Long) -> Unit = BackupTree::space): List<Set> {
         check()
-        // A directory-wide access/list error is a real failure; individual unreadable files are preserved.
+        // Any access/read failure makes the inventory unknown; malformed inputs alone may be skipped.
         val listed = list(context, tree)
         val byId = listed.groupBy { it.id }
         val handled = HashSet<String>()
@@ -113,7 +135,7 @@ object BackupRetention {
                     val id = entry.getString("id")
                     eligible[id] = Set(id, entry.getLong("at"), parts, BackupNames.fileName(entry.getLong("at"), true))
                 }
-            } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Unknown/corrupt ownership is never enough to delete. */ }
+            } catch (_: JSONException) { /* Corrupt ownership is never enough to delete. */ }
         }
         val root = File(context.noBackupFilesDir, "backup-retention").apply { if (!isDirectory && !mkdirs()) throw IOException("retention workspace") }
         val work = File(root, UUID.randomUUID().toString()).apply { if (!mkdir()) throw IOException("retention workspace") }
@@ -125,20 +147,19 @@ object BackupRetention {
                 val probeDir = File(work, UUID.randomUUID().toString()).apply { if (!mkdir()) throw IOException("retention probe") }
                 try {
                     val fixed = File(probeDir, "input")
-                    val verified = copy(context, tree, document, fixed, check)
+                    val verified = copy(context, tree, document, fixed, check, storageCheck)
                     val zip = fixed.inputStream().use { it.read() == 0x50 && it.read() == 0x4b }
                     if (zip) {
-                        val header = BackupArchive.inspectPart(fixed, check)
+                        val header = formatOrNull { BackupArchive.inspectPart(fixed, check) } ?: continue
                         // Known sets never acquire extra unrecorded documents under a reused set UUID.
                         if (header.setId !in eligible) groups.getOrPut(header.setId) { mutableListOf() }.add(Probe(header, verified))
                     } else {
                         // The progressive legacy reader enforces Bak3 and validates all records/resources, without merge.
-                        val prepared = BackupRepository(context).prepareImportFiles(listOf(fixed), File(probeDir, "validated"), check)
+                        val prepared = formatOrNull { BackupRepository(context).prepareImportFiles(listOf(fixed), File(probeDir, "validated"), check) } ?: continue
                         if (prepared.snapshotAt > 0) eligible["legacy:${document.id}"] = Set("legacy:${document.id}", prepared.snapshotAt,
                             listOf(verified), document.name, automatic = !includeManual || automaticName(document.name))
                     }
-                } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Preserve this individual historical file and continue. */ }
-                finally { probeDir.deleteRecursively() }
+                } finally { probeDir.deleteRecursively() }
             }
             for ((id, probes) in groups) {
                 check()
@@ -147,25 +168,25 @@ object BackupRetention {
                     val parts = probes.mapIndexed { i, probe ->
                         val document = byId[probe.document.id]?.singleOrNull() ?: throw IOException("missing part")
                         val fixed = File(groupDir, "part-$i.sab")
-                        val actual = copy(context, tree, document, fixed, check)
+                        val actual = copy(context, tree, document, fixed, check, storageCheck)
                         if (actual.length != probe.document.length || actual.sha != probe.document.sha) throw IOException("changed part")
                         fixed
                     }
                     // Includes missing/duplicate/mixed-index/root/content validation; a header probe alone never qualifies a set.
-                    val prepared = BackupRepository(context).prepareImportFiles(parts, File(groupDir, "validated"), check)
+                    val prepared = formatOrNull { BackupRepository(context).prepareImportFiles(parts, File(groupDir, "validated"), check) } ?: continue
                     // A set with any custom/manual volume name is manual. Retention still probes
                     // only its original automatic candidates, never newly recognized custom names.
                     val automatic = !includeManual || probes.all { automaticName(it.document.name) }
                     eligible[id] = Set(id, prepared.snapshotAt, probes.map { it.document },
                         BackupNames.fileName(prepared.snapshotAt, automatic), automatic)
-                } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Missing/corrupt sets remain untouched. */ }
-                finally { groupDir.deleteRecursively() }
+                } finally { groupDir.deleteRecursively() }
             }
             return eligible.values.toList()
         } finally { work.deleteRecursively() }
     }
 
-    private fun copy(context: Context, tree: Uri, document: Document, file: File, check: () -> Unit): VerifiedDocument {
+    private fun copy(context: Context, tree: Uri, document: Document, file: File, check: () -> Unit,
+        storageCheck: (File, Long) -> Unit): VerifiedDocument {
         val digest = MessageDigest.getInstance("SHA-256")
         var count = 0L
         val input = context.contentResolver.openInputStream(uri(tree, document.id)) ?: throw IOException("unreadable backup")
@@ -174,7 +195,7 @@ object BackupRetention {
             while (true) {
                 check()
                 val n = source.read(buffer); if (n < 0) break
-                if (n > 0) { BackupTree.space(file.parentFile, n.toLong()); output.write(buffer, 0, n); digest.update(buffer, 0, n); count += n }
+                if (n > 0) { storageCheck(file.parentFile!!, n.toLong()); output.write(buffer, 0, n); digest.update(buffer, 0, n); count += n }
             }
             output.fd.sync()
         } }
@@ -190,7 +211,7 @@ object BackupRetention {
             if (current.length >= 0 && current.length != part.length) return false
             var bytes = 0L
             val hash = MessageDigest.getInstance("SHA-256")
-            val input = context.contentResolver.openInputStream(uri(tree, part.id)) ?: return false
+            val input = context.contentResolver.openInputStream(uri(tree, part.id)) ?: throw IOException("unreadable backup")
             input.use { source -> val buffer = ByteArray(64 * 1024)
                 while (true) { check(); val n = source.read(buffer); if (n < 0) break; if (n > 0) { bytes += n; if (bytes > part.length) return false; hash.update(buffer, 0, n) } }
             }
@@ -205,8 +226,7 @@ object BackupRetention {
             check()
             // Re-list outside the per-file failure boundary: revoked folder access must surface.
             val current = list(context, tree).groupBy { it.id }
-            val valid = try { verify(context, tree, set.parts, current, check) }
-                catch (e: CancellationException) { throw e } catch (_: Exception) { false }
+            val valid = verify(context, tree, set.parts, current, check)
             if (!valid) continue
             var complete = true
             for (part in set.parts) {
