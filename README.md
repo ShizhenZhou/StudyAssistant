@@ -26,7 +26,7 @@
 - 💾 保存失败可重试，已落盘副本支持重启恢复；冲突不覆盖，待保存内容可手动导出。
 - 💬 重新生成保留旧答案直至成功；中断对话以独立本机草稿保存，可从主页或数据管理恢复。草稿不进入普通备份；救援导出供人工协助恢复。
 - ↩️ 删除错题、搜题记录与分类后有 3 秒撤销窗口；复习固定本轮筛选范围，AI 批改建议需确认。今日/本周/连续天数和趋势按最近复习日期估算。
-- ⬆️ 应用内检查更新，由 Android 系统后台下载，离开页面后继续，返回恢复进度；持续通知显示进度并可点按回到更新页，通知受限时仍继续系统下载。实时胶囊由手机系统决定，需真机确认；网络恢复后尝试续传，支持主动取消。同版本比较包的 UTC 构建时间；核对签名证书、版本及可用的 SHA-256 摘要。
+- ⬆️ 应用内检查更新，由 Android 系统后台下载，离开页面后继续，返回恢复进度；持续通知显示进度并可点按回到更新页，通知受限时仍继续系统下载。实时胶囊由手机系统决定，需真机确认；网络恢复后尝试续传，支持主动取消。同版本比较包的 UTC 构建时间；下载前读取发布兼容清单，系统低于安装包要求时不下载，安装前核对实际最低系统版本、签名证书、版本及 SHA-256 摘要。
 
 ## 数据与隐私
 
@@ -48,6 +48,47 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 > 下面 v0.6.3 / v0.6.3.1 / v0.6.3.2 / v0.6.3.3 中与导出有关的条目**只是历史记录**，代码已全部删除。
 >
 > 📌 **版本号约定（现行）**：`0.x.x`（三段）与 `0.x.x.x`（四段）**都要**在 README「版本记录」+ App 内「更新内容」（简 / 英 / 日 / 韩 4 份，繁體由简体自动转换）各记一次；`versionCode` **每次发版 +1**。更早小节里「`0.x.x.x` 不改更新内容、只发 Release」的说法**已作废**。
+
+### v0.6.7.9
+
+- 🛡️ 更新前先读取安装包兼容清单；系统低于新版要求时不下载安装，恢复下载与安装前再次校验。
+- 💾 修复同题号删除后重新保存或从备份恢复时，后续答案和追问可能无法写回的问题。
+- 📦 发布自动生成最低系统版本与安装包摘要清单，避免依靠版本号或更新说明猜测兼容性。
+- 🔒 修复特殊字符导致对话显示中断的问题，更新公式组件以修补已知拒绝服务漏洞，并收紧对话页面访问权限。
+- **这是 Android 9–15 版本的最后一次更新。**
+
+<details>
+<summary>EN</summary>
+
+- 🛡️ Check package compatibility metadata before updating; block incompatible downloads and installations, and recheck restored downloads and packages before installation.
+- 💾 Fix answer and follow-up updates being blocked after a problem with the same ID is saved again or restored from backup following deletion.
+- 📦 Releases automatically include the minimum Android version and APK digest, without guessing compatibility from version numbers or release notes.
+- 🔒 Fix conversation rendering failures caused by special characters, update the math renderer to address a known denial-of-service vulnerability, and restrict page access permissions.
+- **This is the final update for Android 9–15.**
+
+</details>
+
+<details>
+<summary>JA</summary>
+
+- 🛡️ 更新前に互換性情報を確認し、必要なAndroidバージョンを満たさない場合はダウンロード・インストールを停止。再開時とインストール前にも再確認。
+- 💾 削除後に同じ問題IDで再保存またはバックアップから復元した際、解答や追加質問の更新が保存されない問題を修正。
+- 📦 リリース時に最低AndroidバージョンとAPKのハッシュを自動生成し、バージョン番号や説明文による推測を不要に。
+- 🔒 特殊文字で会話表示が停止する問題を修正。数式描画の既知のサービス拒否脆弱性を修正し、ページのアクセス権限を制限。
+- **Android 9～15 向けの更新は今回が最後です。**
+
+</details>
+
+<details>
+<summary>KO</summary>
+
+- 🛡️ 업데이트 전에 호환성 정보를 확인하고 필요한 Android 버전을 충족하지 않으면 다운로드와 설치를 차단합니다. 재개 및 설치 전에도 다시 확인합니다.
+- 💾 삭제한 문제를 동일한 ID로 다시 저장하거나 백업에서 복원한 후 답변과 후속 질문 변경이 저장되지 않는 문제를 수정했습니다.
+- 📦 배포 시 최소 Android 버전과 APK 해시를 자동 생성하여 버전 번호나 설명으로 호환성을 추측하지 않습니다.
+- 🔒 특수 문자로 대화 표시가 중단되는 문제를 수정하고, 수식 렌더러의 알려진 서비스 거부 취약점을 해결하며 페이지 접근 권한을 제한했습니다.
+- **Android 9~15를 위한 마지막 업데이트입니다.**
+
+</details>
 
 ### v0.6.7.8
 

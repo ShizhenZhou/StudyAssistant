@@ -14,7 +14,7 @@ class UpdateDownloadNotificationsIntegrationTest {
         check(it.packageName == "com.zsz.studyassistant.integration")
     }
     private val rel = UpdateChecker.ReleaseInfo("v9.0", "9.0", "", "fixture.apk",
-        "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/fixture.apk", null, 100, 123)
+        "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/fixture.apk", null, 100, 123, minSdk = 28)
     private fun task(phase: UpdateDownloads.Phase) = UpdateDownloads.Snapshot(
         "11111111-2222-4333-8444-555555555555", rel, phase, 37, appNotification = true)
 

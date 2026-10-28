@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.7.9
+· 🛡️ 更新前先读取安装包兼容清单；系统低于新版要求时不下载安装，恢复下载与安装前再次校验。
+· 💾 修复同题号删除后重新保存或从备份恢复时，后续答案和追问可能无法写回的问题。
+· 📦 发布自动生成最低系统版本与安装包摘要清单，避免依靠版本号或更新说明猜测兼容性。
+· 🔒 修复特殊字符导致对话显示中断的问题，更新公式组件以修补已知拒绝服务漏洞，并收紧对话页面访问权限。
+· **这是 Android 9–15 版本的最后一次更新。**
+
 v0.6.7.8
 · 📷 修正 Android 9 旋转照片缩放崩溃，统一照片方向与黑白图片预框选；拍题的解码、压缩与图库读取移至后台，任一图片读取失败时保留原顺序和进度。
 · 💾 同类题在生成中保存后，自动补写最终答案或中断片段；删除追问及时保存，避免切题后内容丢失。
@@ -481,6 +488,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.7.9
+· 🛡️ Check package compatibility metadata before updating; block incompatible downloads and installations, and recheck restored downloads and packages before installation.
+· 💾 Fix answer and follow-up updates being blocked after a problem with the same ID is saved again or restored from backup following deletion.
+· 📦 Releases automatically include the minimum Android version and APK digest, without guessing compatibility from version numbers or release notes.
+· 🔒 Fix conversation rendering failures caused by special characters, update the math renderer to address a known denial-of-service vulnerability, and restrict page access permissions.
+· **This is the final update for Android 9–15.**
+
 v0.6.7.8
 · 📷 Fix rotated-photo downsampling crashes on Android 9 and unify orientation and black-and-white crop detection. Photo capture decodes, compresses and imports images in the background; preserve order and progress if any input cannot be read.
 · 💾 Similar problems saved during generation now receive the final answer or interrupted fragment. Persist follow-up deletions before switching problems.
@@ -957,6 +971,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.7.9
+· 🛡️ 更新前に互換性情報を確認し、必要なAndroidバージョンを満たさない場合はダウンロード・インストールを停止。再開時とインストール前にも再確認。
+· 💾 削除後に同じ問題IDで再保存またはバックアップから復元した際、解答や追加質問の更新が保存されない問題を修正。
+· 📦 リリース時に最低AndroidバージョンとAPKのハッシュを自動生成し、バージョン番号や説明文による推測を不要に。
+· 🔒 特殊文字で会話表示が停止する問題を修正。数式描画の既知のサービス拒否脆弱性を修正し、ページのアクセス権限を制限。
+· **Android 9～15 向けの更新は今回が最後です。**
+
 v0.6.7.8
 · 📷 Android 9 で回転写真の縮小時に発生するクラッシュを修正し、写真の向きと白黒画像の自動選択範囲を改善。撮影画面の画像読込・圧縮をバックグラウンドで行い、読込失敗時は順序と進捗を保持。
 · 💾 生成中に保存した類題へ最終解答や中断時の内容を追記。追加質問の削除も問題を切り替える前に保存。
@@ -1433,6 +1454,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.7.9
+· 🛡️ 업데이트 전에 호환성 정보를 확인하고 필요한 Android 버전을 충족하지 않으면 다운로드와 설치를 차단합니다. 재개 및 설치 전에도 다시 확인합니다.
+· 💾 삭제한 문제를 동일한 ID로 다시 저장하거나 백업에서 복원한 후 답변과 후속 질문 변경이 저장되지 않는 문제를 수정했습니다.
+· 📦 배포 시 최소 Android 버전과 APK 해시를 자동 생성하여 버전 번호나 설명으로 호환성을 추측하지 않습니다.
+· 🔒 특수 문자로 대화 표시가 중단되는 문제를 수정하고, 수식 렌더러의 알려진 서비스 거부 취약점을 해결하며 페이지 접근 권한을 제한했습니다.
+· **Android 9~15를 위한 마지막 업데이트입니다.**
+
 v0.6.7.8
 · 📷 Android 9에서 회전 사진 축소 시 발생하는 충돌을 수정하고 사진 방향 및 흑백 이미지의 자동 선택 영역을 개선했습니다. 촬영 화면의 이미지 읽기와 압축을 백그라운드에서 수행하며, 읽기 실패 시 순서와 진행 상태를 유지합니다.
 · 💾 생성 중 저장한 유사 문제에 최종 답변 또는 중단된 내용을 반영합니다. 문제를 전환하기 전에 후속 질문 삭제도 저장합니다.

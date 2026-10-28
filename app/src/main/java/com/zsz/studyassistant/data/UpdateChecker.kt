@@ -2,6 +2,7 @@ package com.zsz.studyassistant.data
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
@@ -52,10 +53,67 @@ object UpdateChecker {
         val assetSha256: String?,   // API 的 digest 字段，形如 sha256:xxxx（可能为空）
         val assetSize: Long,
         /** 附件上传时间（epoch ms）：用于识别「同一版本被替换成新构建」 */
-        val assetUploadedAt: Long = 0L
+        val assetUploadedAt: Long = 0L,
+        val minSdk: Int? = legacyMinSdk(version),
+        val versionCode: Long? = null
     )
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    /** Only immutable, already published legacy versions have an implicit platform requirement. */
+    internal fun legacyMinSdk(version: String): Int? =
+        if (Regex("0\\.\\d+\\.\\d+(?:\\.\\d+)?").matches(version) &&
+            version.split('.').all { it.toIntOrNull() != null } && !isNewer(version, "0.6.7.8")) 28 else null
+
+    fun compatibilityError(release: ReleaseInfo, deviceSdk: Int = Build.VERSION.SDK_INT): String? = when {
+        release.minSdk == null || release.minSdk <= 0 -> "update.compatibilityUnknown"
+        release.minSdk > deviceSdk -> "update.incompatible"
+        else -> null
+    }
+
+    internal fun isReleaseAssetUrl(url: String, tag: String): Boolean = runCatching {
+        val uri = java.net.URI(url)
+        uri.scheme == "https" && uri.host == "github.com" && uri.userInfo == null && uri.port == -1 &&
+            uri.query == null && uri.fragment == null &&
+            uri.path.startsWith("/$REPO/releases/download/$tag/") &&
+            uri.path.substringAfter("/$REPO/releases/download/$tag/").let { it.isNotEmpty() && '/' !in it }
+    }.getOrDefault(false)
+
+    /** Bind compatibility data to the selected signed APK, including its digest when GitHub supplies one. */
+    internal fun withManifest(release: ReleaseInfo, text: String): ReleaseInfo? = runCatching {
+        val root = json.parseToJsonElement(text).jsonObject
+        fun value(key: String) = root[key]!!.jsonPrimitive.content
+        require(value("schema") == "1" && value("version") == release.version)
+        val min = value("minSdk").toInt().also { require(it > 0) }
+        val code = value("versionCode").toLong().also { require(it > 0) }
+        val digest = value("apkSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
+        require(value("apkName") == release.assetName && value("apkSize").toLong() == release.assetSize && release.assetSize > 0)
+        require(release.assetSha256 == null || release.assetSha256.equals(digest, true))
+        release.copy(minSdk = min, versionCode = code, assetSha256 = digest)
+    }.getOrNull()
+
+    private fun fetchManifest(release: ReleaseInfo, assets: List<JsonObject>): ReleaseInfo {
+        val entries = assets.filter { it["name"]?.jsonPrimitive?.content == "update-manifest.json" }
+        if (entries.isEmpty()) return release
+        // An invalid manifest is never allowed to fall back to legacy assumptions.
+        val unknown = release.copy(minSdk = null)
+        if (entries.size != 1) return unknown
+        val asset = entries.single()
+        val url = asset["browser_download_url"]?.jsonPrimitive?.content.orEmpty()
+        val size = asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: return unknown
+        if (size !in 1..65536 || !isReleaseAssetUrl(url, release.tagName)) return unknown
+        return try {
+            client.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                if (!response.isSuccessful) return unknown
+                val body = response.body ?: return unknown
+                if (body.contentLength() > 65536) return unknown
+                val source = body.source()
+                source.request(65537)
+                if (source.buffer.size > 65536) return unknown
+                withManifest(release, source.readUtf8()) ?: unknown
+            }
+        } catch (_: Exception) { unknown }
+    }
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -169,7 +227,7 @@ object UpdateChecker {
      * 跳过只影响"提示"，不影响手动检查时看到的最新版本信息。
      */
     fun shouldNotify(context: Context, rel: ReleaseInfo): Boolean =
-        hasUpdate(context, rel) && !isSkipped(context, rel)
+        compatibilityError(rel) == null && hasUpdate(context, rel) && !isSkipped(context, rel)
 
     /**
      * Release 说明（Markdown）→ 适合直接显示的纯文本。
@@ -234,8 +292,8 @@ object UpdateChecker {
                 // 附件上传时间（updated_at 优先，退到 created_at）：识别「同版本被替换成新构建」
                 val uploadedAt = parseIsoMillis(asset["updated_at"]?.jsonPrimitive?.content)
                     .takeIf { it > 0L } ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.content)
-                if (url.isBlank()) return@withContext null
-                ReleaseInfo(
+                if (!isReleaseAssetUrl(url, tag)) return@withContext null
+                fetchManifest(ReleaseInfo(
                     tagName = tag,
                     version = normalizeVersion(tag),
                     notes = notes,
@@ -244,7 +302,7 @@ object UpdateChecker {
                     assetSha256 = digest?.takeIf { it.length == 64 },
                     assetSize = size,
                     assetUploadedAt = uploadedAt
-                )
+                ), objs)
             }
         } catch (e: Exception) {
             Log.w(TAG, "fetchLatest failed: ${e.message}")
@@ -321,7 +379,12 @@ object UpdateChecker {
      * 双重校验：SHA-256（有 digest 才查）+ 签名证书。
      * 注意：**签名证书必须匹配**（这是防伪造的关键）；SHA 只在 API 给了 digest 时作为附加校验。
      */
-    fun verify(context: Context, apk: File, expectedSha256: String?, expectedVersion: String? = null): VerifyResult {
+    internal fun apkSdkCompatible(actualMinSdk: Int?, deviceSdk: Int, expectedMinSdk: Int? = null): Boolean =
+        actualMinSdk != null && actualMinSdk > 0 && actualMinSdk <= deviceSdk &&
+            (expectedMinSdk == null || actualMinSdk == expectedMinSdk)
+
+    fun verify(context: Context, apk: File, expectedSha256: String?, expectedVersion: String? = null,
+        expectedMinSdk: Int? = null, expectedVersionCode: Long? = null): VerifyResult {
         val actualSha = sha256(apk)
         val shaOk = expectedSha256 == null || (actualSha != null && actualSha.equals(expectedSha256, true))
         val actualSigner = apkSignerSha256(context, apk)
@@ -330,8 +393,10 @@ object UpdateChecker {
         val installed = context.packageManager.getPackageInfo(context.packageName, 0)
         val identityOk = info != null && info.packageName == context.packageName &&
             info.longVersionCode >= installed.longVersionCode &&
+            (expectedVersionCode == null || info.longVersionCode == expectedVersionCode) &&
             (expectedVersion == null || normalizeVersion(info.versionName.orEmpty()) == expectedVersion)
-        return VerifyResult(ok = shaOk && signerOk && identityOk, shaOk = shaOk, signerOk = signerOk, actualSigner = actualSigner)
+        val sdkOk = apkSdkCompatible(info?.applicationInfo?.minSdkVersion, Build.VERSION.SDK_INT, expectedMinSdk)
+        return VerifyResult(ok = shaOk && signerOk && identityOk && sdkOk, shaOk = shaOk, signerOk = signerOk, actualSigner = actualSigner)
     }
 
     /** 下载目录（cacheDir/updates，配合 FileProvider 的 file_paths.xml） */

@@ -17,12 +17,45 @@ class UpdateDownloadsIntegrationTest {
     }
     private val backend = FakeTransfers()
     private val rel = UpdateChecker.ReleaseInfo("v9.0", "9.0", "synthetic", "fixture.apk",
-        "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/fixture.apk", "a".repeat(64), 7, 1234)
+        "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/fixture.apk", "a".repeat(64), 7, 1234, minSdk = 28)
     private fun repo(valid: Boolean = true) = UpdateDownloads(context, backend) { file, _ ->
         UpdateChecker.VerifyResult(valid && file.readText() == "fixture", valid, valid, null)
     }
     @Before fun prepare() = runBlocking { repo().cancel() }
     @After fun cleanup() = runBlocking { repo().cancel() }
+
+    @Test fun incompatibleOrUnknownReleaseNeverEnqueuesBytes() = runBlocking {
+        assertEquals("update.incompatible", repo().start(rel.copy(minSdk = android.os.Build.VERSION.SDK_INT + 1)).errorKey)
+        assertEquals("update.compatibilityUnknown", repo().start(rel.copy(minSdk = null)).errorKey)
+        assertEquals(0, backend.enqueues)
+        assertNull(repo().snapshot())
+    }
+    @Test fun restoredTransferWithoutCompatibilityIsStopped() = runBlocking {
+        repo().start(rel)
+        val preferences = context.getSharedPreferences("update_download", Context.MODE_PRIVATE)
+        val obj = org.json.JSONObject(preferences.getString("session", null)!!)
+        obj.remove("minSdk") // A task saved by an older app did not establish compatibility.
+        preferences.edit().putString("session", obj.toString()).commit()
+        val result = repo().snapshot()!!
+        assertEquals(UpdateDownloads.Phase.FAILED, result.phase)
+        assertEquals("update.compatibilityUnknown", result.errorKey)
+        assertNull(backend.current)
+        assertEquals(1, backend.enqueues)
+    }
+    @Test fun directInstallOfRestoredReadyFileRechecksCompatibility() = runBlocking {
+        repo().start(rel); backend.file!!.writeText("fixture")
+        backend.current = backend.current!!.copy(status = UpdateDownloads.TransferPhase.SUCCESS, bytes = 7)
+        val ready = repo().snapshot()!!
+        val preferences = context.getSharedPreferences("update_download", Context.MODE_PRIVATE)
+        val obj = org.json.JSONObject(preferences.getString("session", null)!!)
+            .put("minSdk", android.os.Build.VERSION.SDK_INT + 1)
+        preferences.edit().putString("session", obj.toString()).commit()
+        val result = repo().forInstall()!!
+        assertEquals(UpdateDownloads.Phase.FAILED, result.phase)
+        assertEquals("update.incompatible", result.errorKey)
+        assertNull(result.file)
+        assertFalse(ready.file!!.exists())
+    }
 
     @Test fun oneFailedObservationDoesNotTerminateOrDuplicateTheDownload() = runBlocking {
         val old = repo().start(rel, appNotification = true)

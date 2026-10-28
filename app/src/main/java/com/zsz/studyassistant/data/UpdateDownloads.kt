@@ -20,7 +20,7 @@ internal class UpdateDownloads(
     context: Context,
     private val backend: Backend = SystemBackend(context.applicationContext),
     private val verifier: (File, UpdateChecker.ReleaseInfo) -> UpdateChecker.VerifyResult = { file, release ->
-        UpdateChecker.verify(context.applicationContext, file, release.assetSha256, release.version)
+        UpdateChecker.verify(context.applicationContext, file, release.assetSha256, release.version, release.minSdk, release.versionCode)
     },
 ) {
     private val context = context.applicationContext
@@ -56,9 +56,10 @@ internal class UpdateDownloads(
         }
 
     suspend fun start(release: UpdateChecker.ReleaseInfo, appNotification: Boolean = false): Snapshot = locked {
-        val uri = Uri.parse(release.assetUrl)
-        require(uri.scheme == "https" && uri.host == "github.com" && uri.userInfo == null &&
-            uri.path?.startsWith("/${UpdateChecker.REPO}/releases/download/") == true)
+        UpdateChecker.compatibilityError(release)?.let { key ->
+            return@locked status(Record(UUID.randomUUID().toString(), release), Phase.FAILED, errorKey = key)
+        }
+        require(UpdateChecker.isReleaseAssetUrl(release.assetUrl, release.tagName))
         val previous = read()
         // Notes may change without replacing the asset; only transfer identity determines reuse.
         if (previous != null && sameAsset(previous.release, release)) {
@@ -91,6 +92,7 @@ internal class UpdateDownloads(
 
     suspend fun forInstall(): Snapshot? = locked {
         val record = read() ?: return@locked null
+        UpdateChecker.compatibilityError(record.release)?.let { return@locked fail(record, it) }
         if (!record.ready) return@locked snapshotLocked(record)
         val file = ready(record)
         if (!valid(file, record.release)) return@locked fail(record, "update.verifyFailed")
@@ -102,6 +104,7 @@ internal class UpdateDownloads(
     }
 
     private fun snapshotLocked(initial: Record): Snapshot {
+        UpdateChecker.compatibilityError(initial.release)?.let { return fail(initial, it) }
         if (initial.ready) {
             val file = ready(initial)
             return if (file.isFile) status(initial, Phase.READY, 100, file)
@@ -181,7 +184,8 @@ internal class UpdateDownloads(
     private fun checking(record: Record) = File(UpdateChecker.downloadDir(context), "${record.token}.checking")
     private fun sameAsset(a: UpdateChecker.ReleaseInfo, b: UpdateChecker.ReleaseInfo) =
         a.tagName == b.tagName && a.version == b.version && a.assetName == b.assetName && a.assetUrl == b.assetUrl &&
-            a.assetSha256 == b.assetSha256 && a.assetSize == b.assetSize && a.assetUploadedAt == b.assetUploadedAt
+            a.assetSha256 == b.assetSha256 && a.assetSize == b.assetSize && a.assetUploadedAt == b.assetUploadedAt &&
+            a.minSdk == b.minSdk && a.versionCode == b.versionCode
 
     private fun read(): Record? = runCatching {
         val stored = prefs.getString("session", null) ?: return null
@@ -190,8 +194,11 @@ internal class UpdateDownloads(
         require(UUID.fromString(token).toString() == token)
         Record(token, UpdateChecker.ReleaseInfo(obj.getString("tag"), obj.getString("version"), obj.getString("notes"),
             obj.getString("name"), obj.getString("url"), obj.optString("sha").takeIf { it.isNotBlank() },
-            obj.getLong("size"), obj.getLong("uploaded")), obj.getLong("id"), obj.optBoolean("ready"),
-            obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted") }, obj.optBoolean("appNotification", false))
+            obj.getLong("size"), obj.getLong("uploaded"),
+            if (obj.has("minSdk")) obj.optInt("minSdk").takeIf { it > 0 } else UpdateChecker.legacyMinSdk(obj.getString("version")),
+            obj.optLong("versionCode").takeIf { it > 0 }), obj.getLong("id"), obj.optBoolean("ready"),
+            obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted",
+                "update.incompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false))
     }.getOrNull()
     private fun write(record: Record) {
         val rel = record.release
@@ -199,6 +206,7 @@ internal class UpdateDownloads(
             .put("appNotification", record.appNotification).put("error", record.error ?: "").put("tag", rel.tagName).put("version", rel.version).put("notes", rel.notes)
             .put("name", rel.assetName).put("url", rel.assetUrl).put("sha", rel.assetSha256 ?: "")
             .put("size", rel.assetSize).put("uploaded", rel.assetUploadedAt)
+            .put("minSdk", rel.minSdk ?: 0).put("versionCode", rel.versionCode ?: 0)
         check(prefs.edit().putString("session", obj.toString()).commit())
     }
 

@@ -152,12 +152,16 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
     var skipped by remember { mutableStateOf(UpdateChecker.skippedVersion(context)) }
     var lastCheck by remember { mutableStateOf(UpdateChecker.lastCheckAt(context)) }
 
+    fun compatibilityMessage(rel: UpdateChecker.ReleaseInfo): String? = UpdateChecker.compatibilityError(rel)?.let {
+        s.format(it, "api" to (rel.minSdk?.toString() ?: ""))
+    }
+
     fun showDownload(task: UpdateDownloads.Snapshot) {
         latest = task.release
         sameVersion = !UpdateChecker.isNewer(task.release.version, installed)
         progress = task.progress
         verifiedSha = task.phase == UpdateDownloads.Phase.READY && task.release.assetSha256 != null
-        message = task.errorKey?.let { s[it] }
+        message = task.errorKey?.let { s.format(it, "api" to (task.release.minSdk?.toString() ?: "")) }
         phase = when (task.phase) {
             UpdateDownloads.Phase.DOWNLOADING -> Phase.DOWNLOADING
             UpdateDownloads.Phase.WAITING -> Phase.WAITING
@@ -246,7 +250,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
             if (UpdateChecker.hasUpdate(context, rel)) {
                 sameVersion = !UpdateChecker.isNewer(rel.version, installed)
                 // 被跳过的版本不再顶红点（页面上仍显示，可手动下载/取消跳过）
-                UpdateBadgeState.set(if (UpdateChecker.isSkipped(context, rel)) null else rel.version)
+                UpdateBadgeState.set(if (UpdateChecker.shouldNotify(context, rel)) rel.version else null)
+                message = compatibilityMessage(rel)
                 phase = Phase.FOUND
             } else {
                 sameVersion = false
@@ -258,6 +263,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
 
     fun startDownload() {
         val rel = latest ?: return
+        compatibilityMessage(rel)?.let { message = it; phase = Phase.FAILED; return }
         val generation = ++operationGeneration
         phase = Phase.DOWNLOADING; progress = 0; message = null
         observingDownload = false
@@ -362,7 +368,9 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
                         )
                     }
                     Spacer(Modifier.height(12.dp))
-                    Button(onClick = { startDownload() }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    message?.let { Text(it, color = BADGE_RED, style = MaterialTheme.typography.bodySmall) }
+                    Button(onClick = { startDownload() }, enabled = latest?.let { UpdateChecker.compatibilityError(it) == null } == true,
+                        shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                         Text(s["update.download"])
                     }
                     Spacer(Modifier.height(8.dp))
@@ -375,7 +383,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
                             val nowSkipped = skipped != v
                             if (nowSkipped) { UpdateChecker.skipVersion(context, v); skipped = v }
                             else { UpdateChecker.clearSkippedVersion(context); skipped = null }
-                            UpdateBadgeState.set(if (nowSkipped) null else v)
+                            UpdateBadgeState.set(if (nowSkipped || latest?.let { UpdateChecker.compatibilityError(it) != null } == true) null else v)
                         },
                         modifier = Modifier.fillMaxWidth().height(44.dp)
                     ) {
@@ -423,7 +431,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
                     Text(message ?: s["update.netError"], style = MaterialTheme.typography.bodyMedium, color = BADGE_RED)
                     Spacer(Modifier.height(12.dp))
                     // 检查就失败（latest 还是空）→ 重试「检查」；下载/校验失败 → 重新「下载」
-                    if (latest == null) {
+                    if (latest == null || latest?.let { UpdateChecker.compatibilityError(it) != null } == true) {
                         Button(onClick = { startCheck() }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                             Text(s["update.retry"])
                         }

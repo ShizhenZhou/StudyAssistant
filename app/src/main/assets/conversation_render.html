@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="katex/katex.min.css">
 <script src="katex/katex.min.js"></script>
@@ -78,11 +79,14 @@
 var PH='\uE000';
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function tokenize(t){
+  // Input may contain our private-use marker literally; reserve a collision-free token per render.
+  var marker=PH;
+  while(t.indexOf(marker)>=0) marker+=marker;
   var re=/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\begin\{[a-zA-Z*]+\}[\s\S]*?\\end\{[a-zA-Z*]+\}|\$[^$\n]+\$/g;
   var store=[],last=0,m,out='';
-  while((m=re.exec(t))!==null){ if(m.index>last) out+=t.slice(last,m.index); store.push(m[0]); out+=PH+(store.length-1)+PH; last=m.index+m[0].length; }
+  while((m=re.exec(t))!==null){ if(m.index>last) out+=t.slice(last,m.index); store.push(m[0]); out+=marker+(store.length-1)+marker; last=m.index+m[0].length; }
   if(last<t.length) out+=t.slice(last);
-  return {text:out,store:store};
+  return {text:out,store:store,marker:marker};
 }
 function mdToHtml(s){
   var lines=s.split('\n'),out='',ol=false,ul=false,pre=false,preBuf=[];
@@ -119,11 +123,11 @@ function renderOne(raw){
   // ⚠️ display 模式**不要**再套一层 <div class="katex-display">：KaTeX 的输出本身就是
   //    <span class="katex-display">（2026-10-21 实测确认）。套两层会让"横向滚动 + 竖向裁剪"
   //    的样式同时作用两遍、margin 叠成双份，也更容易把分式的上下沿裁掉。
-  try{ return katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false}); }catch(e){ return esc(raw); }
+  try{ return katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false,trust:false,maxExpand:1000}); }catch(e){ return esc(raw); }
 }
 function renderMath(text){
   var tok=tokenize(text||''), body=mdToHtml(esc(tok.text));
-  return body.replace(/[\uE000](\d+)\uE000/g,function(m,idx){return renderOne(tok.store[+idx]);});
+  return body.replace(new RegExp(tok.marker+'(\\d+)'+tok.marker,'g'),function(m,idx){return renderOne(tok.store[+idx]);});
 }
 function openImg(el){
   try{
@@ -321,6 +325,8 @@ function bubbleHtml(m, idx){
     var imgs = '';
     for(var j=0;j<m.images.length;j++){
       var b64=m.images[j];
+      // Only base64 image bytes may reach either HTML attribute, even with a malformed legacy row.
+      if(typeof b64!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) continue;
       // data-b64 供点击放大时回传给原生；多选态下点图 = 切换选中，否则打开全屏查看
       imgs+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="imgTap(event,this,'+idx+')">';
     }

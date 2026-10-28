@@ -10,6 +10,10 @@ import android.view.MotionEvent
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import org.json.JSONArray
+import org.json.JSONObject
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -171,12 +175,7 @@ fun ConversationWebView(
             factory = { ctx ->
                 ResetOnFocusWebView(ctx).apply {
                     webRef = this
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.allowFileAccess = true
-                    settings.allowContentAccess = true
-                    @Suppress("DEPRECATION")
-                    settings.allowFileAccessFromFileURLs = true
+                    configureConversationWebView(this)
                     setBackgroundColor(Color.TRANSPARENT)
                     isVerticalScrollBarEnabled = true
                     isScrollbarFadingEnabled = false   // 滚动条常驻
@@ -236,8 +235,9 @@ fun ConversationWebView(
                             // 占位：网页会尝试回调高度，这里无需处理
                         }
                     }, "Android")
-                    webViewClient = object : WebViewClient() {
+                    webViewClient = object : ConversationAssetClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
+                            if (url != CONVERSATION_ASSET_URL) return
                             loaded = true
                             val json = buildMessagesJson(currentMessages)
                             val sel = selectionJson()
@@ -246,7 +246,7 @@ fun ConversationWebView(
                             view?.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale, \"$currentThinkPref\");", null)
                         }
                     }
-                    loadUrl("file:///android_asset/conversation_render.html")
+                    loadUrl(CONVERSATION_ASSET_URL)
                 }
             },
             update = { v ->
@@ -363,15 +363,41 @@ private class ResetOnFocusWebView(context: android.content.Context) : WebView(co
     }
 }
 
-private fun buildMessagesJson(messages: List<ChatMsg>): String =
-    messages.joinToString(",", "[", "]") { m ->
-        fun esc(s: String) = s
-            .replace("\\", "\\\\").replace("\"", "\\\"")
-            .replace("\n", "\\n").replace("\r", "\\r")
-        val c = esc(m.content)
-        val imgs = m.images.joinToString(",", "[", "]") { b -> "\"$b\"" }
-        // ★ 思考流字段必须一起输出：这里是手拼 JSON，漏了前端就完全拿不到（曾导致"思考不显示"）
-        val th = m.thinking?.let { "\"${esc(it)}\"" } ?: "null"
-        "{\"role\":\"${m.role}\",\"content\":\"$c\",\"images\":$imgs," +
-            "\"thinking\":$th,\"thinkingOpen\":${m.thinkingOpen},\"thinkingDone\":${m.thinkingDone}}"
+internal fun buildMessagesJson(messages: List<ChatMsg>): String = JSONArray().apply {
+    messages.forEach { m ->
+        put(JSONObject().put("role", m.role).put("content", m.content).put("images", JSONArray(m.images))
+            .put("thinking", m.thinking ?: JSONObject.NULL).put("thinkingOpen", m.thinkingOpen)
+            .put("thinkingDone", m.thinkingDone))
     }
+}.toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+
+internal const val CONVERSATION_ASSET_URL = "file:///android_asset/conversation_render.html"
+
+/** Asset URLs remain available with file access disabled; private files/providers are never needed. */
+@SuppressLint("SetJavaScriptEnabled")
+@Suppress("DEPRECATION")
+internal fun configureConversationWebView(view: WebView) {
+    view.settings.apply {
+        javaScriptEnabled = true
+        domStorageEnabled = false
+        allowFileAccess = false
+        allowContentAccess = false
+        allowFileAccessFromFileURLs = false
+        allowUniversalAccessFromFileURLs = false
+        blockNetworkLoads = true
+    }
+}
+
+internal open class ConversationAssetClient : WebViewClient() {
+    private val assets = Regex("file:///android_asset/(conversation_render\\.html|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
+    private fun resource(url: String): WebResourceResponse? = if (assets.matches(url)) null else
+        WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(), java.io.ByteArrayInputStream(byteArrayOf()))
+
+    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? = resource(request.url.toString())
+    @Suppress("DEPRECATION")
+    override fun shouldInterceptRequest(view: WebView?, url: String): WebResourceResponse? = resource(url)
+    // This renderer has no web navigation. Its images and controls use the local bridge.
+    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest): Boolean = true
+    @Suppress("DEPRECATION")
+    override fun shouldOverrideUrlLoading(view: WebView?, url: String): Boolean = true
+}

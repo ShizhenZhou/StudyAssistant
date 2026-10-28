@@ -153,8 +153,71 @@ class ReleaseTest(unittest.TestCase):
     def test_identity_and_debug_candidates_are_rejected(self):
         good="package: name='com.zsz.studyassistant' versionCode='99' versionName='9.9.9'\nsdkVersion:'28'\ntargetSdkVersion:'37'"
         self.assertEqual(apk_identity(good)["versionCode"],99)
-        for bad in [good+"\napplication-debuggable",good.replace("sdkVersion:'28'","sdkVersion:'27'"),good.replace("com.zsz.studyassistant","other")]:
+        for bad in [good+"\napplication-debuggable",good.replace("sdkVersion:'28'","sdkVersion:'0'"),good.replace("com.zsz.studyassistant","other")]:
             with self.assertRaises(ValueError):apk_identity(bad)
+    def test_update_manifest_binds_actual_signed_apk(self):
+        apk = self.apk("signed.apk")
+        manifest = dict(self.manifest(apk), minSdk=36)
+        identity = {k: manifest[k] for k in ("package", "version", "versionCode", "minSdk", "targetSdk")}
+        value = release.update_manifest(apk, identity, manifest)
+        self.assertEqual(value, dict(schema=1, version="9.9.9", versionCode=99, minSdk=36,
+                                    apkName=apk.name, apkSha256=sha256(apk), apkSize=apk.stat().st_size))
+        with self.assertRaises(release.ReleaseError): release.update_manifest(apk, dict(identity, minSdk=28), manifest)
+        validate_manifest(manifest)
+
+    def test_asset_allowlist_rejects_wrong_existing_assets(self):
+        apk = self.apk("signed.apk")
+        metadata = self.root / "update-manifest.json"; metadata.write_text("{}")
+        files = {apk.name: apk, metadata.name: metadata}
+        asset = dict(name=apk.name, digest="sha256:"+sha256(apk), size=apk.stat().st_size)
+        release.validate_release_assets([asset], files)
+        for assets in ([dict(asset, digest="sha256:"+"0"*64)], [asset, asset],
+                       [dict(asset, name="private.txt")], [dict(asset, size=0)]):
+            with self.assertRaises(release.ReleaseError): release.validate_release_assets(assets, files)
+        with self.assertRaises(release.ReleaseError): release.validate_release_assets([asset], files, complete=True)
+
+    def test_publish_resumes_each_asset_and_checks_both_downloads(self):
+        import shutil
+        work = self.root / ".local-notes/release-state/artifacts/42"
+        work.mkdir(parents=True)
+        signed = self.apk("signed.apk"); signed = Path(shutil.move(signed, work / signed.name))
+        manifest = self.manifest(signed)
+        notes = self.root / "notes.md"; notes.write_text("## 更新内容\nSynthetic update", encoding="utf-8")
+        (self.root / "tools").mkdir()
+        shutil.copy(ROOT / "tools/check-secrets.py", self.root / "tools/check-secrets.py")
+        metadata = release.update_manifest(signed, manifest, manifest)
+        class FakeGitHub:
+            def __init__(self):
+                self.uploads = []; self.downloads = []; self.fail_upload = True
+                self.item = dict(id=7, tag_name="v9.9.9", draft=True, assets=[], html_url="https://example.invalid/release")
+            def api(self, path, value=None, **kwargs):
+                if path.startswith("releases?"): return [self.item]
+                if path.startswith("git/ref"): return {"object": {"sha": "a"*40}}
+                if path.startswith("commits/"): return {"sha": "a"*40}
+                if value: self.item.update(value)
+                return self.item
+            def call(self, *args):
+                path = Path(args[3]); self.uploads.append(path.name)
+                self.item["assets"].append(dict(id=len(self.uploads), name=path.name, size=path.stat().st_size, digest="sha256:"+sha256(path)))
+                if self.fail_upload:
+                    self.fail_upload = False
+                    raise release.ReleaseError("Interrupted after remote upload")
+            def download(self, path, **kwargs):
+                asset = next(a for a in self.item["assets"] if "/"+str(a["id"])+"?" in path)
+                self.downloads.append(asset["name"])
+                return (work / asset["name"]).read_bytes()
+        github = FakeGitHub(); tool = release.Release(self.root, github)
+        tool.state = dict(manifest=manifest, signedPath=str(signed.relative_to(self.root)), signedSha256=sha256(signed), releaseId=7)
+        tool.verify = lambda run: None; tool.save = lambda: None
+        tool.signed_identity = lambda path, manifest: metadata
+        with self.assertRaises(release.ReleaseError): tool.publish(42, notes)
+        tool.publish(42, notes)
+        self.assertEqual(github.uploads, [signed.name, "update-manifest.json"])
+        self.assertEqual(set(github.downloads), set(github.uploads))
+        tool.publish(42, notes)
+        self.assertEqual(len(github.uploads), 2)
+        self.assertEqual(len(list((self.root / "history_apk").iterdir())), 2)
+
     def test_ci_does_not_read_repository_signing_secrets(self):
         workflow=(ROOT/".github/workflows/build.yml").read_text(encoding="utf-8")
         self.assertNotIn("secrets.RELEASE_",workflow)

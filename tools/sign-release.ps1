@@ -23,7 +23,7 @@
 .EXAMPLE
     .\tools\sign-release.ps1                          # 签 app-release.apk，产出 StudyAssistant-<版本>-<时间>.apk
     .\tools\sign-release.ps1 -InApk <某个 apk 路径>    # 指定输入
-    .\tools\sign-release.ps1 -RotationMinSdk 28        # 默认就是 28（= 本项目 minSdk）
+    .\tools\sign-release.ps1 -RotationMinSdk 28        # 默认保持 28（现有 lineage 轮换阈值）
 
 .NOTES
     退出码：0 = 成功；1 = 失败。
@@ -34,7 +34,7 @@ param(
     [string]$InApk,
     # 输出目录；默认与输入同目录
     [string]$OutDir,
-    # lineage 的 rotation-min-sdk-version（本项目 minSdk=28，不要调高到超过它）
+    # lineage 的 rotation-min-sdk-version（保持现有阈值，不得高于 APK 实际 minSdk）
     [string]$RotationMinSdk = '28'
 )
 
@@ -115,6 +115,9 @@ if ($LASTEXITCODE -ne 0 -or $identity -notmatch "package: name='com\.zsz\.studya
     throw 'Unexpected APK identity; no signature applied.'
 }
 $ver = $Matches[1]
+if ($identity -notmatch "(?m)^sdkVersion:'([0-9]+)'") { throw 'APK minimum SDK is missing.' }
+$apkMinSdk = [int]$Matches[1]
+if ($apkMinSdk -lt 28 -or [int]$RotationMinSdk -gt $apkMinSdk) { throw 'APK minimum SDK is incompatible with the existing signing lineage policy.' }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $stampArchive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($InApk))
 try {
@@ -146,7 +149,7 @@ try {
         '--ks-pass', 'env:RELEASE_OLD_PW', '--key-pass', 'env:RELEASE_OLD_PW',
         '--lineage', $lineage,
         '--rotation-min-sdk-version', $RotationMinSdk,
-        '--min-sdk-version', $RotationMinSdk,
+        '--min-sdk-version', "$apkMinSdk",
         '--v1-signing-enabled', 'false',
         '--v2-signing-enabled', 'true',
         '--v3-signing-enabled', 'true',
@@ -166,10 +169,10 @@ try {
 
 # ── 校验：证书必须是新证书 + v3 方案 + 能过 minSdk ──────────────────────────
 Write-Step '校验'
-$ver = & $apksigner verify --print-certs --min-sdk-version $RotationMinSdk $out 2>&1
+$ver = & $apksigner verify --print-certs --min-sdk-version $apkMinSdk $out 2>&1
 $vcode = $LASTEXITCODE
 $ver | Select-String -Pattern 'certificate DN|SHA-256 digest' | Select-Object -First 2 | ForEach-Object { Write-Host "    $($_.Line.Trim())" }
-$scheme = & $apksigner verify -v --min-sdk-version $RotationMinSdk $out 2>&1
+$scheme = & $apksigner verify -v --min-sdk-version $apkMinSdk $out 2>&1
 $v3 = ($scheme | Select-String -Pattern 'Verified using v3 scheme.*true').Count -gt 0
 if ($vcode -ne 0 -or -not $v3) {
     Write-Err2 "校验未通过（exit=$vcode, v3=$v3）"

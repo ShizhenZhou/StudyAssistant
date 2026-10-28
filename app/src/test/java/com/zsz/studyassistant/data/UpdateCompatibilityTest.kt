@@ -1,0 +1,46 @@
+package com.zsz.studyassistant.data
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class UpdateCompatibilityTest {
+    private val release = UpdateChecker.ReleaseInfo("v0.6.8", "0.6.8", "", "fixture.apk",
+        "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.8/fixture.apk", null, 7)
+    private fun manifest(min: Int = 36) = """{"schema":1,"version":"0.6.8","versionCode":78,"minSdk":$min,"apkName":"fixture.apk","apkSha256":"${"a".repeat(64)}","apkSize":7}"""
+
+    @Test fun android16ReleaseIsBlockedBeforeDownloadOnAndroid15() {
+        val parsed = UpdateChecker.withManifest(release, manifest())!!
+        assertEquals("update.incompatible", UpdateChecker.compatibilityError(parsed, 35))
+        assertNull(UpdateChecker.compatibilityError(parsed, 36))
+        assertEquals("a".repeat(64), parsed.assetSha256)
+    }
+    @Test fun missingMetadataFailsClosedExceptKnownLegacyVersions() {
+        assertEquals("update.compatibilityUnknown", UpdateChecker.compatibilityError(release, 99))
+        assertEquals(28, UpdateChecker.legacyMinSdk("0.6.7.8"))
+        assertNull(UpdateChecker.legacyMinSdk("0.6.7.9"))
+        assertNull(UpdateChecker.legacyMinSdk("garbage"))
+        assertNull(UpdateChecker.legacyMinSdk("0.6.7.8_beta"))
+        assertEquals("update.incompatible", UpdateChecker.compatibilityError(release.copy(minSdk = 28), 27))
+    }
+    @Test fun manifestMustBindExactAssetAndVersion() {
+        for (text in listOf(manifest().replace("fixture.apk", "other.apk"),
+            manifest().replace("0.6.8", "0.6.9"), manifest().replace("\"apkSize\":7", "\"apkSize\":8"),
+            manifest().replace("\"schema\":1", "\"schema\":2"), manifest(0), "{}", "broken")) {
+            assertNull(text, UpdateChecker.withManifest(release, text))
+        }
+        assertNull(UpdateChecker.withManifest(release.copy(assetSha256 = "b".repeat(64)), manifest()))
+    }
+    @Test fun manifestUrlMustBeSameOfficialReleaseAttachment() {
+        assertTrue(UpdateChecker.isReleaseAssetUrl(release.assetUrl, release.tagName))
+        assertFalse(UpdateChecker.isReleaseAssetUrl(release.assetUrl.replace("github.com", "evil.test"), release.tagName))
+        assertFalse(UpdateChecker.isReleaseAssetUrl(release.assetUrl, "v0.6.9"))
+        assertFalse(UpdateChecker.isReleaseAssetUrl(release.assetUrl.replace("https://", "http://"), release.tagName))
+    }
+    @Test fun apkSdkCheckFailsClosedAndDetectsManifestMismatch() {
+        assertFalse(UpdateChecker.apkSdkCompatible(null, 36))
+        assertFalse(UpdateChecker.apkSdkCompatible(36, 35))
+        assertFalse(UpdateChecker.apkSdkCompatible(36, 36, 28))
+        assertTrue(UpdateChecker.apkSdkCompatible(36, 36, 36))
+        assertTrue(UpdateChecker.apkSdkCompatible(28, 28))
+    }
+}

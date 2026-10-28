@@ -24,6 +24,21 @@ WORKFLOW = "build.yml"
 
 class ReleaseError(RuntimeError): pass
 
+def update_manifest(apk, identity, candidate):
+    if any(identity.get(key) != candidate.get(key) for key in ("package", "version", "versionCode", "minSdk", "targetSdk")):
+        raise ReleaseError("Signed APK identity differs from the CI manifest.")
+    return dict(schema=1, version=identity["version"], versionCode=identity["versionCode"],
+                minSdk=identity["minSdk"], apkName=apk.name, apkSha256=sha256(apk), apkSize=apk.stat().st_size)
+
+def validate_release_assets(assets, files, complete=False):
+    names = [asset["name"] for asset in assets]
+    if len(names) != len(set(names)) or set(names) - set(files) or (complete and set(names) != set(files)):
+        raise ReleaseError("Unexpected release assets; nothing was overwritten.")
+    for asset in assets:
+        path = files[asset["name"]]
+        if asset.get("digest") != "sha256:" + sha256(path) or asset.get("size") != path.stat().st_size:
+            raise ReleaseError("Uploaded release asset digest or size mismatch.")
+
 def command(args, *, root=ROOT, data=None, log=None, timeout=120, check=True):
     result = subprocess.run([str(a) for a in args], cwd=root, input=data, capture_output=True, timeout=timeout)
     if log:
@@ -182,6 +197,8 @@ class Release:
             raise ReleaseError("Local source must be clean and match the verified CI commit.")
     def signed_identity(self, path, manifest):
         sdk = Path(os.environ.get("ANDROID_HOME", "")) / "build-tools/36.0.0"
+        identity = apk_identity(command([sdk / "aapt.exe", "dump", "badging", path], root=self.root).stdout.decode(errors="replace"))
+        metadata = update_manifest(path, identity, manifest)
         result = command([os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", sdk / "apksigner.bat", "verify", "--verbose", "--print-certs", "--min-sdk-version", str(manifest["minSdk"]), path], root=self.root)
         text = result.stdout.decode(errors="replace")
         certificates = re.findall(r"Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-f]+)", text.lower(), re.IGNORECASE)
@@ -190,6 +207,7 @@ class Release:
         payload, stamp = apk_payload(path)
         if (payload, stamp) != (manifest["payloadSha256"], manifest["buildUtc"]):
             raise ReleaseError("Signing changed compiled code/resources. Nothing will be uploaded.")
+        return metadata
     def verify(self, run_id):
         run = self.github.api(f"actions/runs/{run_id}")
         if run["event"] != "workflow_dispatch" or run["head_branch"] != "main" or run["conclusion"] != "success" or not run.get("display_title", "").startswith("release:"):
@@ -300,23 +318,42 @@ class Release:
             release = self.github.api("releases", {"tag_name":tag,"target_commitish":manifest["commit"],"name":tag,"body":body,"draft":True,"prerelease":False})
             self.state["releaseId"] = release["id"]; self.save()
         else: release = found[0]
+        files = {signed.name: signed}
+        # Previously published legacy releases retain their single-APK layout.
+        if tuple(map(int, version.split("."))) > (0, 6, 7, 8):
+            metadata = self.signed_identity(signed, manifest)
+            update_path = signed.parent / "update-manifest.json"
+            encoded = (json.dumps(metadata, indent=2) + "\n").encode("utf-8")
+            if update_path.exists() and update_path.read_bytes() != encoded:
+                raise ReleaseError("Local update manifest changed; nothing was overwritten.")
+            update_path.write_bytes(encoded)
+            files[update_path.name] = update_path
         assets = release["assets"]
-        if not assets:
-            self.github.call("release", "upload", tag, str(signed), "--repo", REPO)
-            release = self.github.api(f"releases/{release['id']}"); assets = release["assets"]
-        if len(assets) != 1 or assets[0]["name"] != signed.name: raise ReleaseError("Unexpected release assets; nothing was overwritten.")
-        asset = assets[0]
-        if asset.get("digest") != "sha256:" + self.state["signedSha256"]: raise ReleaseError("Uploaded package digest mismatch.")
+        validate_release_assets(assets, files)
+        for name, path in files.items():
+            if name not in {asset["name"] for asset in assets}:
+                if not release["draft"]: raise ReleaseError("Published release is missing an expected asset.")
+                self.github.call("release", "upload", tag, str(path), "--repo", REPO)
+                release = self.github.api(f"releases/{release['id']}")
+                assets = release["assets"]
+                validate_release_assets(assets, files)
+        validate_release_assets(assets, files, complete=True)
         if release["draft"]:
             release = self.github.api(f"releases/{release['id']}", {"draft":False,"prerelease":False,"make_latest":"true"}, method="PATCH")
-        self.state.update(published=True, phase="published", assetId=asset["id"]); self.save()
-        public = self.github.download(f"repos/{REPO}/releases/assets/{asset['id']}?download=1", binary=True)
-        if hashlib.sha256(public).hexdigest() != self.state["signedSha256"]: raise ReleaseError("Public download differs from the local signed package.")
-        archive = self.root / "history_apk" / signed.name
-        archive.parent.mkdir(parents=True, exist_ok=True)
-        if archive.exists() and sha256(archive) != self.state["signedSha256"]: raise ReleaseError("Archive collision; existing file was not changed.")
-        archive.write_bytes(public)
-        self.state.update(phase="archived", archived=str(archive.relative_to(self.root))); self.save()
+        self.state.update(published=True, phase="published", assetId=next(a["id"] for a in assets if a["name"] == signed.name)); self.save()
+        archives = {}
+        for asset in assets:
+            path = files[asset["name"]]
+            public = self.github.download(f"repos/{REPO}/releases/assets/{asset['id']}?download=1", binary=True)
+            if len(public) != path.stat().st_size or hashlib.sha256(public).hexdigest() != sha256(path):
+                raise ReleaseError("Public download differs from the local release asset.")
+            archive_name = path.name if path == signed else signed.stem + "-update-manifest.json"
+            archive = self.root / "history_apk" / archive_name
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            if archive.exists() and sha256(archive) != sha256(path): raise ReleaseError("Archive collision; existing file was not changed.")
+            archive.write_bytes(public)
+            archives[path.name] = str(archive.relative_to(self.root))
+        self.state.update(phase="archived", archived=archives[signed.name], archivedAssets=archives); self.save()
         return dict(version=version, phase="archived", url=release["html_url"], sha256=self.state["signedSha256"])
 
 def main():

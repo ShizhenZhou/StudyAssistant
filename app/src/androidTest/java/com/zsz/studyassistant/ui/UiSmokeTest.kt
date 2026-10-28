@@ -227,7 +227,7 @@ class UiSmokeTest {
     @Test fun updatePageRestoresWaitingAndCompletedTasksAfterLeaving() = kotlinx.coroutines.runBlocking {
         val backend = com.zsz.studyassistant.data.UpdateDownloadsIntegrationTest.FakeTransfers()
         val release = com.zsz.studyassistant.data.UpdateChecker.ReleaseInfo("v9.0", "9.0", "synthetic", "fixture.apk",
-            "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/fixture.apk", "a".repeat(64), 7, 1234)
+            "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/fixture.apk", "a".repeat(64), 7, 1234, minSdk = 28)
         fun repository() = com.zsz.studyassistant.data.UpdateDownloads(context, backend) { file, _ ->
             val ok = file.readText() == "fixture"
             com.zsz.studyassistant.data.UpdateChecker.VerifyResult(ok, ok, ok, null)

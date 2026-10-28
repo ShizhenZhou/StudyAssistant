@@ -171,6 +171,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     private suspend fun commitDeletion(batch: com.zsz.studyassistant.data.DeleteBatch) {
+        invalidateSimilarSaves(batch.questions)
         solveSessionWriteMutex.withLock {
             AppDatabase.get(getApplication()).withTransaction {
                 if(batch.categories.isNotEmpty()) {
@@ -202,6 +203,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     private fun stageQuestionDeletion(ids: Collection<QuestionId>) {
+        invalidateSimilarSaves(ids)
         if(savedQuestionId in ids) { stopActiveGeneration(); isDeleted=true; savedToNotebook=false }
         deleteQueue.stage(questions=ids.toSet())
     }
@@ -1963,7 +1965,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val r = com.zsz.studyassistant.data.BackupJobs.exclusive(getApplication()) {
                     solveSessionWriteMutex.withLock {
                         requireNoPendingSaves()
-                        com.zsz.studyassistant.data.BackupRepository(getApplication()).merge(file)
+                        val imported = com.zsz.studyassistant.data.BackupRepository(getApplication()).merge(file)
+                        // Deletion already removed its pending snapshots. Only IDs actually restored
+                        // by this successful import may accept newly captured content again.
+                        for (id in deletedNotebookIds.toList()) {
+                            if (dao.questionExists(id)) deletedNotebookIds.remove(id)
+                        }
+                        imported
                     }
                 }
                 dataMessageIsError = false
@@ -3038,23 +3046,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var similarSavedQuestionId by mutableStateOf<QuestionId?>(null)
         private set
 
-    // A followup can finish while the first insert is waiting for the write mutex.
-    private var similarSavingQuestionId: QuestionId? = null
-    private var similarSaveOwner: Any? = null
+    // Keep updates with their explicit save request until its insert commits. In particular,
+    // a previously deleted ID must stay blocked to ordinary writes during recreation.
+    private class SimilarSaveRequest {
+        var latest: com.zsz.studyassistant.data.SavePayload? = null
+        var invalidated = false
+    }
+    private val similarSaveRequests = mutableMapOf<QuestionId, SimilarSaveRequest>()
+
+    private fun invalidateSimilarSaves(ids: Collection<QuestionId>) {
+        ids.forEach { id -> similarSaveRequests[id]?.let { it.invalidated = true; it.latest = null } }
+    }
 
     private fun similarChats() = listOf(ChatItem(0,"question",similarQuestion.orEmpty()), ChatItem(1,"assistant",similarAnswer.orEmpty())) + similarMessages.mapIndexed { i,m -> m.copy(id=(i+2).toLong()) }
     private fun persistSimilarConversation() {
-        val id = (similarSavedQuestionId ?: similarSavingQuestionId)?.takeIf { it == similarIdentity } ?: return
+        val id = similarIdentity
+        val request = similarSaveRequests[id]
+        if (similarSavedQuestionId != id && request == null) return
         if(id in deletionState.value.questionIds) return
         val chats=similarChats()
         val payload=com.zsz.studyassistant.data.SavePayload(id,similarCreatedAt,similarQuestion.orEmpty(),similarAnswer.orEmpty(),json.encodeToString(chats))
+        if (request != null) {
+            if (request.invalidated) return
+            if (id in deletedNotebookIds) {
+                request.latest = payload
+                return
+            }
+        }
         queueNotebookSave(payload)
     }
     fun saveSimilarToNotebook(
         name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()
     ) {
+        if (dataBusy) return
         val title = similarQuestion ?: return
         val id = similarIdentity
+        if (id in deletionState.value.questionIds || id in similarSaveRequests) return
         val created = similarCreatedAt
         val seq = similarSeq
         val conversationJson = json.encodeToString(similarChats())
@@ -3068,12 +3095,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 append(m.content)
             }
         }
-        val owner = Any()
-        similarSaveOwner = owner
-        similarSavingQuestionId = id
+        val request = SimilarSaveRequest()
+        similarSaveRequests[id] = request
         viewModelScope.launch {
             try {
-                notebookWriteMutex.withLock {
+                val saved = notebookWriteMutex.withLock {
+                    if (request.invalidated || id in deletionState.value.questionIds) return@withLock false
                     AppDatabase.get(getApplication()).withTransaction {
                         if (!dao.questionExists(id)) {
                             val cid = if (!name.isNullOrBlank()) dao.insertCategory(Category(name=name.trim())) else categoryId
@@ -3093,18 +3120,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             dao.updateAnswerContent(id, title, answerText, conversationJson)
                         }
                     }
+                    if (request.invalidated || id in deletionState.value.questionIds) return@withLock false
+                    deletedNotebookIds.remove(id)
+                    request.latest?.let(::queueNotebookSave)
+                    true
                 }
-                if (id == similarIdentity) similarSavedQuestionId = id
+                if (saved && id == similarIdentity) similarSavedQuestionId = id
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (seq == similarSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)
                     .format("data.failed", "msg" to tagWriteError(e))
             } finally {
-                if (similarSaveOwner === owner) {
-                    similarSaveOwner = null
-                    similarSavingQuestionId = null
-                }
+                if (similarSaveRequests[id] === request) similarSaveRequests.remove(id)
             }
         }
     }

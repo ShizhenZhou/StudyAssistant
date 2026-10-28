@@ -9,6 +9,7 @@ import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.*
 import org.junit.Assert.*
@@ -326,6 +327,98 @@ class SessionOwnershipRegressionTest {
         assertEquals(category, latest.categoryId)
         assertEquals(listOf("original tag"), dao.getAllTagsOnce().map { it.name })
         assertEquals(0, dao.reviewFor(id)!!.reviewCount)
+    }
+
+    @Test fun recreatedSimilarAcceptsFollowupWhileInsertWaitsAndLaterEdits() = runBlocking {
+        val id = QuestionIdentity.create(10000)
+        main {
+            similarIdentity(id)
+            state("similarQuestion", "recreated question"); state("similarAnswer", "original answer")
+            model.saveSimilarToNotebook(null, null)
+        }
+        await { model.similarSavedQuestionId == id }
+        main { model.unsaveSimilarFromNotebook() }
+        await { !model.deletionState.value.active && db.questionDao().heavyOnce(id) == null }
+        val lock = field("notebookWriteMutex").get(model) as Mutex
+        lock.lock()
+        try {
+            main {
+                model.similarChatRequest = { _, _, _, _ -> "reply while recreating" }
+                model.saveSimilarToNotebook("restored category", null, listOf("restored tag"))
+                model.sendSimilar("new followup")
+            }
+            await { !model.similarBusy }
+            assertNull(db.questionDao().heavyOnce(id))
+        } finally { lock.unlock() }
+        await { db.questionDao().heavyOnce(id)?.conversationJson?.contains("reply while recreating") == true }
+        main { model.deleteSimilarItems(listOf(1)) }
+        await { db.questionDao().heavyOnce(id)?.conversationJson?.contains("new followup") == false }
+        await { model.saveOperations == 0 }
+        val saved = db.questionDao().heavyOnce(id)!!
+        assertEquals("recreated question", saved.text)
+        assertTrue(saved.conversationJson!!.contains("reply while recreating"))
+        assertEquals("restored category", db.questionDao().allCategoriesOnce().single().name)
+        assertEquals("restored tag", db.questionDao().getAllTagsOnce().single().name)
+        assertEquals(0, db.questionDao().reviewFor(id)!!.reviewCount)
+    }
+
+    @Test fun deletingWhileSimilarSaveWaitsInvalidatesThatSaveAndItsLatestReply() = runBlocking {
+        val id = QuestionIdentity.create(10000)
+        val row = question("existing", 10000).copy(id = id)
+        db.questionDao().insert(row)
+        val lock = field("notebookWriteMutex").get(model) as Mutex
+        lock.lock()
+        try {
+            main {
+                similarIdentity(id)
+                state("similarQuestion", "stale resave"); state("similarAnswer", "stale answer")
+                model.similarChatRequest = { _, _, _, _ -> "must not resurrect" }
+                model.saveSimilarToNotebook("must not create category", null)
+                model.sendSimilar("queued followup")
+            }
+            await { !model.similarBusy }
+            main { model.deleteFromNotebook(row) }
+            await { model.deletionState.value.committing.isNotEmpty() }
+        } finally { lock.unlock() }
+        await { !model.deletionState.value.active }
+        assertNull(db.questionDao().heavyOnce(id))
+        assertNull(model.similarSavedQuestionId)
+        assertTrue(db.questionDao().allCategoriesOnce().isEmpty())
+        assertTrue(pending.scan().entries.isEmpty())
+    }
+
+    @Test fun importingDeletedIdentityAllowsNewContentWithoutReplayingPreDeleteSnapshot() = runBlocking {
+        val id = QuestionIdentity.create(10000)
+        val chats = listOf(ChatItem(0, "question", "backup question"), ChatItem(1, "assistant", "backup answer"), ChatItem(2, "user", "remove after restore"))
+        val row = Question(id, "backup question", "backup answer", 10000, conversationJson = Json.encodeToString(chats))
+        db.questionDao().insert(row)
+        val workspace = java.io.File(app.noBackupFilesDir, "backup-manual/${java.util.UUID.randomUUID()}")
+        try {
+            val repo = BackupRepository(app, db)
+            val archive = repo.export(java.io.File(workspace, "export"))
+            val prepared = repo.prepareImportFiles(archive.files, java.io.File(workspace, "import"))
+            main { model.loadQuestion(row) }
+            val lock = field("notebookWriteMutex").get(model) as Mutex
+            lock.lock()
+            try {
+                main {
+                    state("chatItems", chats + ChatItem(3, "assistant", "old queued content"))
+                    model.saveSessionOnExit()
+                    model.deleteFromNotebook(row)
+                }
+                await { model.deletionState.value.committing.isNotEmpty() }
+            } finally { lock.unlock() }
+            await { !model.deletionState.value.active && db.questionDao().heavyOnce(id) == null }
+            main { state("preparedBackup", prepared); model.importBackup() }
+            await { !model.dataBusy }
+            val restored = db.questionDao().heavyOnce(id)!!
+            assertFalse(restored.conversationJson!!.contains("old queued content"))
+            main { model.loadQuestion(restored); model.deleteMessages(listOf(2)); model.saveSessionOnExit() }
+            await { db.questionDao().heavyOnce(id)?.conversationJson?.contains("remove after restore") == false }
+            await { model.saveOperations == 0 }
+            assertEquals("backup answer", db.questionDao().heavyOnce(id)!!.answer)
+            assertTrue(pending.scan().entries.isEmpty())
+        } finally { workspace.deleteRecursively() }
     }
 
 }

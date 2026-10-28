@@ -41,14 +41,15 @@ def apk_identity(badging):
         raise ValueError("Debuggable release candidate")
     minimum = re.search(r"^sdkVersion:'([0-9]+)'", badging, re.MULTILINE)
     target = re.search(r"^targetSdkVersion:'([0-9]+)'", badging, re.MULTILINE)
-    if not minimum or int(minimum[1]) != 28 or not target:
+    if not minimum or not target or not 1 <= int(minimum[1]) <= int(target[1]) <= 10000:
         raise ValueError("Unexpected SDK identity")
     return {"package": match[1], "versionCode": int(match[2]), "version": match[3], "minSdk": int(minimum[1]), "targetSdk": int(target[1])}
 
 def validate_manifest(value):
     allowed = {"schema", "package", "versionCode", "version", "minSdk", "targetSdk", "commit", "buildUtc", "candidate", "candidateSha256", "payloadSha256", "expectedSigner", "jvm"}
     if value.get("schema") == 2: allowed.add("planSha256")
-    if set(value) - allowed or value.get("minSdk") != 28 or not isinstance(value.get("targetSdk"), int):
+    if (set(value) - allowed or type(value.get("minSdk")) is not int or type(value.get("targetSdk")) is not int
+            or not 1 <= value["minSdk"] <= value["targetSdk"] <= 10000):
         raise ValueError("Unexpected public manifest fields")
     if value.get("schema") not in (1, 2) or value.get("package") != PACKAGE:
         raise ValueError("Unsupported release manifest")

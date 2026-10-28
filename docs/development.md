@@ -30,7 +30,7 @@
 - start --version VERSION：要求版本已准备、工作区干净、发布提交含[skip ci]；本地基础入口自动复用有效步骤，不能再手工先跑一遍整套；快进main与Develop，派发一次main release CI。存在标签时拒绝自动替换。
 - status --version VERSION：只查询已记录的CI。请求超时也先查询匹配提交的run，不重复派发。
 - verify --run RUN_ID：只接受成功的main release CI。schema2 必须通过 Verification gate，重新计算源码计划、核对基线与逐项证据；schema1 历史记录仍要求API35/36全套。下载候选白名单，校验源码/摘要，在本地使用原私钥和lineage签名，再验证证书及代码资源逐项摘要未变。重复调用复用已签名文件，不重编译、不重签。
-- publish --run RUN_ID：从本机版本说明只取“更新内容”，再次扫描该节凭据；建立新标签、草稿及上传一个最终APK，核对摘要后发布，再下载核对并归档。已有版本/异源标签拒绝覆盖。
+- publish --run RUN_ID：从本机版本说明只取“更新内容”，再次扫描该节凭据；建立新标签、草稿，自 v0.6.7.9 起仅允许最终 APK 与 `update-manifest.json` 两个附件。清单 schema=1，包含不带 v 的 version、versionCode、minSdk、apkName、apkSha256、apkSize；版本和最低系统版本从最终签名 APK 提取并逐字段匹配 CI 清单，SHA-256 与大小绑定最终签名文件，不解析更新说明。两附件分别核对服务端摘要/大小后发布，再分别下载核对并归档（清单归档名带 APK 版本/构建时间）。恢复时只上传缺失附件，错误已有附件拒绝覆盖；旧版本保留原单 APK 布局，不补写历史 Release。已有版本/异源标签拒绝覆盖。 后续提高最低系统版本只修改 Gradle 的 minSdk（Android 16 为 36），不手工填写更新清单；CI 候选清单和本地发布清单均从 APK 读取。客户端从 v0.6.7.9 开始要求新版兼容清单，缺失或不匹配时禁止下载；仅已发布的 v0.6.7.8 及以前允许沿用 API 28 的旧约定。
 
 状态与私有操作日志存 .local-notes/release-state/，故障后续跑同一个run。编译输入、代码资源摘要和候选摘要必须匹配；签名后的APK摘要与候选摘要不同是正常现象。签名只允许改变签名信息，代码、资源和构建时间不变。
 
