@@ -36,6 +36,50 @@ class SessionOwnershipRegressionTest {
     private suspend fun main(block: () -> Unit) = withContext(Dispatchers.Main) { block() }
     private suspend fun await(test: suspend () -> Boolean) = withTimeout(8000) { while (!test()) delay(20) }
     private fun question(text: String, time: Long) = Question(QuestionIdentity.create(time), text, "answer $text", time)
+
+    private suspend fun initialSimilarSavedWhileStreaming(outcome: String) {
+        val entered = gate(); val release = gate()
+        main {
+            field("currentReviewQuestion").set(model, question("original", 10000))
+            model.similarQuestionRequest = { _, _, _, delta ->
+                delta("题目：new fixture\n解答：partial answer")
+                entered.complete(Unit)
+                release.await()
+                if (outcome == "failure") throw StreamIncompleteException("err.streamInterrupted")
+                StudyAssistant.SimilarResult("new fixture", "complete answer")
+            }
+            model.startSimilar()
+        }
+        withTimeout(8000) { entered.await() }
+        val lock = field("notebookWriteMutex").get(model) as Mutex
+        lock.lock()
+        val id = field("similarIdentity").get(model) as QuestionId
+        try {
+            main { model.saveSimilarToNotebook(null, null, listOf("retained tag")) }
+            if (outcome == "abort") main { model.abortSimilar() } else {
+                release.complete(Unit)
+                await { !model.similarBusy }
+            }
+            if (outcome != "success") assertTrue(model.similarInterrupted)
+        } finally { lock.unlock() }
+        val expected = if (outcome == "success") "complete answer" else "partial answer"
+        await { db.questionDao().heavyOnce(id)?.answer?.contains(expected) == true }
+        val saved = db.questionDao().heavyOnce(id)!!
+        assertEquals("new fixture", saved.text)
+        assertTrue(Json.decodeFromString<List<ChatItem>>(saved.conversationJson!!)[1].content.contains(expected))
+        assertEquals("retained tag", db.questionDao().getAllTagsOnce().single().name)
+        assertFalse(model.similarBusy)
+    }
+
+    @Test fun initialSimilarCompletionUpdatesAnInsertStillWaitingForTheWriteLock() = runBlocking {
+        initialSimilarSavedWhileStreaming("success")
+    }
+    @Test fun abortAfterInitialQuestionKeepsPartialAnswerAndPersistsIt() = runBlocking {
+        initialSimilarSavedWhileStreaming("abort")
+    }
+    @Test fun initialSimilarFailurePersistsPartialAnswerAndInterruption() = runBlocking {
+        initialSimilarSavedWhileStreaming("failure")
+    }
     @Before fun setup() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName == "com.zsz.studyassistant.integration")
@@ -209,6 +253,28 @@ class SessionOwnershipRegressionTest {
         assertEquals(StudyAssistant.MODEL_VISION, selected)
         assertTrue(messages.joinToString { it.content.toString() }.contains("AAE="))
         await { !model.similarBusy }
+    }
+
+    @Test fun deletingSavedSimilarFollowupPersistsBeforeAnotherQuestionStarts() = runBlocking {
+        val id = QuestionIdentity.create(10000)
+        main {
+            similarIdentity(id)
+            state("similarQuestion", "question A"); state("similarAnswer", "answer A")
+            state("similarMessages", listOf(ChatItem(0, "user", "remove this followup"), ChatItem(1, "assistant", "keep reply")))
+            model.saveSimilarToNotebook("keep category", null, listOf("keep tag"))
+        }
+        await { model.similarSavedQuestionId == id }
+        main {
+            model.deleteSimilarItems(listOf(1))
+            // A queued save must already own A; the next screen may immediately display B.
+            similarIdentity(QuestionIdentity.create(20000))
+            state("similarQuestion", "question B"); state("similarAnswer", "answer B")
+        }
+        await { !db.questionDao().heavyOnce(id)!!.conversationJson!!.contains("remove this followup") }
+        val saved = db.questionDao().heavyOnce(id)!!
+        assertEquals("question A", saved.text)
+        assertTrue(saved.conversationJson!!.contains("keep reply"))
+        assertEquals(listOf("keep tag"), db.questionDao().getAllTagsOnce().map { it.name })
     }
 
     @Test fun followupDuringFirstSaveAndSameIdentityResaveRetainNewestConversation() = runBlocking {

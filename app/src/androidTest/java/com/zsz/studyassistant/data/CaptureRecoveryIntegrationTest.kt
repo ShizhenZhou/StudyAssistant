@@ -90,4 +90,18 @@ class CaptureRecoveryIntegrationTest {
         assertTrue(fresh.cropPaths.isEmpty())
         assertNull(fresh.captureRecoveryNoticeKey)
     }
+
+    @Test fun failedWholeImageBatchPreservesBothInputOrderAndCurrentIndex() = runBlocking {
+        val (vm, _) = model()
+        val paths = listOf(image("question.bin"), image("answer.bin"))
+        withContext(Dispatchers.Main) {
+            vm.startCropFlow(paths, grade = true, expect = 2)
+            vm.skipRemainingCrop { if (it == paths.first()) null else byteArrayOf(9) }
+        }
+        vm.awaitCaptureCheckpoint()
+        assertEquals(paths, vm.cropPaths)
+        assertEquals(0, vm.cropIndex)
+        assertFalse(vm.cropNeedsMore)
+        assertTrue(journal.read()!!.results.isEmpty())
+    }
 }

@@ -14,6 +14,9 @@ import android.view.accessibility.AccessibilityWindowInfo
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +25,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -193,7 +198,7 @@ class CaptureUiRegressionTest {
                 MaterialTheme {
                     val capturedImage = image.value
                     HoldToSkipButton(
-                        text = "Synthetic whole image", holdHint = "",
+                        text = "Synthetic whole image $capturedImage", holdHint = "",
                         onTap = { taps += capturedImage; image.value++ },
                         onSkip = { skips += capturedImage; image.value++ },
                         holdEnabled = capturedImage > 1,
@@ -202,12 +207,48 @@ class CaptureUiRegressionTest {
                     )
                 }
             } }
-            touch("Synthetic whole image")
-            touch("Synthetic whole image")
+            touch("Synthetic whole image 1")
+            touch("Synthetic whole image 2")
             assertEquals("The second tap must submit the second image", listOf(1, 2), taps)
-            touch("Synthetic whole image", 1200)
+            touch("Synthetic whole image 3", 1200)
             assertEquals("Hold enabled and callback must both refresh", listOf(3), skips)
         }
+    }
+
+    @Test fun unavailableCropPreviewUsesTheSameBackFlowAsALoadedImage() {
+        val fixture = File.createTempFile("unreadable-preview", ".jpg", context.cacheDir)
+        var model: MainViewModel? = null
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                scenario.onActivity { activity ->
+                    val vm = ViewModelProvider(activity)[MainViewModel::class.java]
+                    model = vm
+                    vm.startCropFlow(listOf(fixture.absolutePath, fixture.absolutePath), grade = true, expect = 2)
+                    vm.submitCropResult(byteArrayOf(1))
+                    activity.setContent {
+                        CompositionLocalProvider(LocalStrings provides s) {
+                            MaterialTheme {
+                                val nav = rememberNavController()
+                                NavHost(nav, startDestination = AppNav.CROP) {
+                                    composable(AppNav.CROP) { CropScreen(nav, vm) }
+                                    composable(AppNav.CAMERA) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            androidx.compose.material3.Text("Synthetic camera destination")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                waitFor(s["crop.noImage"])
+                tap(s["common.back"])
+                scenario.onActivity { assertEquals(0, model!!.cropIndex) }
+                scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+                waitFor("Synthetic camera destination")
+                scenario.onActivity { assertTrue(model!!.cropPaths.isEmpty()) }
+            }
+        } finally { fixture.delete() }
     }
 
     private fun switch(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {

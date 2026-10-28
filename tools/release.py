@@ -13,7 +13,10 @@ import subprocess
 import sys
 import time
 import uuid
+import io
+import zipfile
 from release_common import VERSION, apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
+from verification import make_plan, validate_ci_evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = "ShizhenZhou/StudyAssistant"
@@ -76,6 +79,29 @@ def bind_state(path, version, commit):
         return state
     return dict(schema=1, version=version, commit=commit)
 
+
+def read_verification_artifact(data):
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        entries = archive.infolist()
+        if len(entries) != 1 or entries[0].filename != "verification.json" or entries[0].file_size > 2_000_000:
+            raise ReleaseError("Unexpected verification artifact contents")
+        return json.loads(archive.read(entries[0]))
+
+
+def required_jobs(jobs, apis, modern=False):
+    latest = {}
+    for job in jobs:
+        if job["name"] not in latest or job.get("id", 0) > latest[job["name"]].get("id", 0):
+            latest[job["name"]] = job
+    required = {f"Android emulator tests (API {api})" for api in apis}
+    if modern: required |= {"build", "Windows tool tests", "Verification gate"}
+    if not required.issubset(latest) or any(latest[n].get("conclusion") != "success" for n in required):
+        raise ReleaseError("Required verification jobs must succeed")
+    # A later failure/cancellation must never be hidden by an older pass.
+    if any(j.get("conclusion") not in ("success", "skipped") for j in latest.values()):
+        raise ReleaseError("A verification job is incomplete or failed")
+    return latest
+
 class Release:
     def __init__(self, root=ROOT, github=None):
         self.root = Path(root)
@@ -116,10 +142,14 @@ class Release:
             raise ReleaseError("Tag already exists. Existing tags/releases are never replaced automatically.")
         if b"[skip ci]" not in self.git("log", "-1", "--format=%B").stdout:
             raise ReleaseError("Use a reviewed release-preparation commit with [skip ci] to avoid duplicate development CI.")
-        if not self.state.get("basicChecked"):
-            command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/check-project.ps1"],
-                root=self.root, log=self.path.parent / (version + "-basic.log"), timeout=600)
-            self.state["basicChecked"] = True; self.save()
+        # The entry validates/reuses content-bound evidence; a historical boolean is not proof.
+        command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/check-project.ps1"],
+            root=self.root, log=self.path.parent / (version + "-basic.log"), timeout=600)
+        self.state["basicChecked"] = True
+        previous = self.github.api("releases/latest", missing=True)
+        base = self.github.api("commits/" + previous["tag_name"])["sha"] if previous else None
+        self.state["verificationBase"] = base
+        self.save()
         for branch in ("main", "Develop"):
             head = self.remote(branch)
             if self.git("cat-file", "-e", head + "^{commit}", check=False).returncode:
@@ -130,7 +160,7 @@ class Release:
         self.push("main", commit); self.push("Develop", commit)
         self.state.update(dispatchAttempted=True, requestedAt=datetime.now(timezone.utc).isoformat())
         self.save()  # Persist before the request: a timeout must never trigger a blind second CI.
-        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":"main", "inputs":{"mode":"release", "expected_sha":commit}})
+        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":"main", "inputs":{"mode":"release", "expected_sha":commit, "base_sha":base or ""}})
         return self.status()
     def status(self):
         if not self.state.get("runId") and self.state.get("dispatchAttempted"):
@@ -164,10 +194,15 @@ class Release:
         run = self.github.api(f"actions/runs/{run_id}")
         if run["event"] != "workflow_dispatch" or run["head_branch"] != "main" or run["conclusion"] != "success" or not run.get("display_title", "").startswith("release:"):
             raise ReleaseError("A successful main release-candidate run is required.")
-        jobs = self.github.api(f"actions/runs/{run_id}/jobs")["jobs"]
-        required_android = {"Android emulator tests (API 35)", "Android emulator tests (API 36)"}
-        if not jobs or any(j["conclusion"] != "success" for j in jobs) or not required_android.issubset({j["name"] for j in jobs}):
-            raise ReleaseError("The full test workflow, including Android, must succeed.")
+        jobs = []
+        page = 1
+        while True:
+            batch = self.github.api(f"actions/runs/{run_id}/jobs?filter=all&per_page=100&page={page}")["jobs"]
+            jobs.extend(batch)
+            if len(batch) < 100: break
+            page += 1
+        modern = any(j["name"] == "Verification gate" for j in jobs)
+        required_jobs(jobs, [] if modern else [35, 36], modern)
         commit = run["head_sha"]
         self.assert_source(commit)
         artifacts = self.github.api(f"actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
@@ -191,6 +226,26 @@ class Release:
             manifest, candidate = extract_candidate(data, work)
         if manifest["commit"] != commit: raise ReleaseError("Manifest and CI source mismatch.")
         self.bind(manifest["version"], commit)
+        if manifest["schema"] == 2:
+            if not modern: raise ReleaseError("Verification gate is missing")
+            evidence_artifacts = [a for a in artifacts if a["name"] == "verification-evidence" and not a["expired"]]
+            if len(evidence_artifacts) != 1: raise ReleaseError("Expected one verification artifact")
+            evidence = read_verification_artifact(self.github.download(evidence_artifacts[0]["archive_download_url"]))
+            validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
+            plan = evidence["plan"]
+            base = plan.get("base")
+            if base:
+                approved_base = self.state.get("verificationBase")
+                if not approved_base:
+                    previous = self.github.api("releases/latest", missing=True)
+                    approved_base = self.github.api("commits/" + previous["tag_name"])["sha"] if previous else None
+                if base != approved_base: raise ReleaseError("Plan base is not the previous published release")
+            if make_plan(self.root, base) != plan: raise ReleaseError("CI plan differs from current source policy")
+            required_jobs(jobs, [r["api"] for r in plan["devices"]], True)
+            self.state.update(verificationBase=base, verificationArtifactId=evidence_artifacts[0]["id"],
+                              verificationPlan=plan, verificationAttempt=evidence["attempt"])
+        else:
+            required_jobs(jobs, [35, 36])  # Preserve legacy archived releases without inventing new evidence.
         self.state.update(runId=run_id, artifactId=artifact["id"], manifestSha256=sha256(cache), manifest=manifest)
         self.save()
         signed = local_artifact(self.root, self.state["signedPath"]) if self.state.get("signedPath") else None

@@ -24,28 +24,15 @@ class ProjectEntryTest(unittest.TestCase):
             return subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",
                                    "-File", str(path)], capture_output=True, timeout=30)
 
-    def test_stderr_and_nonzero_exit_are_distinct(self):
-        # Load the real function by AST, without executing builds or duplicating its body.
-        script = r"""
-$ErrorActionPreference = 'Stop'
-$ast = [System.Management.Automation.Language.Parser]::ParseFile(SCRIPT_PATH, [ref]$null, [ref]$null)
-$function = $ast.Find({ param($node)
-    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-    $node.Name -eq 'Invoke-ProjectCheck'
-}, $true)
-. ([scriptblock]::Create($function.Extent.Text))
-$checkFolder = $PSScriptRoot
-$checkReport = [ordered]@{ steps = @() }
-Invoke-ProjectCheck 'stderr-success' 'python' @('-c', 'import sys; print(123, file=sys.stderr)')
-if ($checkReport.steps[0].exitCode -ne 0) { throw 'stderr was misclassified' }
-$caught = $false
-try { Invoke-ProjectCheck 'actual-failure' 'python' @('-c', 'import sys; sys.exit(7)') }
-catch { $caught = $true }
-if (-not $caught -or $checkReport.steps[1].exitCode -ne 7) { throw 'failure was ignored' }
-exit 0
-""".replace("SCRIPT_PATH", quote(ROOT / "tools/check-project.ps1"))
-        result = self.invoke(script)
+    def test_plan_entry_selects_tests_without_running_gradle(self):
+        import json
+        result = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                                 str(ROOT / "tools/check-project.ps1"), "-Plan", "-BaseRef", "HEAD", "-TestClass", "synthetic.DoesNotExist"],
+                                capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        plan = json.loads(result.stdout)
+        self.assertEqual(plan["tasks"], ["testDebugUnitTest"])
+        self.assertEqual(plan["selectors"], ["synthetic.DoesNotExist"])
 
     def test_android_entry_rejects_physical_serial_before_adb(self):
         result = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",

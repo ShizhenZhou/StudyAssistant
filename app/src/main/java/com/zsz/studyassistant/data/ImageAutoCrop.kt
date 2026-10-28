@@ -1,7 +1,5 @@
 package com.zsz.studyassistant.data
 
-import android.graphics.BitmapFactory
-
 /**
  * 本地「预框选」检测：把图片按**文本块**切分，找出最可能是题目的区域。
  *
@@ -29,14 +27,7 @@ object ImageAutoCrop {
 
     /** 按文本块切分，返回按面积从大到小排序的归一化矩形 */
     fun detectBlocks(path: String, maxDim: Int = 600): List<NormRect> {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return emptyList()
-        val sample = maxOf(1, maxOf(bounds.outWidth, bounds.outHeight) / maxDim)
-        val bmp = BitmapFactory.decodeFile(
-            path,
-            BitmapFactory.Options().apply { inSampleSize = sample }
-        ) ?: return emptyList()
+        val bmp = runCatching { CaptureImage.decode(path, maxDim) }.getOrNull() ?: return emptyList()
 
         val w = bmp.width
         val h = bmp.height
@@ -77,7 +68,7 @@ object ImageAutoCrop {
         for (y in 0 until h) {
             var d = 0
             val base = y * w
-            for (x in 0 until w) if (gray[base + x] < darkThr) d++
+            for (x in 0 until w) if (gray[base + x] <= darkThr) d++
             rowDark[y] = d.toFloat() / w
         }
         val lines = ArrayList<IntArray>()
@@ -117,7 +108,7 @@ object ImageAutoCrop {
             for (y in t..b) {
                 val base = y * w
                 for (x in 0 until w) {
-                    if (gray[base + x] < darkThr) {
+                    if (gray[base + x] <= darkThr) {
                         if (x < minX) minX = x
                         if (x > maxX) maxX = x
                     }

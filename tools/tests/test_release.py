@@ -100,12 +100,55 @@ class ReleaseTest(unittest.TestCase):
                 ([dict(name="Android emulator tests", conclusion="success")], False)]:
             class FakeGitHub:
                 def api(self, path):
-                    return {"jobs": jobs} if path.endswith("/jobs") else run
+                    return {"jobs": jobs} if "/jobs?" in path else run
             tool = release.Release(self.root, FakeGitHub())
             def reached(commit): raise SourceReached()
             tool.assert_source = reached
             with self.assertRaises(SourceReached if accepted else release.ReleaseError):
                 tool.verify(123)
+
+    def test_later_failed_attempt_blocks_older_successful_job(self):
+        jobs = [dict(id=1, name="Android emulator tests (API 36)", conclusion="success"),
+                dict(id=2, name="Android emulator tests (API 36)", conclusion="failure")]
+        with self.assertRaises(release.ReleaseError): release.required_jobs(jobs, [36])
+        jobs[1]["conclusion"] = "success"
+        release.required_jobs(jobs, [36])
+
+    def test_empty_device_plan_still_requires_build_tools_and_gate(self):
+        jobs = [dict(name=name, conclusion="success") for name in ("build", "Windows tool tests", "Verification gate")]
+        release.required_jobs(jobs, [], True)
+        with self.assertRaises(release.ReleaseError): release.required_jobs(jobs[:-1], [], True)
+        with self.assertRaises(release.ReleaseError): release.required_jobs(jobs, [36], True)
+
+    def test_modern_verify_consumes_evidence_before_any_signing(self):
+        from verification import digest
+        apk = self.apk("input.apk")
+        plan = dict(schema=1, policy=1, commit="a"*40, base=None, changedFiles=[], devices=[])
+        manifest = dict(self.manifest(apk), schema=2, planSha256=digest(plan))
+        evidence = dict(schema=1, success=True, runId=42, attempt=1, plan=plan, devices=[],
+                        build=dict(commit="a"*40, runId=42, attempt=1, planSha256=digest(plan),
+                                   candidateSha256=manifest["candidateSha256"], jvm=manifest["jvm"], apks=None))
+        artifacts = [dict(id=1, name="release-candidate", expired=False, archive_download_url="candidate"),
+                     dict(id=2, name="verification-evidence", expired=False, archive_download_url="evidence")]
+        candidate = self.artifact(manifest, apk)
+        class SigningReached(Exception): pass
+        class FakeGitHub:
+            def api(self, path):
+                if "/jobs?" in path:
+                    return {"jobs": [dict(id=i, name=n, conclusion="success") for i, n in enumerate(("build", "Windows tool tests", "Verification gate"))]}
+                if "/artifacts?" in path: return {"artifacts": artifacts}
+                return dict(event="workflow_dispatch", head_branch="main", conclusion="success", display_title="release: fixture", head_sha="a"*40, run_attempt=1)
+            def download(self, url):
+                if url == "candidate": return candidate
+                out = io.BytesIO()
+                with zipfile.ZipFile(out, "w") as z: z.writestr("verification.json", json.dumps(evidence))
+                return out.getvalue()
+        tool = release.Release(self.root, FakeGitHub())
+        tool.assert_source = lambda commit: None
+        with patch.object(release, "make_plan", return_value=plan), patch.object(release, "command", side_effect=SigningReached):
+            with self.assertRaises(SigningReached): tool.verify(42)
+            evidence["build"]["candidateSha256"] = "0"*64
+            with self.assertRaises(ValueError): tool.verify(42)
 
     def test_identity_and_debug_candidates_are_rejected(self):
         good="package: name='com.zsz.studyassistant' versionCode='99' versionName='9.9.9'\nsdkVersion:'28'\ntargetSdkVersion:'37'"

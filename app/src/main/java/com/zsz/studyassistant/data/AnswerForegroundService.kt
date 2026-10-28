@@ -18,6 +18,12 @@ class AnswerForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // Android 15+ gives dataSync services only a few seconds to leave foreground at quota expiry.
+    // Requests retain their existing cancellation/recovery ownership; the service only protects them.
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        try { stopForeground(STOP_FOREGROUND_REMOVE) } finally { stopSelf() }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (synchronized(owners) { owners.isEmpty() }) { stopSelf(startId); return START_NOT_STICKY }
         val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(this))

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import xml.etree.ElementTree as ET
 from release_common import apk_identity, apk_payload, sha256, validate_manifest
+from verification import digest
 
 ROOT = Path(__file__).resolve().parents[1]
 def main():
@@ -27,7 +28,8 @@ def main():
         raise RuntimeError("No successful full JVM report")
     code = (ROOT / "app/src/main/java/com/zsz/studyassistant/data/UpdateChecker.kt").read_text(encoding="utf-8")
     cert = re.search(r'EXPECTED_CERT_SHA256 = "([0-9a-f]{64})"', code)[1]
-    manifest = dict(schema=1, **identity, commit=os.environ["GITHUB_SHA"], buildUtc=stamp,
+    plan = json.loads((ROOT / "app/build/verification/plan.json").read_text(encoding="utf-8"))
+    manifest = dict(schema=2, **identity, commit=os.environ["GITHUB_SHA"], buildUtc=stamp, planSha256=digest(plan),
         candidate=f"StudyAssistant-{identity['version']}-{stamp}-candidate.apk",
         candidateSha256=sha256(source), payloadSha256=payload, expectedSigner=cert, jvm=totals)
     validate_manifest(manifest)

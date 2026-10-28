@@ -49,6 +49,44 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 >
 > 📌 **版本号约定（现行）**：`0.x.x`（三段）与 `0.x.x.x`（四段）**都要**在 README「版本记录」+ App 内「更新内容」（简 / 英 / 日 / 韩 4 份，繁體由简体自动转换）各记一次；`versionCode` **每次发版 +1**。更早小节里「`0.x.x.x` 不改更新内容、只发 Release」的说法**已作废**。
 
+### v0.6.7.8
+
+- 📷 修正 Android 9 旋转照片缩放崩溃，统一照片方向与黑白图片预框选；拍题的解码、压缩与图库读取移至后台，任一图片读取失败时保留原顺序和进度。
+- 💾 同类题在生成中保存后，自动补写最终答案或中断片段；删除追问及时保存，避免切题后内容丢失。
+- 🛡️ 补齐 Android 15 及以上答案前台服务超时收尾，避免超时后未停止服务导致应用被系统终止。
+- 🧪 按改动范围选择验证，复用有效本地结果和同一 CI 的候选构件；发布门禁核对源码、构件与逐项验证证据。
+- 📌 versionCode **78**；保持 Android 9+。
+
+<details>
+<summary>English</summary>
+
+- 📷 Fix rotated-photo downsampling crashes on Android 9 and unify orientation and black-and-white crop detection. Photo capture decodes, compresses and imports images in the background; preserve order and progress if any input cannot be read.
+- 💾 Similar problems saved during generation now receive the final answer or interrupted fragment. Persist follow-up deletions before switching problems.
+- 🛡️ Stop the answer foreground service promptly at the Android 15+ time limit to prevent system termination for an overdue service.
+- 🧪 Select checks by change scope and reuse valid local results and candidates from the same CI run. Release gates verify source, artifacts and individual test evidence.
+
+</details>
+
+<details>
+<summary>日本語</summary>
+
+- 📷 Android 9 で回転写真の縮小時に発生するクラッシュを修正し、写真の向きと白黒画像の自動選択範囲を改善。撮影画面の画像読込・圧縮をバックグラウンドで行い、読込失敗時は順序と進捗を保持。
+- 💾 生成中に保存した類題へ最終解答や中断時の内容を追記。追加質問の削除も問題を切り替える前に保存。
+- 🛡️ Android 15 以降の制限時間到達時に解答生成のフォアグラウンドサービスを停止し、停止遅延によるアプリ強制終了を防止。
+- 🧪 変更範囲に応じて検証を選択し、有効なローカル結果と同じ CI の候補 APK を再利用。公開前にソース・成果物・各検証結果を照合。
+
+</details>
+
+<details>
+<summary>한국어</summary>
+
+- 📷 Android 9에서 회전 사진 축소 시 발생하는 충돌을 수정하고 사진 방향 및 흑백 이미지의 자동 선택 영역을 개선했습니다. 촬영 화면의 이미지 읽기와 압축을 백그라운드에서 수행하며, 읽기 실패 시 순서와 진행 상태를 유지합니다.
+- 💾 생성 중 저장한 유사 문제에 최종 답변 또는 중단된 내용을 반영합니다. 문제를 전환하기 전에 후속 질문 삭제도 저장합니다.
+- 🛡️ Android 15 이상에서 제한 시간에 도달한 답변 포그라운드 서비스를 종료하여 종료 지연으로 앱이 강제 종료되는 문제를 방지합니다.
+- 🧪 변경 범위에 맞는 검증을 선택하고 유효한 로컬 결과와 동일 CI 실행의 후보 APK를 재사용합니다. 배포 전에 소스, 산출물 및 개별 검증 결과를 확인합니다.
+
+</details>
+
 ### v0.6.7.7
 
 - 📷 修正两张图片框选时的整图提交与模式切换；未授予相机权限或相机不可用时仍可从图库选图。

@@ -164,7 +164,11 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         val galleryMulti = rememberLauncherForActivityResult(
             ActivityResultContracts.PickMultipleVisualMedia(2)
         ) { uris ->
-            val picked = uris.take(2).mapNotNull { uriToCompressedBytes(context, it) }
+            val picked = urisToCompressedBytes(context, uris.take(2))
+            if (picked == null) {
+                vm.showError(s["camera.errRead"])
+                return@rememberLauncherForActivityResult
+            }
             when {
                 picked.size >= 2 -> {
                     vm.startGrade(picked[0], picked[1])

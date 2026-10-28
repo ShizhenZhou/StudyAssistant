@@ -47,15 +47,22 @@ def apk_identity(badging):
 
 def validate_manifest(value):
     allowed = {"schema", "package", "versionCode", "version", "minSdk", "targetSdk", "commit", "buildUtc", "candidate", "candidateSha256", "payloadSha256", "expectedSigner", "jvm"}
+    if value.get("schema") == 2: allowed.add("planSha256")
     if set(value) - allowed or value.get("minSdk") != 28 or not isinstance(value.get("targetSdk"), int):
         raise ValueError("Unexpected public manifest fields")
-    if value.get("schema") != 1 or value.get("package") != PACKAGE:
+    if value.get("schema") not in (1, 2) or value.get("package") != PACKAGE:
         raise ValueError("Unsupported release manifest")
     if not VERSION.fullmatch(value.get("version", "")) or int(value.get("versionCode", 0)) <= 0:
         raise ValueError("Invalid release version")
     for key, length in [("commit", 40), ("candidateSha256", 64), ("payloadSha256", 64), ("expectedSigner", 64)]:
         if not re.fullmatch("[0-9a-f]{" + str(length) + "}", value.get(key, "")):
             raise ValueError("Invalid release identity: " + key)
+    if value["schema"] == 2:
+        if not re.fullmatch(r"[0-9a-f]{64}", value.get("planSha256", "")):
+            raise ValueError("Missing verification plan identity")
+        jvm = value.get("jvm", {})
+        if not isinstance(jvm.get("tests"), int) or jvm["tests"] < 1 or any(jvm.get(k) != 0 for k in ("failures", "errors", "skipped")):
+            raise ValueError("Invalid full JVM result")
     name = f"StudyAssistant-{value['version']}-{value['buildUtc']}-candidate.apk"
     if value.get("candidate") != name or not re.fullmatch(r"[0-9]{14}", value.get("buildUtc", "")):
         raise ValueError("Invalid candidate filename")

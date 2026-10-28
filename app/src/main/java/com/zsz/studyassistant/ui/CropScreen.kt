@@ -1,7 +1,7 @@
 package com.zsz.studyassistant.ui
 
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
+import com.zsz.studyassistant.data.CaptureImage
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,18 +81,31 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     // 「通用 → AI 框选时限」：AI 自动框选的等待上限
     val aiCropMs = com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx)
     val path = vm.currentCropPath
-    val bitmap = remember(path) {
-        path?.let {
-            try { ImageDecoder.decodeBitmap(ImageDecoder.createSource(java.io.File(it))) } catch (e: Exception) { null }
+    var userTouched by remember(path) { mutableStateOf(false) }
+    fun handleBack() {
+        if (vm.cropIndex > 0) {
+            vm.cropGoBackOne()
+            userTouched = false
+        } else {
+            vm.cancelCropFlow()
+            nav.navigate(AppNav.CAMERA) { popUpTo(AppNav.CROP) { inclusive = true } }
         }
     }
+    androidx.activity.compose.BackHandler { handleBack() }
+    var loading by remember(path) { mutableStateOf(true) }
+    val loadedBitmap by produceState<Pair<String?, Bitmap?>?>(null, path) {
+        value = path to withContext(Dispatchers.IO) { path?.let { runCatching { CaptureImage.decode(it) }.getOrNull() } }
+        loading = false
+    }
+    val bitmap = loadedBitmap?.takeIf { it.first == path }?.second
 
     if (bitmap == null) {
         Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center) {
-            Text(s["crop.noImage"], style = MaterialTheme.typography.bodyLarge)
+            if (loading) androidx.compose.material3.CircularProgressIndicator()
+            else Text(s["crop.noImage"], style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(12.dp))
-            Button(onClick = { nav.popBackStack() }) { Text(s["common.back"]) }
+            Button(onClick = { handleBack() }) { Text(s["common.back"]) }
         }
         return
     }
@@ -107,7 +121,6 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     fun normalizeSel() { sel = sel?.let { normalizeSelRect(it, dispRect) } }
     // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
     // ★ 2026-10-13：现在**手指一按下就置位**（见手势层的 awaitFirstDown），堵住"按下→超过 touch slop"那段窗口。
-    var userTouched by remember { mutableStateOf(false) }
     // 是否已跑过一次自动识别（每次换图重来）
     var autoTried by remember(path) { mutableStateOf(false) }
     // AI 预框选每次换图只请求一次
@@ -115,26 +128,8 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     // 手动 AI 识别中
     var aiBusy by remember { mutableStateOf(false) }
 val scope = androidx.compose.runtime.rememberCoroutineScope()
-
-    /** 返回 = 回到拍摄界面（放弃本次框选） */
-    fun backToCamera() {
-        vm.cancelCropFlow()
-        nav.navigate(AppNav.CAMERA) { popUpTo(AppNav.CROP) { inclusive = true } }
-    }
-
-    /**
-     * 返回键 / 返回手势：
-     *  · 正在框第 2 张 → 回到第 1 张重新框（autoTried 因 remember(path) 自动重置 → 本地+AI 重新跑一次）
-     *  · 正在框第 1 张 → 回拍摄界面
-     */
-    fun handleBack() {
-        if (vm.cropIndex > 0) {
-            vm.cropGoBackOne()
-            userTouched = false
-        } else {
-            backToCamera()
-        }
-    }
+    var submitting by remember { mutableStateOf(false) }
+    var imageFailed by remember(path) { mutableStateOf(false) }
 
     /** 提交一张之后：还差一张 → 回拍摄界面；队列还有下一张 → 留在本页继续框；都完成 → 进入解题/批改 */
     fun afterSubmit() {
@@ -146,8 +141,26 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
         }
     }
 
-    // 系统返回键 / 返回手势 → 也回拍摄界面
-    androidx.activity.compose.BackHandler { handleBack() }
+    // Decode/compress away from Main; an old result cannot advance a replaced/cancelled crop flow.
+    fun submitImages(all: Boolean, encode: () -> List<ByteArray>) {
+        if (submitting || vm.currentCropPath != path) return
+        val revision = vm.cropRevision
+        val remaining = vm.cropPaths.drop(vm.cropIndex)
+        submitting = true
+        imageFailed = false
+        scope.launch {
+            try {
+                val bytes = withContext(Dispatchers.IO) { runCatching(encode).getOrNull() }
+                if (revision != vm.cropRevision) return@launch
+                if (bytes == null || bytes.isEmpty()) { imageFailed = true; return@launch }
+                if (all) {
+                    val byPath = remaining.zip(bytes).toMap()
+                    if (!vm.skipRemainingCrop { byPath[it] }) { imageFailed = true; return@launch }
+                } else vm.submitCropResult(bytes.single())
+                afterSubmit()
+            } finally { submitting = false }
+        }
+    }
 
     /** 归一化矩形 → 屏幕显示坐标（相对当前显示的图片区域） */
     fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
@@ -475,6 +488,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
             //   它出现/消失会改变底部 Column 的高度 → 上面那张图（weight 1f）跟着重新布局，画面会"抽搐"一下。
             //   用户要求去掉，所以这里不再渲染任何提示（autoHint 标志保留但不再展示）。
             Button(
+                enabled = !submitting,
                 onClick = {
                     val r = sel ?: dispRect
                     if (r != null && dispRect != Rect.Zero) {
@@ -484,9 +498,11 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                         val y = safeCoerceRange((r.top - d2.top) / d2.height * bitmap.height, 0f, (bitmap.height - 1).toFloat()).toInt()
                         val w = safeCoerceRange((r.width / d2.width) * bitmap.width, 1f, (bitmap.width - x).toFloat()).toInt()
                         val h = safeCoerceRange((r.height / d2.height) * bitmap.height, 1f, (bitmap.height - y).toFloat()).toInt()
-                        val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
-                        vm.submitCropResult(compressBitmap(cropped))
-                        afterSubmit()
+                        submitImages(false) {
+                            val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
+                            try { listOf(compressBitmap(cropped)) }
+                            finally { if (cropped !== bitmap) cropped.recycle() }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp)
@@ -499,20 +515,15 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                 holdHint = if (vm.cropExpect > 1) s["crop.wholeHoldHint"] else "",
                 holdEnabled = vm.cropExpect > 1,
                 onTap = {
-                    vm.submitCropResult(compressBitmap(bitmap))
-                    afterSubmit()
+                    submitImages(false) { listOf(compressBitmap(bitmap)) }
                 },
                 onSkip = {
-                    vm.skipRemainingCrop { p ->
-                        runCatching {
-                            val b = android.graphics.BitmapFactory.decodeFile(p) ?: return@runCatching null
-                            compressBitmap(b)
-                        }.getOrNull()
-                    }
-                    afterSubmit()
+                    val remaining = vm.cropPaths.drop(vm.cropIndex)
+                    submitImages(true) { remaining.map { CaptureImage.wholeJpeg(it) } }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             )
+            if (imageFailed) Text(s["crop.noImage"], color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 // AI 自动框选：等待「AI 框选时限 + 1s」；AI 不行就用本地算法；都不行恢复默认框

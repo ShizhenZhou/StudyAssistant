@@ -264,34 +264,38 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
 
-        // 系统相册（开启**有序选择**）：单张 → 进框选页；两张模式 → 第 1 张=题目、第 2 张=作答
-        val gallerySingle = rememberLauncherForActivityResult(
-            ActivityResultContracts.PickVisualMedia()
-        ) { uri ->
-            if (screenActive.get() && uri != null) {
-                uriToTempFile(context, uri, "gallery")?.let { processImageFile(it) }
-                    ?: vm.showError(s["camera.errRead"])
+        // Copy off Main, preserving the selected order and the current capture flow.
+        fun importGallery(uris: List<android.net.Uri>) {
+            if (!screenActive.get() || uris.isEmpty() || captureInFlight) return
+            val revision = vm.cropRevision
+            val selected = uris.take(if (vm.cropNeedsMore) 1 else 2)
+            captureInFlight = true
+            scope.launch {
+                var files: List<File>? = null
+                var accepted = false
+                try {
+                    // Retain the copied files even if the page is disposed during a provider read.
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+                        files = urisToTempFiles(context, selected, "gallery")
+                    }
+                    if (!screenActive.get() || revision != vm.cropRevision) return@launch
+                    val ready = files
+                    if (ready.isNullOrEmpty()) { vm.showError(s["camera.errRead"]); return@launch }
+                    if (vm.cropNeedsMore) vm.appendCropPath(ready.first().absolutePath)
+                    else vm.startCropFlow(ready.map { it.absolutePath }, gradeMode, if (doubleMode) 2 else ready.size)
+                    accepted = true
+                    AppNav.openCrop(nav)
+                } finally {
+                    if (!accepted) files?.forEach { it.delete() }
+                    captureInFlight = false
+                }
             }
         }
-        val galleryMulti = rememberLauncherForActivityResult(
-            ActivityResultContracts.PickMultipleVisualMedia(2)
-        ) { uris ->
-            if (!screenActive.get()) return@rememberLauncherForActivityResult
-            val files = uris.take(2).mapNotNull { uriToTempFile(context, it, "gallery") }
-            if (files.isEmpty()) return@rememberLauncherForActivityResult
-            // 已经在等第二张 → 只补一张（保留第一张的框选结果，别重置队列）
-            if (vm.cropNeedsMore) {
-                vm.appendCropPath(files.first().absolutePath)
-            } else {
-                // 一次选两张 → 两张都进同一个框选队列（先框题目，再框作答）
-                // 只选一张 → 也进框选；若还差一张（两张模式）框完会回到拍摄界面继续选
-                vm.startCropFlow(
-                    paths = files.map { it.absolutePath },
-                    grade = gradeMode,
-                    expect = if (doubleMode) 2 else files.size
-                )
-            }
-            AppNav.openCrop(nav)
+        val gallerySingle = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) importGallery(listOf(uri))
+        }
+        val galleryMulti = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(2)) { uris ->
+            importGallery(uris)
         }
 
         // 从图库选图（左下角，圆角正方形 + 花瓣图标）
