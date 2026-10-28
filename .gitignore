@@ -41,6 +41,8 @@ adbkey.pub
 # APK 输出
 *.apk
 *.aab
+# Download-verified release archives (APK and compatibility manifest)
+/history_apk/
 # apksigner 的 v4 签名旁文件（history_apk 归档目录里会生成，不是产物，不进仓库）
 *.idsig
 
