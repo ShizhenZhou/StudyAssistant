@@ -57,6 +57,15 @@ internal object UpdateDownloadNotifications {
         return ColorUtils.setAlphaComponent(scheme.primary.toArgb(), 255)
     }
 
+    internal data class PresentationKey(
+        val token: String, val phase: UpdateDownloads.Phase, val progress: Int,
+        val error: String?, val version: String, val language: String, val locales: String, val color: Int
+    )
+    internal fun presentationKey(context: Context, task: UpdateDownloads.Snapshot) = PresentationKey(
+        task.token, task.phase, task.progress, task.errorKey, task.release.version,
+        UiLangStore.load(context).name, context.resources.configuration.locales.toLanguageTags(), accentColor(context)
+    )
+
     fun build(context: Context, task: UpdateDownloads.Snapshot?, messageKey: String? = null, completionChip: Boolean = false): Notification {
         ensureChannel(context)
         val strings = stringsFor(UiLangStore.load(context))
@@ -118,8 +127,13 @@ internal object UpdateDownloadNotifications {
         }
         return note.build()
     }
-    fun post(context: Context, note: Notification) {
-        if (canPost(context)) runCatching { context.getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, note) }
+    fun post(context: Context, note: Notification): Boolean {
+        if (!canPost(context)) return false
+        return runCatching {
+            val manager = context.getSystemService(NotificationManager::class.java) ?: return false
+            manager.notify(NOTIFICATION_ID, note)
+            true
+        }.getOrDefault(false)
     }
     // Use a different identity from the FGS notification: its asynchronous removal must
     // never restore ongoing flags on the final, dismissible completion notice.

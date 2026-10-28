@@ -31,7 +31,12 @@ class ProjectEntryTest(unittest.TestCase):
                                 capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
         plan = json.loads(result.stdout)
-        self.assertEqual(plan["tasks"], ["testDebugUnitTest"])
+        expected = ["testDebugUnitTest"]
+        # HEAD still includes uncommitted changes. The real entry must retain the
+        # device-test compile obligation while selecting a JVM test explicitly.
+        if any(path.startswith(("app/src/androidTest/", "app/src/integration/")) for path in plan["changedFiles"]):
+            expected.append("compileIntegrationAndroidTestKotlin")
+        self.assertEqual(plan["tasks"], expected)
         self.assertEqual(plan["selectors"], ["synthetic.DoesNotExist"])
 
     def test_android_entry_rejects_physical_serial_before_adb(self):

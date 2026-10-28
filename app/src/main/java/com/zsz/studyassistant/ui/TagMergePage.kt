@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.layout.*
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,7 +23,7 @@ import com.zsz.studyassistant.TagMergeViewModel
 fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
     val s = LocalStrings.current
     val language = LocalUiLang.current.name
-    val liveTags by main.tags.collectAsState()
+    val liveTags by main.tags.collectAsStateWithLifecycle()
     val base = model.inventory
     val counts = remember(base) { base?.links.orEmpty().groupingBy { it.tagId }.eachCount() }
     val names = remember(base) { base?.tags.orEmpty().associateBy { it.id } }

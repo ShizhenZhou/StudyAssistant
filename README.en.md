@@ -47,6 +47,14 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 > Problem export (PNG/PDF) was removed in v0.6.4. Export entries in v0.6.3–v0.6.3.3 are historical only.
 > Both three- and four-component versions require README and in-app changelogs in all four source languages; Traditional Chinese is converted from Simplified Chinese. Increment versionCode for each release. Older contrary statements are obsolete. Minimum Android support appears last in each release's notes.
 
+### v0.6.8.1
+
+- 📝 Preserve unsaved custom prompt drafts across rotation and window recreation.
+- 🔋 Pause UI data subscriptions and date polling in the background; refresh on return while answers and backups continue.
+- 🔔 Refresh download notifications only when progress or presentation changes, preserving cancellation, completion and permission recovery.
+- 🗄️ Add local diagnostics and an explanation for system-deferred backups without treating scheduling delays as damaged data.
+- 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
+
 ### v0.6.8
 - 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
 - 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.

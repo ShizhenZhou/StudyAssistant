@@ -37,6 +37,7 @@ class UpdateDownloadMonitor : Service() {
     private var observer: Job? = null
     private var lastTask: UpdateDownloads.Snapshot? = null
     private var completionToken: String? = null
+    private var publishedKey: UpdateDownloadNotifications.PresentationKey? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -47,6 +48,7 @@ class UpdateDownloadMonitor : Service() {
             }
             UpdateDownloadNotifications.clearTerminal(this)
             startForeground(UpdateDownloadNotifications.NOTIFICATION_ID, UpdateDownloadNotifications.build(this, null))
+            publishedKey = null // startForeground replaced the displayed notification.
             running = true
             lease?.ready?.complete(true)
         } catch (_: Exception) {
@@ -71,7 +73,6 @@ class UpdateDownloadMonitor : Service() {
                 val visibleTask = if (task.errorKey == "update.downloadUnavailable" && task.progress < 0 && lastTask?.token == task.token)
                     task.copy(progress = lastTask!!.progress) else task
                 lastTask = visibleTask
-                val note = UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask)
                 if (task.phase == UpdateDownloads.Phase.READY && completionToken != task.token) {
                     completionToken = task.token
                     UpdateDownloadNotifications.post(this@UpdateDownloadMonitor,
@@ -82,9 +83,15 @@ class UpdateDownloadMonitor : Service() {
                     continue
                 }
                 if (task.phase == UpdateDownloads.Phase.READY || task.phase == UpdateDownloads.Phase.FAILED) {
-                    finish(note); break
+                    finish(UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask)); break
                 }
-                UpdateDownloadNotifications.post(this@UpdateDownloadMonitor, note)
+                val key = UpdateDownloadNotifications.presentationKey(this@UpdateDownloadMonitor, visibleTask)
+                if (!UpdateDownloadNotifications.canPost(this@UpdateDownloadMonitor)) {
+                    publishedKey = null // A later permission/channel recovery must publish immediately.
+                } else if (key != publishedKey) {
+                    if (UpdateDownloadNotifications.post(this@UpdateDownloadMonitor,
+                            UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask))) publishedKey = key
+                }
                 delay(1000)
                 } catch (error: kotlinx.coroutines.CancellationException) { throw error }
                 catch (_: Exception) { delay(1000) } // Transient notification/binder failures must not crash the app or stop the transfer.

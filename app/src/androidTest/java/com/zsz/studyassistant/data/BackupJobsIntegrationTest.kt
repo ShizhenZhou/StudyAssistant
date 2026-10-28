@@ -7,6 +7,7 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.*
@@ -35,6 +36,40 @@ class BackupJobsIntegrationTest {
         runBlocking { dao.deleteById(fixtureId); dao.deleteById(deletedFixtureId) }
         prefs.edit().clear().commit()
     }
+    @Test fun visibleObserverTracksManualWorkWithAutomaticBackupDisabled() = runBlocking {
+        AutoBackup.setEnabled(context, false)
+        assertFalse(AutoBackup.isEnabled(context))
+        val observer = launch(kotlinx.coroutines.Dispatchers.IO) { BackupJobs.observeScheduling(context) }
+        try {
+            BackupJobs.enqueue(context, automatic = false, delay = 60)!!.result.get()
+            kotlinx.coroutines.withTimeout(8000) {
+                while (!prefs.contains(BackupJobs.PREFIX + "stop_reason")) kotlinx.coroutines.delay(80)
+            }
+            assertEquals(androidx.work.WorkInfo.STOP_REASON_NOT_STOPPED,
+                prefs.getInt(BackupJobs.PREFIX + "stop_reason", 999))
+            assertFalse(BackupJobs.status(context).systemDeferred)
+            assertNull(BackupJobs.status(context).errorKey)
+        } finally { observer.cancel(); observer.join() }
+    }
+
+    @Test fun schedulerDeferralIsInformationalAndBoundToCurrentWork() {
+        val prefix = BackupJobs.PREFIX
+        prefs.edit().putBoolean(prefix + "active", true).putString(prefix + "token", "current")
+            .putString(prefix + "work_id", "work-current").putString(prefix + "phase", "data.backupJob.writing").commit()
+        BackupJobs.recordSchedulerState(context, "work-old", "current", androidx.work.WorkInfo.State.ENQUEUED, androidx.work.WorkInfo.STOP_REASON_QUOTA)
+        assertFalse(BackupJobs.status(context).systemDeferred)
+        BackupJobs.recordSchedulerState(context, "work-current", "old", androidx.work.WorkInfo.State.ENQUEUED, androidx.work.WorkInfo.STOP_REASON_QUOTA)
+        assertFalse(BackupJobs.status(context).systemDeferred)
+        BackupJobs.recordSchedulerState(context, "work-current", "current", androidx.work.WorkInfo.State.ENQUEUED, androidx.work.WorkInfo.STOP_REASON_QUOTA)
+        assertTrue(BackupJobs.status(context).systemDeferred)
+        assertNull(BackupJobs.status(context).errorKey)
+        assertTrue(BackupJobs.status(context).active)
+        BackupJobs.recordSchedulerState(context, "work-current", "current", androidx.work.WorkInfo.State.RUNNING, androidx.work.WorkInfo.STOP_REASON_NOT_STOPPED)
+        assertFalse(BackupJobs.status(context).systemDeferred)
+        BackupJobs.recordSchedulerState(context, "work-current", "current", androidx.work.WorkInfo.State.ENQUEUED, androidx.work.WorkInfo.STOP_REASON_CANCELLED_BY_APP)
+        assertFalse(BackupJobs.status(context).systemDeferred)
+    }
+
     @Test fun emptyOrOnlyDeletedQuestionsDoNotScheduleAutomaticWork() = runBlocking {
         dao.deleteById(fixtureId)
         assertFalse("Integration DB contains unexpected unowned active fixture", BackupJobs.hasActiveQuestions(context))

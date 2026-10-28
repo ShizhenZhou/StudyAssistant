@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +22,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -48,7 +49,7 @@ import com.zsz.studyassistant.MainViewModel
 @Composable
 fun StatsScreen(vm: MainViewModel) {
     val s = LocalStrings.current
-    val st by vm.stats.collectAsState()
+    val st by vm.stats.collectAsStateWithLifecycle()
 
     Column(
         Modifier

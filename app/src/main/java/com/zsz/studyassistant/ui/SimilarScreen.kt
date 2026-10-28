@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +30,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,8 +64,8 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     }
     // 追问附图（与解题页一致，最多 3 张）
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
-    val categories by vm.categories.collectAsState()
-    val tags by vm.tags.collectAsState()
+    val categories by vm.categories.collectAsStateWithLifecycle()
+    val tags by vm.tags.collectAsStateWithLifecycle()
     // 系统相册（有序选择）→ 追加附图
     val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(3)

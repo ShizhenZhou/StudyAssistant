@@ -77,6 +77,10 @@ class UpdateDownloadNotificationsIntegrationTest {
                 awaitProgress(1)
                 backend.current = backend.current!!.copy(bytes = 37)
                 awaitProgress(37)
+                val stablePost = manager.activeNotifications.single { it.id == UpdateDownloadNotifications.NOTIFICATION_ID }.postTime
+                kotlinx.coroutines.delay(2300)
+                assertEquals("Unchanged progress must not repost", stablePost,
+                    manager.activeNotifications.single { it.id == UpdateDownloadNotifications.NOTIFICATION_ID }.postTime)
                 scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
                 backend.current = backend.current!!.copy(bytes = 82)
                 awaitProgress(82)
@@ -89,6 +93,21 @@ class UpdateDownloadNotificationsIntegrationTest {
             downloads.cancel()
         }
     }
+    @Test fun notificationRefreshIdentityIncludesOwnershipAppearanceAndWaitingState() {
+        val base = task(UpdateDownloads.Phase.DOWNLOADING)
+        val key = UpdateDownloadNotifications.presentationKey(context, base)
+        assertEquals(key, UpdateDownloadNotifications.presentationKey(context, base.copy()))
+        for (changed in listOf(base.copy(token = "another-token"), base.copy(progress = 38),
+            base.copy(phase = UpdateDownloads.Phase.WAITING), base.copy(errorKey = "update.downloadUnavailable"))) {
+            assertNotEquals(key, UpdateDownloadNotifications.presentationKey(context, changed))
+        }
+        val old = UiLangStore.load(context)
+        try {
+            UiLangStore.save(context, if (old == com.zsz.studyassistant.ui.UiLang.EN) com.zsz.studyassistant.ui.UiLang.JA else com.zsz.studyassistant.ui.UiLang.EN)
+            assertNotEquals(key, UpdateDownloadNotifications.presentationKey(context, base))
+        } finally { UiLangStore.save(context, old) }
+    }
+
     @Test fun activeNotificationShowsActualProgressAndRequestsOptionalPromotion() {
         val note = UpdateDownloadNotifications.build(context, task(UpdateDownloads.Phase.DOWNLOADING))
         assertTrue(note.flags and Notification.FLAG_ONGOING_EVENT != 0)

@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.repeatOnLifecycle
+
 import android.Manifest
 import android.content.Intent
 import androidx.compose.runtime.DisposableEffect
@@ -159,13 +161,15 @@ fun SettingsTab(vm: MainViewModel) {
             //     · 键盘**收起**时 → 保存按钮就在输入框下面（与改动前完全一样，页面底部不出现任何浮动条）
             //     · 键盘**弹出**时 → 保存按钮挪到键盘正上方（不用先收键盘就能点）
             //   ⚠️ 首版做成了"常驻底栏"，用户实测反馈"没弹键盘时它也在、还跟着乱跑" → 改为按 IME 可见性切换。
-            var cpText by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
-            var cpDirty by remember { mutableStateOf(false) }
+            var savedPrompt by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
+            val cpText = vm.customPromptDraft ?: savedPrompt
+            val cpDirty = vm.customPromptDraft != null
             // 键盘（IME）当前是否可见：可见才给底栏
             val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
             val savePrompt = {
                 com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
-                cpDirty = false
+                savedPrompt = cpText
+                vm.customPromptDraft = null
             }
             // 键盘弹出时贴在键盘上方的那颗「保存」（没改动时置灰）
             val promptSaveBar: @Composable () -> Unit = {
@@ -177,7 +181,7 @@ fun SettingsTab(vm: MainViewModel) {
                 // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
                 bottomBar = promptSaveBar.takeIf { imeVisible }
             ) {
-                AiCustomPromptSettings(cpText, onText = { cpText = it; cpDirty = true })
+                AiCustomPromptSettings(cpText, onText = { vm.customPromptDraft = it })
                 // 键盘收起时：保存按钮留在输入框下面（原来的位置）—— 与浮动底栏二选一，绝不同时出现
                 if (!imeVisible) {
                     Spacer(Modifier.height(8.dp))
@@ -1003,6 +1007,11 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     var status by remember { mutableStateOf(com.zsz.studyassistant.data.BackupJobs.status(context)) }
     var refresh by remember { mutableStateOf(0) }
     val folderLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(folderLifecycle, context) {
+        folderLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            com.zsz.studyassistant.data.BackupJobs.observeScheduling(context)
+        }
+    }
     DisposableEffect(folderLifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refresh++
@@ -1149,6 +1158,10 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         "automatic" to (folderSummary?.automatic?.toString() ?: "…"))) + if (folderReadFailed) "" else "\n" +
         if (autoLast > 0L) s.format("data.autoBackup.last", "t" to formatCheckTime(autoLast)) else s["data.autoBackup.never"],
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    if (status.systemDeferred) {
+        Text(s["data.backupJob.systemDeferred"], style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline)
+    }
     if (status.phaseKey.isNotEmpty()) {
         Spacer(Modifier.height(6.dp))
         Text(s[status.phaseKey] + if (status.active && status.progressBytes > 0) " · " + android.text.format.Formatter.formatShortFileSize(context, status.progressBytes) else "",

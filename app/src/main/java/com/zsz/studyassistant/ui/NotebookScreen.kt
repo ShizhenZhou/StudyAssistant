@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -54,7 +56,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,17 +92,17 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 @Composable
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
-    val questions by vm.notebook.collectAsState()
-    val categories by vm.categories.collectAsState()
-    val tags by vm.tags.collectAsState()
-    val questionTags by vm.questionTags.collectAsState()
+    val questions by vm.notebook.collectAsStateWithLifecycle()
+    val categories by vm.categories.collectAsStateWithLifecycle()
+    val tags by vm.tags.collectAsStateWithLifecycle()
+    val questionTags by vm.questionTags.collectAsStateWithLifecycle()
     var filterCategoryId by remember { mutableStateOf<Long?>(null) } // null = 全部
     var showUncategorized by remember { mutableStateOf(false) }
     var filterTagIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
-    val sortMode by vm.notebookSort.collectAsState()
+    val sortMode by vm.notebookSort.collectAsStateWithLifecycle()
     // 列表滚动状态：切换排序后**主动回到顶部**。
     // 不这样做的话，LazyVerticalStaggeredGrid 会按"第一个可见项的 key"锚定滚动位置：
     // 你在顶部时第一个可见项是"最近添加"的那道题，切换成"最早添加"后它跑到列表末尾 →
@@ -133,7 +134,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val tagById = remember(tags) { tags.associateBy { it.id } }
 
     val keyword=query.trim()
-    val searchMatches by remember(vm,keyword) { vm.notebookMatches(keyword) }.collectAsState(initial=null)
+    val searchMatches by remember(vm,keyword) { vm.notebookMatches(keyword) }.collectAsStateWithLifecycle(initialValue=null)
     val searching=keyword.isNotEmpty() && searchMatches?.first!=keyword
     val searchFailed=keyword.isNotEmpty() && searchMatches?.first==keyword && searchMatches?.second==null
 

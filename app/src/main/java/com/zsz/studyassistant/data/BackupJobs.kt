@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 
 /** A single durable app-open request; no periodic or application-start scheduling. */
 object BackupJobs {
-    data class Status(val phaseKey: String = "", val errorKey: String? = null, val progressBytes: Long = 0, val active: Boolean = false, val automatic: Boolean = true) {
+    data class Status(val phaseKey: String = "", val errorKey: String? = null, val progressBytes: Long = 0, val active: Boolean = false, val automatic: Boolean = true, val systemDeferred: Boolean = false) {
         val canRequestNow: Boolean get() = BackupTaskPolicy.canRequestNow(active, automatic, phaseKey)
     }
     data class Notice(val automatic: Boolean, val snapshotAt: Long, val failed: Boolean = false)
@@ -100,6 +100,8 @@ object BackupJobs {
                 return false
             }
         val matching = works.firstOrNull { it.id.toString() == id && "backup-token:$token" in it.tags }
+        if (matching != null) recordSchedulerState(context, matching.id.toString(), token,
+            matching.state, matching.stopReason)
         if (matching != null && !matching.state.isFinished) return false
         val edit = p.edit().putBoolean(PREFIX + "active", false)
         if (matching == null) {
@@ -113,6 +115,36 @@ object BackupJobs {
         edit.commit()
         return true
     }
+    /** Visible backup page observes manual and automatic jobs alike; never polls or schedules work. */
+    internal suspend fun observeScheduling(context: Context) = withContext(Dispatchers.IO) {
+        try {
+            WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(WORK).collect { works ->
+                synchronized(BackupJobs) {
+                    val p = prefs(context)
+                    val id = p.getString(PREFIX + "work_id", null)
+                    val token = p.getString(PREFIX + "token", null)
+                    works.firstOrNull { it.id.toString() == id && "backup-token:$token" in it.tags }?.let {
+                        recordSchedulerState(context, it.id.toString(), token, it.state, it.stopReason)
+                    }
+                }
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { /* Diagnostics cannot fail or reschedule the backup itself. */ }
+    }
+
+    /** Bounded, local diagnostics only: no paths, task payloads or question content. */
+    @Synchronized internal fun recordSchedulerState(context: Context, workId: String, token: String?,
+        state: androidx.work.WorkInfo.State, reason: Int) {
+        val p = prefs(context)
+        if (!p.getBoolean(PREFIX + "active", false) || token == null ||
+            p.getString(PREFIX + "token", null) != token || p.getString(PREFIX + "work_id", null) != workId) return
+        val deferred = state == androidx.work.WorkInfo.State.ENQUEUED && reason >= 0 &&
+            reason != androidx.work.WorkInfo.STOP_REASON_CANCELLED_BY_APP
+        val edit = p.edit().putInt(PREFIX + "stop_reason", reason)
+            .putBoolean(PREFIX + "system_deferred", deferred)
+        edit.apply()
+    }
+
     internal fun enqueue(context: Context, automatic: Boolean, delay: Long,
         dispatch: (androidx.work.OneTimeWorkRequest) -> androidx.work.Operation = {
             WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, it)
@@ -129,6 +161,7 @@ object BackupJobs {
         // State is committed before dispatch, so repeated activity creation cannot duplicate a request.
         p.edit().putString(PREFIX + "token", token).putBoolean(PREFIX + "active", true)
             .putString(PREFIX + "phase", "data.backupJob.queued").remove(PREFIX + "error").remove(PREFIX + "dispatch_failed")
+            .remove(PREFIX + "stop_reason").remove(PREFIX + "system_deferred")
             .remove(PREFIX + "failures").remove(PREFIX + "yield_stage").remove(PREFIX + "yield_count")
             .putBoolean(PREFIX + "automatic", automatic)
             .putString(PREFIX + "attempt_day", AutoBackup.dayKey(System.currentTimeMillis())).commit()
@@ -182,7 +215,7 @@ object BackupJobs {
     @Synchronized fun invalidate(context: Context) {
         val p = prefs(context)
         p.edit().putLong(PREFIX + "generation", p.getLong(PREFIX + "generation", 0) + 1)
-            .putBoolean(PREFIX + "active", false).remove(PREFIX + "token").remove(PREFIX + "checked_day").commit()
+            .putBoolean(PREFIX + "active", false).remove(PREFIX + "stop_reason").remove(PREFIX + "system_deferred").remove(PREFIX + "token").remove(PREFIX + "checked_day").commit()
         try { WorkManager.getInstance(context).cancelUniqueWork(WORK) }
         catch (_: Exception) { recordSchedulingFailure(context, false, "data.autoBackup.storageFailed") }
     }
@@ -191,7 +224,7 @@ object BackupJobs {
         prefs(context).edit().remove(PREFIX + "attempt_day").remove(PREFIX + "checked_day")
             .remove(PREFIX + "hash").remove(PREFIX + "phase").remove(PREFIX + "error").remove(PREFIX + "dispatch_failed").commit()
     }
-    fun status(context: Context): Status = prefs(context).let { Status(it.getString(PREFIX + "phase", "") ?: "", it.getString(PREFIX + "error", null), it.getLong(PREFIX + "bytes", 0), it.getBoolean(PREFIX + "active", false), it.getBoolean(PREFIX + "automatic", true)) }
+    fun status(context: Context): Status = prefs(context).let { Status(it.getString(PREFIX + "phase", "") ?: "", it.getString(PREFIX + "error", null), it.getLong(PREFIX + "bytes", 0), it.getBoolean(PREFIX + "active", false), it.getBoolean(PREFIX + "automatic", true), it.getBoolean(PREFIX + "active", false) && it.getBoolean(PREFIX + "system_deferred", false)) }
     suspend fun <T> exclusive(context: Context, block: suspend () -> T): T {
         invalidate(context)
         return mutex.withLock { block() }
@@ -242,7 +275,10 @@ class BackupWorker(context: Context, parameters: WorkerParameters) : CoroutineWo
         val tree = android.net.Uri.parse(inputData.getString("tree") ?: return Result.failure())
         val automatic = inputData.getBoolean("automatic", true)
         fun valid(): Boolean = p.getLong(prefix + "generation", 0) == generation && p.getString(prefix + "token", null) == token && AutoBackup.treeUri(c) == tree && (!automatic || AutoBackup.isEnabled(c))
-        if (!valid()) return Result.success()
+        synchronized(BackupJobs) {
+            if (!valid()) return Result.success()
+            p.edit().remove(prefix + "stop_reason").remove(prefix + "system_deferred").apply()
+        }
         val coroutine = currentCoroutineContext()
         val started = android.os.SystemClock.elapsedRealtime()
         var bytesAt = 0L

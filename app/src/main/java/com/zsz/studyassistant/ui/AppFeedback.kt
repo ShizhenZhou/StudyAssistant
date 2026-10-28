@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -103,7 +105,7 @@ val LocalAppFeedback = staticCompositionLocalOf<AppFeedbackState> {
 fun AppFeedbackLayout(vm: MainViewModel, content: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
     val state = remember(scope) { AppFeedbackState(scope) }
-    val deletes by vm.deletionState.collectAsState()
+    val deletes by vm.deletionState.collectAsStateWithLifecycle()
     val strings = LocalStrings.current
     LaunchedEffect(deletes.pending?.token) {
         val batch=deletes.pending

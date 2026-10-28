@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import kotlinx.coroutines.isActive
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -135,6 +136,16 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(AppNav.OPEN_UPDATE_EXTRA, false) == true) {
             intent.removeExtra(AppNav.OPEN_UPDATE_EXTRA)
             viewModel.openUpdatePage = true
+        }
+        // Only the visible UI needs midnight/time-zone refreshes. Background AI/backup
+        // ownership remains independent of the Activity lifecycle.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                while (isActive) {
+                    viewModel.refreshClock()
+                    kotlinx.coroutines.delay(30_000)
+                }
+            }
         }
         enableEdgeToEdge()
         setContent {

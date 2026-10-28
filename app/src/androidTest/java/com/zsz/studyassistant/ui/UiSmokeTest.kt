@@ -224,6 +224,76 @@ class UiSmokeTest {
         }
     }
 
+    @Test fun unsavedCustomPromptSurvivesRecreationUntilExplicitSave() {
+        val old = com.zsz.studyassistant.data.CapturePrefs.customPrompt(context)
+        val draft = "Synthetic draft preserved across window recreation"
+        fun editable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            if (node == null) return null
+            if (node.isEditable) return node
+            for (i in 0 until node.childCount) editable(node.getChild(i))?.let { return it }
+            return null
+        }
+        try {
+            launch().use { scenario ->
+                tap(s["nav.settings"]); tap(s["settings.aiManage"]); tap(s["settings.customPrompt"])
+                waitFor(s["settings.customPrompt"])
+                val deadline = android.os.SystemClock.uptimeMillis() + 8000
+                var input = editable(instrumentation.uiAutomation.rootInActiveWindow)
+                while (input == null && android.os.SystemClock.uptimeMillis() < deadline) {
+                    Thread.sleep(80)
+                    input = editable(instrumentation.uiAutomation.rootInActiveWindow)
+                }
+                checkNotNull(input) { "Missing prompt editor" }
+                assertTrue(input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, draft)
+                }))
+                waitFor(draft)
+                assertEquals(old, com.zsz.studyassistant.data.CapturePrefs.customPrompt(context))
+                scenario.recreate()
+                waitFor(draft)
+                assertEquals(old, com.zsz.studyassistant.data.CapturePrefs.customPrompt(context))
+                tap(s["common.save"])
+                assertEquals(draft, com.zsz.studyassistant.data.CapturePrefs.customPrompt(context))
+            }
+        } finally { com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(context, old) }
+    }
+
+    @Test fun largePromptDraftStaysInViewModelAcrossRecreation() {
+        val draft = "synthetic-large-draft ".repeat(60_000)
+        launch().use { scenario ->
+            scenario.onActivity {
+                androidx.lifecycle.ViewModelProvider(it)[com.zsz.studyassistant.MainViewModel::class.java].customPromptDraft = draft
+            }
+            scenario.recreate()
+            scenario.onActivity {
+                assertEquals(draft, androidx.lifecycle.ViewModelProvider(it)[com.zsz.studyassistant.MainViewModel::class.java].customPromptDraft)
+            }
+        }
+    }
+
+    @Test fun statisticsStopCollectingInBackgroundAndRefreshOnReturn() = kotlinx.coroutines.runBlocking {
+        val dao = com.zsz.studyassistant.data.AppDatabase.get(context).questionDao()
+        val id = com.zsz.studyassistant.data.QuestionIdentity.create(System.currentTimeMillis())
+        try {
+            launch().use { scenario ->
+                tap(s["nav.stats"]); waitFor(s["stats.title"])
+                lateinit var model: com.zsz.studyassistant.MainViewModel
+                scenario.onActivity { model = androidx.lifecycle.ViewModelProvider(it)[com.zsz.studyassistant.MainViewModel::class.java] }
+                kotlinx.coroutines.delay(1000)
+                val before = model.stats.value.totalQuestions
+                scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+                kotlinx.coroutines.delay(5500) // WhileSubscribed's grace period must expire.
+                dao.insert(com.zsz.studyassistant.data.Question(id, "synthetic lifecycle fixture", "answer", System.currentTimeMillis()))
+                kotlinx.coroutines.delay(1000)
+                assertEquals(before, model.stats.value.totalQuestions)
+                scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+                kotlinx.coroutines.withTimeout(8000) {
+                    while (model.stats.value.totalQuestions != before + 1) kotlinx.coroutines.delay(80)
+                }
+            }
+        } finally { dao.deleteById(id) }
+    }
+
     @Test fun leavingSettingsThroughEitherBottomTabClearsItsInternalPage() {
         launch().use { scenario ->
             tap(s["nav.settings"])

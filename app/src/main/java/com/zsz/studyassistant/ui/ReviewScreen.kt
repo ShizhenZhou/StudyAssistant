@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -39,7 +41,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -76,15 +77,15 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     // 固定 Flow 实例，避免每次重组都重新订阅/查询数据库
     val todayFlow = remember { vm.dueQuestionsToday() }
     val weekFlow = remember { vm.dueQuestionsWeek() }
-    val dueToday by todayFlow.collectAsState(emptyList())
-    val dueWeek by weekFlow.collectAsState(emptyList())
+    val dueToday by todayFlow.collectAsStateWithLifecycle(emptyList())
+    val dueWeek by weekFlow.collectAsStateWithLifecycle(emptyList())
     val dueAll = if (tab == 0) dueToday else dueWeek
 
     // ── A5 复习筛选：按科目 + 只看"不熟"（掌握档位 ≤1，含未开始）──
     var filterCat by remember { mutableStateOf<Long?>(null) }
     var onlyWeak by remember { mutableStateOf(false) }
     var catMenu by remember { mutableStateOf(false) }
-    val reviewRecords by vm.reviewRecords.collectAsState()
+    val reviewRecords by vm.reviewRecords.collectAsStateWithLifecycle()
     val stepById = remember(reviewRecords) { reviewRecords.associate { it.questionId to it.intervalStep } }
     val questions = remember(dueAll, stepById, filterCat, onlyWeak) {
         dueAll.filter { q ->
@@ -99,9 +100,9 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     val gridState = rememberLazyStaggeredGridState()
     LaunchedEffect(tab, filterCat, onlyWeak) { runCatching { gridState.scrollToItem(0) } }
 
-    val categories by vm.categories.collectAsState()
-    val tags by vm.tags.collectAsState()
-    val questionTags by vm.questionTags.collectAsState()
+    val categories by vm.categories.collectAsStateWithLifecycle()
+    val tags by vm.tags.collectAsStateWithLifecycle()
+    val questionTags by vm.questionTags.collectAsStateWithLifecycle()
     val catById = remember(categories) { categories.associateBy { it.id } }
     val tagById = remember(tags) { tags.associateBy { it.id } }
     val qTagIds = remember(questionTags) { questionTags.groupBy { it.questionId }.mapValues { e -> e.value.map { it.tagId } } }

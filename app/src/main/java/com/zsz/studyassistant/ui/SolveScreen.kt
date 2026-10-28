@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.webkit.WebView
@@ -62,7 +64,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -132,8 +133,8 @@ fun SolveScreen(
     var thinkPref by remember {
         mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.thinkExpandPref(context))
     }
-    val categories by vm.categories.collectAsState()
-    val tags by vm.tags.collectAsState()
+    val categories by vm.categories.collectAsStateWithLifecycle()
+    val tags by vm.tags.collectAsStateWithLifecycle()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
     var editMode by remember { mutableStateOf(false) }
     var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }

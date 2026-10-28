@@ -64,7 +64,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init { KeyManager.init(app) }
     private val calendarDay = MutableStateFlow(com.zsz.studyassistant.data.CalendarDay.now())
     fun refreshClock() { calendarDay.value = com.zsz.studyassistant.data.CalendarDay.now() }
-    init { viewModelScope.launch { while (isActive) { refreshClock(); kotlinx.coroutines.delay(30_000) } } }
+    // Draft text stays in memory across Activity recreation, never in a Binder saved-state Bundle.
+    var customPromptDraft by mutableStateOf<String?>(null)
+
     var reviewOpenRequested by mutableStateOf(false)
         private set
     fun requestReviewNavigation() { reviewOpenRequested = true }

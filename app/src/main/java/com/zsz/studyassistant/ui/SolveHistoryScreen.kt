@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -29,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,8 +71,8 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val scope = rememberCoroutineScope()
 
     val storedSessions by remember { dao.solveSessionsLight() }
-        .collectAsState(initial = emptyList())
-    val deletes by vm.deletionState.collectAsState()
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val deletes by vm.deletionState.collectAsStateWithLifecycle()
     val sessions=storedSessions.filterNot { it.id in deletes.historyIds }
 
     var selectionMode by remember { mutableStateOf(false) }

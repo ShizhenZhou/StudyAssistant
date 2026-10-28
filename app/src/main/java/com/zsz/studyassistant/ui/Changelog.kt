@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.1
+· 📝 修复自定义提示词未保存草稿在旋转或窗口重建后丢失的问题。
+· 🔋 页面退到后台时暂停界面数据订阅与日期轮询，返回后恢复刷新，后台解答和备份继续运行。
+· 🔔 下载通知只在进度或显示状态变化时刷新，保留取消、完成和权限恢复处理。
+· 🗄️ 补充系统暂缓备份的本机诊断与提示，避免将系统调度延迟误认为数据损坏。
+· 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
+
 v0.6.8
 · 🛡️ 无法查询安装授权时停止安装，避免误判为已授权。
 · 🔔 统一 Android 16 下载进度与完成通知，保留通知授权、取消和恢复检查。
@@ -495,6 +502,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.1
+· 📝 Preserve unsaved custom prompt drafts across rotation and window recreation.
+· 🔋 Pause UI data subscriptions and date polling in the background; refresh on return while answers and backups continue.
+· 🔔 Refresh download notifications only when progress or presentation changes, preserving cancellation, completion and permission recovery.
+· 🗄️ Add local diagnostics and an explanation for system-deferred backups without treating scheduling delays as damaged data.
+· 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
+
 v0.6.8
 · 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
 · 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
@@ -985,6 +999,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.1
+· 📝 回転やウィンドウ再作成で未保存のカスタム指示が失われる問題を修正。
+· 🔋 背景では画面のデータ購読と日付確認を停止し、復帰時に更新。解答生成とバックアップは継続。
+· 🔔 進捗や表示状態が変わったときだけダウンロード通知を更新し、取消・完了・権限復帰の処理を維持。
+· 🗄️ システムによるバックアップ延期の端末内診断と説明を追加し、実行待ちをデータ破損と区別。
+· 📱 Android 16（API 36）以降が必要です。Android 9～15 では v0.6.7.9 をご利用ください。
+
 v0.6.8
 · 🛡️ インストール権限を確認できない場合は、許可済みと判断せず停止。
 · 🔔 Android 16 のダウンロード進捗・完了通知に統一し、通知権限・取消・再開の確認を維持。
@@ -1475,6 +1496,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.1
+· 📝 회전이나 창 재생성 시 미저장 사용자 지침 초안이 사라지는 문제를 수정했습니다.
+· 🔋 백그라운드에서 UI 데이터 구독과 날짜 확인을 멈추고 복귀 시 갱신하며, 풀이와 백업은 계속합니다.
+· 🔔 진행률이나 표시 상태가 바뀔 때만 다운로드 알림을 갱신하고 취소·완료·권한 복구 처리를 유지합니다.
+· 🗄️ 시스템이 연기한 백업의 로컬 진단과 설명을 추가하여 실행 지연과 데이터 손상을 구분합니다.
+· 📱 Android 16(API 36) 이상이 필요합니다. Android 9~15에서는 v0.6.7.9를 사용하세요.
+
 v0.6.8
 · 🛡️ 설치 권한을 확인할 수 없으면 허용된 것으로 간주하지 않고 설치를 중단합니다.
 · 🔔 Android 16 다운로드 진행 및 완료 알림을 통일하고 권한·취소·복구 확인을 유지합니다.
