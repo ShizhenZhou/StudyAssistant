@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
-由 zsz 开发，DeepSeek-V4/V4.1 与 GPT-6.1 Sol 辅助编写。
+由 zsz 开发，DeepSeek 与 GPT 辅助编写。
 安装包和已发布版本以 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) 为准。
 
 ## 功能
