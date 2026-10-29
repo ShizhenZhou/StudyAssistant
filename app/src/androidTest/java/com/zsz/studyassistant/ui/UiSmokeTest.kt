@@ -417,9 +417,9 @@ class UiSmokeTest {
         var firstId = 0L
         var secondId = 0L
         val extraIds = mutableListOf<Long>()
-        fun saveScreenshot() {
+        fun saveScreenshot(name: String = "ui-category-order.png") {
             val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-            try { java.io.File(context.filesDir, "ui-category-order.png").outputStream().use {
+            try { java.io.File(context.filesDir, name).outputStream().use {
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
             } } finally { bitmap.recycle() }
         }
@@ -481,6 +481,10 @@ class UiSmokeTest {
                 waitFor(s["review.filter.chooseSubject"])
                 tap(s["review.filter.allSubjects"])
                 tap(firstName)
+                saveScreenshot("ui-review-subject-filter.png")
+                tap(s["review.filter.chooseSubject"])
+                tap(s["review.filter.allSubjects"])
+                saveScreenshot("ui-review-all-subjects.png")
             }
         } finally {
             prefs.edit().putBoolean("category_order_custom", oldEnabled).putString("category_order_ids", oldOrder).commit()
@@ -547,13 +551,13 @@ class UiSmokeTest {
                     waitUntilAbsent(s["home.key.title"])
                     waitFor(s["home.camera"])
                     tap(s["home.ask"])
-                    waitFor(s["ask.pageTitle"])
+                    waitFor(s["solve.title"])
                     val original = java.util.concurrent.atomic.AtomicReference<MainActivity>()
                     scenario.onActivity { original.set(it) }
                     // Sending the actual notification contentIntent exercises the same OS delivery
                     // as a tap, without granting notifications or driving the system shade.
                     sendAndWait(answerIntent, "ANSWER_RUNNING")
-                    waitFor(s["ask.pageTitle"])
+                    waitFor(s["solve.title"])
                     waitUntilAbsent(s["review.tab.today"])
                     scenario.onActivity { assertSame(original.get(), it) }
                     sendAndWait(reviewIntent, "REVIEW_REMINDER")

@@ -5,10 +5,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -30,7 +37,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +46,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -125,67 +132,61 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                expandedHeight = 56.dp,
-                title = { Text(s["review.title"], fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    // 返回箭头：全应用统一样式（见 SubPageBackArrow）
-                    SubPageBackArrow(onClick = { nav.popBackStack() })
-                }
-            )
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val filtersMaxWidth = (maxWidth - 144.dp).coerceAtLeast(0.dp)
+                TopAppBar(
+                    expandedHeight = 56.dp,
+                    title = { Text(s["review.title"], fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    navigationIcon = {
+                        // 返回箭头：全应用统一样式（见 SubPageBackArrow）
+                        SubPageBackArrow(onClick = { nav.popBackStack() })
+                    },
+                    actions = {
+                        if (dueAll.isNotEmpty()) {
+                            Row(
+                                Modifier.widthIn(max = filtersMaxWidth).padding(end = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(Modifier.weight(1f, fill = false)) {
+                                    ReviewFilterButton(selected = filterCat != null, onClick = { catMenu = true }) {
+                                        Text(
+                                            filterCat?.let { catById[it]?.name } ?: s["review.filter.allSubjects"],
+                                            fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = s["review.filter.chooseSubject"], modifier = Modifier.size(16.dp))
+                                    }
+                                    DropdownMenu(expanded = catMenu, onDismissRequest = { catMenu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(s["review.filter.allSubjects"]) },
+                                            onClick = { filterCat = null; catMenu = false },
+                                            trailingIcon = { if (filterCat == null) Text("✓") }
+                                        )
+                                        categories.forEach { c ->
+                                            DropdownMenuItem(
+                                                text = { Text(c.name) },
+                                                onClick = { filterCat = c.id; catMenu = false },
+                                                trailingIcon = { if (filterCat == c.id) Text("✓") }
+                                            )
+                                        }
+                                    }
+                                }
+                                ReviewFilterButton(selected = onlyWeak, onClick = { onlyWeak = !onlyWeak }) {
+                                    Text(s["review.filter.onlyWeak"], fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                )
+            }
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(s["review.tab.today"]) })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(s["review.tab.week"]) })
-            }
-            // ── A5 筛选行：科目 + 只看不熟（只在确实有待复习题时出现，避免空页还挂一排筛选）──
-            if (dueAll.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box {
-                        FilterChip(
-                            selected = filterCat != null,
-                            onClick = { catMenu = true },
-                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = s["review.filter.chooseSubject"]) },
-                            label = {
-                                Text(
-                                    filterCat?.let { catById[it]?.name } ?: s["review.filter.allSubjects"],
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        )
-                        DropdownMenu(expanded = catMenu, onDismissRequest = { catMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text(s["review.filter.allSubjects"]) },
-                                onClick = { filterCat = null; catMenu = false },
-                                trailingIcon = { if (filterCat == null) Text("✓") }
-                            )
-                            categories.forEach { c ->
-                                DropdownMenuItem(
-                                    text = { Text(c.name) },
-                                    onClick = { filterCat = c.id; catMenu = false },
-                                    trailingIcon = { if (filterCat == c.id) Text("✓") }
-                                )
-                            }
-                        }
-                    }
-                    FilterChip(
-                        selected = onlyWeak,
-                        onClick = { onlyWeak = !onlyWeak },
-                        label = { Text(s["review.filter.onlyWeak"], maxLines = 1, softWrap = false) }
-                    )
-                    if (filterActive) {
-                        TextButton(onClick = { filterCat = null; onlyWeak = false }) {
-                            Text(s["review.filter.clear"], maxLines = 1, softWrap = false)
-                        }
-                    }
-                }
             }
             if (questions.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -227,6 +228,27 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
             }
         }
     }
+}
+
+/** Compact padding leaves room for the title and subject name on narrow top bars. */
+@Composable
+private fun ReviewFilterButton(
+    selected: Boolean,
+    onClick: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.height(32.dp),
+        shape = RoundedCornerShape(8.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+            contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        content = content
+    )
 }
 
 /** 复习卡片（两列瀑布流）：图片按比例或文字 + 学科标签 + 下次时间 */

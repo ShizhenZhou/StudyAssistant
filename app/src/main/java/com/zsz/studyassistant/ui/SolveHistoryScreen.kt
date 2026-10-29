@@ -5,6 +5,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,6 +67,7 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
+    val darkTheme = rememberDarkTheme(vm.theme)
     val haptics = LocalHapticFeedback.current
     val feedback = LocalAppFeedback.current
     val context = LocalContext.current
@@ -198,6 +200,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                 items(group.items, key = { it.id }) { rec ->
                     SolveHistoryItem(
                         rec = rec,
+                        darkTheme = darkTheme,
                         selectionMode = selectionMode,
                         selected = selectedIds.contains(rec.id),
                         onClick = {
@@ -261,21 +264,27 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 @Composable
 private fun SolveHistoryItem(
     rec: SolveSession,
+    darkTheme: Boolean,
     selectionMode: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     val s = LocalStrings.current
+    // Match conversation_render.html's selected bubble and .pick colours/borders.
+    val selectionRed = Color(0xFFF44336)
+    val pickBorder = if (darkTheme) Color(0xFF8A8A8A) else Color(0xFF9E9E9E)
+    val shape = RoundedCornerShape(12.dp)
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .then(if (selectionMode && selected) Modifier.border(2.dp, selectionRed, shape) else Modifier)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        shape = RoundedCornerShape(12.dp)
+        shape = shape
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+        Box {
+            Column(Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, end = if (selectionMode) 42.dp else 12.dp, bottom = 10.dp)) {
                 Text(
                     if (rec.text.isBlank()) "（图片题）" else TextPretty.oneLine(rec.text, 60),
                     maxLines = 1,
@@ -300,12 +309,14 @@ private fun SolveHistoryItem(
             if (selectionMode) {
                 Box(
                     Modifier
-                        .padding(start = 8.dp)
+                        .align(Alignment.TopEnd)
+                        .padding(top = 8.dp, end = 8.dp)
                         .size(22.dp)
-                        .background(if (selected) MaterialTheme.colorScheme.error else Color(0x22808080), CircleShape),
+                        .background(if (selected) selectionRed else Color.Transparent, CircleShape)
+                        .border(2.dp, if (selected) selectionRed else pickBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (selected) Text("✓", color = MaterialTheme.colorScheme.onError, fontSize = 14.sp)
+                    if (selected) Text("✓", color = Color.White, fontSize = 13.sp)
                 }
             }
         }

@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.4
+· 🎨 统一解题记录多选样式，微调复习筛选和图文提问页面内容。
+· ✂️ 多图跳过框选长按缩短至1秒并增加振动提示，保留上滑取消，修正分步确认文案。
+
 v0.6.8.3
 · ↩️ 为设置子页面补齐返回手势预览、取消和中断过渡，保持父级返回和底栏切换。
 · 🎨 修复错题本、复习等页面底栏上方的多余留白。
@@ -515,6 +519,10 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.4
+· 🎨 Unify selection styling in solving history and refine the Review filters and text/image question page.
+· ✂️ Reduce the multi-image crop-skip hold to 1 second with haptic feedback, keep slide-up cancellation and clarify each confirmation step.
+
 v0.6.8.3
 · ↩️ Add predictive back previews, cancellation and interruptible transitions to settings pages, preserving parent navigation and bottom-tab switching.
 · 🎨 Remove extra space above the bottom bar on Notebook, Review and related pages.
@@ -1025,6 +1033,10 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.4
+· 🎨 解答履歴の複数選択スタイルを統一し、復習フィルターと文字・画像質問ページを微調整。
+· ✂️ 複数画像の切り抜きスキップを1秒長押しに短縮し、振動で通知。上スワイプでの取消を維持し、手順ごとの確定表示を修正。
+
 v0.6.8.3
 · ↩️ 設定の子ページに戻るジェスチャーのプレビュー・キャンセル・中断可能な画面遷移を追加し、親ページへの戻り方と下部タブ切り替えを維持。
 · 🎨 ノート・復習などの画面で、下部バーの上に生じる余分な余白を修正。
@@ -1535,6 +1547,10 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.4
+· 🎨 풀이 기록의 다중 선택 스타일을 통일하고 복습 필터와 글·이미지 질문 화면을 다듬었습니다.
+· ✂️ 여러 이미지의 자르기 건너뛰기를 1초 길게 누르기로 줄이고 진동을 추가했습니다. 위로 밀어 취소하는 동작을 유지하고 단계별 확인 문구를 개선했습니다.
+
 v0.6.8.3
 · ↩️ 설정 하위 화면에 예측 뒤로 가기 미리보기, 취소 및 중단 가능한 전환을 추가하고 상위 화면 복귀와 하단 탭 전환을 유지했습니다.
 · 🎨 오답 노트와 복습 등 화면의 하단 바 위에 생기는 불필요한 여백을 수정했습니다.

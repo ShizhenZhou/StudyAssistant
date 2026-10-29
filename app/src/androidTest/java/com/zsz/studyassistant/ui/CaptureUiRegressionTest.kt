@@ -172,20 +172,24 @@ class CaptureUiRegressionTest {
         error("Grade switch was not clickable after dialog dismissal\n${diagnostics()}")
     }
 
-    private fun touch(text: String, holdMs: Long = 0) {
+    private fun touch(text: String, holdMs: Long = 0, slideUp: Boolean = false) {
         val bounds = Rect()
         waitFor(text).getBoundsInScreen(bounds)
         val downTime = SystemClock.uptimeMillis()
-        fun inject(action: Int) {
+        fun inject(action: Int, y: Float = bounds.exactCenterY()) {
             val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action,
-                bounds.exactCenterX(), bounds.exactCenterY(), 0)
+                bounds.exactCenterX(), y, 0)
             event.source = InputDevice.SOURCE_TOUCHSCREEN
             try { assertTrue(instrumentation.uiAutomation.injectInputEvent(event, true)) }
             finally { event.recycle() }
         }
         inject(MotionEvent.ACTION_DOWN)
         if (holdMs > 0) Thread.sleep(holdMs)
-        inject(MotionEvent.ACTION_UP)
+        if (slideUp) {
+            inject(MotionEvent.ACTION_MOVE, bounds.top - 100f)
+            Thread.sleep(80)
+        }
+        inject(MotionEvent.ACTION_UP, if (slideUp) bounds.top - 100f else bounds.exactCenterY())
         instrumentation.waitForIdleSync()
     }
 
@@ -193,25 +197,39 @@ class CaptureUiRegressionTest {
         val image = mutableStateOf(1)
         val taps = mutableListOf<Int>()
         val skips = mutableListOf<Int>()
+        val haptics = mutableListOf<androidx.compose.ui.hapticfeedback.HapticFeedbackType>()
+        val feedback = object : androidx.compose.ui.hapticfeedback.HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: androidx.compose.ui.hapticfeedback.HapticFeedbackType) {
+                haptics += hapticFeedbackType
+            }
+        }
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity -> activity.setContent {
                 MaterialTheme {
                     val capturedImage = image.value
+                    CompositionLocalProvider(androidx.compose.ui.platform.LocalHapticFeedback provides feedback) {
                     HoldToSkipButton(
                         text = "Synthetic whole image $capturedImage", holdHint = "",
                         onTap = { taps += capturedImage; image.value++ },
                         onSkip = { skips += capturedImage; image.value++ },
                         holdEnabled = capturedImage > 1,
-                        holdMs = 1000L,
                         modifier = Modifier.fillMaxWidth().height(64.dp)
                     )
+                    }
                 }
             } }
             touch("Synthetic whole image 1")
             touch("Synthetic whole image 2")
             assertEquals("The second tap must submit the second image", listOf(1, 2), taps)
+            assertTrue("Single taps must not vibrate", haptics.isEmpty())
+            touch("Synthetic whole image 3", 400)
+            assertTrue("Releasing early must not skip or vibrate", skips.isEmpty() && haptics.isEmpty())
+            touch("Synthetic whole image 3", 1200, slideUp = true)
+            assertTrue("Sliding up after arming must cancel the skip", skips.isEmpty())
+            assertEquals(listOf(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress), haptics)
             touch("Synthetic whole image 3", 1200)
             assertEquals("Hold enabled and callback must both refresh", listOf(3), skips)
+            assertEquals("Each armed hold vibrates once", 2, haptics.size)
         }
     }
 

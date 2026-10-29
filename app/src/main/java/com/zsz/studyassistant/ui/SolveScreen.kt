@@ -332,8 +332,8 @@ fun SolveScreen(
                         )
                     } else {
                         Text(
-                            // 空会话=图文提问入口，标题显示「图文提问」；有内容后回到「解题」
-                            if (vm.askMode) s["ask.pageTitle"] else s["solve.title"],
+                            // 图文提问与拍照解题统一使用「解题」标题。
+                            s["solve.title"],
                             fontSize = SOLVE_TITLE,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

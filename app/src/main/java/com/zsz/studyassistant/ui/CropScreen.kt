@@ -60,6 +60,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
@@ -506,9 +508,15 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) { Text(if (vm.cropExpect > 1 && vm.cropPaths.size < vm.cropExpect) s["crop.confirmMore"] else s["crop.confirm"]) }
+            ) {
+                Text(s[when {
+                    vm.cropIndex + 1 < vm.cropExpect -> "crop.confirmMore"
+                    vm.cropGrade -> "crop.confirmGrade"
+                    else -> "crop.confirm"
+                }])
+            }
             Spacer(Modifier.height(8.dp))
-            // 「整张图片」：单击 = 跳过这一张（多张时进入下一张）；**按住 2 秒填满 → 松开 = 剩下全部跳过**
+            // 「整张图片」：单击 = 跳过这一张（多张时进入下一张）；**按住 1 秒填满 → 松开 = 剩下全部跳过**
             // 没填满松手 = 取消；填满后上滑（填充变浅红）= 取消
             HoldToSkipButton(
                 text = s["crop.whole"],
@@ -595,7 +603,7 @@ private fun compressBitmap(bmp: Bitmap, quality: Int = 85): ByteArray {
 
 /**
  * 「整张图片」按钮（跳过框选）：
- *  · **按住 2 秒**：紫色进度从左往右填满 → **松开才执行跳过**
+ *  · **按住 1 秒**：紫色进度从左往右填满 → **松开才执行跳过**
  *  · 没填满就松手 → 取消（不跳过）
  *  · 填满后**上滑** → 取消跳过
  */
@@ -607,8 +615,10 @@ internal fun HoldToSkipButton(
     onSkip: () -> Unit,
     holdEnabled: Boolean = true,
     modifier: Modifier = Modifier,
-    holdMs: Long = 2000L
+    holdMs: Long = 1000L
 ) {
+    val haptics = LocalHapticFeedback.current
+    val latestHaptics by rememberUpdatedState(haptics)
     val latestOnTap by rememberUpdatedState(onTap)
     val latestOnSkip by rememberUpdatedState(onSkip)
     val latestHoldEnabled by rememberUpdatedState(holdEnabled)
@@ -630,11 +640,15 @@ internal fun HoldToSkipButton(
                     // 单张模式不需要长按：holdEnabled=false 时完全不填充，只保留单击
                     val job = scope.launch {
                         if (!latestHoldEnabled) return@launch
-                        val start = System.currentTimeMillis()
+                        val start = android.os.SystemClock.uptimeMillis()
                         while (true) {
-                            val p = ((System.currentTimeMillis() - start).toFloat() / latestHoldMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
+                            val p = ((android.os.SystemClock.uptimeMillis() - start).toFloat() / latestHoldMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
                             progress = p
-                            if (p >= 1f) { armed = true; break }   // 填满后停住，等松手
+                            if (p >= 1f) {
+                                armed = true
+                                latestHaptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                break // 填满后振动一次，仍等待松手，并保留上滑取消。
+                            }
                             delay(16)
                         }
                     }

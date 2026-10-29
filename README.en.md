@@ -44,6 +44,11 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## Version history
 
+### v0.6.8.4
+
+- 🎨 Unify selection styling in solving history and refine the Review filters and text/image question page.
+- ✂️ Reduce the multi-image crop-skip hold to 1 second with haptic feedback, keep slide-up cancellation and clarify each confirmation step.
+
 ### v0.6.8.3
 
 - ↩️ Add predictive back previews, cancellation and interruptible transitions to settings pages, preserving parent navigation and bottom-tab switching.
