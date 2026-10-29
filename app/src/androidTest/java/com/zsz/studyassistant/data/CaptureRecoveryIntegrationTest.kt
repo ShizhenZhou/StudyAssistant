@@ -109,6 +109,22 @@ class CaptureRecoveryIntegrationTest {
         assertFalse(vm.busy)
     }
 
+    @Test fun returningAfterWholeImageSkipRestoresAValidFirstCropIndex() = runBlocking {
+        val (vm, _) = model()
+        val path = image("skipped-first.bin")
+        withContext(Dispatchers.Main) {
+            vm.startCropFlow(listOf(path), grade = true, expect = 2)
+            assertTrue(vm.skipRemainingCrop { byteArrayOf(6) })
+            assertTrue(vm.cropNeedsMore)
+            vm.cropGoBackOne()
+        }
+        vm.awaitCaptureCheckpoint()
+        assertEquals(0, vm.cropIndex)
+        assertEquals(path, vm.currentCropPath)
+        assertFalse(vm.cropNeedsMore)
+        assertTrue(journal.read()!!.results.isEmpty())
+    }
+
     @Test fun cancelledSystemCaptureRemovesOnlyItsConsumedSources() = runBlocking {
         val (vm, _) = model()
         val dir = File(context.cacheDir, "system-camera").apply { mkdirs() }

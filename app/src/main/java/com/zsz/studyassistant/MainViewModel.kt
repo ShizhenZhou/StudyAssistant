@@ -1288,7 +1288,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun cropGoBackOne() {
         if (cropIndex <= 0 && !cropNeedsMore) return
         if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
-        if (!cropNeedsMore) cropIndex -= 1
+        cropIndex = if (cropNeedsMore) cropPaths.lastIndex.coerceAtLeast(0) else cropIndex - 1
         cropNeedsMore = false
         checkpointCaptureFlow()
     }
