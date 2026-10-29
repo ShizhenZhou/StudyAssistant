@@ -15,7 +15,7 @@ data class ConversationDraft(val id: QuestionId, val createdAt: Long, val genera
     val notebookId: QuestionId?, val images: List<String>, val base: List<ChatItem>,
     val messages: List<DeepSeekMessage>, val raw: String = "", val thinking: String? = null,
     val baseline: String? = null, val complete: Boolean = false,
-    val completedChats: List<ChatItem>? = null, val completedQuestion: String? = null, val version: Int = 1, val revision: Long = 0, val redoFor: QuestionId? = null)
+    val completedChats: List<ChatItem>? = null, val completedQuestion: String? = null, val version: Int = 1, val revision: Long = 0, val redoFor: QuestionId? = null, val gradeHistoryEnabled: Boolean = false)
 
 data class DraftSummary(val id: QuestionId, val title: String, val createdAt: Long)
 object ConversationDraftCodec {

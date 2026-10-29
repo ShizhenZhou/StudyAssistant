@@ -1,6 +1,10 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -139,3 +143,11 @@ private fun readableAccent(color: Color, surface: Color, dark: Boolean): Color {
     }
     return lerp(color, target, high)
 }
+
+/** The three root tabs share the same translucent theme tint, including wallpaper mode. */
+@Composable
+internal fun Modifier.rootPageBackground(): Modifier = background(Brush.verticalGradient(listOf(
+    MaterialTheme.colorScheme.primaryContainer.copy(alpha = .20f),
+    Color.Transparent,
+    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .10f)
+)))

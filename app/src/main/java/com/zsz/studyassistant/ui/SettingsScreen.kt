@@ -397,6 +397,7 @@ private fun SettingsSubPage(
 @Composable
 private fun SettingsMain(onOpen: (String) -> Unit) {
     val s = LocalStrings.current
+    Box(Modifier.fillMaxSize().rootPageBackground()) {
     Column(
         Modifier.readablePage().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
     ) {
@@ -423,6 +424,7 @@ private fun SettingsMain(onOpen: (String) -> Unit) {
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
         SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
         SettingEntry(s["settings.about"]) { onOpen(AppNav.SettingsPages.ABOUT) }
+    }
     }
 }
 

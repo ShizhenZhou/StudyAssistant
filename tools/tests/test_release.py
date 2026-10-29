@@ -16,7 +16,30 @@ import release
 from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
 
 class ReleaseTest(unittest.TestCase):
+    def test_beta_cannot_replace_a_stable_tag_through_the_start_entry(self):
+        tool=release.Release(self.root)
+        tool.git=lambda *args, **kwargs: SimpleNamespace(returncode=0,stdout=b'' if args==('status','--porcelain') else b'a'*40)
+        with self.assertRaisesRegex(release.ReleaseError,'Beta replacement'):
+            tool.start('9.9.9',replacement=True,channel='beta')
+
+    def test_release_channel_is_visible_on_the_final_requirement_line(self):
+        notes = '- Feature\n- Minimum Android 16 (API 36).'
+        for channel, label in [('stable', '正式版'), ('beta', '测试版')]:
+            body = release.release_body(notes, {'schema': 1, 'channel': channel})
+            visible = body.split('<!--')[0].strip().splitlines()
+            self.assertIn('Android 16', visible[-1])
+            self.assertIn(label, visible[-1])
+        changed = release.release_body(notes + ' 本版本为正式版。', {'channel': 'beta'})
+        self.assertNotIn('本版本为正式版。', changed.split('<!--')[0])
+        self.assertIn('本版本为测试版', changed.split('<!--')[0])
+
     def test_real_verify_replacement_keeps_original_baseline_across_remote_switch(self):
+        self.verify_replacement_baseline_resume()
+
+    def test_channel_aware_replacement_resumes_after_remote_asset_switch(self):
+        self.verify_replacement_baseline_resume('stable')
+
+    def verify_replacement_baseline_resume(self, channel=None):
         import shutil
         from verification import digest
         for failure in ('list releases','replacement marker network','delete 2','download 4','delete 1',None):
@@ -75,6 +98,9 @@ class ReleaseTest(unittest.TestCase):
                         run,kind=path.split('-');m,p,apk=(manifest,plan,new) if run=='42' else (old_manifest,old_plan,old)
                         return self_artifact(m,apk) if kind=='candidate' else evidence(m,p,int(run))
                 self_artifact=self.artifact;github=Fake();tool=release.Release(root,github)
+                if channel is not None:
+                    pending=root/'.local-notes/release-state'/('9.9.9-'+'a'*40+'-pending.json')
+                    pending.write_text(json.dumps(dict(schema=1,version='9.9.9',commit='a'*40,channel=channel)),encoding='utf-8')
                 def git(*args,**kwargs):return SimpleNamespace(returncode=0,stdout=b'a'*40 if args==('rev-parse','HEAD') else b'')
                 tool.git=git
                 def signed_identity(path,m):
@@ -417,6 +443,15 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(release.ReleaseError): release.validate_release_assets([asset], files, complete=True)
 
     def test_publish_resumes_each_asset_and_checks_both_downloads(self):
+        self.verify_publication_resume()
+
+    def test_beta_publication_is_optional_and_never_becomes_latest(self):
+        self.verify_publication_resume('beta')
+
+    def test_new_stable_publication_records_its_explicit_channel(self):
+        self.verify_publication_resume('stable')
+
+    def verify_publication_resume(self, channel=None):
         import shutil
         work = self.root / ".local-notes/release-state/artifacts/42"
         work.mkdir(parents=True)
@@ -448,10 +483,15 @@ class ReleaseTest(unittest.TestCase):
                 return (work / asset["name"]).read_bytes()
         github = FakeGitHub(); tool = release.Release(self.root, github)
         tool.state = dict(manifest=manifest, signedPath=str(signed.relative_to(self.root)), signedSha256=sha256(signed), releaseId=7)
+        if channel is not None: tool.state['channel'] = channel
         tool.verify = lambda run: None; tool.save = lambda: None
         tool.signed_identity = lambda path, manifest: metadata
         with self.assertRaises(release.ReleaseError): tool.publish(42, notes)
         tool.publish(42, notes)
+        if channel is not None:
+            self.assertEqual(github.item['prerelease'], channel == 'beta')
+            self.assertEqual(github.item['make_latest'], 'false' if channel == 'beta' else 'true')
+            self.assertEqual(metadata['channel'], channel)
         self.assertEqual(github.uploads, [signed.name, "update-manifest.json"])
         self.assertEqual(set(github.downloads), set(github.uploads))
         marker = "<!-- studyassistant-update-manifest\n"

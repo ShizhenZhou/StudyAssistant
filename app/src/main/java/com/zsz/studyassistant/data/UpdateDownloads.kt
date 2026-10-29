@@ -196,7 +196,8 @@ internal class UpdateDownloads(
             obj.getString("name"), obj.getString("url"), obj.optString("sha").takeIf { it.isNotBlank() },
             obj.getLong("size"), obj.getLong("uploaded"),
             if (obj.has("minSdk")) obj.optInt("minSdk").takeIf { it > 0 } else UpdateChecker.legacyMinSdk(obj.getString("version")),
-            obj.optLong("versionCode").takeIf { it > 0 }), obj.getLong("id"), obj.optBoolean("ready"),
+            obj.optLong("versionCode").takeIf { it > 0 },
+            channel = if (obj.optString("channel") == "beta") UpdateChecker.Channel.BETA else UpdateChecker.Channel.STABLE), obj.getLong("id"), obj.optBoolean("ready"),
             obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted",
                 "update.incompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false))
     }.getOrNull()
@@ -207,6 +208,7 @@ internal class UpdateDownloads(
             .put("name", rel.assetName).put("url", rel.assetUrl).put("sha", rel.assetSha256 ?: "")
             .put("size", rel.assetSize).put("uploaded", rel.assetUploadedAt)
             .put("minSdk", rel.minSdk ?: 0).put("versionCode", rel.versionCode ?: 0)
+            .put("channel", if (rel.channel == UpdateChecker.Channel.BETA) "beta" else "stable")
         check(prefs.edit().putString("session", obj.toString()).commit())
     }
 

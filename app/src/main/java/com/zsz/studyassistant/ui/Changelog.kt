@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.5
+· 🛠️ 修复批改完成后草稿未清理；批改结果自动保存至解题记录，失败和中断仍可恢复。
+· 🧪 区分正式版和可选测试版更新，分别展示说明与下载入口，完善发布渠道标记。
+· 🎨 学习、统计和设置主页统一主题色渐变背景。
+
 v0.6.8.4
 · 🎨 统一解题记录多选样式，微调复习筛选和图文提问页面内容。
 · ✂️ 多图跳过框选长按缩短至1秒并增加振动提示，保留上滑取消，修正分步确认文案。
@@ -519,6 +524,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.5
+· 🛠️ Clear completed grading drafts after saving results to solving history; retain failed and interrupted work for recovery.
+· 🧪 Distinguish stable and optional test updates, with separate notes and downloads and explicit release channels.
+· 🎨 Use the same theme-colour gradient on Learn, Stats and Settings home pages.
+
 v0.6.8.4
 · 🎨 Unify selection styling in solving history and refine the Review filters and text/image question page.
 · ✂️ Reduce the multi-image crop-skip hold to 1 second with haptic feedback, keep slide-up cancellation and clarify each confirmation step.
@@ -1033,6 +1043,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.5
+· 🛠️ 採点結果を解答履歴へ保存後、完了済み下書きを整理。失敗・中断した内容は復元用に保持。
+· 🧪 正式版と任意のテスト版更新を区別し、説明とダウンロードを個別に表示。公開チャンネルを明示。
+· 🎨 学習・統計・設定のホーム画面でテーマカラーのグラデーション背景を統一。
+
 v0.6.8.4
 · 🎨 解答履歴の複数選択スタイルを統一し、復習フィルターと文字・画像質問ページを微調整。
 · ✂️ 複数画像の切り抜きスキップを1秒長押しに短縮し、振動で通知。上スワイプでの取消を維持し、手順ごとの確定表示を修正。
@@ -1547,6 +1562,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.5
+· 🛠️ 채점 결과를 풀이 기록에 저장한 뒤 완료된 초안을 정리하고, 실패하거나 중단된 내용은 복구를 위해 보관합니다.
+· 🧪 정식 버전과 선택적 테스트 업데이트를 구분하고 설명과 다운로드를 각각 표시하며 배포 채널을 명시합니다.
+· 🎨 학습·통계·설정 홈 화면의 테마 색상 그라데이션 배경을 통일했습니다.
+
 v0.6.8.4
 · 🎨 풀이 기록의 다중 선택 스타일을 통일하고 복습 필터와 글·이미지 질문 화면을 다듬었습니다.
 · ✂️ 여러 이미지의 자르기 건너뛰기를 1초 길게 누르기로 줄이고 진동을 추가했습니다. 위로 밀어 취소하는 동작을 유지하고 단계별 확인 문구를 개선했습니다.

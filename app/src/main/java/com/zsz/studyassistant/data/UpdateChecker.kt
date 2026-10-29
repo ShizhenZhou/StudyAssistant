@@ -9,6 +9,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -45,6 +48,26 @@ object UpdateChecker {
     /** 本项目 release 包的签名证书 SHA-256（小写十六进制）；换证书时必须同步修改 */
     const val EXPECTED_CERT_SHA256 = "aa5829963eff107cab82e13c555bb9032358b58725548caec7f471a900beb533"
 
+    enum class Channel { STABLE, BETA }
+
+    data class AvailableReleases(val stable: ReleaseInfo? = null, val beta: ReleaseInfo? = null) {
+        fun updates(eligible: (ReleaseInfo) -> Boolean): List<ReleaseInfo> {
+            val release = stable?.takeIf(eligible)
+            val preview = beta?.takeIf(eligible)
+            return listOfNotNull(preview, release)
+        }
+        fun notification(context: Context): ReleaseInfo? =
+            listOfNotNull(stable, beta).firstOrNull { shouldNotify(context, it) }
+    }
+
+    internal fun compareReleases(a: ReleaseInfo, b: ReleaseInfo): Int {
+        if (a.versionCode != null && b.versionCode != null && a.versionCode != b.versionCode)
+            return a.versionCode.compareTo(b.versionCode)
+        if (isNewer(a.version, b.version)) return 1
+        if (isNewer(b.version, a.version)) return -1
+        return BuildIdentity.assetTime(a.assetName, a.version).compareTo(BuildIdentity.assetTime(b.assetName, b.version))
+    }
+
     /** 一个可下载的新版本 */
     data class ReleaseInfo(
         val tagName: String,        // v0.6.1
@@ -59,7 +82,8 @@ object UpdateChecker {
         val minSdk: Int? = legacyMinSdk(version),
         val versionCode: Long? = null,
         /** Transient diagnosis only; downloaded records retain their existing schema. */
-        val compatibilityIssue: String? = null
+        val compatibilityIssue: String? = null,
+        val channel: Channel = Channel.STABLE
     )
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -89,12 +113,15 @@ object UpdateChecker {
         val root = json.parseToJsonElement(text.removePrefix("\uFEFF")).jsonObject
         fun value(key: String) = root[key]!!.jsonPrimitive.content
         require(value("schema") == "1" && value("version") == release.version)
+        val channel = root["channel"]?.jsonPrimitive?.content
+        require(channel == null || channel in setOf("stable", "beta"))
         val min = value("minSdk").toInt().also { require(it > 0) }
         val code = value("versionCode").toLong().also { require(it > 0) }
         val digest = value("apkSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
         require(value("apkName") == release.assetName && value("apkSize").toLong() == release.assetSize && release.assetSize > 0)
         require(release.assetSha256 == null || release.assetSha256.equals(digest, true))
-        release.copy(minSdk = min, versionCode = code, assetSha256 = digest, compatibilityIssue = null)
+        release.copy(minSdk = min, versionCode = code, assetSha256 = digest, compatibilityIssue = null,
+            channel = if (channel == "beta" || release.channel == Channel.BETA) Channel.BETA else Channel.STABLE)
     }.getOrNull()
 
     private const val MANIFEST_MARKER = "<!-- studyassistant-update-manifest"
@@ -247,6 +274,8 @@ object UpdateChecker {
     /** 是否有更新：**版本更高**，或**同一版本但发布物是更晚的新构建** */
     fun hasUpdate(context: Context, rel: ReleaseInfo): Boolean {
         val installed = installedVersion(context)
+        val code = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode }.getOrNull()
+        if (code != null && rel.versionCode != null && code != rel.versionCode) return rel.versionCode > code
         if (isNewer(rel.version, installed)) return true
         if (normalizeVersion(rel.version) == normalizeVersion(installed)) {
             return sameVersionNewBuild(context, rel)
@@ -264,19 +293,20 @@ object UpdateChecker {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** 用户「跳过此版本」记下的版本号（已规范化）；null = 没有跳过任何版本 */
-    fun skippedVersion(context: Context): String? =
-        prefs(context).getString(KEY_SKIPPED, null)?.takeIf { it.isNotBlank() }
+    fun skippedVersion(context: Context, channel: Channel = Channel.STABLE): String? =
+        prefs(context).getString(skipKey(channel), null)?.takeIf { it.isNotBlank() }
 
     /** 这个发布物是否正是用户跳过的那一版 */
     fun isSkipped(context: Context, rel: ReleaseInfo): Boolean =
-        normalizeVersion(rel.version) == skippedVersion(context)
+        normalizeVersion(rel.version) == skippedVersion(context, rel.channel)
 
-    fun skipVersion(context: Context, version: String) {
-        prefs(context).edit().putString(KEY_SKIPPED, normalizeVersion(version)).apply()
+    private fun skipKey(channel: Channel) = if (channel == Channel.BETA) KEY_SKIPPED + "_beta" else KEY_SKIPPED
+    fun skipVersion(context: Context, version: String, channel: Channel = Channel.STABLE) {
+        prefs(context).edit().putString(skipKey(channel), normalizeVersion(version)).apply()
     }
 
-    fun clearSkippedVersion(context: Context) {
-        prefs(context).edit().remove(KEY_SKIPPED).apply()
+    fun clearSkippedVersion(context: Context, channel: Channel = Channel.STABLE) {
+        prefs(context).edit().remove(skipKey(channel)).apply()
     }
 
     /** 上次**成功**检查的时间（epoch ms；0 = 从未成功检查过） */
@@ -322,56 +352,80 @@ object UpdateChecker {
         return out.toString().trim()
     }
 
-    /**
-     * 查最新 Release。网络失败/无 Release/解析失败 → 返回 null（调用方按"静默失败"处理）。
-     */    suspend fun fetchLatest(): ReleaseInfo? = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder()
-                .url(API_LATEST)
-                .header("Accept", "application/vnd.github+json")
-                .header("X-GitHub-Api-Version", "2022-11-28")
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    Log.w(TAG, "releases/latest HTTP ${resp.code}")
-                    return@withContext null
-                }
-                val text = resp.body?.string().orEmpty()
-                if (text.isBlank()) return@withContext null
-                val root = json.parseToJsonElement(text).jsonObject
-                val tag = root["tag_name"]?.jsonPrimitive?.content.orEmpty()
-                val notes = root["body"]?.jsonPrimitive?.content.orEmpty()
-                // 附件：优先 StudyAssistant-*.apk，其次任意 .apk
-                val assets = root["assets"]?.jsonArray ?: return@withContext null
-                val objs = assets.mapNotNull { it as? JsonObject }
-                val apks = objs.filter { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
-                val asset = apks.filter { it["name"]?.jsonPrimitive?.content?.startsWith("StudyAssistant-") == true }
-                    .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, normalizeVersion(tag)) }
-                    ?: apks.firstOrNull() ?: return@withContext null
-                val name = asset["name"]?.jsonPrimitive?.content.orEmpty()
-                val url = asset["browser_download_url"]?.jsonPrimitive?.content.orEmpty()
-                val size = asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
-                // digest 形如 "sha256:xxxx"（GitHub 较新才返回；为空时只做签名校验）
-                val digest = asset["digest"]?.jsonPrimitive?.content?.removePrefix("sha256:")?.lowercase()
-                // 附件上传时间（updated_at 优先，退到 created_at）：识别「同版本被替换成新构建」
-                val uploadedAt = parseIsoMillis(asset["updated_at"]?.jsonPrimitive?.content)
-                    .takeIf { it > 0L } ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.content)
-                if (!isReleaseAssetUrl(url, tag)) return@withContext null
-                fetchManifest(ReleaseInfo(
-                    tagName = tag,
-                    version = normalizeVersion(tag),
-                    notes = notes,
-                    assetName = name,
-                    assetUrl = url,
-                    assetSha256 = digest?.takeIf { it.length == 64 },
-                    assetSize = size,
-                    assetUploadedAt = uploadedAt
-                ), objs).let { it.copy(notes = visibleReleaseNotes(it.notes)) }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "fetchLatest failed: ${e.message}")
-            null
+    /** Parse GitHub's explicit channel; never infer beta from arbitrary prose or version numbers. */
+    internal fun parseRelease(root: JsonObject): Pair<ReleaseInfo, List<JsonObject>>? = runCatching {
+        if (root["draft"]?.jsonPrimitive?.booleanOrNull == true) return null
+        val tag = root["tag_name"]!!.jsonPrimitive.content
+        val notes = root["body"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val version = normalizeVersion(tag)
+        val assets = root["assets"]!!.jsonArray.mapNotNull { it as? JsonObject }
+        val apks = assets.filter { it["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk") == true }
+        val asset = apks.filter { it["name"]!!.jsonPrimitive.content.startsWith("StudyAssistant-") }
+            .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, version) }
+            ?: apks.firstOrNull() ?: return null
+        val name = asset["name"]!!.jsonPrimitive.content
+        val url = asset["browser_download_url"]!!.jsonPrimitive.content
+        if (!isReleaseAssetUrl(url, tag)) return null
+        val inlineChannel = inlineManifest.find(notes)?.groupValues?.get(1)?.let {
+            runCatching { json.parseToJsonElement(it).jsonObject["channel"]?.jsonPrimitive?.contentOrNull }.getOrNull()
         }
+        val channel = if (root["prerelease"]?.jsonPrimitive?.booleanOrNull == true || inlineChannel == "beta") Channel.BETA else Channel.STABLE
+        val digest = asset["digest"]?.jsonPrimitive?.contentOrNull?.removePrefix("sha256:")?.lowercase()
+        ReleaseInfo(tag, version, notes, name, url, digest?.takeIf { Regex("[0-9a-f]{64}").matches(it) },
+            asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+            parseIsoMillis(asset["updated_at"]?.jsonPrimitive?.contentOrNull).takeIf { it > 0 }
+                ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.contentOrNull), channel = channel) to assets
+    }.getOrNull()
+
+    private fun releaseDocument(url: String): JsonElement? = try {
+        val request = Request.Builder().url(url).header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28").build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            val body = response.body ?: return null
+            val source = body.source()
+            source.request(2_000_001)
+            if (source.buffer.size > 2_000_000) return null
+            json.parseToJsonElement(source.readUtf8())
+        }
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+      catch (_: Exception) { null }
+
+    private fun hydrate(value: Pair<ReleaseInfo, List<JsonObject>>): ReleaseInfo =
+        fetchManifest(value.first, value.second).let { it.copy(notes = visibleReleaseNotes(it.notes)) }
+
+    /** Stable-only fallback remains compatible with existing published releases. */
+    suspend fun fetchLatest(): ReleaseInfo? = withContext(Dispatchers.IO) {
+        (releaseDocument(API_LATEST) as? JsonObject)?.let(::parseRelease)?.let(::hydrate)
+    }
+
+    /** Attachment metadata may reveal that an apparent stable candidate is actually beta. */
+    internal fun resolveAvailable(candidates: List<Pair<ReleaseInfo,List<JsonObject>>>,
+        hydrateCandidate: (Pair<ReleaseInfo,List<JsonObject>>) -> ReleaseInfo): AvailableReleases {
+        val previews=mutableListOf<ReleaseInfo>()
+        val order=Comparator<Pair<ReleaseInfo,List<JsonObject>>> { a,b -> compareReleases(b.first,a.first) }
+        var stable: ReleaseInfo?=null
+        for (candidate in candidates.filter { it.first.channel==Channel.STABLE }.sortedWith(order)) {
+            val resolved=hydrateCandidate(candidate)
+            if (resolved.channel==Channel.STABLE) { stable=resolved; break }
+            previews+=resolved
+        }
+        candidates.filter { it.first.channel==Channel.BETA }.minWithOrNull(order)?.let { previews+=hydrateCandidate(it) }
+        return AvailableReleases(stable,previews.maxWithOrNull(::compareReleases))
+    }
+
+    suspend fun fetchAvailable(): AvailableReleases? = withContext(Dispatchers.IO) {
+        val document = releaseDocument("https://api.github.com/repos/$REPO/releases?per_page=30") as? JsonArray
+            ?: return@withContext fetchLatest()?.let {
+                AvailableReleases(stable = it.takeIf { r -> r.channel == Channel.STABLE }, beta = it.takeIf { r -> r.channel == Channel.BETA })
+            }
+        val parsed = document.mapNotNull { (it as? JsonObject)?.let(::parseRelease) }
+        var result=resolveAvailable(parsed,::hydrate)
+        if (result.stable==null) fetchLatest()?.let { fallback ->
+            result=if (fallback.channel==Channel.STABLE) result.copy(stable=fallback)
+            else result.copy(beta=listOfNotNull(result.beta,fallback).maxWithOrNull(::compareReleases))
+        }
+        result.takeIf { it.stable!=null || it.beta!=null }
     }
 
     /** 下载到 [dest]，[onProgress] 回调 0..100（-1 表示总长度未知） */

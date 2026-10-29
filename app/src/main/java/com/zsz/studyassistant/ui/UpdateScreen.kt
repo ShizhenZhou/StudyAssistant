@@ -103,10 +103,10 @@ object UpdateBadgeState {
  * 只有**成功**查到（含"已是最新"）才记录"上次检查时间"，失败不记。
  */
 suspend fun silentUpdateCheck(context: Context) {
-    val latest = UpdateChecker.fetchLatest() ?: return          // 失败：静默
+    val releases = UpdateChecker.fetchAvailable() ?: return     // 失败：静默
     UpdateChecker.markChecked(context)
     // 版本更高，或同一版本但发布物是更晚的新构建（替换过同名附件）→ 都算有更新
-    UpdateBadgeState.set(if (UpdateChecker.shouldNotify(context, latest)) latest.version else null)
+    UpdateBadgeState.set(releases.notification(context)?.version)
 }
 
 /** 页面阶段 */
@@ -127,7 +127,8 @@ internal fun formatCheckTime(ms: Long): String {
 
 /** ⬆️ 应用更新：当前版本 + 检查更新按钮 + 灰字提示 + 下载/校验/安装 + 更新历史 */
 @Composable
-internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
+internal fun UpdatePage(taskStore: UpdateDownloads? = null,
+    fetchReleases: suspend () -> UpdateChecker.AvailableReleases? = { UpdateChecker.fetchAvailable() }) {
     val context = LocalContext.current
     val s = LocalStrings.current
     val scope = rememberCoroutineScope()
@@ -140,14 +141,14 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
     var operationGeneration by remember { mutableIntStateOf(0) }
     var downloadActionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var latest by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
+    var offers by remember { mutableStateOf<List<UpdateChecker.ReleaseInfo>>(emptyList()) }
     var progress by remember { mutableIntStateOf(-1) }
     var message by remember { mutableStateOf<String?>(null) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
     var notificationsAllowed by remember { mutableStateOf(UpdateDownloadNotifications.canPost(context)) }
     var verifiedSha by remember { mutableStateOf<Boolean?>(null) }
-    var sameVersion by remember { mutableStateOf(false) }   // true = 同一版本的新构建
-    // 「跳过此版本」记在本地（UpdateChecker 里持久化）；skipped 只影响**提示**，不影响手动下载
-    var skipped by remember { mutableStateOf(UpdateChecker.skippedVersion(context)) }
+    // 「跳过此版本」记在本地（UpdateChecker 里持久化）；跳过只影响**提示**，不影响手动下载
+    var skipRevision by remember { mutableIntStateOf(0) }
     var lastCheck by remember { mutableStateOf(UpdateChecker.lastCheckAt(context)) }
 
     fun compatibilityMessage(rel: UpdateChecker.ReleaseInfo): String? = UpdateChecker.compatibilityError(rel)?.let {
@@ -156,7 +157,6 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
 
     fun showDownload(task: UpdateDownloads.Snapshot) {
         latest = task.release
-        sameVersion = !UpdateChecker.isNewer(task.release.version, installed)
         progress = task.progress
         verifiedSha = task.phase == UpdateDownloads.Phase.READY && task.release.assetSha256 != null
         message = task.errorKey?.let { s.format(it, "api" to (task.release.minSdk?.toString() ?: "")) }
@@ -235,9 +235,9 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
         phase = Phase.CHECKING
         message = null
         scope.launch {
-            val rel = UpdateChecker.fetchLatest()
+            val releases = fetchReleases()
             if (generation != operationGeneration) return@launch
-            if (rel == null) {
+            if (releases == null) {
                 phase = Phase.FAILED
                 message = s["update.netError"]
                 return@launch
@@ -245,25 +245,27 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
             // 成功查到（含"已是最新"）才记「上次检查时间」；失败不记
             UpdateChecker.markChecked(context)
             lastCheck = UpdateChecker.lastCheckAt(context)
+            offers = releases.updates { UpdateChecker.hasUpdate(context, it) }
+            val rel = offers.firstOrNull()
             latest = rel
-            skipped = UpdateChecker.skippedVersion(context)
             // ① 版本更高 或 ② 同一版本但发布物是更晚的新构建（替换过同名附件）
-            if (UpdateChecker.hasUpdate(context, rel)) {
-                sameVersion = !UpdateChecker.isNewer(rel.version, installed)
+            if (rel != null) {
                 // 被跳过的版本不再顶红点（页面上仍显示，可手动下载/取消跳过）
-                UpdateBadgeState.set(if (UpdateChecker.shouldNotify(context, rel)) rel.version else null)
+                UpdateBadgeState.set(releases.notification(context)?.version)
                 message = compatibilityMessage(rel)
                 phase = Phase.FOUND
             } else {
-                sameVersion = false
                 UpdateBadgeState.set(null)
                 phase = Phase.UP_TO_DATE
             }
         }
     }
 
-    fun startDownload() {
-        val rel = latest ?: return
+    fun startDownload(target: UpdateChecker.ReleaseInfo? = latest) {
+        // Ignore a second offer's stale click before Compose removes the old buttons.
+        if (phase != Phase.FOUND && phase != Phase.FAILED) return
+        val rel = target ?: return
+        latest = rel
         compatibilityMessage(rel)?.let { message = it; phase = Phase.FAILED; return }
         val generation = ++operationGeneration
         phase = Phase.DOWNLOADING; progress = 0; message = null
@@ -328,67 +330,55 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null) {
     // ── 状态 / 下载 / 安装 ──
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
+            if (phase != Phase.FOUND && latest?.channel == UpdateChecker.Channel.BETA) {
+                Text(s["update.channel.beta"], fontWeight = FontWeight.SemiBold)
+                Text(s["update.betaWarning"], style = MaterialTheme.typography.bodySmall, color = BADGE_RED)
+            }
             when (phase) {
                 Phase.RESTORING -> Text(s["update.restoring"], style = MaterialTheme.typography.bodyMedium)
                 Phase.IDLE -> Text(s["update.check"], style = MaterialTheme.typography.bodyMedium)
                 Phase.CHECKING -> Text(s["update.checking"], style = MaterialTheme.typography.bodyMedium)
                 Phase.UP_TO_DATE -> Text(s["update.upToDate"], style = MaterialTheme.typography.bodyMedium)
                 Phase.FOUND -> {
-                    Text(
-                        if (sameVersion)
-                            s.format("update.sameVersion", "name" to (latest?.assetName ?: ""))
-                        else
-                            s.format("update.found", "v" to ("v" + (latest?.version ?: ""))),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    latest?.let { rel ->
-                        if (rel.assetSize > 0) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                rel.assetName + "  " + String.format("%.1f MB", rel.assetSize / 1024.0 / 1024.0),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
+                    (offers.ifEmpty { listOfNotNull(latest) }).forEachIndexed { index, rel ->
+                        if (index > 0) {
+                            Spacer(Modifier.height(18.dp))
+                            androidx.compose.material3.HorizontalDivider()
+                            Spacer(Modifier.height(14.dp))
                         }
-                        // 新版本的更新说明（GitHub Release 说明，Markdown 已做最小化清洗）
+                        val beta = rel.channel == UpdateChecker.Channel.BETA
+                        val channelKey = if (beta) "update.channel.beta" else "update.channel.stable"
+                        Text(s[channelKey] + " v" + rel.version, fontWeight = FontWeight.SemiBold)
+                        if (beta) Text(s["update.betaWarning"], style = MaterialTheme.typography.bodySmall, color = BADGE_RED)
+                        if (UpdateChecker.normalizeVersion(rel.version) == UpdateChecker.normalizeVersion(installed)) {
+                            Text(s.format("update.sameVersion", "name" to rel.assetName), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text(rel.assetName + "  " + String.format("%.1f MB", rel.assetSize / 1024.0 / 1024.0),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                         val notes = UpdateChecker.prettyReleaseNotes(rel.notes)
                         if (notes.isNotBlank()) {
                             Spacer(Modifier.height(10.dp))
                             Text(s["update.notes"], style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(4.dp))
                             Text(notes, style = MaterialTheme.typography.bodySmall)
                         }
-                    }
-                    if (skipped != null && latest?.version == skipped) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            s.format("update.skipped", "v" to skipped!!),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    message?.let { Text(it, color = BADGE_RED, style = MaterialTheme.typography.bodySmall) }
-                    Button(onClick = { startDownload() }, enabled = latest?.let { UpdateChecker.compatibilityError(it) == null } == true,
-                        shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                        Text(s["update.download"])
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    // 跳过此版本 / 取消跳过（跳过后启动静默检查不再顶红点）
-                    val relVer = latest?.version
-                    OutlinedButton(
-                        shape = smoothPill(),
-                        onClick = {
-                            val v = relVer ?: return@OutlinedButton
-                            val nowSkipped = skipped != v
-                            if (nowSkipped) { UpdateChecker.skipVersion(context, v); skipped = v }
-                            else { UpdateChecker.clearSkippedVersion(context); skipped = null }
-                            UpdateBadgeState.set(if (nowSkipped || latest?.let { UpdateChecker.compatibilityError(it) != null } == true) null else v)
-                        },
-                        modifier = Modifier.fillMaxWidth().height(44.dp)
-                    ) {
-                        Text(if (skipped != null && skipped == relVer) s["update.unskip"] else s["update.skip"])
+                        val error = compatibilityMessage(rel)
+                        error?.let { Text(it, color = BADGE_RED, style = MaterialTheme.typography.bodySmall) }
+                        Spacer(Modifier.height(10.dp))
+                        Button(onClick = { startDownload(rel) }, enabled = error == null,
+                            shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                            Text(s[if (beta) "update.downloadBeta" else "update.downloadStable"])
+                        }
+                        val skipped = remember(skipRevision, rel) { UpdateChecker.isSkipped(context, rel) }
+                        if (skipped) Text(s.format("update.skipped", "v" to rel.version), style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onClick = {
+                            if (skipped) UpdateChecker.clearSkippedVersion(context, rel.channel)
+                            else UpdateChecker.skipVersion(context, rel.version, rel.channel)
+                            skipRevision++
+                            UpdateBadgeState.set(offers.sortedBy { it.channel == UpdateChecker.Channel.BETA }
+                                .firstOrNull { UpdateChecker.shouldNotify(context, it) }?.version)
+                        }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(44.dp)) {
+                            Text(s[if (skipped) "update.unskip" else "update.skip"])
+                        }
                     }
                 }
                 Phase.DOWNLOADING, Phase.WAITING -> {

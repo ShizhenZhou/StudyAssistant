@@ -43,6 +43,15 @@ def release_body(notes, metadata):
     marker = "<!-- studyassistant-update-manifest\n"
     if "<!-- studyassistant-update-manifest" in notes:
         raise ReleaseError("Release notes must not contain a pre-existing update metadata block")
+    channel = metadata.get("channel")
+    if channel is not None:
+        if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
+        label = "本版本为测试版，功能可能不稳定。" if channel == "beta" else "本版本为正式版。"
+        lines = notes.rstrip().splitlines()
+        if not lines: raise ReleaseError("Release notes are empty")
+        requirement = re.sub(r"\s*本版本为(?:正式版。|测试版，功能可能不稳定。)\s*$", "", lines[-1])
+        lines[-1] = requirement.rstrip() + " " + label
+        notes = "\n".join(lines)
     encoded = json.dumps(metadata, ensure_ascii=True, separators=(",", ":"))
     encoded = encoded.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     return notes.rstrip() + "\n\n" + marker + encoded + "\n-->"
@@ -337,6 +346,7 @@ class Release:
             if sha256(signed)!=self.state['signedSha256']:raise ReleaseError('Local signed package changed')
             metadata=self.signed_identity(signed,self.state['manifest'])
             metadata['provenance']=dict(sourceCommit=self.state['commit'],runId=self.state['runId'])
+            if 'channel' in self.state: metadata['channel']=self.state['channel']
             path=signed.parent/'update-manifest.json'
             if json.loads(path.read_text(encoding='utf-8'))!=metadata:raise ReleaseError('Replacement update manifest changed')
             self.replace_assets(published,{signed.name:signed,path.name:path},inspect_only=True)
@@ -355,13 +365,17 @@ class Release:
         self.state['verificationBaselineReleaseId']=published['id'];self.save()
         return commit
 
-    def start(self, version, replacement=False):
+    def start(self, version, replacement=False, channel="stable"):
         if self.git("status", "--porcelain").stdout.strip(): raise ReleaseError("Commit/review local changes first.")
         commit = self.git("rev-parse", "HEAD").stdout.decode().strip()
         self.bind(version, commit)
         if self.state.get("replacementRequested") and not replacement:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
+        if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
+        if replacement and channel == "beta": raise ReleaseError("Beta replacement requires a new prerelease version; do not change a stable tag's channel")
+        if self.state.get("channel", channel) != channel: raise ReleaseError("Resume with the original release channel")
         if self.state.get("dispatchAttempted"): return self.status()
+        self.state["channel"] = channel; self.save()
         source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
         if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
             raise ReleaseError("Requested version differs from source.")
@@ -501,7 +515,7 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel") if k in old})
         if manifest["schema"] == 2:
             if not modern: raise ReleaseError("Verification gate is missing")
             evidence_artifacts = [a for a in artifacts if a["name"] == "verification-evidence" and not a["expired"]]
@@ -556,6 +570,9 @@ class Release:
         if any(pattern.search(body) for pattern in scanner.CONTENT_PATTERNS):
             raise ReleaseError("Possible credential in release notes. Nothing will be published.")
         legacy_notes = self.state.get("notesSha256") == hashlib.sha256(body.encode()).hexdigest()
+        channel = self.state.get("channel", "stable")
+        if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
+        if replacement and channel == "beta": raise ReleaseError("Beta replacement requires a new prerelease version")
         # Persist exact metadata before any durable replacement ownership marker.
         files = {signed.name: signed}
         # Previously published legacy releases retain their single-APK layout.
@@ -566,6 +583,7 @@ class Release:
             legacy = update_path.exists() and json.loads(update_path.read_text(encoding="utf-8")) == metadata
             if manifest["schema"] == 2 and (replacement or not legacy):
                 metadata["provenance"] = dict(sourceCommit=manifest["commit"], runId=self.state["runId"])
+            if "channel" in self.state: metadata["channel"] = channel
             encoded = (json.dumps(metadata, indent=2) + "\n").encode("utf-8")
             if update_path.exists() and update_path.read_bytes() != encoded:
                 raise ReleaseError("Local update manifest changed; nothing was overwritten.")
@@ -615,7 +633,7 @@ class Release:
             if self.github.api("commits/" + tag)["sha"] != manifest["commit"]: raise ReleaseError("Tag push not confirmed.")
         if not found:
             self.state["draftAttempted"] = True; self.save()
-            release = self.github.api("releases", {"tag_name":tag,"target_commitish":manifest["commit"],"name":tag,"body":body,"draft":True,"prerelease":False})
+            release = self.github.api("releases", {"tag_name":tag,"target_commitish":manifest["commit"],"name":tag,"body":body,"draft":True,"prerelease":channel == "beta"})
             self.state["releaseId"] = release["id"]; self.save()
         else: release = found[0]
         assets = release["assets"]
@@ -634,7 +652,7 @@ class Release:
                 validate_release_assets(assets, files)
         validate_release_assets(assets, files, complete=True)
         if release["draft"]:
-            release = self.github.api(f"releases/{release['id']}", {"body":body,"draft":False,"prerelease":False,"make_latest":"true"}, method="PATCH")
+            release = self.github.api(f"releases/{release['id']}", {"body":body,"draft":False,"prerelease":channel == "beta","make_latest":"false" if channel == "beta" else "true"}, method="PATCH")
         self.state.update(published=True, phase="published", assetId=next(a["id"] for a in assets if a["name"] == signed.name)); self.save()
         archives = {}
         for asset in assets:
@@ -657,6 +675,7 @@ def main():
     for operation in ("start", "status"):
         item = sub.add_parser(operation); item.add_argument("--version", required=True)
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
+        if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
         if operation == "status": item.add_argument("--run",type=int,help="Select an exact build when a version has multiple states")
     for operation in ("verify", "publish", "replace"):
         item = sub.add_parser(operation,help="Explicitly replace the same version's public assets; never moves its tag" if operation=="replace" else None)
@@ -665,7 +684,7 @@ def main():
     args = parser.parse_args()
     coordinator = Release()
     try:
-        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace)
+        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel)
         elif args.operation == "status":
             result=coordinator.load_status(args.version,args.run)
         elif args.operation == "verify": result = coordinator.verify(args.run)

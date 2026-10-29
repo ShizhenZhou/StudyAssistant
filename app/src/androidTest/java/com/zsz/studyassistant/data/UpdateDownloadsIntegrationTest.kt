@@ -24,6 +24,20 @@ class UpdateDownloadsIntegrationTest {
     @Before fun prepare() = runBlocking { repo().cancel() }
     @After fun cleanup() = runBlocking { repo().cancel() }
 
+    @Test fun betaChannelSurvivesRecreationAndSkippingItDoesNotSkipStable() = runBlocking {
+        val beta = rel.copy(channel=UpdateChecker.Channel.BETA)
+        try {
+            repo().start(beta)
+            assertEquals(UpdateChecker.Channel.BETA,repo().snapshot()!!.release.channel)
+            UpdateChecker.skipVersion(context,beta.version,UpdateChecker.Channel.BETA)
+            assertTrue(UpdateChecker.isSkipped(context,beta))
+            assertFalse(UpdateChecker.isSkipped(context,rel))
+            val prefs=context.getSharedPreferences("update_download",Context.MODE_PRIVATE)
+            val old=org.json.JSONObject(prefs.getString("session",null)!!);old.remove("channel")
+            prefs.edit().putString("session",old.toString()).commit()
+            assertEquals(UpdateChecker.Channel.STABLE,repo().snapshot()!!.release.channel)
+        } finally { UpdateChecker.clearSkippedVersion(context,UpdateChecker.Channel.BETA) }
+    }
     @Test fun incompatibleOrUnknownReleaseNeverEnqueuesBytes() = runBlocking {
         assertEquals("update.incompatible", repo().start(rel.copy(minSdk = android.os.Build.VERSION.SDK_INT + 1)).errorKey)
         assertEquals("update.compatibilityUnknown", repo().start(rel.copy(minSdk = null)).errorKey)

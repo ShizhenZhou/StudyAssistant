@@ -395,7 +395,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         get() = sessionRecordBinding.cancelPending
         set(value) { sessionRecordBinding.cancelPending = value }
     private var isPhoto = false
-    /** 本次会话是否来自「图文提问」（用于标题保持"图文提问"） */
+    /** 本次会话是否来自「图文提问」（用于标题统一为"解题"） */
     var askMode by mutableStateOf(false)
         private set
     /** 供界面判断：当前会话是否来自"拍照搜题"（返回时决定回拍题页还是返回来处） */
@@ -487,6 +487,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 (history!=null && history.text==text && history.answer==answer && history.conversationJson==conversation)
         } catch (_: Exception) { saveJournalIssue=true; false }
     }
+    /** A later explicit save/retry may finally give an already completed draft a durable home. */
+    private suspend fun cleanupPersistedDrafts() {
+        try {
+            solveSessionWriteMutex.withLock { /* Await snapshots already enqueued by this save/retry. */ }
+            val summaries=withContext(Dispatchers.IO) { conversationDrafts.summaries().first }
+            for (summary in summaries) {
+                val value=withContext(Dispatchers.IO) { conversationDrafts.read(summary.id) } ?: continue
+                if (value.complete && draftCanBeCleared(value)) finishDraftCleanup(value)
+            }
+            refreshDrafts()
+        } catch (e: CancellationException) { throw e }
+          catch (_: Exception) { draftIssue=true }
+    }
     internal suspend fun finishDraftCleanup(value: com.zsz.studyassistant.data.ConversationDraft) {
         try { withContext(kotlinx.coroutines.NonCancellable+Dispatchers.IO) { conversationDrafts.clear(value.id,value.generation) } }
         catch (e: CancellationException) { throw e }
@@ -509,6 +522,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val value=draftWriteMutex.withLock { withContext(Dispatchers.IO) { checkNotNull(conversationDrafts.read(id)) } }
                 val row=solveSessionWriteMutex.withLock { dao.heavyOnce(id) }
+                if (value.grade && value.notebookId==null && row!=null) {
+                    check(!row.deleted && id !in deletionState.value.questionIds)
+                    fun matches(chats: List<ChatItem>, text: String): Boolean =
+                        row.text==text && row.answer==chats.lastOrNull { it.role=="assistant" }?.content.orEmpty() &&
+                            row.conversationJson==json.encodeToString(chats)
+                    val completedMatches=value.completedChats?.let { matches(it,value.completedQuestion ?: value.question) } == true
+                    check(matches(value.base,value.question) || completedMatches) { "Draft conflict" }
+                }
                 if(value.notebookId!=null) {
                     check(row!=null && !row.deleted && id !in deletionState.value.questionIds)
                     val actual=withContext(Dispatchers.IO) { com.zsz.studyassistant.data.PendingSaveCodec.fingerprint(com.zsz.studyassistant.data.SavePayload.notebook(row)) }
@@ -526,8 +547,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 stopActiveGeneration()
                 resetSession()
                 val history=dao.solveSessionOnce(id)
+                // Old grading never created a history row. Migrate only those legacy drafts;
+                // a modern deleted/pruned history must remain missing.
+                val legacyGrade = value.grade && !value.gradeHistoryEnabled && !value.historyAllowed &&
+                    value.notebookId == null && value.createdAt >= historyCutoff() &&
+                    id !in deletionState.value.historyIds && id !in deletionState.value.questionIds
                 sessionRecordBinding=SolveSessionBinding(id,value.createdAt,value.source,
-                    historyAllowed=value.historyAllowed && history!=null)
+                    historyAllowed=(value.historyAllowed && history!=null) || legacyGrade)
                 questionText=value.question
                 isPhoto=value.photo; askMode=value.ask; gradeMode=value.grade
                 pendingRedoFor=value.redoFor
@@ -541,18 +567,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 currentNotebookBaseline=row?.let { com.zsz.studyassistant.data.SavePayload.notebook(it) }
                 chatItems=value.base
                 conversationDrafts.reserve(value.id,value.generation)
-                activeDraft=value
+                val recovered = if (legacyGrade) value.copy(historyAllowed=true, gradeHistoryEnabled=true) else value
+                activeDraft=recovered
+                draftRevision=maxOf(draftRevision,value.revision)
+                if (legacyGrade) writeDraft(recovered.copy(revision=++draftRevision),currentNotebookBaseline)
                 if(value.complete && value.completedChats!=null) {
                     chatItems=value.completedChats; questionText=value.completedQuestion ?: value.question
+                    if (legacyGrade) recordSolveSession("grade", create=true)
                     persistCompletedConversation()
                     if(draftCanBeCleared(value)) finishDraftCleanup(value)
                 } else {
+                    if (legacyGrade) recordSolveSession("grade", create=true)
                     streamingText=value.raw; thinkingText=value.thinking; streamInterrupted=true
                     contModel=value.model; contPrefix=value.raw
                     contMessages=continuationMessages(value.messages,value.raw)
                     contDraftAction=value.action
                     contOnDone={ output -> applyRecoveredReply(value.action,output) }
                 }
+                restoreGradeContext(value.grade)
                 refreshDrafts(); draftReturnOrigin=origin; draftSolveRequested=true
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"] }
@@ -1079,6 +1111,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     catch (_: Exception) { saveJournalIssue = true }
                     refreshPendingSaveState()
                 }
+                cleanupPersistedDrafts()
             } finally { retryingHistoryWrites = false }
         }
     }
@@ -1139,6 +1172,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 chatItems = listOf(ChatItem(0, "question", s.text), ChatItem(1, "assistant", s.answer))
             }
             questionText = s.text
+            restoreGradeContext(s.source == "grade")
             imageBytes = s.imageBytes
             val multiKeys = s.imagesJson?.let { json.decodeFromString<List<String>>(it) }.orEmpty()
             questionImages = mergeImageKeys(
@@ -1175,7 +1209,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val firstTime = capture?.second ?: System.currentTimeMillis()
         sessionRecordBinding = retry ?: SolveSessionBinding(
             id = capture?.first ?: QuestionIdentity.create(firstTime), createdAt = firstTime,
-            historyAllowed = !grade && !fromNotebook
+            historyAllowed = !fromNotebook
         )
         if (capture != null) captureIdentity = null
         currentQuestionCreatedAt = sessionRecordBinding.createdAt
@@ -1556,7 +1590,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val draftId=sessionRecordBinding.id
         val template=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
             owner.id,model,replyAction,currentSource(),questionText,isPhoto,askMode,gradeMode,
-            sessionRecordBinding.historyAllowed,savedQuestionId,questionImages,chatItems.toList(),messages,raw=prefix,redoFor=pendingRedoFor ?: if(gradeMode) redoQuestionId else null) }
+            sessionRecordBinding.historyAllowed,savedQuestionId,questionImages,chatItems.toList(),messages,raw=prefix,redoFor=pendingRedoFor ?: if(gradeMode) redoQuestionId else null,
+            gradeHistoryEnabled=gradeMode) }
         if(template!=null) { conversationDrafts.reserve(template.id,template.generation); activeDraft=template }
         callJob = viewModelScope.launch {
             busy = true
@@ -2467,6 +2502,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     cancelPending = false
                     recordSolveSession(currentSource())
+                    if (saved != null) cleanupPersistedDrafts()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -3314,6 +3350,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val encoded = imgs.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         questionImages = encoded
         addItem("question", questionText, encoded)
+        recordSolveSession("grade", create = true)
         gradeCall()
     }
 
@@ -3334,11 +3371,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         questionImages = encoded
         // 气泡：题干文字 + 我的作答图（与批改页的"题目 + 作答"语义一致）
         addItem("question", questionText + "\n" + str["grade.label.answer"], encoded)
+        recordSolveSession("grade", create = true)
         gradeTextCall(questionText)
     }
 
     /** 当前批改是否为"纯文字题干"（重新批改时据此选对构造方式） */
     private var gradeTextQuestion: String? = null
+
+    private fun restoreGradeContext(grading: Boolean) {
+        gradeMode = grading
+        val firstQuestion = chatItems.firstOrNull { it.role == "question" }?.content
+        // Text-question grading stores the answer-image label after the original question.
+        gradeTextQuestion = questionText.takeIf {
+            grading && it.isNotBlank() && firstQuestion?.startsWith(it + "\n") == true
+        }
+    }
 
     /** 批改完成的公共收尾：解析分类/知识点 + 落一条助手消息 + 重做时给出待确认的掌握度建议 */
     private fun onGradeReply(reply: String) {
@@ -3347,8 +3394,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         suggestedCategory = r.category
         suggestedTags = r.tags
         addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-        // ★ 批改（source="grade"）不属于「4 个生成入口」，但同样要尽早落库，
-        //   否则"批改完进程被杀"还是会丢（只在 saveSessionOnExit 里落就晚了）
+        // Update the row reserved at grading input, before completed-draft cleanup.
         recordSolveSession("grade")
         // B6：重做的批改 → 按结论给出待确认的建议（一次性，取完即清）
         val redoFor = pendingRedoFor
@@ -3457,6 +3503,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         currentNotebookBaseline=com.zsz.studyassistant.data.SavePayload.notebook(q)
         questionText = q.text
+        restoreGradeContext(historySession?.source == "grade")
         imageBytes = q.imageBytes
         isPhoto = q.imageBytes != null
         savedToNotebook = !q.deleted

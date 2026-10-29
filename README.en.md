@@ -17,7 +17,7 @@ Developed by zsz with assistance from DeepSeek-V4/V4.1 and GPT-6.1 Sol. Download
 - 🤖 Streaming answers, image follow-ups, stop/continue generation, similar exercises and KaTeX formulas.
 - 🧠 AI management has API settings and usage, AI cropping, solver settings and custom instructions. Both fast and thinking modes use `deepseek-flash`, with thinking disabled/enabled respectively. AI output language is separate from interface language.
 - 📚 Categorize, tag, search, sort and batch-manage notebook entries.
-- 🕘 Solution history keeps the latest **200 first-time questions within 30 days**. Follow-ups update the same entry, ordered by the original time. Opening notebook/review entries creates no new history.
+- 🕘 Solving history retains initial solutions, text/image questions and grading (**latest 200 entries, up to 30 days**). Follow-ups update the same entry and preserve its first time; opening Notebook/Review creates no new history.
 - 🏷 Preview AI suggestions or manual tag groups before merging; undo the latest merge. Tag drafts save automatically; the latest 20 local AI-analysis diagnostics can be exported manually.
 - 📖 Review at `0/1/2/4/7/15/30` days, with statistics and daily reminders.
 - 🌐 Simplified/Traditional Chinese, English, Japanese and Korean interfaces; themes and global text size.
@@ -43,6 +43,12 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4** (DB v
 AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Backup format v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.6.8.5
+
+- 🛠️ Clear completed grading drafts after saving results to solving history; retain failed and interrupted work for recovery.
+- 🧪 Distinguish stable and optional test updates, with separate notes and downloads and explicit release channels.
+- 🎨 Use the same theme-colour gradient on Learn, Stats and Settings home pages.
 
 ### v0.6.8.4
 

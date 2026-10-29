@@ -1,6 +1,9 @@
 package com.zsz.studyassistant.ui
 
 import androidx.activity.compose.setContent
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -103,6 +106,61 @@ class UpdatePageIntegrationTest {
                 assertNotNull(store.forInstall()!!.file)
             }
         } finally { releaseQuery.countDown(); backend.queryRelease=null; store.cancel() }
+    }
+
+    @Test fun optionalBetaAndStableHaveIndependentNotesAndDownloadTargets()=kotlinx.coroutines.runBlocking {
+        val backend=com.zsz.studyassistant.data.UpdateDownloadsIntegrationTest.FakeTransfers()
+        val stable=com.zsz.studyassistant.data.UpdateChecker.ReleaseInfo("v99.1.0","99.1.0","Stable fixture notes","stable.apk",
+            "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v99.1.0/stable.apk","a".repeat(64),7,minSdk=36,versionCode=990)
+        val beta=stable.copy(tagName="v99.2.0",version="99.2.0",notes="Beta fixture notes",assetName="beta.apk",
+            assetUrl="https://github.com/ShizhenZhou/StudyAssistant/releases/download/v99.2.0/beta.apk",versionCode=991,
+            channel=com.zsz.studyassistant.data.UpdateChecker.Channel.BETA)
+        val store=com.zsz.studyassistant.data.UpdateDownloads(context,backend) { _,_ ->
+            com.zsz.studyassistant.data.UpdateChecker.VerifyResult(true,true,true,null) }
+        val previousFactory=com.zsz.studyassistant.data.UpdateDownloadMonitor.downloadsFactory
+        com.zsz.studyassistant.data.UpdateDownloadMonitor.downloadsFactory={ store }
+        try {
+            store.cancel()
+            launchPage().use { scenario ->
+                scenario.onActivity { activity -> activity.setContent {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalStrings provides s,LocalUiLang provides UiLang.EN) {
+                        androidx.compose.material3.MaterialTheme {
+                            androidx.compose.foundation.layout.Column(Modifier.verticalScroll(rememberScrollState())) {
+                                UpdatePage(store) { com.zsz.studyassistant.data.UpdateChecker.AvailableReleases(stable,beta) }
+                            }
+                        }
+                    }
+                } }
+                waitFor(s["update.check"])
+                clickable(instrumentation.uiAutomation.rootInActiveWindow,s["update.check"])!!.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                waitFor("Beta fixture notes");waitFor("Stable fixture notes");waitFor(s["update.betaWarning"])
+                assertEquals("Checking must not start an optional download",0,backend.enqueues)
+                val screenshot=requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+                try { java.io.File(context.filesDir,"ui-update-channels.png").outputStream().use {
+                    screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
+                } } finally { screenshot.recycle() }
+                val texts=mutableListOf<String>()
+                fun visit(node: AccessibilityNodeInfo?) {
+                    if (node==null) return
+                    node.text?.toString()?.let { texts+=it }
+                    for(i in 0 until node.childCount) visit(node.getChild(i))
+                }
+                visit(instrumentation.uiAutomation.rootInActiveWindow)
+                assertTrue(texts.indexOf("Beta fixture notes") < texts.indexOf("Stable fixture notes"))
+                val button=clickable(instrumentation.uiAutomation.rootInActiveWindow,s["update.downloadStable"],visibleOnly=false)!!
+                button.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+                button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                val deadline=android.os.SystemClock.uptimeMillis()+8000
+                while(backend.enqueues==0 && android.os.SystemClock.uptimeMillis()<deadline) Thread.sleep(40)
+                assertEquals(1,backend.enqueues)
+                assertEquals(stable.assetUrl,store.snapshot()!!.release.assetUrl)
+                assertEquals(com.zsz.studyassistant.data.UpdateChecker.Channel.STABLE,store.snapshot()!!.release.channel)
+            }
+        } finally {
+            context.stopService(android.content.Intent(context,com.zsz.studyassistant.data.UpdateDownloadMonitor::class.java))
+            store.cancel()
+            com.zsz.studyassistant.data.UpdateDownloadMonitor.downloadsFactory=previousFactory
+        }
     }
 
     @Test fun installedLegacyDownloadIsClearedWithoutCheckingOnline() = restoredUnknownCompatibility(true)

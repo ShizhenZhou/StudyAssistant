@@ -1,7 +1,6 @@
 package com.zsz.studyassistant.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,8 +34,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.ApiKeyStore
@@ -71,11 +68,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
     LaunchedEffect(keyOk) { if (!keyOk) showDialog = true }
     BackupSetupPrompt(vm, ready = keyOk && !showDialog)
 
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = .20f),
-        Color.Transparent,
-        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .10f)
-    ))).statusBarsPadding()) {
+    Box(Modifier.fillMaxSize().rootPageBackground().statusBarsPadding()) {
         Column(
             modifier = Modifier
                 .readablePage(560.dp)

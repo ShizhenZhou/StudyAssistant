@@ -10,6 +10,50 @@ class UpdateCompatibilityTest {
         "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.8/fixture.apk", null, 7)
     private fun manifest(min: Int = 36) = """{"schema":1,"version":"0.6.8","versionCode":78,"minSdk":$min,"apkName":"fixture.apk","apkSha256":"${"a".repeat(64)}","apkSize":7}"""
 
+    @Test fun unrecognizedExplicitReleaseChannelCannotBeAcceptedAsStable() {
+        val text = manifest().dropLast(1) + """, "channel":"canary"}"""
+        assertNull(UpdateChecker.withManifest(release, text))
+    }
+    @Test fun explicitBetaManifestRemainsOptionalEvenIfGitHubFlagWasMissing() {
+        val parsed = UpdateChecker.withManifest(release, manifest().dropLast(1) + """, "channel":"beta"}""")!!
+        assertEquals(UpdateChecker.Channel.BETA, parsed.channel)
+        assertEquals(UpdateChecker.Channel.STABLE, UpdateChecker.withManifest(release, manifest())!!.channel)
+    }
+    @Test fun stableMetadataCannotDowngradeAnExplicitPrereleaseToStable() {
+        val parsed = UpdateChecker.withManifest(release.copy(channel=UpdateChecker.Channel.BETA),
+            manifest().dropLast(1) + """, "channel":"stable"}""")!!
+        assertEquals(UpdateChecker.Channel.BETA, parsed.channel)
+    }
+    @Test fun optionalBetaIsListedAboveAnIndependentStableUpdate() {
+        val stable=release.copy(version="0.6.9",versionCode=90)
+        val beta=release.copy(version="0.7.0",versionCode=91,channel=UpdateChecker.Channel.BETA)
+        val result=UpdateChecker.AvailableReleases(stable,beta)
+        assertEquals(listOf(beta,stable),result.updates { true })
+        assertEquals(listOf(beta),result.updates { it==beta })
+        val olderBeta=beta.copy(versionCode=89)
+        assertEquals(listOf(olderBeta,stable),UpdateChecker.AvailableReleases(stable,olderBeta).updates { true })
+        assertEquals(listOf(stable),UpdateChecker.AvailableReleases(stable,olderBeta).updates { (it.versionCode ?: 0)>89 })
+        assertTrue(result.updates { false }.isEmpty())
+    }
+    @Test fun explicitGitHubPrereleasesAndDraftsAreDistinguished() {
+        val root=Json.parseToJsonElement("""{"tag_name":"v0.6.8","prerelease":true,"draft":false,"body":"notes",
+            "assets":[{"name":"fixture.apk","size":7,"browser_download_url":"${release.assetUrl}"}]}""").jsonObject
+        assertEquals(UpdateChecker.Channel.BETA,UpdateChecker.parseRelease(root)!!.first.channel)
+        assertNull(UpdateChecker.parseRelease(kotlinx.serialization.json.JsonObject(root + ("draft" to kotlinx.serialization.json.JsonPrimitive(true)))))
+    }
+    @Test fun attachmentOnlyBetaDoesNotHideTheNextRealStableRelease() {
+        val hiddenBeta=release.copy(version="0.7.0",channel=UpdateChecker.Channel.STABLE)
+        val stable=release.copy(version="0.6.9",versionCode=90)
+        val explicitBeta=release.copy(version="0.7.1",versionCode=92,channel=UpdateChecker.Channel.BETA)
+        val calls=mutableListOf<String>()
+        val result=UpdateChecker.resolveAvailable(listOf(hiddenBeta,stable,explicitBeta).map { it to emptyList() }) {
+            calls+=it.first.version
+            if (it.first==hiddenBeta) hiddenBeta.copy(channel=UpdateChecker.Channel.BETA,versionCode=91) else it.first
+        }
+        assertEquals(stable,result.stable);assertEquals(explicitBeta,result.beta)
+        assertEquals(listOf("0.7.0","0.6.9","0.7.1"),calls)
+        assertEquals(listOf(explicitBeta,stable),result.updates { true })
+    }
     @Test fun android16ReleaseIsBlockedBeforeDownloadOnAndroid15() {
         val parsed = UpdateChecker.withManifest(release, manifest())!!
         assertEquals("update.incompatible", UpdateChecker.compatibilityError(parsed, 35))

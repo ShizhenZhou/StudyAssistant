@@ -51,6 +51,7 @@ fun StatsScreen(vm: MainViewModel) {
     val s = LocalStrings.current
     val st by vm.stats.collectAsStateWithLifecycle()
 
+    Box(Modifier.fillMaxSize().rootPageBackground()) {
     Column(
         Modifier
             .readablePage()
@@ -258,6 +259,7 @@ fun StatsScreen(vm: MainViewModel) {
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
     }
 }
 

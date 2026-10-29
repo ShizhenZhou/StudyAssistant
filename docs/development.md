@@ -78,3 +78,10 @@ CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、
 - `ReliabilityRegressionTest` 只用人工数据检查 ViewModel 的草稿和复习生命周期；故障注入明确模拟下一题读取异常。`LargeFieldIntegrationTest` 检查大字段、原图、全文搜索及导出读取契约。
 - 压缩备份测试覆盖 ZIP 分卷完整性、SAF 所有权与读回校验、空错题本不调度、前台成功事件、后台终局失败通知、v3 兼容导入和 96 MiB 人工题库完整往返。系统通知授权只针对 integration 包，不触及正式应用或真实手机。
 - 本地仍通过 `tools/run-android-tests.ps1 -Serial emulator-<端口>` 明确选择模拟器；CI 沿用同一套测试的自动发现，不另起重复工作流。测试包可打开主界面不等于已在用户手机实测，不能据此承诺所有机型效果。
+
+
+## 正式与测试更新渠道
+
+- `tools/release.ps1 start --version VERSION` 默认正式版；只有明确安排测试版时使用 `--channel beta`。两类都使用原有完整发布门禁和原证书，跨渠道共用严格递增的 versionCode、各版本使用独立标签；不移动已有标签，不将同一标签在两种构件间切换。
+- 新状态绑定 channel 并传入构建状态；新发布清单可选 channel 与 GitHub prerelease 一致。测试版 `prerelease=true`、`make_latest=false`，不抢占正式版 latest。Release 最后一个可见条目同时说明最低 Android 版本和正式/测试属性；旧无 channel 状态按原清单与正文摘要续跑。
+- 客户端默认同时查官方 Releases 列表，列表失败回退官方 latest。先读取兼容信息再确定最终渠道；仅附件清单声明 beta 也不能挤掉真正正式版。可用测试版在前并提示可选和不稳定，正式版说明及独立下载在后；不提供低于当前 versionCode 的安装包。下载校验与恢复流程不降低门禁，跳过测试版不隐藏正式版。

@@ -2838,7 +2838,15 @@ private val B13_ZH = mapOf(
     "save.export" to "救援导出（保存异常时使用）",
     "save.exportNotice" to "这是异常保存内容和对话草稿的救援文件，供人工排查恢复；不是普通备份，不能从备份管理直接导入。文件可能包含题目、图片和对话，请妥善保管。"
 )
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH
+private val UPDATE_CHANNEL_ZH = mapOf(
+    "update.channel.stable" to "正式版更新",
+    "update.channel.beta" to "测试版 · 可选更新",
+    "update.betaWarning" to "测试版功能可能不稳定，请按需选择。",
+    "update.downloadStable" to "下载正式版",
+    "update.downloadBeta" to "下载测试版（可选）"
+)
+
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Minimum Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2889,7 +2897,15 @@ private val B13_EN = mapOf(
     "save.export" to "Rescue export (save failures)",
     "save.exportNotice" to "This rescue file contains unsaved content and conversation drafts for assisted recovery. It is not a normal backup and cannot be imported in Backup management. It may contain questions, images and conversations; keep it private."
 )
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN
+private val UPDATE_CHANNEL_EN = mapOf(
+    "update.channel.stable" to "Stable update",
+    "update.channel.beta" to "Test version · optional update",
+    "update.betaWarning" to "Test features may be unstable. Update only if you choose.",
+    "update.downloadStable" to "Download stable version",
+    "update.downloadBeta" to "Download test version (optional)"
+)
+
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2940,7 +2956,15 @@ private val B13_JA = mapOf(
     "save.export" to "救済出力（保存エラー時）",
     "save.exportNotice" to "未保存内容と会話下書きの手動救済用ファイルです。通常のバックアップではなく、バックアップ管理から直接読み込めません。問題・画像・会話を含むため適切に保管してください。"
 )
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA
+private val UPDATE_CHANNEL_JA = mapOf(
+    "update.channel.stable" to "正式版の更新",
+    "update.channel.beta" to "テスト版・任意の更新",
+    "update.betaWarning" to "テスト版の機能は不安定な場合があります。必要な場合のみ選択してください。",
+    "update.downloadStable" to "正式版をダウンロード",
+    "update.downloadBeta" to "テスト版をダウンロード（任意）"
+)
+
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "최소 Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2991,4 +3015,12 @@ private val B13_KO = mapOf(
     "save.export" to "복구용 내보내기(저장 실패 시)",
     "save.exportNotice" to "저장되지 않은 내용과 대화 초안을 수동 복구하기 위한 파일입니다. 일반 백업이 아니므로 백업 관리에서 가져올 수 없습니다. 문제·이미지·대화가 포함될 수 있으니 안전하게 보관하세요."
 )
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO
+private val UPDATE_CHANNEL_KO = mapOf(
+    "update.channel.stable" to "정식 버전 업데이트",
+    "update.channel.beta" to "테스트 버전 · 선택적 업데이트",
+    "update.betaWarning" to "테스트 기능은 불안정할 수 있습니다. 원하는 경우에만 업데이트하세요.",
+    "update.downloadStable" to "정식 버전 다운로드",
+    "update.downloadBeta" to "테스트 버전 다운로드 (선택)"
+)
+
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO
