@@ -46,6 +46,7 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ### v0.6.8.2
 
+- ⬆️ Improve version checks and compatibility metadata retrieval, add an official fallback and clarify update errors.
 - 🎨 Add an optional system wallpaper background and improve theme readability, layouts and transitions.
 - 🗂️ Sort notebook subjects by problem count or a custom drag order; improve review filtering and long-press selection feedback.
 - ↩️ Improve bottom-tab switching and double-back prompts; add capture progress previews and retaking.

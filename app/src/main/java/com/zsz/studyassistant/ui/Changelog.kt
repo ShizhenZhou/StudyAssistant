@@ -6,6 +6,7 @@ package com.zsz.studyassistant.ui
  */
 internal val CHANGELOG_ZH: String = """
 v0.6.8.2
+· ⬆️ 改进版本检查和兼容信息读取，增加备用入口，优化更新失败提示。
 · 🎨 新增可选系统壁纸背景，优化主题可读性、页面布局与过渡动画。
 · 🗂️ 错题本科目支持按题量和自定义拖动排序，改进复习科目筛选与长按多选反馈。
 · ↩️ 优化底栏切换和主页二次返回提示，拍摄增加进度预览与重拍。
@@ -511,6 +512,7 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.6.8.2
+· ⬆️ Improve version checks and compatibility metadata retrieval, add an official fallback and clarify update errors.
 · 🎨 Add an optional system wallpaper background and improve theme readability, layouts and transitions.
 · 🗂️ Sort notebook subjects by problem count or a custom drag order; improve review filtering and long-press selection feedback.
 · ↩️ Improve bottom-tab switching and double-back prompts; add capture progress previews and retaking.
@@ -1016,6 +1018,7 @@ v0.1 (project start)
 
 internal val CHANGELOG_JA: String = """
 v0.6.8.2
+· ⬆️ バージョン確認と互換性情報の取得を改善し、公式の代替取得先と分かりやすいエラー表示を追加。
 · 🎨 システム壁紙を表示する設定を追加し、テーマの読みやすさ・配置・画面遷移を改善。
 · 🗂️ ノートの科目を問題数順またはドラッグで並べ替え可能にし、復習の科目選択と長押し選択の反応を改善。
 · ↩️ 下部タブ切り替えと二度戻る確認を改善し、撮影の進捗プレビューと撮り直しを追加。
@@ -1521,6 +1524,7 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.6.8.2
+· ⬆️ 버전 확인과 호환 정보 조회를 개선하고 공식 대체 경로와 명확한 업데이트 오류 안내를 추가했습니다.
 · 🎨 시스템 배경화면 표시 옵션을 추가하고 테마 가독성, 화면 배치와 전환 효과를 개선했습니다.
 · 🗂️ 오답 노트 과목을 문제 수 또는 드래그한 순서로 정렬하고 복습 과목 필터와 길게 눌러 선택할 때의 피드백을 개선했습니다.
 · ↩️ 하단 탭 전환과 두 번 뒤로 확인을 개선하고 촬영 진행 미리보기와 다시 촬영을 추가했습니다.
