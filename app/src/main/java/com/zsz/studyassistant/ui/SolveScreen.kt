@@ -644,7 +644,7 @@ fun SolveScreen(
                 )
             }
         }
-        Column(Modifier.fillMaxSize().imePadding().padding(padding)) {
+        Column(Modifier.readablePage().imePadding().padding(padding)) {
             if (!hasKey) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
                     Column(Modifier.padding(12.dp)) {

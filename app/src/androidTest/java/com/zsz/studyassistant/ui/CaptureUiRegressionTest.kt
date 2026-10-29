@@ -292,6 +292,23 @@ class CaptureUiRegressionTest {
                 waitFor(s["camera.permNeeded"])
                 val gallery = waitFor(s["camera.gallery"])
                 assertTrue("Gallery remains enabled after camera permission denial", gallery.isEnabled)
+                waitFor("2 / 2")
+                waitFor(s["camera.capturedFirst"])
+                tap(s["camera.restart"])
+                waitFor(s["camera.restartTitle"])
+                tap(s["common.cancel"])
+                scenario.onActivity { assertTrue(model!!.cropNeedsMore) }
+                tap(s["camera.restart"])
+                waitFor(s["camera.restartTitle"])
+                tap(s["camera.restart"])
+                waitFor("1 / 2")
+                scenario.onActivity {
+                    assertTrue(model!!.cropPaths.isEmpty())
+                    assertFalse(model!!.cropNeedsMore)
+                    model!!.startCropFlow(listOf(fixture.absolutePath), grade = true, expect = 2)
+                    model!!.submitCropResult(fixture.readBytes())
+                }
+                waitFor("2 / 2")
                 tap(s["camera.mode.two"])
                 waitFor(s["camera.discardTitle"])
                 scenario.onActivity { assertEquals(listOf(fixture.absolutePath), model!!.cropPaths); assertTrue(model!!.cropGrade) }

@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
@@ -60,11 +63,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -75,6 +90,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
+import com.zsz.studyassistant.data.UNCATEGORIZED_ORDER_ID
+import com.zsz.studyassistant.data.categoryChipOrder
+import com.zsz.studyassistant.data.moveCategoryOrder
 import com.zsz.studyassistant.data.NotebookSortMode
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionTag
@@ -92,8 +110,14 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 @Composable
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
+    val haptics = LocalHapticFeedback.current
     val questions by vm.notebook.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
+    val categoryCounts = remember(questions) { questions.groupingBy { it.categoryId ?: UNCATEGORIZED_ORDER_ID }.eachCount() }
+    val chipOrder = remember(categories, categoryCounts, vm.customCategoryOrderEnabled, vm.customCategoryOrder) {
+        categoryChipOrder(categories.map { it.id }, categoryCounts, vm.customCategoryOrderEnabled, vm.customCategoryOrder)
+    }
+    val categoryById = remember(categories) { categories.associateBy { it.id } }
     val tags by vm.tags.collectAsStateWithLifecycle()
     val questionTags by vm.questionTags.collectAsStateWithLifecycle()
     var filterCategoryId by remember { mutableStateOf<Long?>(null) } // null = 全部
@@ -156,6 +180,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
+                expandedHeight = 56.dp,
                 title = {
                     if (selectionMode) {
                         // 多选：小字号（与解题页会话多选一致）——左侧「全选/取消全选」+ 已选条数
@@ -205,7 +230,13 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 actions = {
                     when {
-                        page == "manage" -> { /* 管理页无额外操作 */ }
+                        page == "manage" -> {
+                            FilterChip(selected = vm.customCategoryOrderEnabled, onClick = {
+                                if (!vm.customCategoryOrderEnabled && vm.customCategoryOrder.isEmpty()) vm.updateCustomCategoryOrder(chipOrder)
+                                vm.updateCustomCategoryOrderEnabled(!vm.customCategoryOrderEnabled)
+                            }, label = { Text(s["catManage.customOrder"], fontSize = BTN_LABEL_SOLVE) },
+                                trailingIcon = { if (vm.customCategoryOrderEnabled) Text("✓") })
+                        }
                         selectionMode -> {
                             // 三个按钮紧凑摆放（缩小左右内边距），给标题让出空间
                             val compact = PaddingValues(horizontal = 4.dp)
@@ -250,6 +281,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
             CategoryManagePage(
                 vm = vm,
                 categories = categories,
+                categoryOrder = chipOrder,
+                counts = categoryCounts,
                 modifier = Modifier.fillMaxSize().padding(padding)
             )
             return@Scaffold
@@ -288,7 +321,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                 }
                 // 分类筛选 chips（全部 / 未分类 / 各分类）
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
@@ -298,18 +331,12 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             label = { Text(s["notebook.filter.all"]) }
                         )
                     }
-                    item {
+                    items(chipOrder, key = { it }) { id ->
+                        val category = categoryById[id]
                         FilterChip(
-                            selected = showUncategorized,
-                            onClick = { showUncategorized = true; filterCategoryId = null },
-                            label = { Text(s["notebook.filter.uncategorized"]) }
-                        )
-                    }
-                    items(categories, key = { it.id }) { c ->
-                        FilterChip(
-                            selected = filterCategoryId == c.id && !showUncategorized,
-                            onClick = { filterCategoryId = c.id; showUncategorized = false },
-                            label = { Text(c.name) }
+                            selected = if (id == UNCATEGORIZED_ORDER_ID) showUncategorized else filterCategoryId == id && !showUncategorized,
+                            onClick = { showUncategorized = id == UNCATEGORIZED_ORDER_ID; filterCategoryId = category?.id },
+                            label = { Text(category?.name ?: s["notebook.filter.uncategorized"]) }
                         )
                     }
                 }
@@ -391,6 +418,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             },
                             onLongClick = {
                                 if (!selectionMode) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     selectionMode = true
                                     selectedIds = selectedIds + q.id
                                 }
@@ -535,6 +563,8 @@ private fun NotebookItem(
 private fun CategoryManagePage(
     vm: MainViewModel,
     categories: List<Category>,
+    categoryOrder: List<Long>,
+    counts: Map<Long, Int>,
     modifier: Modifier = Modifier
 ) {
     val s = LocalStrings.current
@@ -543,39 +573,125 @@ private fun CategoryManagePage(
     var renameText by remember { mutableStateOf("") }
     var showDelete by remember { mutableStateOf(false) }
     var deleteQuestions by remember { mutableStateOf(false) }
+    val categoryById = remember(categories) { categories.associateBy { it.id } }
+    val listState = rememberLazyListState()
+    LaunchedEffect(vm.customCategoryOrderEnabled) {
+        // A mode change may move the old first-row key down; show the new order from its beginning.
+        listState.scrollToItem(0)
+    }
+    val currentOrder by rememberUpdatedState(categoryOrder)
+    var draggingId by remember { mutableStateOf<Long?>(null) }
+    var dragOrder by remember { mutableStateOf<List<Long>?>(null) }
+    var dragStartY by remember { mutableFloatStateOf(0f) }
+    var dragDistance by remember { mutableFloatStateOf(0f) }
+    val edge = with(LocalDensity.current) { 48.dp.toPx() }
+    val maxScroll = with(LocalDensity.current) { 12.dp.toPx() }
+    val keys = if (vm.customCategoryOrderEnabled) dragOrder ?: categoryOrder
+        else categoryOrder.filterNot { it == UNCATEGORIZED_ORDER_ID }
+    fun endDrag(save: Boolean) {
+        if (save && vm.customCategoryOrderEnabled) dragOrder?.let(vm::updateCustomCategoryOrder)
+        draggingId = null
+        dragOrder = null
+        dragDistance = 0f
+    }
+    LaunchedEffect(draggingId, vm.customCategoryOrderEnabled) {
+        val moving = draggingId ?: return@LaunchedEffect
+        if (!vm.customCategoryOrderEnabled) { endDrag(false); return@LaunchedEffect }
+        while (draggingId == moving) {
+            withFrameNanos { }
+            val layout = listState.layoutInfo
+            val item = layout.visibleItemsInfo.firstOrNull { it.key == moving } ?: continue
+            val center = dragStartY + dragDistance + item.size / 2f
+            val target = layout.visibleItemsInfo.minByOrNull { kotlin.math.abs(center - (it.offset + it.size / 2f)) }
+                ?.key as? Long
+            if (target != null && target != moving) {
+                val firstVisible = listState.firstVisibleItemIndex
+                val firstOffset = listState.firstVisibleItemScrollOffset
+                dragOrder = moveCategoryOrder(dragOrder ?: currentOrder, moving, target)
+                // Keep screen coordinates fixed instead of following the dragged first-row key.
+                listState.requestScrollToItem(firstVisible, firstOffset)
+            }
+            val scroll = when {
+                center > layout.viewportEndOffset - edge -> (center - layout.viewportEndOffset + edge).coerceAtMost(maxScroll)
+                center < layout.viewportStartOffset + edge -> (center - layout.viewportStartOffset - edge).coerceAtLeast(-maxScroll)
+                else -> 0f
+            }
+            if (scroll != 0f) listState.scrollBy(scroll)
+        }
+    }
 
     Column(modifier.padding(12.dp)) {
         Text(
-            s["catManage.hint"],
+            s[if (vm.customCategoryOrderEnabled) "catManage.dragHint" else "catManage.hint"],
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
         Spacer(Modifier.height(8.dp))
 
-        if (categories.isEmpty()) {
+        if (keys.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(s["catManage.empty"], color = MaterialTheme.colorScheme.outline)
             }
         } else {
-            LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-                items(categories, key = { it.id }) { c ->
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState) {
+                items(keys, key = { it }) { id ->
+                    val c = categoryById[id]
+                    val name = c?.name ?: s["notebook.filter.uncategorized"]
                     Row(
                         Modifier
                             .fillMaxWidth()
+                            .zIndex(if (draggingId == id) 1f else 0f)
+                            .graphicsLayer {
+                                translationY = if (draggingId == id) dragStartY + dragDistance -
+                                    (listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }?.offset ?: dragStartY.toInt()) else 0f
+                            }
+                            .background(if (draggingId == id) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent)
                             .clickable {
-                                selected = if (selected.contains(c.id)) selected - c.id else selected + c.id
+                                if (c != null) selected = if (selected.contains(id)) selected - id else selected + id
                             }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(
-                            checked = selected.contains(c.id),
+                        if (c != null) Checkbox(
+                            checked = selected.contains(id),
                             onCheckedChange = {
-                                selected = if (selected.contains(c.id)) selected - c.id else selected + c.id
+                                selected = if (selected.contains(id)) selected - id else selected + id
                             }
-                        )
-                        Text(c.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                        TextButton(onClick = { renaming = c; renameText = c.name }) { Text("✏️") }
+                        ) else Spacer(Modifier.size(48.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(name, style = MaterialTheme.typography.bodyLarge)
+                            Text(s.format("catManage.count", "n" to "${counts[id] ?: 0}"),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (c != null) TextButton(onClick = { renaming = c; renameText = c.name }) { Text("✏️") }
+                        if (vm.customCategoryOrderEnabled) Box(
+                            Modifier.size(48.dp).semantics {
+                                contentDescription = s.format("catManage.drag", "name" to name)
+                                customActions = listOf(-1 to "catManage.moveUp", 1 to "catManage.moveDown").map { (delta, key) ->
+                                    CustomAccessibilityAction(s[key]) {
+                                        val index = currentOrder.indexOf(id)
+                                        val destination = index + delta
+                                        if (index >= 0 && destination in currentOrder.indices) {
+                                            vm.updateCustomCategoryOrder(moveCategoryOrder(currentOrder, id, currentOrder[destination]))
+                                            true
+                                        } else false
+                                    }
+                                }
+                            }.pointerInput(id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }?.let { item ->
+                                            dragStartY = item.offset.toFloat()
+                                            dragDistance = 0f
+                                            dragOrder = currentOrder.toList()
+                                            draggingId = id
+                                        }
+                                    },
+                                    onDragEnd = { endDrag(true) },
+                                    onDragCancel = { endDrag(false) }
+                                ) { change, amount -> change.consume(); dragDistance += amount.y }
+                            }, contentAlignment = Alignment.Center
+                        ) { Text("≡", fontSize = 24.sp) }
                     }
                     Spacer(
                         Modifier

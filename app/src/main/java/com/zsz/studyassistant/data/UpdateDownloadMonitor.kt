@@ -37,6 +37,7 @@ class UpdateDownloadMonitor : Service() {
     private var observer: Job? = null
     private var lastTask: UpdateDownloads.Snapshot? = null
     private var completionToken: String? = null
+    private var completionUntil = 0L
     private var publishedKey: UpdateDownloadNotifications.PresentationKey? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -75,14 +76,10 @@ class UpdateDownloadMonitor : Service() {
                 lastTask = visibleTask
                 if (task.phase == UpdateDownloads.Phase.READY && completionToken != task.token) {
                     completionToken = task.token
-                    UpdateDownloadNotifications.post(this@UpdateDownloadMonitor,
-                        UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask, completionChip = true))
-                    delay(COMPLETION_CHIP_MS)
-                    // Re-query ownership and state before leaving a dismissible completion notice.
-                    // Cancellation or a newer download during this interval must win.
-                    continue
+                    completionUntil = SystemClock.elapsedRealtime() + COMPLETION_CHIP_MS
                 }
-                if (task.phase == UpdateDownloads.Phase.READY || task.phase == UpdateDownloads.Phase.FAILED) {
+                val completionChip = task.phase == UpdateDownloads.Phase.READY && SystemClock.elapsedRealtime() < completionUntil
+                if ((task.phase == UpdateDownloads.Phase.READY && !completionChip) || task.phase == UpdateDownloads.Phase.FAILED) {
                     finish(UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask)); break
                 }
                 val key = UpdateDownloadNotifications.presentationKey(this@UpdateDownloadMonitor, visibleTask)
@@ -90,7 +87,7 @@ class UpdateDownloadMonitor : Service() {
                     publishedKey = null // A later permission/channel recovery must publish immediately.
                 } else if (key != publishedKey) {
                     if (UpdateDownloadNotifications.post(this@UpdateDownloadMonitor,
-                            UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask))) publishedKey = key
+                            UpdateDownloadNotifications.build(this@UpdateDownloadMonitor, visibleTask, completionChip = completionChip))) publishedKey = key
                 }
                 delay(1000)
                 } catch (error: kotlinx.coroutines.CancellationException) { throw error }
@@ -123,7 +120,7 @@ class UpdateDownloadMonitor : Service() {
         super.onDestroy()
     }
     companion object {
-        internal const val COMPLETION_CHIP_MS = 3000L
+        internal const val COMPLETION_CHIP_MS = 150_000L
         // Shared by progress monitoring and notification actions, including isolated test backends.
         internal var downloadsFactory: (Context) -> UpdateDownloads = { UpdateDownloads(it) }
         @Volatile private var latestRequest: Request? = null

@@ -40,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +66,7 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
+    val haptics = LocalHapticFeedback.current
     val feedback = LocalAppFeedback.current
     val context = LocalContext.current
     // Dao 直接取（与 Reminder.kt 同一写法）；MainViewModel 的 dao 是 private，不改 VM
@@ -219,6 +222,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                         },
                         onLongClick = {
                             if (!selectionMode) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 selectionMode = true
                                 selectedIds = selectedIds + rec.id
                             }
@@ -298,10 +302,10 @@ private fun SolveHistoryItem(
                     Modifier
                         .padding(start = 8.dp)
                         .size(22.dp)
-                        .background(if (selected) Color(0xFF4CAF50) else Color(0x22808080), CircleShape),
+                        .background(if (selected) MaterialTheme.colorScheme.error else Color(0x22808080), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (selected) Text("✓", color = Color.White, fontSize = 14.sp)
+                    if (selected) Text("✓", color = MaterialTheme.colorScheme.onError, fontSize = 14.sp)
                 }
             }
         }

@@ -76,6 +76,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val dao = AppDatabase.get(app).questionDao()
     private val json = Json { ignoreUnknownKeys = true }
 
+    private val categoryOrderPrefs = com.zsz.studyassistant.data.CategoryOrderPrefs(app)
+    var customCategoryOrderEnabled by mutableStateOf(categoryOrderPrefs.enabled())
+        private set
+    var customCategoryOrder by mutableStateOf(categoryOrderPrefs.order())
+        private set
+    fun updateCustomCategoryOrderEnabled(enabled: Boolean) {
+        customCategoryOrderEnabled = enabled
+        categoryOrderPrefs.setEnabled(enabled)
+    }
+    fun updateCustomCategoryOrder(order: List<Long>) {
+        customCategoryOrder = order.distinct()
+        categoryOrderPrefs.save(customCategoryOrder)
+    }
+
     // ---- 应用主题（system/light/dark，默认 system）----
     var theme by mutableStateOf(
         app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
@@ -86,6 +100,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         theme = t
         getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
             .edit().putString("theme", t).apply()
+    }
+
+    var wallpaperBackground by mutableStateOf(
+        app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .getBoolean("wallpaper_background", false)
+    )
+        private set
+    fun updateWallpaperBackground(enabled: Boolean) {
+        wallpaperBackground = enabled
+        getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean("wallpaper_background", enabled).apply()
     }
 
     // ---- 应用主题配色（预设色板，默认紫色）----

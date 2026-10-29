@@ -53,7 +53,7 @@ fun StatsScreen(vm: MainViewModel) {
 
     Column(
         Modifier
-            .fillMaxSize()
+            .readablePage()
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)

@@ -17,7 +17,7 @@ Developed by zsz with assistance from DeepSeek-V4/V4.1 and GPT-6.1 Sol. Download
 - 🤖 Streaming answers, image follow-ups, stop/continue generation, similar exercises and KaTeX formulas.
 - 🧠 AI management has API settings and usage, AI cropping, solver settings and custom instructions. Both fast and thinking modes use `deepseek-flash`, with thinking disabled/enabled respectively. AI output language is separate from interface language.
 - 📚 Categorize, tag, search, sort and batch-manage notebook entries.
-- 🕘 Search history keeps the latest **200 first-time questions within 30 days**. Follow-ups update the same entry, ordered by the original time. Opening notebook/review entries creates no new history.
+- 🕘 Solution history keeps the latest **200 first-time questions within 30 days**. Follow-ups update the same entry, ordered by the original time. Opening notebook/review entries creates no new history.
 - 🏷 Preview AI suggestions or manual tag groups before merging; undo the latest merge. Tag drafts save automatically; the latest 20 local AI-analysis diagnostics can be exported manually.
 - 📖 Review at `0/1/2/4/7/15/30` days, with statistics and daily reminders.
 - 🌐 Simplified/Traditional Chinese, English, Japanese and Korean interfaces; themes and global text size.
@@ -43,6 +43,14 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4** (DB v
 AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Backup format v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.6.8.2
+
+- 🎨 Add an optional system wallpaper background and improve theme readability, layouts and transitions.
+- 🗂️ Sort notebook subjects by problem count or a custom drag order; improve review filtering and long-press selection feedback.
+- ↩️ Improve bottom-tab switching and double-back prompts; add capture progress previews and retaking.
+- 🔔 Keep the download completion notice for 2 minutes 30 seconds; update solving labels and simplify About.
+- 📱 Requires Android 16 (API 36) or newer. Android 9–15 users should stay on v0.6.7.9.
 
 > Problem export (PNG/PDF) was removed in v0.6.4. Export entries in v0.6.3–v0.6.3.3 are historical only.
 > Both three- and four-component versions require README and in-app changelogs in all four source languages; Traditional Chinese is converted from Simplified Chinese. Increment versionCode for each release. Older contrary statements are obsolete. Minimum Android support appears last in each release's notes.

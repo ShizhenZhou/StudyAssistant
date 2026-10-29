@@ -7,6 +7,8 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.compositeOver
 
 /**
  * 主题模式（设置 → 应用主题）→ 当前是否深色。
@@ -66,35 +68,74 @@ enum class AppThemeColor(
 
 /**
  * 由「深色与否 + 配色预设」生成 Material3 配色方案。
- * 只覆盖与主色相关的角色，其余（surface/outline 等中性色）沿用 Material3 默认值，
- * 保证对比度与层级仍然安全。
+ * 背景轻微随主色着色；自定义亮色也需保证按钮和文本链接的可读性。
  */
 fun appColorScheme(dark: Boolean, themeColor: AppThemeColor, customArgb: Int = 0xFF6750A4.toInt()): ColorScheme {
     val base = if (dark) darkColorScheme() else lightColorScheme()
-    val custom = Color(customArgb)
-    val p = when {
+    val custom = Color(customArgb).copy(alpha = 1f)
+    val rawPrimary = when {
         themeColor != AppThemeColor.CUSTOM -> Color(if (dark) themeColor.darkPrimary else themeColor.lightPrimary)
         // 自定义色：浅色直接用用户选的色；深色把它提亮一点，保证在深背景上够醒目
         else -> if (dark) lerp(custom, Color.White, 0.35f) ?: custom else custom
     }
+    val p = readableAccent(rawPrimary, base.surface, dark)
     val pc = when {
         themeColor != AppThemeColor.CUSTOM -> Color(if (dark) themeColor.darkContainer else themeColor.lightContainer)
         // 容器色：浅色向白大量插值（浅底深字），深色向黑大量插值（深底浅字）
         else -> if (dark) lerp(custom, Color.Black, 0.55f) ?: custom else lerp(custom, Color.White, 0.78f) ?: custom
     }
-    val onP = if (dark) Color(0xFF1C1B1F) else Color.White
-    val onPC = if (dark) Color.White else lerp(custom, Color.Black, 0.6f) ?: custom
     // 次要/第三色由主色向黑或白插值推导，保持同一色系的层次
     val toward = if (dark) Color.White else Color.Black
+    val secondary = lerp(p, toward, 0.25f)
+    val tertiary = lerp(p, toward, 0.45f)
+    val surface = lerp(base.surface, p, if (dark) .025f else .015f)
+    val secondaryContainer = lerp(pc, surface, .45f)
     return base.copy(
         primary = p,
-        onPrimary = onP,
+        onPrimary = contrastForeground(p),
         primaryContainer = pc,
-        onPrimaryContainer = onPC,
-        secondary = lerp(p, toward, 0.25f) ?: p,
-        onSecondary = onP,
-        secondaryContainer = lerp(pc, base.surface, 0.45f) ?: pc,
-        tertiary = lerp(p, toward, 0.45f) ?: p,
-        onTertiary = onP
+        onPrimaryContainer = contrastForeground(pc),
+        secondary = secondary,
+        onSecondary = contrastForeground(secondary),
+        secondaryContainer = secondaryContainer,
+        onSecondaryContainer = contrastForeground(secondaryContainer),
+        tertiary = tertiary,
+        onTertiary = contrastForeground(tertiary),
+        surface = surface,
+        background = surface,
+        onSurfaceVariant = readableAccent(base.onSurfaceVariant, base.surface, dark),
+        outline = readableAccent(base.outline, base.surface, dark),
+        surfaceVariant = lerp(base.surfaceVariant, pc, .12f),
+        surfaceContainerLowest = lerp(base.surfaceContainerLowest, p, .012f),
+        surfaceContainerLow = lerp(base.surfaceContainerLow, pc, .08f),
+        surfaceContainer = lerp(base.surfaceContainer, pc, .10f),
+        surfaceContainerHigh = lerp(base.surfaceContainerHigh, pc, .12f),
+        surfaceContainerHighest = lerp(base.surfaceContainerHighest, pc, .14f)
     )
+}
+
+/** The better of black and white always reaches at least 4.5:1 on an opaque color. */
+internal fun contrastForeground(background: Color): Color =
+    if (background.luminance() > .179f) Color.Black else Color.White
+
+internal fun wallpaperSurface(surface: Color): Color =
+    surface.copy(alpha = if (surface.luminance() < .5f) .90f else .88f)
+
+private fun readableAccent(color: Color, surface: Color, dark: Boolean): Color {
+    val target = if (dark) Color.White else Color.Black
+    // Both ends bound any wallpaper color; leave margin for the subsequent surface tint.
+    val backgrounds = listOf(surface, wallpaperSurface(surface).compositeOver(Color.Black),
+        wallpaperSurface(surface).compositeOver(Color.White))
+    fun contrast(c: Color): Float = backgrounds.minOf { background ->
+        (maxOf(c.luminance(), background.luminance()) + .05f) /
+            (minOf(c.luminance(), background.luminance()) + .05f)
+    }
+    if (contrast(color) >= 4.8f) return color
+    var low = 0f
+    var high = 1f
+    repeat(16) {
+        val mid = (low + high) / 2
+        if (contrast(lerp(color, target, mid)) >= 4.8f) high = mid else low = mid
+    }
+    return lerp(color, target, high)
 }

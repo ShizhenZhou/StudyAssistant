@@ -224,7 +224,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 20.dp).size(76.dp)
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ShutterIcon(size = 40.dp, color = Color.White) }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ShutterIcon(size = 40.dp, color = MaterialTheme.colorScheme.onPrimary) }
         }
 
         // 单张/两张切换（右下，正常大小）；重做模式下这一张固定是"我的作答"，不显示切换

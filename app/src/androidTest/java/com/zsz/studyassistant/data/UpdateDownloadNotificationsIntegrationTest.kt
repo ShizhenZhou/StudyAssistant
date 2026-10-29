@@ -198,14 +198,14 @@ class UpdateDownloadNotificationsIntegrationTest {
         var request: UpdateDownloadMonitor.Request? = null
         val manager = context.getSystemService(android.app.NotificationManager::class.java)
         val done = stringsFor(UiLangStore.load(context))["update.notif.completedShort"]
-        suspend fun <T> awaitStage(name: String, block: suspend () -> T): T = try {
-            kotlinx.coroutines.withTimeout(8000) { block() }
+        suspend fun <T> awaitStage(name: String, timeout: Long = 8000, block: suspend () -> T): T = try {
+            kotlinx.coroutines.withTimeout(timeout) { block() }
         } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
             val notices = manager.activeNotifications.filter { it.id in setOf(UpdateDownloadNotifications.NOTIFICATION_ID, UpdateDownloadNotifications.TERMINAL_ID) }
                 .map { "flags=${it.notification.flags}, progress=${it.notification.extras.getInt(Notification.EXTRA_PROGRESS, -1)}, short=${NotificationCompat.getShortCriticalText(it.notification)}" }
             throw AssertionError("Completion stage $name timed out; notices=$notices", error)
         }
-        suspend fun awaitNotice(ongoing: Boolean): Notification = awaitStage("completion ongoing=$ongoing") {
+        suspend fun awaitNotice(ongoing: Boolean, timeout: Long = 8000): Notification = awaitStage("completion ongoing=$ongoing", timeout) {
             var result: Notification? = null
             while (result == null) {
                 result = manager.activeNotifications.firstOrNull {
@@ -238,8 +238,27 @@ class UpdateDownloadNotificationsIntegrationTest {
                     val briefly = awaitNotice(true)
                     assertTrue(NotificationCompat.isRequestPromotedOngoing(briefly))
                     assertTrue(briefly.actions.isNullOrEmpty())
+                    // Exceed the old three-second deadline, then replace the completed task.
+                    kotlinx.coroutines.delay(4000)
+                    awaitNotice(true)
+                    scenario.onActivity { request = UpdateDownloadMonitor.request(it) }
+                    assertTrue(kotlinx.coroutines.withTimeout(4000) { request!!.ready.await() })
+                    downloads.cancel()
+                    val replacement = downloads.start(rel.copy(assetSize = 7), appNotification = true)
+                    assertNotEquals(started.token, replacement.token)
+                    request!!.bound(replacement)
+                    awaitStage("new request interrupts retained completion") {
+                        while (manager.activeNotifications.none { it.id == UpdateDownloadNotifications.NOTIFICATION_ID &&
+                            it.notification.extras.getInt(Notification.EXTRA_PROGRESS, -1) == 42 }) kotlinx.coroutines.delay(50)
+                    }
+                    backend.file!!.writeText("fixture")
+                    backend.current = backend.current!!.copy(status = UpdateDownloads.TransferPhase.SUCCESS, bytes = 7)
+                    awaitNotice(true)
                 }
-                val settled = awaitNotice(false)
+                val completionSeenAt = android.os.SystemClock.elapsedRealtime()
+                val settled = awaitNotice(false, timeout = UpdateDownloadMonitor.COMPLETION_CHIP_MS + 8000)
+                assertTrue("Keep completion for more than two minutes",
+                    android.os.SystemClock.elapsedRealtime() - completionSeenAt > 120_000)
                 assertTrue(settled.flags and Notification.FLAG_AUTO_CANCEL != 0)
                 assertFalse(NotificationCompat.isRequestPromotedOngoing(settled))
                 assertEquals(0, settled.extras.getInt(Notification.EXTRA_PROGRESS_MAX))

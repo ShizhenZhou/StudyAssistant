@@ -19,6 +19,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +58,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
@@ -179,12 +185,13 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             else applyModes(next)
         }
         pendingModes?.let { next ->
+            val restart = next == (doubleMode to gradeMode)
             AlertDialog(
                 onDismissRequest = { pendingModes = null },
-                title = { Text(s["camera.discardTitle"]) },
-                text = { Text(s["camera.discardMessage"]) },
+                title = { Text(s[if (restart) "camera.restartTitle" else "camera.discardTitle"]) },
+                text = { Text(s[if (restart) "camera.restartMessage" else "camera.discardMessage"]) },
                 confirmButton = { TextButton(onClick = { pendingModes = null; applyModes(next) }) {
-                    Text(s["camera.discardConfirm"])
+                    Text(s[if (restart) "camera.restart" else "camera.discardConfirm"])
                 } },
                 dismissButton = { TextButton(onClick = { pendingModes = null }) { Text(s["common.cancel"]) } }
             )
@@ -357,7 +364,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .size(76.dp)
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                ShutterIcon(size = 40.dp, color = Color.White)
+                ShutterIcon(size = 40.dp, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
 
@@ -382,8 +389,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 两张模式提示；批改模式下改用批改文案（第 1 张题目、第 2 张我的作答）
         if (doubleMode) {
-            Text(
-                if (vm.cropNeedsMore) {
+            CaptureProgress(
+                step = if (vm.cropNeedsMore) 2 else 1,
+                hint = if (vm.cropNeedsMore) {
                     if (gradeMode) s["grade.hint.answer"] else s["camera.hint.twoSecond"]
                 } else {
                     if (gradeMode) s["grade.hint.twoFirst"] else s["camera.hint.twoFirst"]
@@ -391,19 +399,23 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
-                    .padding(top = 14.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White
+                    .padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                firstPath = vm.cropPaths.firstOrNull().takeIf { vm.cropNeedsMore },
+                enabled = !vm.busy && !captureInFlight,
+                onRestart = { pendingModes = doubleMode to gradeMode }
             )
         }
 
         // 返回箭头：全应用统一样式（见 SubPageBackArrow）
         SubPageBackArrow(
             onClick = { nav.popBackStack() },
+            contentColor = Color.White,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
                 .padding(8.dp)
+                .background(Color.Black.copy(alpha = .65f), RoundedCornerShape(24.dp))
+                .padding(horizontal = 12.dp)
         )
 
         // 右上角：批改开关（开 = 批改模式，关 = 正常拍照搜题）；状态记忆，下次进页面沿用
@@ -413,11 +425,13 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(8.dp)
+                .background(Color.Black.copy(alpha = .65f), RoundedCornerShape(24.dp))
+                .padding(horizontal = 12.dp)
         ) {
             Text(
                 s["camera.gradeToggle"],
                 fontSize = BTN_LABEL,
-                color = if (gradeMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color.White
             )
             Spacer(Modifier.width(6.dp))
             Switch(
@@ -427,6 +441,39 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     requestModes(doubleMode to it)
                 }
             )
+        }
+    }
+}
+
+/** Bounded, oriented thumbnail; decoding never blocks camera preview or the main thread. */
+@Composable
+internal fun CaptureProgress(step: Int, hint: String, firstPath: String?, enabled: Boolean,
+                             onRestart: () -> Unit, modifier: Modifier = Modifier) {
+    val s = LocalStrings.current
+    val thumbnail by produceState<Pair<String, android.graphics.Bitmap?>?>(null, firstPath) {
+        value = firstPath?.let { path ->
+            path to kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { com.zsz.studyassistant.data.CaptureImage.decode(path, maxDim = 192) }.getOrNull()
+            }
+        }
+    }
+    Surface(modifier, shape = RoundedCornerShape(18.dp), color = Color.Black.copy(alpha = .72f),
+        contentColor = Color.White) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            thumbnail?.takeIf { it.first == firstPath }?.second?.let {
+                Image(it.asImageBitmap(), contentDescription = s["camera.capturedFirst"],
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)))
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text("$step / 2", style = MaterialTheme.typography.labelLarge)
+                Text(hint, style = MaterialTheme.typography.bodySmall)
+            }
+            if (firstPath != null) TextButton(onClick = onRestart, enabled = enabled,
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = Color.White)) {
+                Text(s["camera.restart"], style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

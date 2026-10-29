@@ -45,6 +45,23 @@ class AppFeedbackState(private val scope: CoroutineScope) {
     private var activeVisuals: FeedbackVisuals? = null
     private var activeAction: (() -> Unit)? = null
     private var afterUndo: (() -> Unit)? = null
+    var backExitHint by mutableStateOf<String?>(null)
+        private set
+    private var backExitJob: Job? = null
+
+    fun showBackExitHint(message: String) {
+        backExitJob?.cancel()
+        backExitHint = message
+        backExitJob = scope.launch {
+            kotlinx.coroutines.delay(ROOT_BACK_HINT_MS)
+            backExitHint = null
+        }
+    }
+    fun clearBackExitHint() {
+        backExitJob?.cancel()
+        backExitJob = null
+        backExitHint = null
+    }
 
     fun show(message: String, isError: Boolean = false, source: String = "",
              actionLabel: String? = null, onAction: (() -> Unit)? = null) {
@@ -117,7 +134,10 @@ fun AppFeedbackLayout(vm: MainViewModel, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalAppFeedback provides state) {
         FeedbackMessage(vm.deleteError, true) { vm.clearDeleteError() }
         FeedbackMessage(vm.draftError, true) { vm.clearDraftError() }
-        Surface(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize(), contentColor = MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.surface.let {
+            if (vm.wallpaperBackground) wallpaperSurface(it) else it
+        }) {
             Box(Modifier.fillMaxSize()) {
                 content()
                 SaveRecoveryDialogs(vm)
@@ -131,6 +151,19 @@ fun AppFeedbackLayout(vm: MainViewModel, content: @Composable () -> Unit) {
 private fun FeedbackHost(state: AppFeedbackState) {
     // Official SnackbarHost owns animation, dismissal and accessible timeout adjustment.
     BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
+        state.backExitHint?.let { message ->
+            Surface(
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(bottom = maxHeight * .18f + if (state.hostState.currentSnackbarData != null) 72.dp else 0.dp)
+                    .padding(horizontal = 24.dp).widthIn(max = 480.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+                shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface, shadowElevation = 6.dp
+            ) {
+                Text(message, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
         SnackbarHost(
             hostState = state.hostState,
             modifier = Modifier.align(Alignment.BottomCenter)

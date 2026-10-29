@@ -3,8 +3,11 @@ package com.zsz.studyassistant.ui
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
@@ -20,10 +23,12 @@ import androidx.compose.ui.unit.dp
  * @param onClick 返回动作（通常是 `{ nav.popBackStack() }`）
  */
 @Composable
-internal fun SubPageBackArrow(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun SubPageBackArrow(onClick: () -> Unit, modifier: Modifier = Modifier,
+                              contentColor: Color = MaterialTheme.colorScheme.primary) {
     TextButton(
         onClick = onClick,
         modifier = modifier,
+        colors = ButtonDefaults.textButtonColors(contentColor = contentColor),
         contentPadding = PaddingValues(horizontal = 4.dp)
     ) {
         Text("←", fontSize = BACK_ARROW_SP)

@@ -7,6 +7,16 @@ import org.junit.Test
 
 /** Real SnackbarHostState behavior, with no Activity, phone, filesystem or production data. */
 class AppFeedbackTest {
+    @Test fun `root back hint expires in two seconds without replacing undo`() = checkFeedback { state ->
+        state.showDeletion("Removed", "Undo") { }
+        val undo = state.hostState.currentSnackbarData
+        state.showBackExitHint("Press back again")
+        assertEquals("Press back again", state.backExitHint)
+        assertSame(undo, state.hostState.currentSnackbarData)
+        delay(2100)
+        assertNull(state.backExitHint)
+        assertSame(undo, state.hostState.currentSnackbarData)
+    }
     @Test fun `undo stays visible when a backup finishes and a failure waits behind it`() = checkFeedback { state ->
         var undone=false
         state.showDeletion("Removed", "Undo") { undone=true }

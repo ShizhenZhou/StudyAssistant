@@ -3,7 +3,20 @@ package com.zsz.studyassistant.ui
 private val B14_ZH = mapOf(
     "camera.unavailable" to "相机暂不可用，仍可从图库选择图片。",
     "camera.gallery" to "从图库选择",
+    "back.exit.pressAgain" to "再按返回桌面",
+    "back.exit.swipeAgain" to "再划返回桌面",
+    "catManage.customOrder" to "自定义排列顺序",
+    "catManage.dragHint" to "长按 ≡ 拖动科目排序，拖到列表边缘可滚动；松手后自动保存。关闭开关后恢复按题数排序。",
+    "catManage.count" to "{n} 题",
+    "catManage.drag" to "拖动排序：{name}",
+    "catManage.moveUp" to "上移",
+    "catManage.moveDown" to "下移",
+    "review.filter.chooseSubject" to "选择科目，下拉菜单",
     "camera.discardTitle" to "放弃当前图片并切换模式？",
+    "camera.restartTitle" to "重新拍摄这道题？",
+    "camera.restartMessage" to "将放弃当前图片和框选结果，重新拍摄第一张。",
+    "camera.restart" to "重新拍摄",
+    "camera.capturedFirst" to "已拍第一张",
     "camera.discardMessage" to "当前拍题尚未完成。切换模式会清除已选图片及框选结果。",
     "camera.discardConfirm" to "放弃并切换",
     "camera.recoveryReadFailed" to "无法恢复上次拍题进度，请重新拍摄；错题本数据未受影响。",
@@ -91,7 +104,20 @@ private val B14_ZH = mapOf(
 private val B14_EN = mapOf(
     "camera.unavailable" to "Camera unavailable. You can still choose images from the gallery.",
     "camera.gallery" to "Choose from gallery",
+    "back.exit.pressAgain" to "Press back again to go home",
+    "back.exit.swipeAgain" to "Swipe back again to go home",
+    "catManage.customOrder" to "Custom order",
+    "catManage.dragHint" to "Hold ≡ and drag to reorder; move to an edge to scroll. Release to save. Turn this off to sort by problem count.",
+    "catManage.count" to "{n} problems",
+    "catManage.drag" to "Drag to reorder: {name}",
+    "catManage.moveUp" to "Move up",
+    "catManage.moveDown" to "Move down",
+    "review.filter.chooseSubject" to "Choose subject, dropdown menu",
     "camera.discardTitle" to "Discard current images and switch mode?",
+    "camera.restartTitle" to "Retake this question?",
+    "camera.restartMessage" to "Discard the current images and crops, then take the first photo again.",
+    "camera.restart" to "Retake",
+    "camera.capturedFirst" to "First photo captured",
     "camera.discardMessage" to "This capture is unfinished. Switching mode will clear the selected images and crop results.",
     "camera.discardConfirm" to "Discard and switch",
     "camera.recoveryReadFailed" to "Could not restore the previous photo session. Take the photos again; your notebook is unchanged.",
@@ -179,7 +205,20 @@ private val B14_EN = mapOf(
 private val B14_JA = mapOf(
     "camera.unavailable" to "カメラを利用できません。ギャラリーから画像を選択できます。",
     "camera.gallery" to "ギャラリーから選択",
+    "back.exit.pressAgain" to "もう一度戻るボタンを押すとホームに戻ります",
+    "back.exit.swipeAgain" to "もう一度戻るスワイプでホームに戻ります",
+    "catManage.customOrder" to "並び順をカスタマイズ",
+    "catManage.dragHint" to "≡ を長押ししてドラッグすると並べ替えできます。端でスクロールし、離すと保存します。オフにすると問題数順に戻ります。",
+    "catManage.count" to "{n} 問",
+    "catManage.drag" to "ドラッグして並べ替え：{name}",
+    "catManage.moveUp" to "上へ移動",
+    "catManage.moveDown" to "下へ移動",
+    "review.filter.chooseSubject" to "科目を選択、ドロップダウンメニュー",
     "camera.discardTitle" to "現在の画像を破棄してモードを切り替えますか？",
+    "camera.restartTitle" to "この問題を撮り直しますか？",
+    "camera.restartMessage" to "現在の画像と切り抜きを破棄し、1枚目から撮り直します。",
+    "camera.restart" to "撮り直す",
+    "camera.capturedFirst" to "撮影済みの1枚目",
     "camera.discardMessage" to "撮影がまだ完了していません。モードを切り替えると、選択した画像と切り抜き結果が消去されます。",
     "camera.discardConfirm" to "破棄して切り替え",
     "camera.recoveryReadFailed" to "前回の撮影状態を復元できませんでした。再撮影してください。ノートのデータは保持されています。",
@@ -267,7 +306,20 @@ private val B14_JA = mapOf(
 private val B14_KO = mapOf(
     "camera.unavailable" to "카메라를 사용할 수 없습니다. 갤러리에서 이미지를 선택할 수 있습니다.",
     "camera.gallery" to "갤러리에서 선택",
+    "back.exit.pressAgain" to "뒤로 버튼을 한 번 더 누르면 홈으로 돌아갑니다",
+    "back.exit.swipeAgain" to "한 번 더 뒤로 스와이프하면 홈으로 돌아갑니다",
+    "catManage.customOrder" to "순서 직접 지정",
+    "catManage.dragHint" to "≡ 를 길게 눌러 드래그하면 순서를 바꿉니다. 가장자리에서 스크롤하며, 놓으면 저장합니다. 끄면 문제 수순으로 돌아갑니다.",
+    "catManage.count" to "{n}문제",
+    "catManage.drag" to "드래그하여 순서 변경: {name}",
+    "catManage.moveUp" to "위로 이동",
+    "catManage.moveDown" to "아래로 이동",
+    "review.filter.chooseSubject" to "과목 선택, 드롭다운 메뉴",
     "camera.discardTitle" to "현재 이미지를 버리고 모드를 전환할까요?",
+    "camera.restartTitle" to "이 문제를 다시 촬영할까요?",
+    "camera.restartMessage" to "현재 이미지와 자르기 결과를 버리고 첫 번째 사진부터 다시 촬영합니다.",
+    "camera.restart" to "다시 촬영",
+    "camera.capturedFirst" to "촬영한 첫 번째 사진",
     "camera.discardMessage" to "아직 촬영이 완료되지 않았습니다. 모드를 전환하면 선택한 이미지와 자르기 결과가 지워집니다.",
     "camera.discardConfirm" to "버리고 전환",
     "camera.recoveryReadFailed" to "이전 촬영 상태를 복원하지 못했습니다. 다시 촬영해 주세요. 오답노트 데이터는 유지됩니다.",
@@ -408,30 +460,30 @@ private val B0_ZH = mapOf(
     "stats.daysAgo7" to "6 天前",
     "nav.settings" to "设置",
 
-    "home.subtitle" to "拍照搜题 · AI 解答 · 错题整理",
-    "home.camera" to "📷  拍照搜题",
+    "home.subtitle" to "拍照解题 · AI 解答 · 错题整理",
+    "home.camera" to "📷  拍照解题",
     "home.ask" to "✏️  图文提问",
     "camera.gradeToggle" to "批改",
     "home.grade" to "✏️  批改题目",
     "home.notebook" to "📚  错题本",
     "home.review" to "📖  复习",
-    // ── 搜题记录（2026-10-13）──
-    "home.history" to "🕘  搜题记录",
-    "history.empty" to "还没有搜题记录。首次拍题或提交图文提问后会留下记录，按首次提问时间排序；从错题本打开不会新增记录。",
+    // ── 解题记录（2026-10-13）──
+    "home.history" to "🕘  解题记录",
+    "history.empty" to "还没有解题记录。首次拍题或提交图文提问后会留下记录，按首次提问时间排序；从错题本打开不会新增记录。",
     "history.count" to "当前共 {n} 条",
     // ★ 2026-10-18：顶栏标题**不带 emoji**（emoji 只留在主页那个按钮的 home.history 上）
-    "history.title" to "搜题记录",
-    "history.saveFailed" to "{n} 条搜题记录尚未保存。请在关闭应用前重试。",
+    "history.title" to "解题记录",
+    "history.saveFailed" to "{n} 条解题记录尚未保存。请在关闭应用前重试。",
     "history.saveRetry" to "重试保存",
     "history.saveRetrying" to "正在保存…",
-    "history.deleteFailed" to "删除搜题记录失败，请重试。",
+    "history.deleteFailed" to "删除解题记录失败，请重试。",
     "history.today" to "今天",
     "history.yesterday" to "昨天",
     "history.earlier" to "更早",
     "history.saved" to "已存错题本",
     "history.notSaved" to "未存错题本",
     "history.deleteConfirm.title" to "确认删除",
-    "history.deleteConfirm.text" to "确定删除选中的 {n} 条搜题记录吗？此操作不可恢复。",
+    "history.deleteConfirm.text" to "确定删除选中的 {n} 条解题记录吗？此操作不可恢复。",
     "home.key.title" to "配置 DeepSeek API Key",
     "home.key.hint" to "请输入你的 DeepSeek API Key（sk- 开头，加密保存在本机）",
     "home.key.save" to "保存",
@@ -459,6 +511,8 @@ private val B0_ZH = mapOf(
     "settings.theme.mode" to "主题模式",
     "settings.theme.color" to "主题配色",
     "settings.theme.custom" to "自定义颜色",
+    "settings.theme.wallpaper" to "显示系统壁纸",
+    "settings.theme.wallpaperHint" to "在半透明背景后显示壁纸，卡片和正文保持清晰。",
     "settings.theme.hue" to "色相",
     "settings.theme.sat" to "饱和度",
     "settings.theme.value" to "明度",
@@ -517,18 +571,18 @@ private val B0_EN = mapOf(
     "stats.daysAgo7" to "6 days ago",
     "nav.settings" to "Settings",
 
-    "home.subtitle" to "Photo search · AI solutions · Mistake notebook",
+    "home.subtitle" to "Photo solving · AI solutions · Mistake notebook",
     "home.camera" to "📷  Solve by photo",
     "home.ask" to "✏️  Ask with text/image",
     "camera.gradeToggle" to "Grade",
     "home.grade" to "✏️  Grade my work",
     "home.notebook" to "📚  Notebook",
     "home.review" to "📖  Review",
-    // ── 搜题记录（2026-10-13）──
-    "home.history" to "🕘  Search history",
+    // ── 解题记录（2026-10-13）──
+    "home.history" to "🕘  Solution history",
     "history.empty" to "No search records yet. Photo and text submissions appear here in first-question order. Opening a notebook problem does not add a record.",
     "history.count" to "{n} records",
-    "history.title" to "Search history",
+    "history.title" to "Solution history",
     "history.saveFailed" to "{n} history records are not saved. Retry before closing the app.",
     "history.saveRetry" to "Retry saving",
     "history.saveRetrying" to "Saving…",
@@ -567,6 +621,8 @@ private val B0_EN = mapOf(
     "settings.theme.mode" to "Theme mode",
     "settings.theme.color" to "Theme colour",
     "settings.theme.custom" to "Custom colour",
+    "settings.theme.wallpaper" to "Show system wallpaper",
+    "settings.theme.wallpaperHint" to "Show your wallpaper behind a translucent background while keeping cards and text readable.",
     "settings.theme.hue" to "Hue",
     "settings.theme.sat" to "Saturation",
     "settings.theme.value" to "Brightness",
@@ -625,18 +681,18 @@ private val B0_JA = mapOf(
     "stats.daysAgo7" to "6 日前",
     "nav.settings" to "設定",
 
-    "home.subtitle" to "撮影で検索 · AI 解答 · 間違いノート",
-    "home.camera" to "📷  撮影して質問",
+    "home.subtitle" to "撮影して解答 · AI 解答 · 間違いノート",
+    "home.camera" to "📷  撮影して解答",
     "home.ask" to "✏️  文字/画像で質問",
     "camera.gradeToggle" to "添削",
     "home.grade" to "✏️  添削",
     "home.notebook" to "📚  間違いノート",
     "home.review" to "📖  復習",
-    // ── 搜题记录（2026-10-13）──
-    "home.history" to "🕘  検索履歴",
-    "history.empty" to "検索履歴はまだありません。撮影・質問の初回送信時に記録し、その日時で並びます。ノートから開いても追加しません。",
+    // ── 解题记录（2026-10-13）──
+    "home.history" to "🕘  解答履歴",
+    "history.empty" to "解答履歴はまだありません。撮影・質問の初回送信時に記録し、その日時で並びます。ノートから開いても追加しません。",
     "history.count" to "現在 {n} 件",
-    "history.title" to "検索履歴",
+    "history.title" to "解答履歴",
     "history.saveFailed" to "履歴 {n} 件が未保存です。アプリを閉じる前に再試行してください。",
     "history.saveRetry" to "保存を再試行",
     "history.saveRetrying" to "保存中…",
@@ -647,7 +703,7 @@ private val B0_JA = mapOf(
     "history.saved" to "ノートに保存済み",
     "history.notSaved" to "未保存",
     "history.deleteConfirm.title" to "削除の確認",
-    "history.deleteConfirm.text" to "選択した {n} 件の検索履歴を削除しますか？元に戻せません。",
+    "history.deleteConfirm.text" to "選択した {n} 件の解答履歴を削除しますか？元に戻せません。",
     "home.key.title" to "DeepSeek API Key の設定",
     "home.key.hint" to "DeepSeek API Key を入力してください（sk- で始まる／端末内に暗号化して保存）",
     "home.key.save" to "保存",
@@ -675,6 +731,8 @@ private val B0_JA = mapOf(
     "settings.theme.mode" to "テーマモード",
     "settings.theme.color" to "テーマカラー",
     "settings.theme.custom" to "カスタムカラー",
+    "settings.theme.wallpaper" to "システムの壁紙を表示",
+    "settings.theme.wallpaperHint" to "半透明の背景の後ろに壁紙を表示し、カードと本文の読みやすさを保ちます。",
     "settings.theme.hue" to "色相",
     "settings.theme.sat" to "彩度",
     "settings.theme.value" to "明度",
@@ -733,29 +791,29 @@ private val B0_KO = mapOf(
     "stats.daysAgo7" to "6일 전",
     "nav.settings" to "설정",
 
-    "home.subtitle" to "사진 검색 · AI 풀이 · 오답 노트",
-    "home.camera" to "📷  사진으로 질문",
+    "home.subtitle" to "사진으로 풀이 · AI 풀이 · 오답 노트",
+    "home.camera" to "📷  사진으로 풀이",
     "home.ask" to "✏️  글/이미지 질문",
     "camera.gradeToggle" to "첨삭",
     "home.grade" to "✏️  채점",
     "home.notebook" to "📚  오답 노트",
     "home.review" to "📖  복습",
-    // ── 搜题记录（2026-10-13）──
-    "home.history" to "🕘  검색 기록",
-    "history.empty" to "검색 기록이 없습니다. 촬영 또는 질문을 처음 제출한 시간순으로 기록하며, 오답 노트에서 열어도 새 기록을 추가하지 않습니다.",
+    // ── 解题记录（2026-10-13）──
+    "home.history" to "🕘  풀이 기록",
+    "history.empty" to "풀이 기록이 없습니다. 촬영 또는 질문을 처음 제출한 시간순으로 기록하며, 오답 노트에서 열어도 새 기록을 추가하지 않습니다.",
     "history.count" to "현재 {n}건",
-    "history.title" to "검색 기록",
-    "history.saveFailed" to "검색 기록 {n}개가 저장되지 않았습니다. 앱을 닫기 전에 다시 시도하세요.",
+    "history.title" to "풀이 기록",
+    "history.saveFailed" to "풀이 기록 {n}개가 저장되지 않았습니다. 앱을 닫기 전에 다시 시도하세요.",
     "history.saveRetry" to "저장 재시도",
     "history.saveRetrying" to "저장 중…",
-    "history.deleteFailed" to "검색 기록을 삭제하지 못했습니다. 다시 시도하세요.",
+    "history.deleteFailed" to "풀이 기록을 삭제하지 못했습니다. 다시 시도하세요.",
     "history.today" to "오늘",
     "history.yesterday" to "어제",
     "history.earlier" to "그 이전",
     "history.saved" to "노트에 저장됨",
     "history.notSaved" to "저장 안 됨",
     "history.deleteConfirm.title" to "삭제 확인",
-    "history.deleteConfirm.text" to "선택한 검색 기록 {n}건을 삭제할까요? 되돌릴 수 없습니다.",
+    "history.deleteConfirm.text" to "선택한 풀이 기록 {n}건을 삭제할까요? 되돌릴 수 없습니다.",
     "home.key.title" to "DeepSeek API Key 설정",
     "home.key.hint" to "DeepSeek API Key를 입력하세요 (sk- 로 시작, 기기에 암호화되어 저장됩니다)",
     "home.key.save" to "저장",
@@ -783,6 +841,8 @@ private val B0_KO = mapOf(
     "settings.theme.mode" to "테마 모드",
     "settings.theme.color" to "테마 색상",
     "settings.theme.custom" to "사용자 지정 색",
+    "settings.theme.wallpaper" to "시스템 배경화면 표시",
+    "settings.theme.wallpaperHint" to "반투명 배경 뒤에 배경화면을 표시하며 카드와 본문의 가독성을 유지합니다.",
     "settings.theme.hue" to "색상",
     "settings.theme.sat" to "채도",
     "settings.theme.value" to "밝기",
@@ -807,7 +867,7 @@ private val B1_ZH = mapOf(
     "common.back" to "返回",
     "common.backArrow" to "← 返回",
 
-    "camera.permNeeded" to "需要相机权限才能拍照搜题",
+    "camera.permNeeded" to "需要相机权限才能拍照解题",
     "camera.grantPerm" to "授予相机权限",
     "camera.errRead" to "读取图片失败：{msg}",
     "camera.errShot" to "拍照失败：{msg}",
@@ -879,7 +939,7 @@ private val B1_JA = mapOf(
     "common.back" to "戻る",
     "common.backArrow" to "← 戻る",
 
-    "camera.permNeeded" to "撮影して質問するにはカメラの権限が必要です",
+    "camera.permNeeded" to "撮影して解答するにはカメラの権限が必要です",
     "camera.grantPerm" to "カメラ権限を許可",
     "camera.errRead" to "画像を読み込めませんでした：{msg}",
     "camera.errShot" to "撮影に失敗しました：{msg}",
@@ -915,7 +975,7 @@ private val B1_KO = mapOf(
     "common.back" to "뒤로",
     "common.backArrow" to "← 뒤로",
 
-    "camera.permNeeded" to "사진으로 질문하려면 카메라 권한이 필요합니다",
+    "camera.permNeeded" to "사진으로 문제를 풀려면 카메라 권한이 필요합니다",
     "camera.grantPerm" to "카메라 권한 허용",
     "camera.errRead" to "이미지를 읽지 못했습니다: {msg}",
     "camera.errShot" to "촬영에 실패했습니다: {msg}",
@@ -1239,7 +1299,7 @@ private val B4_ZH = mapOf(
     "notebook.empty.uncategorized" to "还没有「未分类」的错题",
     "notebook.empty.category" to "该分类下暂无错题",
     "notebook.empty.tag" to "该标签下暂无错题",
-    "notebook.empty.default" to "还没有错题，去拍照搜题吧 📷",
+    "notebook.empty.default" to "还没有错题，去拍照解题吧 📷",
     "notebook.batchCategory" to "批量设置分类",
     "notebook.purge.title" to "彻底删除",
     "notebook.purge.text" to "确定要彻底删除选中的 {n} 项吗？此操作不可恢复。",
@@ -1289,7 +1349,7 @@ private val B4_JA = mapOf(
     "notebook.empty.uncategorized" to "「未分類」の問題はまだありません",
     "notebook.empty.category" to "この分類にはまだ問題がありません",
     "notebook.empty.tag" to "このタグにはまだ問題がありません",
-    "notebook.empty.default" to "まだ問題がありません。撮影して質問しましょう 📷",
+    "notebook.empty.default" to "まだ問題がありません。撮影して解答しましょう 📷",
     "notebook.batchCategory" to "選択項目の分類を設定",
     "notebook.purge.title" to "完全に削除",
     "notebook.purge.text" to "選択した {n} 件を完全に削除しますか？元に戻せません。",
@@ -1314,7 +1374,7 @@ private val B4_KO = mapOf(
     "notebook.empty.uncategorized" to "'미분류' 문제가 아직 없습니다",
     "notebook.empty.category" to "이 분류에는 문제가 없습니다",
     "notebook.empty.tag" to "이 태그에는 문제가 없습니다",
-    "notebook.empty.default" to "아직 문제가 없습니다. 사진으로 질문해 보세요 📷",
+    "notebook.empty.default" to "아직 문제가 없습니다. 사진으로 문제를 풀어 보세요 📷",
     "notebook.batchCategory" to "선택 항목 분류 설정",
     "notebook.purge.title" to "완전 삭제",
     "notebook.purge.text" to "선택한 {n}개를 완전히 삭제할까요? 되돌릴 수 없습니다.",
@@ -1355,7 +1415,7 @@ private val B5_ZH = mapOf(
 
     "about.version" to "版本 {v}",
     "about.author" to "作者：zsz",
-    "about.desc" to "本应用由 DeepSeek-V4/V4.1 与 GPT-6.1 Sol 辅助编写，用于拍照搜题、AI 解答与错题整理。",
+    "about.desc" to "本应用由DeepSeek与GPT辅助编写，用于拍照解题、AI 解答与错题整理。",
 
     "timePicker.title" to "设置提醒时间"
 )
@@ -1384,7 +1444,7 @@ private val B5_EN = mapOf(
 
     "about.version" to "Version {v}",
     "about.author" to "Author: zsz",
-    "about.desc" to "Built with the help of DeepSeek-V4/V4.1 and GPT-6.1 Sol, for photo problem search, AI solutions and mistake notes.",
+    "about.desc" to "Built with the help of DeepSeek and GPT, for solving problems from photos, AI solutions and mistake notes.",
 
     "timePicker.title" to "Reminder time"
 )
@@ -1413,7 +1473,7 @@ private val B5_JA = mapOf(
 
     "about.version" to "バージョン {v}",
     "about.author" to "作者：zsz",
-    "about.desc" to "本アプリは DeepSeek-V4/V4.1 と GPT-6.1 Sol の支援で作成しました。撮影検索・AI 解答・間違い整理に使えます。",
+    "about.desc" to "本アプリは DeepSeek と GPT の支援で作成しました。撮影での問題解答・AI 解答・間違い整理に使えます。",
 
     "timePicker.title" to "リマインダー時刻"
 )
@@ -1442,7 +1502,7 @@ private val B5_KO = mapOf(
 
     "about.version" to "버전 {v}",
     "about.author" to "만든이: zsz",
-    "about.desc" to "DeepSeek-V4/V4.1과 GPT-6.1 Sol의 도움으로 제작한 앱입니다. 사진 검색, AI 풀이, 오답 정리에 사용합니다.",
+    "about.desc" to "DeepSeek와 GPT의 도움으로 제작한 앱입니다. 사진으로 문제 풀이, AI 풀이, 오답 정리에 사용합니다.",
 
     "timePicker.title" to "알림 시간"
 )
@@ -1560,9 +1620,9 @@ private val B7_ZH = mapOf(
     "data.import" to "导入备份",
     "data.import.desc" to "从 JSON 备份恢复：同名分类/标签会复用，题干相同的题目跳过",
     "data.clear" to "清空所有数据",
-    "data.clear.desc" to "删除全部错题、搜题记录、对话草稿、分类、标签与复习进度（不可恢复）",
+    "data.clear.desc" to "删除全部错题、解题记录、对话草稿、分类、标签与复习进度（不可恢复）",
     "data.clear.title" to "确认清空",
-    "data.clear.text" to "将删除全部 {n} 道错题、搜题记录、对话草稿及分类/标签/复习进度，且无法恢复。建议先导出备份。",
+    "data.clear.text" to "将删除全部 {n} 道错题、解题记录、对话草稿及分类/标签/复习进度，且无法恢复。建议先导出备份。",
     "data.clear.inputLabel" to "请输入下面的文字以确认：",
     "data.clear.phrase" to "我同意删除本应用所有数据",
     "data.exporting" to "正在导出…",
@@ -1694,9 +1754,9 @@ private val B7_EN = mapOf(
     "data.import" to "Import backup",
     "data.import.desc" to "Restore from a JSON backup: same-name categories/tags are reused, identical questions are skipped",
     "data.clear" to "Erase all data",
-    "data.clear.desc" to "Delete all problems, search history, conversation drafts, categories, tags and review progress (cannot be undone)",
+    "data.clear.desc" to "Delete all problems, solution history, conversation drafts, categories, tags and review progress (cannot be undone)",
     "data.clear.title" to "Confirm erase",
-    "data.clear.text" to "This deletes all {n} problems, search history, conversation drafts, categories, tags and review progress. It cannot be undone — export a backup first.",
+    "data.clear.text" to "This deletes all {n} problems, solution history, conversation drafts, categories, tags and review progress. It cannot be undone — export a backup first.",
     "data.clear.inputLabel" to "Type the text below to confirm:",
     "data.clear.phrase" to "I agree to delete all data of this app",
     "data.exporting" to "Exporting…",
@@ -1828,9 +1888,9 @@ private val B7_JA = mapOf(
     "data.import" to "バックアップを読み込む",
     "data.import.desc" to "JSON から復元：同名の分類/タグは再利用し、同じ問題文はスキップします",
     "data.clear" to "すべてのデータを削除",
-    "data.clear.desc" to "問題・検索履歴・会話の下書き・分類・タグ・復習状況をすべて削除します（復元できません）",
+    "data.clear.desc" to "問題・解答履歴・会話の下書き・分類・タグ・復習状況をすべて削除します（復元できません）",
     "data.clear.title" to "削除の確認",
-    "data.clear.text" to "{n} 問すべてと検索履歴・会話の下書き・分類・タグ・復習状況を削除します。復元できません。先にバックアップを書き出してください。",
+    "data.clear.text" to "{n} 問すべてと解答履歴・会話の下書き・分類・タグ・復習状況を削除します。復元できません。先にバックアップを書き出してください。",
     "data.clear.inputLabel" to "確認のため次の文字を入力してください：",
     "data.clear.phrase" to "本アプリのすべてのデータを削除することに同意します",
     "data.exporting" to "書き出し中…",
@@ -1961,9 +2021,9 @@ private val B7_KO = mapOf(
     "data.import" to "백업 가져오기",
     "data.import.desc" to "JSON에서 복원: 같은 이름의 분류/태그는 재사용하고, 문제 문장이 같은 항목은 건너뜁니다",
     "data.clear" to "모든 데이터 삭제",
-    "data.clear.desc" to "모든 오답, 검색 기록, 대화 초안, 분류, 태그, 복습 진행을 삭제합니다(복구 불가)",
+    "data.clear.desc" to "모든 오답, 풀이 기록, 대화 초안, 분류, 태그, 복습 진행을 삭제합니다(복구 불가)",
     "data.clear.title" to "삭제 확인",
-    "data.clear.text" to "오답 {n}개와 검색 기록, 대화 초안, 분류/태그/복습 진행을 모두 삭제합니다. 복구할 수 없습니다. 먼저 백업을 내보내세요.",
+    "data.clear.text" to "오답 {n}개와 풀이 기록, 대화 초안, 분류/태그/복습 진행을 모두 삭제합니다. 복구할 수 없습니다. 먼저 백업을 내보내세요.",
     "data.clear.inputLabel" to "확인을 위해 아래 문장을 입력하세요:",
     "data.clear.phrase" to "이 앱의 모든 데이터 삭제에 동의합니다",
     "data.exporting" to "내보내는 중…",
@@ -2239,7 +2299,7 @@ private val B10_ZH = mapOf(
         "· 💬 流式解答、附图追问、中止与继续生成、同类题练习；支持 KaTeX 公式（含矩阵）\n" +
         "· 🧠 快速/思考模式均使用 deepseek-flash，分别关闭/开启思考\n" +
         "· 📚 错题本支持分类、标签、搜索、排序和批量处理；删除后 3 秒内可撤销\n" +
-        "· 🕘 搜题记录只记录首次搜题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
+        "· 🕘 解题记录只记录首次解题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
         "· 🏷️ 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
         "· 📖 间隔复习、每日提醒与学习统计（含新增趋势，复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
         "· 🗄️ 压缩备份包支持图片去重、大备份分卷及旧 v3 JSON 导入；每天打开后约30秒择机自动备份，当天已有完整手动或自动备份则不排计划；可立即接管待执行计划并在离页后继续，自动备份含旧命名统一清理，超过3套先留最新2套、成功后留3套；空错题本不自动备份，前台成功气泡提示，后台最终失败发系统通知（需允许通知）\n" +
@@ -2249,7 +2309,7 @@ private val B10_ZH = mapOf(
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
-        "· 📱 无账号、自有服务器或统计上报；错题、搜题记录和复习数据库保存在本机\n" +
+        "· 📱 无账号、自有服务器或统计上报；错题、解题记录和复习数据库保存在本机\n" +
         "· 🤖 AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
         "· 🏷️ 标签整理 AI 分析发送完整标签的编号、名称与关联题数，不发送题目正文、答案或图片\n" +
         "· 🔐 检查更新和下载安装包访问 GitHub，不携带题目内容；Key 在本机以 Android Keystore 加密，不经过开发者服务器\n" +
@@ -2353,7 +2413,7 @@ private val B10_JA = mapOf(
         "· 💬 逐次解答、画像付き追加質問、生成の中止・再開、類似問題演習、KaTeX数式（行列など）\n" +
         "· 🧠 高速/思考モードは共に deepseek-flash を使用し、思考を無効/有効に切り替え\n" +
         "· 📚 誤答ノートの分類・タグ・検索・並べ替え・一括操作。削除は3秒以内に取り消し可能\n" +
-        "· 🕘 検索履歴は最初の検索・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
+        "· 🕘 解答履歴は最初の解答・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
         "· 🏷️ AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
         "· 📖 間隔復習・新規問題の推移・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
         "· 🗄️ 圧縮バックアップは画像の重複排除・分巻・旧v3 JSON読み込みに対応。起動後30秒で自動予約。本日分の完全なバックアップがあれば予約せず、即時実行で待機予約を置き換え、画面を閉じても継続。旧名称も含め開始前に3セット超なら最新2セット、成功後は3セット保持。空の問題集は自動保存せず、前面で成功を通知。背面での最終失敗はシステム通知（許可が必要）\n" +

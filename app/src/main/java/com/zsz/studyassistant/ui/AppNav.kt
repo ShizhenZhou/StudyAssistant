@@ -51,6 +51,14 @@ object AppNav {
     const val STATS = "stats"
     const val SETTINGS = "settings"
 
+    val rootTabs = listOf(HOME, STATS, SETTINGS)
+    fun rootTab(route: String?): String = when (route) {
+        SETTINGS -> SETTINGS
+        STATS -> STATS
+        else -> HOME
+    }
+    fun showsBottomBar(route: String?): Boolean = route in rootTabs || route in setOf(NOTEBOOK, REVIEW, HISTORY)
+
     /**
      * 解题页的**来路** = 页面树上 `solve` 的父节点。
      * `returnsToCamera`：拍题流程返回时回拍题页（方便再拍一张），其余一律返回上一页。

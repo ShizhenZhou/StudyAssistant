@@ -30,6 +30,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -44,6 +48,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -72,6 +77,7 @@ private const val NAV_TOUCH_GUARD_MS = 250L   // 导航后吞掉内容区触摸�
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private var wallpaperWindowMode = false
 
     override fun onStart() {
         super.onStart()
@@ -109,7 +115,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        wallpaperWindowMode = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("wallpaper_background", false)
+        if (wallpaperWindowMode) setTheme(R.style.Theme_StudyAssistant_Wallpaper)
         super.onCreate(savedInstanceState)
+        if (wallpaperWindowMode) setTranslucent(true)
         // 启动时清理已删除题目与孤儿记录（定期维护数据库）
         viewModel.purgeDeletedData()
         // 启动即创建通知渠道（否则系统"通知管理"会显示"未发布任何通知"），并按需申请通知权限
@@ -178,10 +187,25 @@ class MainActivity : ComponentActivity() {
             ) {
                 // 状态栏透明 + 图标颜色跟随主题（浅色=深色图标，深色=浅色图标）
                 val view = LocalView.current
+                val surfaceColor = MaterialTheme.colorScheme.surface
+                LaunchedEffect(viewModel.wallpaperBackground) {
+                    // The native render surface must start with an alpha-capable window theme.
+                    // Recreate retains the ViewModel and saved navigation state.
+                    if (viewModel.wallpaperBackground != wallpaperWindowMode) recreate()
+                }
+                androidx.compose.runtime.DisposableEffect(view, viewModel.wallpaperBackground, surfaceColor) {
+                    if (!view.isInEditMode) {
+                        com.zsz.studyassistant.ui.applyWallpaperBackground(
+                            (view.context as Activity).window, viewModel.wallpaperBackground, surfaceColor
+                        )
+                    }
+                    onDispose { }
+                }
                 if (!view.isInEditMode) {
                     SideEffect {
                         val window = (view.context as Activity).window
                         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !dark
+                        WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !dark
                     }
                 }
                 com.zsz.studyassistant.ui.AppFeedbackLayout(viewModel) {
@@ -206,7 +230,28 @@ class MainActivity : ComponentActivity() {
                             AppNav.switchTab(nav, AppNav.SETTINGS)
                         }
                     }
-                    val showBottomBar = current == AppNav.HOME || current == AppNav.STATS || current == AppNav.SETTINGS
+                    val showBottomBar = AppNav.showsBottomBar(current)
+                    var settingsAtRoot by remember { mutableStateOf(true) }
+                    var settingsRootRequest by remember { mutableStateOf(0) }
+                    val tabScope = rememberCoroutineScope()
+                    var tabSwitchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    val selectTab: (String) -> Unit = { target ->
+                        tabSwitchJob?.cancel()
+                        tabSwitchJob = tabScope.launch {
+                            val route = nav.currentDestination?.route
+                            val root = AppNav.rootTab(route)
+                            if (route == AppNav.SETTINGS && !settingsAtRoot) {
+                                settingsRootRequest += 1
+                                snapshotFlow { settingsAtRoot }.first { it }
+                            } else if (route != root) {
+                                AppNav.switchTab(nav, root)
+                                nav.currentBackStackEntry?.lifecycle?.currentStateFlow?.first {
+                                    it == androidx.lifecycle.Lifecycle.State.RESUMED
+                                }
+                            }
+                            if (root != target) AppNav.switchTab(nav, target)
+                        }
+                    }
 
                     // 启动时**静默**查一次更新：网络失败或已是最新 → 什么都不做；
                     // 查到新版本 → UpdateBadgeState 置位，设置入口与底栏「设置」显示红色气泡①
@@ -292,12 +337,10 @@ class MainActivity : ComponentActivity() {
                             NavHost(
                                 nav,
                                 startDestination = AppNav.HOME,
-                                // 默认过渡是 fadeIn/fadeOut(tween(700))，对一个笔记类 App 偏慢；
-                                // 缩短到 200ms，更跟手，也让「旧页面仍可被命中」的窗口更小
-                                enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
-                                exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) },
-                                popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
-                                popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) }
+                                enterTransition = { com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route) },
+                                exitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route) },
+                                popEnterTransition = { com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true) },
+                                popExitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true) }
                             ) {
                                 // ⚠️ 路由常量与"谁能进谁、返回去哪"全部集中在 ui/AppNav.kt（页面树），这里只做绑定
                                 composable(AppNav.HOME) { HomeScreen(nav, viewModel) }
@@ -317,7 +360,9 @@ class MainActivity : ComponentActivity() {
                                 composable(AppNav.REVIEW) { ReviewScreen(nav, viewModel) }
                                 composable(AppNav.SIMILAR) { SimilarScreen(nav, viewModel) }
                                 composable(AppNav.STATS) { StatsScreen(viewModel) }
-                                composable(AppNav.SETTINGS) { SettingsTab(viewModel) }
+                                composable(AppNav.SETTINGS) {
+                                    SettingsTab(viewModel, settingsRootRequest) { settingsAtRoot = it }
+                                }
                             }
 
                             // ★ 切换页面后短时吞掉内容区触摸（对所有目的地生效）：
@@ -358,20 +403,20 @@ class MainActivity : ComponentActivity() {
                         if (showBottomBar) {
                             NavigationBar {
                                 NavigationBarItem(
-                                    selected = current == AppNav.HOME,
-                                    onClick = { AppNav.switchTab(nav, AppNav.HOME) },
+                                    selected = AppNav.rootTab(current) == AppNav.HOME,
+                                    onClick = { selectTab(AppNav.HOME) },
                                     icon = { Text("📚") },
                                     label = { Text(strings["nav.learn"]) }
                                 )
                                 NavigationBarItem(
                                     selected = current == AppNav.STATS,
-                                    onClick = { AppNav.switchTab(nav, AppNav.STATS) },
+                                    onClick = { selectTab(AppNav.STATS) },
                                     icon = { Text("📊") },
                                     label = { Text(strings["nav.stats"]) }
                                 )
                                 NavigationBarItem(
                                     selected = current == AppNav.SETTINGS,
-                                    onClick = { AppNav.switchTab(nav, AppNav.SETTINGS) },
+                                    onClick = { selectTab(AppNav.SETTINGS) },
                                     icon = {
                                         // 有可用更新时，在「设置」图标右上角叠一个红点①（Canvas 精确居中）
                                         Box {
@@ -390,6 +435,11 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    com.zsz.studyassistant.ui.RootBackExitHandler(
+                        enabled = current in AppNav.rootTabs && (current != AppNav.SETTINGS || settingsAtRoot),
+                        pageKey = current,
+                        onExit = { moveTaskToBack(true) }
+                    )
                 }
             }
             }   // CompositionLocalProvider(LocalDensity)

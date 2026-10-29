@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.2
+· 🎨 新增可选系统壁纸背景，优化主题可读性、页面布局与过渡动画。
+· 🗂️ 错题本科目支持按题量和自定义拖动排序，改进复习科目筛选与长按多选反馈。
+· ↩️ 优化底栏切换和主页二次返回提示，拍摄增加进度预览与重拍。
+· 🔔 下载完成提示延长至 2 分 30 秒，统一解题相关页面名称并简化关于说明。
+· 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
+
 v0.6.8.1
 · 📝 修复自定义提示词未保存草稿在旋转或窗口重建后丢失的问题。
 · 🔋 页面退到后台时暂停界面数据订阅与日期轮询，返回后恢复刷新，后台解答和备份继续运行。
@@ -503,6 +510,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.2
+· 🎨 Add an optional system wallpaper background and improve theme readability, layouts and transitions.
+· 🗂️ Sort notebook subjects by problem count or a custom drag order; improve review filtering and long-press selection feedback.
+· ↩️ Improve bottom-tab switching and double-back prompts; add capture progress previews and retaking.
+· 🔔 Keep the download completion notice for 2 minutes 30 seconds; update solving labels and simplify About.
+· 📱 Requires Android 16 (API 36) or newer. Android 9–15 users should stay on v0.6.7.9.
+
 v0.6.8.1
 · 📝 Preserve unsaved custom prompt drafts across rotation and window recreation.
 · 🔋 Pause UI data subscriptions and date polling in the background; refresh on return while answers and backups continue.
@@ -1001,6 +1015,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.2
+· 🎨 システム壁紙を表示する設定を追加し、テーマの読みやすさ・配置・画面遷移を改善。
+· 🗂️ ノートの科目を問題数順またはドラッグで並べ替え可能にし、復習の科目選択と長押し選択の反応を改善。
+· ↩️ 下部タブ切り替えと二度戻る確認を改善し、撮影の進捗プレビューと撮り直しを追加。
+· 🔔 ダウンロード完了表示を2分30秒に延長し、解答関連の名称とアプリ情報を整理。
+· 📱 Android 16（API 36）以降に対応。Android 9–15 では v0.6.7.9 をご利用ください。
+
 v0.6.8.1
 · 📝 回転やウィンドウ再作成で未保存のカスタム指示が失われる問題を修正。
 · 🔋 背景では画面のデータ購読と日付確認を停止し、復帰時に更新。解答生成とバックアップは継続。
@@ -1499,6 +1520,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.2
+· 🎨 시스템 배경화면 표시 옵션을 추가하고 테마 가독성, 화면 배치와 전환 효과를 개선했습니다.
+· 🗂️ 오답 노트 과목을 문제 수 또는 드래그한 순서로 정렬하고 복습 과목 필터와 길게 눌러 선택할 때의 피드백을 개선했습니다.
+· ↩️ 하단 탭 전환과 두 번 뒤로 확인을 개선하고 촬영 진행 미리보기와 다시 촬영을 추가했습니다.
+· 🔔 다운로드 완료 표시를 2분 30초로 늘리고 풀이 관련 명칭과 앱 정보를 정리했습니다.
+· 📱 Android 16(API 36) 이상을 지원합니다. Android 9–15에서는 v0.6.7.9를 사용하세요.
+
 v0.6.8.1
 · 📝 회전이나 창 재생성 시 미저장 사용자 지침 초안이 사라지는 문제를 수정했습니다.
 · 🔋 백그라운드에서 UI 데이터 구독과 날짜 확인을 멈추고 복귀 시 갱신하며, 풀이와 백업은 계속합니다.

@@ -55,9 +55,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import kotlin.math.pow
 import kotlin.math.ln
@@ -101,13 +106,19 @@ import com.zsz.studyassistant.data.UpdateChecker
 /** 设置：主页面为入口列表，点进去到二级页面进行具体设置 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsTab(vm: MainViewModel) {
+fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, onRootStateChanged: (Boolean) -> Unit = {}) {
     var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(AppNav.SettingsPages.MAIN) }
+    var fastReturn by remember { mutableStateOf(false) }
+    var backPending by remember { mutableStateOf(false) }
+    LaunchedEffect(returnToRootRequest) {
+        if (returnToRootRequest > 0 && page != AppNav.SettingsPages.MAIN) {
+            fastReturn = true
+            backPending = true
+            page = AppNav.SettingsPages.MAIN
+        }
+    }
     // ★ 设置页的"上一级"由页面树统一算（ui/AppNav.kt → SettingsPages.parent）：
     //   ai.* → AI 管理，data.* → 数据管理；返回箭头和系统返回都使用同一个父节点。
-    BackHandler(enabled = page != AppNav.SettingsPages.MAIN) {
-        page = AppNav.SettingsPages.parent(page)
-    }
     // ★ 2026-10-16：从"数据格式需要升级"提示 / "旧格式数据"警示**直达**「数据升级 / 修复」子页
     LaunchedEffect(vm.openDataUpgradePage) {
         if (vm.openDataUpgradePage) {
@@ -129,17 +140,51 @@ fun SettingsTab(vm: MainViewModel) {
     }
     val s = LocalStrings.current
 
-    when (page) {
-        AppNav.SettingsPages.AI -> SettingsSubPage(s["settings.aiManage"], { page = AppNav.SettingsPages.parent(page) }) {
+    val pageTransition = updateTransition(page, label = "settingsPage")
+    val transitioning = pageTransition.isRunning || pageTransition.currentState != page || pageTransition.targetState != page
+    // Keep Back intercepted until the incoming root page is settled; never fall through
+    // to Activity's default Back in the gap between child and root callbacks.
+    fun returnToParent() {
+        if (!transitioning && !backPending && page != AppNav.SettingsPages.MAIN) {
+            backPending = true
+            page = AppNav.SettingsPages.parent(page)
+        }
+    }
+    BackHandler(enabled = page != AppNav.SettingsPages.MAIN || transitioning || backPending) { returnToParent() }
+    LaunchedEffect(page) {
+        androidx.compose.runtime.snapshotFlow {
+            pageTransition.isRunning || pageTransition.currentState != page || pageTransition.targetState != page
+        }.collect { moving ->
+            onRootStateChanged(page == AppNav.SettingsPages.MAIN && !moving)
+            if (!moving) {
+                androidx.compose.runtime.withFrameNanos { }
+                backPending = false
+                fastReturn = false
+            }
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
+    pageTransition.AnimatedContent(modifier = Modifier.fillMaxSize(), transitionSpec = {
+        val backwards = targetState == AppNav.SettingsPages.parent(initialState) || targetState == AppNav.SettingsPages.MAIN
+        val direction = if (backwards) -1 else 1
+        val duration = if (fastReturn) 90 else 180
+        (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(duration)) { direction * it / 12 } +
+            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(duration))).togetherWith(
+            androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(duration)) { -direction * it / 12 } +
+                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(duration)))
+    }) { shownPage ->
+    Box(Modifier.fillMaxSize().then(if (transitioning || shownPage != page) Modifier.clearAndSetSemantics { } else Modifier)) {
+    when (shownPage) {
+        AppNav.SettingsPages.AI -> SettingsSubPage(s["settings.aiManage"], { returnToParent() }) {
             SettingEntry(s["settings.api"]) { page = AppNav.SettingsPages.AI_API }
             SettingEntry(s["settings.aiCropPage"]) { page = AppNav.SettingsPages.AI_CROP }
             SettingEntry(s["settings.solveSettings"]) { page = AppNav.SettingsPages.AI_SOLVE }
             SettingEntry(s["settings.customPrompt"]) { page = AppNav.SettingsPages.AI_PROMPT }
         }
-        AppNav.SettingsPages.AI_API -> SettingsSubPage(s["settings.api"], { page = AppNav.SettingsPages.parent(page) }) {
+        AppNav.SettingsPages.AI_API -> SettingsSubPage(s["settings.api"], { returnToParent() }) {
             ApiSettings(vm)
         }
-        AppNav.SettingsPages.AI_CROP -> SettingsSubPage(s["settings.aiCropPage"], { page = AppNav.SettingsPages.parent(page) }) {
+        AppNav.SettingsPages.AI_CROP -> SettingsSubPage(s["settings.aiCropPage"], { returnToParent() }) {
             val ctx = LocalContext.current
             var aiCropOn by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)) }
             AiCropSwitchSettings(checked = aiCropOn, onChecked = {
@@ -151,7 +196,7 @@ fun SettingsTab(vm: MainViewModel) {
                 AiCropTimeoutSettings()
             }
         }
-        AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { page = AppNav.SettingsPages.parent(page) }) {
+        AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { returnToParent() }) {
             AiSolveModelSettings()
         }
         AppNav.SettingsPages.AI_PROMPT -> {
@@ -177,7 +222,7 @@ fun SettingsTab(vm: MainViewModel) {
             }
             SettingsSubPage(
                 title = s["settings.customPrompt"],
-                onBack = { page = AppNav.SettingsPages.parent(page) },
+                onBack = { returnToParent() },
                 // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
                 bottomBar = promptSaveBar.takeIf { imeVisible }
             ) {
@@ -195,18 +240,29 @@ fun SettingsTab(vm: MainViewModel) {
                 }
             }
         }
-        AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { page = AppNav.SettingsPages.parent(page) }) { LanguageSettings(vm) }
-        AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { page = AppNav.SettingsPages.parent(page) }) { ThemeSettings(vm) { page = it } }
-        AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { page = AppNav.SettingsPages.parent(page) }) { NotifyBackgroundSettings() }
+        AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { returnToParent() }) { LanguageSettings(vm) }
+        AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { returnToParent() }) { ThemeSettings(vm) { page = it } }
+        AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { returnToParent() }) { NotifyBackgroundSettings() }
         // 数据管理：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 标签整理
-        AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { page = AppNav.SettingsPages.parent(page) }) { DataMenu(vm) { page = it } }
-        AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm) }
-        AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { page = AppNav.SettingsPages.parent(page) }) { DataSettings(vm, "crash") }
-        AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { page = AppNav.SettingsPages.parent(page) }) { DataUpgradePage(vm) }
-        AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { page = AppNav.SettingsPages.parent(page) }) { TagMergePage(vm) }
-        AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { page = AppNav.SettingsPages.parent(page) }) { UpdatePage() }
-        AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { page = AppNav.SettingsPages.parent(page) }) { AboutPage() }
+        AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { returnToParent() }) { DataMenu(vm) { page = it } }
+        AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { returnToParent() }) { DataSettings(vm) }
+        AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { returnToParent() }) { DataSettings(vm, "crash") }
+        AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { returnToParent() }) { DataUpgradePage(vm) }
+        AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { returnToParent() }) { TagMergePage(vm) }
+        AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { returnToParent() }) { UpdatePage() }
+        AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { returnToParent() }) { AboutPage() }
         else -> SettingsMain { page = it }
+    }
+    }
+    }
+    if (transitioning) Box(Modifier.fillMaxSize().pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                event.changes.forEach { it.consume() }
+            }
+        }
+    })
     }
 }
 
@@ -308,7 +364,7 @@ private fun SettingsSubPage(
         WindowInsets.navigationBars.getBottom(density)
     val imeExtraBottom = with(density) { (imePx - shellBottomPx).coerceAtLeast(0f).toDp() }
     Column(
-        Modifier.fillMaxSize().statusBarsPadding()
+        Modifier.readablePage().statusBarsPadding()
             .padding(bottom = if (imePx > 0) imeExtraBottom else 0.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -340,7 +396,7 @@ private fun SettingsSubPage(
 private fun SettingsMain(onOpen: (String) -> Unit) {
     val s = LocalStrings.current
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
+        Modifier.readablePage().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
     ) {
         Text(s["settings.title"], style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(12.dp))
@@ -1211,7 +1267,13 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         modifier = Modifier.fillMaxWidth().then(Modifier.semantics {
             stateDescription = s[if (showBackupInfo) "data.autoBackup.expanded" else "data.autoBackup.collapsed"]
         })) { Text(s["data.autoBackup.info"], style = MaterialTheme.typography.bodySmall) }
-    if (showBackupInfo) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showBackupInfo,
+        enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) +
+            androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(160)),
+        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120)) +
+            androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(120))
+    ) {
         Text(s.format("data.autoBackup.desc", "n" to "${AutoBackup.KEEP}"),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     }
@@ -1399,7 +1461,7 @@ private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
                     // 自定义色未选中时，圆点里画一支小画笔提示"可自选"
                     Text("🎨", fontSize = 16.sp)
                 } else if (selected) {
-                    Text("✓", color = Color.White, fontSize = 20.sp)
+                    Text("✓", color = contrastForeground(face), fontSize = 20.sp)
                 }
             }
         }
@@ -1407,6 +1469,17 @@ private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
     Spacer(Modifier.height(12.dp))
     // 自定义颜色按钮 → 打开取色盘
     SettingEntry(s["settings.theme.custom"]) { showPicker = true }
+
+    Spacer(Modifier.height(18.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(s["settings.theme.wallpaper"], style = MaterialTheme.typography.titleMedium)
+            Text(s["settings.theme.wallpaperHint"], style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = vm.wallpaperBackground, onCheckedChange = vm::updateWallpaperBackground,
+            modifier = Modifier.semantics { contentDescription = s["settings.theme.wallpaper"] })
+    }
 
     // ③ 字号（C14）：只缩放 App 内文字（界面 + 对话区），不动系统设置
     Spacer(Modifier.height(18.dp))

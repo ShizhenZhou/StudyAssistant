@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -125,6 +126,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
+                expandedHeight = 56.dp,
                 title = { Text(s["review.title"], fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     // 返回箭头：全应用统一样式（见 SubPageBackArrow）
@@ -141,7 +143,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
             // ── A5 筛选行：科目 + 只看不熟（只在确实有待复习题时出现，避免空页还挂一排筛选）──
             if (dueAll.isNotEmpty()) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -149,6 +151,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                         FilterChip(
                             selected = filterCat != null,
                             onClick = { catMenu = true },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = s["review.filter.chooseSubject"]) },
                             label = {
                                 Text(
                                     filterCat?.let { catById[it]?.name } ?: s["review.filter.allSubjects"],

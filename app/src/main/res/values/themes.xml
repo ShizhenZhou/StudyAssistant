@@ -1,3 +1,11 @@
 <resources>
-    <style name="Theme.StudyAssistant" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.StudyAssistant" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- The native fallback would otherwise fill translucent Compose regions. -->
+        <item name="android:windowBackgroundFallback">@null</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+    </style>
+    <style name="Theme.StudyAssistant.Wallpaper" parent="Theme.StudyAssistant">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">true</item>
+    </style>
 </resources>

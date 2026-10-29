@@ -75,8 +75,8 @@ class L10nTableTest {
         assertTrue("手写未转手寫：${tw["redo.entry"]}", tw["redo.entry"].contains("手寫"))
         assertTrue("筛选未转篩選：${tw["review.filter.clear"]}", tw["review.filter.clear"].contains("篩選"))
 
-        // v0.6.5 搜题记录文案（新文案也要过繁体：s2t 表漏字会在这里挂）
-        assertTrue("搜题记录未转繁体：${tw["home.history"]}", tw["home.history"].contains("搜題記錄"))
+        // 解题记录文案也必须经过繁体转换。
+        assertTrue("解题记录未转繁体：${tw["home.history"]}", tw["home.history"].contains("解題記錄"))
         assertTrue("已存错题本未转繁体：${tw["history.saved"]}", tw["history.saved"].contains("錯題本"))
         assertTrue("未存错题本未转繁体：${tw["history.notSaved"]}", tw["history.notSaved"].contains("錯題本"))
 

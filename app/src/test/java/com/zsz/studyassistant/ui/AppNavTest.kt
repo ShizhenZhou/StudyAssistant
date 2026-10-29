@@ -3,6 +3,7 @@ package com.zsz.studyassistant.ui
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /**
@@ -14,6 +15,20 @@ import org.junit.Test
  * · 设置子页的"上一级"：数据管理四个子页 → 数据管理，其余 → 设置主页，且**父级不能是它自己**。
  */
 class AppNavTest {
+    @Test fun `普通学习子页显示学习底栏且专注页面不显示底栏`() {
+        for (page in listOf(AppNav.NOTEBOOK, AppNav.REVIEW, AppNav.HISTORY)) {
+            assertTrue(AppNav.showsBottomBar(page))
+            assertEquals(AppNav.HOME, AppNav.rootTab(page))
+        }
+        for (page in listOf(AppNav.CAMERA, AppNav.CROP, AppNav.GRADE, AppNav.SOLVE_PATTERN, AppNav.SIMILAR)) {
+            assertFalse(AppNav.showsBottomBar(page))
+        }
+        assertFalse(AppNav.showsBottomBar(null))
+        for (page in AppNav.rootTabs) {
+            assertTrue(AppNav.showsBottomBar(page))
+            assertEquals(page, AppNav.rootTab(page))
+        }
+    }
     @Test fun completeSettingsRegistryAlwaysReturnsToRoot() {
         val pages=AppNav.SettingsPages
         for (page in pages.all) {
