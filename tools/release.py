@@ -38,6 +38,15 @@ def update_manifest(apk, identity, candidate):
     return dict(schema=1, version=identity["version"], versionCode=identity["versionCode"],
                 minSdk=identity["minSdk"], apkName=apk.name, apkSha256=sha256(apk), apkSize=apk.stat().st_size)
 
+def release_body(notes, metadata):
+    """Keep readable notes intact; old clients retain the independent schema-1 asset."""
+    marker = "<!-- studyassistant-update-manifest\n"
+    if "<!-- studyassistant-update-manifest" in notes:
+        raise ReleaseError("Release notes must not contain a pre-existing update metadata block")
+    encoded = json.dumps(metadata, ensure_ascii=True, separators=(",", ":"))
+    encoded = encoded.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    return notes.rstrip() + "\n\n" + marker + encoded + "\n-->"
+
 def validate_release_assets(assets, files, complete=False):
     names = [asset["name"] for asset in assets]
     if len(names) != len(set(names)) or set(names) - set(files) or (complete and set(names) != set(files)):
@@ -546,9 +555,7 @@ class Release:
         scanner = importlib.util.module_from_spec(spec); spec.loader.exec_module(scanner)
         if any(pattern.search(body) for pattern in scanner.CONTENT_PATTERNS):
             raise ReleaseError("Possible credential in release notes. Nothing will be published.")
-        notes_sha = hashlib.sha256(body.encode()).hexdigest()
-        if self.state.get("notesSha256", notes_sha) != notes_sha: raise ReleaseError("Release notes changed; inspect the saved draft before proceeding.")
-        self.state["notesSha256"] = notes_sha; self.save()
+        legacy_notes = self.state.get("notesSha256") == hashlib.sha256(body.encode()).hexdigest()
         # Persist exact metadata before any durable replacement ownership marker.
         files = {signed.name: signed}
         # Previously published legacy releases retain their single-APK layout.
@@ -564,6 +571,11 @@ class Release:
                 raise ReleaseError("Local update manifest changed; nothing was overwritten.")
             update_path.write_bytes(encoded)
             files[update_path.name] = update_path
+            if not legacy_notes:
+                body = release_body(body, metadata)
+        notes_sha = hashlib.sha256(body.encode()).hexdigest()
+        if self.state.get("notesSha256", notes_sha) != notes_sha: raise ReleaseError("Release notes changed; inspect the saved draft before proceeding.")
+        self.state["notesSha256"] = notes_sha; self.save()
         releases = self.github.api("releases?per_page=100")
         found = [r for r in releases if r["tag_name"] == tag]
         if len(found)>1: raise ReleaseError("Multiple releases use the requested tag")
@@ -622,7 +634,7 @@ class Release:
                 validate_release_assets(assets, files)
         validate_release_assets(assets, files, complete=True)
         if release["draft"]:
-            release = self.github.api(f"releases/{release['id']}", {"draft":False,"prerelease":False,"make_latest":"true"}, method="PATCH")
+            release = self.github.api(f"releases/{release['id']}", {"body":body,"draft":False,"prerelease":False,"make_latest":"true"}, method="PATCH")
         self.state.update(published=True, phase="published", assetId=next(a["id"] for a in assets if a["name"] == signed.name)); self.save()
         archives = {}
         for asset in assets:

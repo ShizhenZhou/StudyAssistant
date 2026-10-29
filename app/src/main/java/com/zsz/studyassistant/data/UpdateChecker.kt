@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -55,7 +57,9 @@ object UpdateChecker {
         /** 附件上传时间（epoch ms）：用于识别「同一版本被替换成新构建」 */
         val assetUploadedAt: Long = 0L,
         val minSdk: Int? = legacyMinSdk(version),
-        val versionCode: Long? = null
+        val versionCode: Long? = null,
+        /** Transient diagnosis only; downloaded records retain their existing schema. */
+        val compatibilityIssue: String? = null
     )
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -66,7 +70,7 @@ object UpdateChecker {
             version.split('.').all { it.toIntOrNull() != null } && !isNewer(version, "0.6.7.8")) 28 else null
 
     fun compatibilityError(release: ReleaseInfo, deviceSdk: Int = Build.VERSION.SDK_INT): String? = when {
-        release.minSdk == null || release.minSdk <= 0 -> "update.compatibilityUnknown"
+        release.minSdk == null || release.minSdk <= 0 -> release.compatibilityIssue ?: "update.compatibilityUnknown"
         release.minSdk > deviceSdk -> "update.incompatible"
         else -> null
     }
@@ -81,7 +85,8 @@ object UpdateChecker {
 
     /** Bind compatibility data to the selected signed APK, including its digest when GitHub supplies one. */
     internal fun withManifest(release: ReleaseInfo, text: String): ReleaseInfo? = runCatching {
-        val root = json.parseToJsonElement(text).jsonObject
+        require(text.toByteArray(Charsets.UTF_8).size <= 65536)
+        val root = json.parseToJsonElement(text.removePrefix("\uFEFF")).jsonObject
         fun value(key: String) = root[key]!!.jsonPrimitive.content
         require(value("schema") == "1" && value("version") == release.version)
         val min = value("minSdk").toInt().also { require(it > 0) }
@@ -89,30 +94,84 @@ object UpdateChecker {
         val digest = value("apkSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
         require(value("apkName") == release.assetName && value("apkSize").toLong() == release.assetSize && release.assetSize > 0)
         require(release.assetSha256 == null || release.assetSha256.equals(digest, true))
-        release.copy(minSdk = min, versionCode = code, assetSha256 = digest)
+        release.copy(minSdk = min, versionCode = code, assetSha256 = digest, compatibilityIssue = null)
     }.getOrNull()
 
-    private fun fetchManifest(release: ReleaseInfo, assets: List<JsonObject>): ReleaseInfo {
-        val entries = assets.filter { it["name"]?.jsonPrimitive?.content == "update-manifest.json" }
-        if (entries.isEmpty()) return release
-        // An invalid manifest is never allowed to fall back to legacy assumptions.
-        val unknown = release.copy(minSdk = null)
-        if (entries.size != 1) return unknown
+    private const val MANIFEST_MARKER = "<!-- studyassistant-update-manifest"
+    private val inlineManifest = Regex("<!-- studyassistant-update-manifest\\r?\\n(.*?)\\r?\\n-->", RegexOption.DOT_MATCHES_ALL)
+
+    /** Hide the wire format even from the app's plain-text release notes renderer. */
+    internal fun visibleReleaseNotes(notes: String): String =
+        inlineManifest.replace(notes, "").trim()
+
+    internal data class ManifestEndpoint(val url: String, val api: Boolean = false)
+    internal sealed interface ManifestFetch {
+        data class Body(val text: String) : ManifestFetch
+        data object Unavailable : ManifestFetch
+        data object Invalid : ManifestFetch
+    }
+
+    /** Pure resolver: all supported sources bind the exact same APK identity. */
+    internal fun resolveManifest(release: ReleaseInfo, assets: List<JsonObject>,
+                                 read: (ManifestEndpoint) -> ManifestFetch): ReleaseInfo {
+        val inline = inlineManifest.findAll(release.notes).toList()
+        val markerCount = Regex(Regex.escape(MANIFEST_MARKER)).findAll(release.notes).count()
+        var invalid = markerCount > 0
+        if (inline.size == 1 && markerCount == 1) {
+            withManifest(release, inline.single().groupValues[1])?.let { return it }
+        }
+        val entries = assets.filter { (it["name"] as? JsonPrimitive)?.contentOrNull == "update-manifest.json" }
+        fun failed(issue: String) = release.copy(minSdk = null, compatibilityIssue = issue)
+        if (entries.isEmpty()) return if (invalid) failed("update.compatibilityInvalid") else release
+        if (entries.size != 1) return failed("update.compatibilityInvalid")
         val asset = entries.single()
-        val url = asset["browser_download_url"]?.jsonPrimitive?.content.orEmpty()
-        val size = asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: return unknown
-        if (size !in 1..65536 || !isReleaseAssetUrl(url, release.tagName)) return unknown
+        fun value(key: String) = (asset[key] as? JsonPrimitive)?.contentOrNull
+        val url = value("browser_download_url").orEmpty()
+        val size = value("size")?.toLongOrNull()
+        if (size == null || size !in 1..65536 || !isReleaseAssetUrl(url, release.tagName))
+            return failed("update.compatibilityInvalid")
+        val endpoints = mutableListOf(ManifestEndpoint(url))
+        value("id")?.toLongOrNull()?.takeIf { it > 0 }?.let { id ->
+            endpoints += ManifestEndpoint("https://api.github.com/repos/$REPO/releases/assets/$id", api = true)
+        }
+        for (endpoint in endpoints) {
+            when (val result = read(endpoint)) {
+                is ManifestFetch.Body -> {
+                    withManifest(release, result.text)?.let { return it }
+                    invalid = true
+                }
+                ManifestFetch.Invalid -> invalid = true
+                ManifestFetch.Unavailable -> Unit
+            }
+        }
+        return failed(if (invalid) "update.compatibilityInvalid" else "update.compatibilityUnavailable")
+    }
+
+    private fun fetchManifest(release: ReleaseInfo, assets: List<JsonObject>): ReleaseInfo =
+        resolveManifest(release, assets, ::readManifest)
+
+    private fun readManifest(endpoint: ManifestEndpoint): ManifestFetch {
         return try {
-            client.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                if (!response.isSuccessful) return unknown
-                val body = response.body ?: return unknown
-                if (body.contentLength() > 65536) return unknown
+            val request = Request.Builder().url(endpoint.url).header("User-Agent", "StudyAssistant-Update")
+            if (endpoint.api) request.header("Accept", "application/octet-stream")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+            manifestClient.newCall(request.build()).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Update manifest HTTP ${response.code}; api=${endpoint.api}")
+                    return ManifestFetch.Unavailable
+                }
+                val body = response.body ?: return ManifestFetch.Unavailable
+                if (body.contentLength() > 65536) return ManifestFetch.Invalid
                 val source = body.source()
                 source.request(65537)
-                if (source.buffer.size > 65536) return unknown
-                withManifest(release, source.readUtf8()) ?: unknown
+                if (source.buffer.size > 65536) return ManifestFetch.Invalid
+                ManifestFetch.Body(source.readUtf8())
             }
-        } catch (_: Exception) { unknown }
+        } catch (error: java.io.IOException) {
+            // Do not log URL queries, payloads or other app/user data.
+            Log.w(TAG, "Update manifest ${error.javaClass.simpleName}; api=${endpoint.api}")
+            ManifestFetch.Unavailable
+        }
     }
 
     private val client: OkHttpClient by lazy {
@@ -121,6 +180,11 @@ object UpdateChecker {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
+    }
+
+    private val manifestClient: OkHttpClient by lazy {
+        client.newBuilder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS)
+            .callTimeout(15, TimeUnit.SECONDS).build()
     }
 
     /** 当前已安装版本（PackageManager 读，避免与构建号不一致） */
@@ -302,7 +366,7 @@ object UpdateChecker {
                     assetSha256 = digest?.takeIf { it.length == 64 },
                     assetSize = size,
                     assetUploadedAt = uploadedAt
-                ), objs)
+                ), objs).let { it.copy(notes = visibleReleaseNotes(it.notes)) }
             }
         } catch (e: Exception) {
             Log.w(TAG, "fetchLatest failed: ${e.message}")

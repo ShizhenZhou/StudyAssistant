@@ -454,9 +454,28 @@ class ReleaseTest(unittest.TestCase):
         tool.publish(42, notes)
         self.assertEqual(github.uploads, [signed.name, "update-manifest.json"])
         self.assertEqual(set(github.downloads), set(github.uploads))
+        marker = "<!-- studyassistant-update-manifest\n"
+        self.assertIn(marker, github.item["body"])
+        inline = github.item["body"].split(marker, 1)[1].split("\n-->", 1)[0]
+        self.assertEqual(json.loads(inline), metadata)
         tool.publish(42, notes)
         self.assertEqual(len(github.uploads), 2)
         self.assertEqual(len(list((self.root / "history_apk").iterdir())), 2)
+        # An already-owned publication from the old coordinator keeps its bound notes.
+        github.item["body"] = "Synthetic update"
+        tool.state["notesSha256"] = release.hashlib.sha256(b"Synthetic update").hexdigest()
+        tool.publish(42, notes)
+        self.assertEqual(github.item["body"], "Synthetic update")
+        self.assertEqual(len(github.uploads), 2)
+
+    def test_inline_manifest_is_escaped_and_cannot_be_duplicated_in_notes(self):
+        metadata = dict(schema=1, apkName="unsafe-->name.apk")
+        body = release.release_body("Readable\n- minimum Android last", metadata)
+        self.assertEqual(body.count("-->"), 1)
+        self.assertTrue(body.startswith("Readable\n- minimum Android last\n\n<!--"))
+        encoded = body.split("<!-- studyassistant-update-manifest\n")[1].split("\n-->")[0]
+        self.assertEqual(json.loads(encoded), metadata)
+        with self.assertRaises(release.ReleaseError): release.release_body(body, metadata)
 
     def test_ci_does_not_read_repository_signing_secrets(self):
         workflow=(ROOT/".github/workflows/build.yml").read_text(encoding="utf-8")
