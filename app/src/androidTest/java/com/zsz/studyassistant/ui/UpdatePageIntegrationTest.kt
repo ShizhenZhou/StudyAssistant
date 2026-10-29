@@ -135,6 +135,14 @@ class UpdatePageIntegrationTest {
                 clickable(instrumentation.uiAutomation.rootInActiveWindow,s["update.check"])!!.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 waitFor("Beta fixture notes");waitFor("Stable fixture notes");waitFor(s["update.betaWarning"])
                 assertEquals("Checking must not start an optional download",0,backend.enqueues)
+                val downloadBounds = android.graphics.Rect()
+                val skipBounds = android.graphics.Rect()
+                clickable(instrumentation.uiAutomation.rootInActiveWindow,s["update.downloadBeta"],visibleOnly=false)!!
+                    .getBoundsInScreen(downloadBounds)
+                clickable(instrumentation.uiAutomation.rootInActiveWindow,s["update.skip"],visibleOnly=false)!!
+                    .getBoundsInScreen(skipBounds)
+                assertTrue("Update actions need separate vertical touch areas: $downloadBounds / $skipBounds",
+                    skipBounds.top > downloadBounds.bottom)
                 val screenshot=requireNotNull(instrumentation.uiAutomation.takeScreenshot())
                 try { java.io.File(context.filesDir,"ui-update-channels.png").outputStream().use {
                     screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
@@ -149,7 +157,9 @@ class UpdatePageIntegrationTest {
                 assertTrue(texts.indexOf("Beta fixture notes") < texts.indexOf("Stable fixture notes"))
                 val button=clickable(instrumentation.uiAutomation.rootInActiveWindow,s["update.downloadStable"],visibleOnly=false)!!
                 button.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
-                button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                instrumentation.waitForIdleSync()
+                clickable(instrumentation.uiAutomation.rootInActiveWindow,s["update.downloadStable"],visibleOnly=false)!!
+                    .performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 val deadline=android.os.SystemClock.uptimeMillis()+8000
                 while(backend.enqueues==0 && android.os.SystemClock.uptimeMillis()<deadline) Thread.sleep(40)
                 assertEquals(1,backend.enqueues)

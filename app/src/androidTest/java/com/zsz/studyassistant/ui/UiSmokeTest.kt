@@ -18,6 +18,35 @@ import org.junit.runner.RunWith
 /** Actual Compose navigation and WebView rendering, in the no-network synthetic package only. */
 @RunWith(AndroidJUnit4::class)
 class UiSmokeTest {
+    @Test fun historyCountSharesTheTitleCenterAndKeepsASmallGap() {
+        launch().use { scenario ->
+            tapPhysical(s["home.history"])
+            val title = waitFor(s["history.title"])
+            val prefix = s["history.count"].substringBefore("{n}")
+            val suffix = s["history.count"].substringAfter("{n}")
+            fun findCount(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+                if (node == null) return null
+                val text = node.text?.toString()
+                if (node.isVisibleToUser && text != null && text.startsWith(prefix) && text.endsWith(suffix)) return node
+                for (i in 0 until node.childCount) findCount(node.getChild(i))?.let { return it }
+                return null
+            }
+            val count = requireNotNull(findCount(instrumentation.uiAutomation.rootInActiveWindow))
+            val titleBounds = android.graphics.Rect(); val countBounds = android.graphics.Rect()
+            title.getBoundsInScreen(titleBounds); count.getBoundsInScreen(countBounds)
+            scenario.onActivity {
+                val density = it.resources.displayMetrics.density
+                assertTrue("History count should share the title's vertical center: $titleBounds / $countBounds",
+                    kotlin.math.abs(titleBounds.exactCenterY()-countBounds.exactCenterY()) <= density)
+                assertTrue("History count stays next to the title with a visible small gap",
+                    countBounds.left-titleBounds.right in (4*density).toInt()..(16*density).toInt())
+            }
+            val image = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+            try { java.io.File(context.filesDir,"ui-history-header.png").outputStream().use {
+                image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
+            } } finally { image.recycle() }
+        }
+    }
     private val instrumentation=InstrumentationRegistry.getInstrumentation()
     private val context get()=instrumentation.targetContext
     private val s get()=stringsFor(UiLang.EN)

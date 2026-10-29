@@ -85,3 +85,8 @@ CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、
 - `tools/release.ps1 start --version VERSION` 默认正式版；只有明确安排测试版时使用 `--channel beta`。两类都使用原有完整发布门禁和原证书，跨渠道共用严格递增的 versionCode、各版本使用独立标签；不移动已有标签，不将同一标签在两种构件间切换。
 - 新状态绑定 channel 并传入构建状态；新发布清单可选 channel 与 GitHub prerelease 一致。测试版 `prerelease=true`、`make_latest=false`，不抢占正式版 latest。Release 最后一个可见条目同时说明最低 Android 版本和正式/测试属性；旧无 channel 状态按原清单与正文摘要续跑。
 - 客户端默认同时查官方 Releases 列表，列表失败回退官方 latest。先读取兼容信息再确定最终渠道；仅附件清单声明 beta 也不能挤掉真正正式版。可用测试版在前并提示可选和不稳定，正式版说明及独立下载在后；不提供低于当前 versionCode 的安装包。下载校验与恢复流程不降低门禁，跳过测试版不隐藏正式版。
+
+
+### 发布基线无法核验时的全量回退
+
+新版本可显式使用 `tools/release.ps1 start --version VERSION --channel beta --full-verification`（正式版仍用 `--channel stable`）。该模式不依赖历史 Release 下载、不复用历史测试证据，CI 的 `base_sha` 为空，以当前完整测试清单生成并核对全部验证项；本地仍按有效输入复用已有编译和测试。模式绑定准备状态，恢复时必须保留同一选项；签名、源码/候选一致性、逐项设备证据、下载与归档门禁照常执行。该选项不能用于同版本替换；替换始终需要精确原始发布基线证明。

@@ -44,6 +44,11 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## Version history
 
+### v0.6.8.6
+
+- 🎨 Refine the layout of App update and Solution history pages.
+- 📷 Restore the stable camera flow and allow beta installations to update to this stable release.
+
 ### v0.6.8.5
 
 - 🛠️ Clear completed grading drafts after saving results to solving history; retain failed and interrupted work for recovery.

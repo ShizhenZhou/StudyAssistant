@@ -16,6 +16,42 @@ import release
 from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
 
 class ReleaseTest(unittest.TestCase):
+    def test_full_verification_start_dispatches_without_a_previous_release_and_binds_mode(self):
+        source = self.root / 'app/build.gradle.kts'; source.parent.mkdir(parents=True)
+        source.write_text('val appVersionName = "9.9.9"')
+        requests = []
+        class Fake:
+            def api(self, path, value=None, **kwargs):
+                if path == 'git/ref/tags/v9.9.9': return None
+                if path.endswith('/dispatches'):
+                    requests.append(value); return None
+                raise AssertionError('Full verification must not depend on release asset downloads: ' + path)
+        tool = release.Release(self.root, Fake())
+        tool.git = lambda *args, **kwargs: SimpleNamespace(returncode=0,
+            stdout=b'' if args[0]=='status' else b'[skip ci]' if args[0]=='log' else b'a'*40)
+        tool.remote = lambda branch: 'c'*40
+        pushes=[]; tool.push=lambda branch,commit: pushes.append((branch,commit))
+        tool.status=lambda: {'status':'ci dispatched'}
+        with patch.object(release, 'command', return_value=SimpleNamespace(returncode=0)) as checks:
+            tool.start('9.9.9', full_verification=True)
+            self.assertEqual(checks.call_count, 1, 'Local Basic still runs')
+            tool.start('9.9.9', full_verification=True)
+            self.assertEqual(checks.call_count, 1, 'Resume must not dispatch or check twice')
+        self.assertEqual(len(requests),1)
+        self.assertEqual(requests[0]['inputs'], dict(mode='release',expected_sha='a'*40,base_sha=''))
+        self.assertIsNone(tool.state['verificationBase'])
+        self.assertIsNone(tool.state['verificationBaselineReleaseId'])
+        self.assertTrue(tool.state['fullVerification'])
+        self.assertEqual(pushes,[('main','a'*40),('Develop','a'*40)])
+        with self.assertRaisesRegex(release.ReleaseError, 'original verification mode'):
+            tool.start('9.9.9')
+
+    def test_full_verification_cannot_bypass_replacement_baseline_proof(self):
+        tool=release.Release(self.root)
+        tool.git=lambda *args,**kwargs:SimpleNamespace(returncode=0,stdout=b'' if args[0]=='status' else b'a'*40)
+        with self.assertRaisesRegex(release.ReleaseError, 'original baseline proof'):
+            tool.start('9.9.9', replacement=True, full_verification=True)
+
     def test_beta_cannot_replace_a_stable_tag_through_the_start_entry(self):
         tool=release.Release(self.root)
         tool.git=lambda *args, **kwargs: SimpleNamespace(returncode=0,stdout=b'' if args==('status','--porcelain') else b'a'*40)

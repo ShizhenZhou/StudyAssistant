@@ -81,7 +81,7 @@ class CaptureUiRegressionTest {
         val roots = automation.windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
             .mapNotNull { it.root }.filter { it.packageName?.toString() == context.packageName }
         val active = automation.rootInActiveWindow
-        return if (active?.packageName?.toString() == context.packageName) roots + active else roots
+        return if (active?.packageName?.toString() == context.packageName) listOf(active) + roots else roots
     }
 
     private fun find(node: AccessibilityNodeInfo?, text: String): AccessibilityNodeInfo? {
@@ -134,20 +134,8 @@ class CaptureUiRegressionTest {
     }
 
     private fun tap(text: String) {
-        val deadline = SystemClock.uptimeMillis() + 8000
-        while (SystemClock.uptimeMillis() < deadline) {
-            for (root in roots()) {
-                var node: AccessibilityNodeInfo? = find(root, text)
-                while (node != null && !node.isClickable) node = node.parent
-                if (node?.isEnabled == true && node.isVisibleToUser &&
-                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                    instrumentation.waitForIdleSync()
-                    return
-                }
-            }
-            Thread.sleep(60)
-        }
-        error("Capture action was not clickable: $text\n${diagnostics()}")
+        // Use a real touch in the active dialog rather than an acknowledged stale semantics action.
+        touch(text)
     }
 
     private fun dismissModeChange() {

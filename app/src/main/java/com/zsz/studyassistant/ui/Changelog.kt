@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.6
+· 🎨 微调“应用更新”“解题记录”等页面布局。
+· 📷 恢复稳定版拍照流程，支持测试版覆盖更新至正式版。
+
 v0.6.8.5
 · 🛠️ 修复批改完成后草稿未清理；批改结果自动保存至解题记录，失败和中断仍可恢复。
 · 🧪 区分正式版和可选测试版更新，分别展示说明与下载入口，完善发布渠道标记。
@@ -524,6 +528,10 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.6
+· 🎨 Refine the layout of App update and Solution history pages.
+· 📷 Restore the stable camera flow and allow beta installations to update to this stable release.
+
 v0.6.8.5
 · 🛠️ Clear completed grading drafts after saving results to solving history; retain failed and interrupted work for recovery.
 · 🧪 Distinguish stable and optional test updates, with separate notes and downloads and explicit release channels.
@@ -1043,6 +1051,10 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.6
+· 🎨 「アプリ更新」「解答履歴」などの画面レイアウトを微調整。
+· 📷 安定版の撮影フローに戻し、テスト版から正式版へ上書き更新できるようにしました。
+
 v0.6.8.5
 · 🛠️ 採点結果を解答履歴へ保存後、完了済み下書きを整理。失敗・中断した内容は復元用に保持。
 · 🧪 正式版と任意のテスト版更新を区別し、説明とダウンロードを個別に表示。公開チャンネルを明示。
@@ -1562,6 +1574,10 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.6
+· 🎨 앱 업데이트·풀이 기록 등의 페이지 레이아웃을 다듬었습니다.
+· 📷 안정 버전의 촬영 흐름을 복원하고 테스트 버전에서 정식 버전으로 덮어쓰기 업데이트를 지원합니다.
+
 v0.6.8.5
 · 🛠️ 채점 결과를 풀이 기록에 저장한 뒤 완료된 초안을 정리하고, 실패하거나 중단된 내용은 복구를 위해 보관합니다.
 · 🧪 정식 버전과 선택적 테스트 업데이트를 구분하고 설명과 다운로드를 각각 표시하며 배포 채널을 명시합니다.

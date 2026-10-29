@@ -124,9 +124,9 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             )
                         }
                     } else {
-                        // ★ 2026-10-20（用户要求）：条数从"标题下面一行"挪到**标题右边紧贴**（不靠到最右），
-                        //   字号仍小于标题；标题过长时先压标题（省略号），条数优先保证显示。
-                        Row(verticalAlignment = Alignment.Bottom) {
+                        // 标题与计数按中心线对齐；计数使用正文行高，避免继承大标题行高而显得偏上。
+                        // 标题过长时先省略标题，保留计数与小间距。
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 // ★ 2026-10-18（用户要求）：顶栏标题去掉 emoji（主页按钮上仍保留 🕘）
                                 s["history.title"],
@@ -135,14 +135,14 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 s.format("history.count", "n" to "${sessions.size}"),
+                                style = MaterialTheme.typography.bodySmall,
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(bottom = 3.dp)
+                                softWrap = false
                             )
                         }
                     }

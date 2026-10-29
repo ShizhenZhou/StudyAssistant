@@ -365,7 +365,7 @@ class Release:
         self.state['verificationBaselineReleaseId']=published['id'];self.save()
         return commit
 
-    def start(self, version, replacement=False, channel="stable"):
+    def start(self, version, replacement=False, channel="stable", full_verification=False):
         if self.git("status", "--porcelain").stdout.strip(): raise ReleaseError("Commit/review local changes first.")
         commit = self.git("rev-parse", "HEAD").stdout.decode().strip()
         self.bind(version, commit)
@@ -373,9 +373,12 @@ class Release:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
         if replacement and channel == "beta": raise ReleaseError("Beta replacement requires a new prerelease version; do not change a stable tag's channel")
+        if replacement and full_verification: raise ReleaseError("Replacement requires its exact original baseline proof; use full verification only for a new version")
         if self.state.get("channel", channel) != channel: raise ReleaseError("Resume with the original release channel")
+        if self.state.get("fullVerification", full_verification) != full_verification:
+            raise ReleaseError("Resume with the original verification mode")
         if self.state.get("dispatchAttempted"): return self.status()
-        self.state["channel"] = channel; self.save()
+        self.state.update(channel=channel, fullVerification=full_verification); self.save()
         source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
         if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
             raise ReleaseError("Requested version differs from source.")
@@ -395,7 +398,8 @@ class Release:
         command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/check-project.ps1"],
             root=self.root, log=self.path.parent / (version + "-basic.log"), timeout=600)
         self.state["basicChecked"] = True
-        previous = self.github.api("releases/latest", missing=True)
+        # No historical evidence is reused in explicit full mode; CI must validate the entire inventory.
+        previous = None if full_verification else self.github.api("releases/latest", missing=True)
         base = self.published_baseline(previous) if previous else None
         self.state["verificationBase"] = base
         self.state["verificationBaselineReleaseId"] = previous["id"] if previous else None
@@ -515,7 +519,7 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","fullVerification") if k in old})
         if manifest["schema"] == 2:
             if not modern: raise ReleaseError("Verification gate is missing")
             evidence_artifacts = [a for a in artifacts if a["name"] == "verification-evidence" and not a["expired"]]
@@ -524,6 +528,8 @@ class Release:
             validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
             plan = evidence["plan"]
             base = plan.get("base")
+            if self.state.get("fullVerification") and base is not None:
+                raise ReleaseError("Explicit full verification requires a baseline-free CI plan")
             if base:
                 release_id = self.state.get("verificationBaselineReleaseId")
                 previous = self.github.api(f"releases/{release_id}") if release_id else self.github.api("releases/latest", missing=True)
@@ -676,6 +682,7 @@ def main():
         item = sub.add_parser(operation); item.add_argument("--version", required=True)
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
+        if operation == "start": item.add_argument("--full-verification", action="store_true", help="For a new version, validate every CI test without relying on prior published evidence")
         if operation == "status": item.add_argument("--run",type=int,help="Select an exact build when a version has multiple states")
     for operation in ("verify", "publish", "replace"):
         item = sub.add_parser(operation,help="Explicitly replace the same version's public assets; never moves its tag" if operation=="replace" else None)
@@ -684,7 +691,7 @@ def main():
     args = parser.parse_args()
     coordinator = Release()
     try:
-        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel)
+        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel,full_verification=args.full_verification)
         elif args.operation == "status":
             result=coordinator.load_status(args.version,args.run)
         elif args.operation == "verify": result = coordinator.verify(args.run)

@@ -368,6 +368,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                             shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                             Text(s[if (beta) "update.downloadBeta" else "update.downloadStable"])
                         }
+                        Spacer(Modifier.height(12.dp))
                         val skipped = remember(skipRevision, rel) { UpdateChecker.isSkipped(context, rel) }
                         if (skipped) Text(s.format("update.skipped", "v" to rel.version), style = MaterialTheme.typography.bodySmall)
                         OutlinedButton(onClick = {
