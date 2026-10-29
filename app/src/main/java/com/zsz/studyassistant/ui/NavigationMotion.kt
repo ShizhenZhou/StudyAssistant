@@ -8,7 +8,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 
-internal fun pageEnterTransition(from: String?, to: String?, pop: Boolean = false): EnterTransition {
+internal fun pageEnterTransition(from: String?, to: String?, pop: Boolean = false, fastReturn: Boolean = false): EnterTransition {
+    if (fastReturn) return fadeIn(tween(90)) + slideInHorizontally(tween(90)) { -it / 16 }
     val fromIndex = AppNav.rootTabs.indexOf(from)
     val toIndex = AppNav.rootTabs.indexOf(to)
     if (fromIndex >= 0 && toIndex >= 0 && fromIndex != toIndex) {
@@ -21,7 +22,8 @@ internal fun pageEnterTransition(from: String?, to: String?, pop: Boolean = fals
     return fadeIn(tween(180)) + slideInHorizontally(tween(180)) { (if (pop) -1 else 1) * it / 20 }
 }
 
-internal fun pageExitTransition(from: String?, to: String?, pop: Boolean = false): ExitTransition {
+internal fun pageExitTransition(from: String?, to: String?, pop: Boolean = false, fastReturn: Boolean = false): ExitTransition {
+    if (fastReturn) return fadeOut(tween(90)) + slideOutHorizontally(tween(90)) { it / 16 }
     val fromIndex = AppNav.rootTabs.indexOf(from)
     val toIndex = AppNav.rootTabs.indexOf(to)
     if (fromIndex >= 0 && toIndex >= 0 && fromIndex != toIndex) {

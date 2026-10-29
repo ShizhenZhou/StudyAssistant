@@ -53,6 +53,21 @@ class UiSmokeTest {
         }
         error("UI text did not disappear: $text")
     }
+    private fun revealAndWaitFor(text: String): AccessibilityNodeInfo {
+        val deadline = android.os.SystemClock.uptimeMillis() + 8000
+        var revealRequested = false
+        while (android.os.SystemClock.uptimeMillis() < deadline) {
+            val root = instrumentation.uiAutomation.rootInActiveWindow
+            find(root, text)?.let { return it }
+            val target = clickable(root, text, visibleOnly = false)
+            if (!revealRequested && target != null) {
+                revealRequested = true
+                target.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+            } else scrollable(root)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+            Thread.sleep(80)
+        }
+        return waitFor(text)
+    }
     private fun clickable(node: AccessibilityNodeInfo?, text: String, visibleOnly: Boolean = true): AccessibilityNodeInfo? {
         if (node == null) return null
         if (node.text?.toString() == text || node.contentDescription?.toString() == text) {
@@ -116,10 +131,10 @@ class UiSmokeTest {
         return out.toString()
     }
     private fun dismissHomeKeyDialog() {
-        if (find(instrumentation.uiAutomation.rootInActiveWindow, s["home.key.later"]) != null) {
-            tap(s["home.key.later"])
-            waitUntilAbsent(s["home.key.title"])
-        }
+        waitFor(s["home.key.later"])
+        tap(s["home.key.later"])
+        waitUntilAbsent(s["home.key.title"])
+        waitFor(s["home.camera"])
     }
     private fun tapPhysical(text: String) {
         instrumentation.uiAutomation.waitForIdle(300, 3000)
@@ -385,7 +400,7 @@ class UiSmokeTest {
             tap(s["settings.about"])
             waitFor(s["about.author"] + "\n" + s["about.desc"])
             tap("←")
-            waitFor(s["settings.aiManage"])
+            revealAndWaitFor(s["settings.aiManage"])
             assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, s["back.exit.pressAgain"]))
         }
     }
@@ -578,7 +593,7 @@ class UiSmokeTest {
 
     @Test fun unsavedCustomPromptSurvivesRecreationUntilExplicitSave() {
         val old = com.zsz.studyassistant.data.CapturePrefs.customPrompt(context)
-        val draft = "Synthetic draft preserved across window recreation"
+        val draft = "Synthetic draft preserved across window recreation ${java.util.UUID.randomUUID()}"
         fun editable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
             if (node == null) return null
             if (node.isEditable) return node
@@ -670,6 +685,150 @@ class UiSmokeTest {
         }
     }
 
+    @Test fun settingsBackGesturePreviewsCanCancelAndBeInterrupted() {
+        fun shell(command: String): String = instrumentation.uiAutomation.executeShellCommand(command).use {
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().use { reader -> reader.readText().trim() }
+        }
+        val previousScale = shell("settings get global animator_duration_scale")
+        fun capture(name: String? = null): android.graphics.Bitmap {
+            val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+            if (name != null) java.io.File(context.filesDir, name).outputStream().use {
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+            }
+            return bitmap
+        }
+        fun differences(before: android.graphics.Bitmap, after: android.graphics.Bitmap): Int {
+            var count = 0
+            for (y in before.height / 5 until before.height * 3 / 4 step 4) {
+                for (x in before.width / 10 until before.width * 9 / 10 step 4) {
+                    val a = before.getPixel(x, y)
+                    val b = after.getPixel(x, y)
+                    if (kotlin.math.abs(android.graphics.Color.red(a) - android.graphics.Color.red(b)) > 12 ||
+                        kotlin.math.abs(android.graphics.Color.green(a) - android.graphics.Color.green(b)) > 12 ||
+                        kotlin.math.abs(android.graphics.Color.blue(a) - android.graphics.Color.blue(b)) > 12) count++
+                }
+            }
+            return count
+        }
+        try {
+            shell("settings put global animator_duration_scale 1")
+            launch().use { scenario ->
+                tap(s["nav.settings"])
+                tap(s["settings.theme"])
+                waitFor(s["settings.theme.mode"])
+                instrumentation.uiAutomation.waitForIdle(300, 3000)
+                val input = androidx.navigationevent.DirectNavigationEventInput()
+                scenario.onActivity { it.navigationEventDispatcher.addInput(input) }
+                val before = capture("ui-settings-before-back.png")
+                try {
+                    scenario.onActivity {
+                        input.backStarted(androidx.navigationevent.NavigationEvent(swipeEdge = 0, progress = 0f, touchY = 200f))
+                        input.backProgressed(androidx.navigationevent.NavigationEvent(swipeEdge = 0, progress = .5f, touchX = 120f, touchY = 200f))
+                    }
+                    var changed = 0
+                    val deadline = android.os.SystemClock.uptimeMillis() + 3000
+                    while (changed < 60 && android.os.SystemClock.uptimeMillis() < deadline) {
+                        Thread.sleep(80)
+                        val preview = capture("ui-settings-back-preview.png")
+                        try { changed = differences(before, preview) } finally { preview.recycle() }
+                    }
+                    assertTrue("Settings content must move during back progress, changed=$changed", changed >= 60)
+                    scenario.onActivity {
+                        input.backCancelled()
+                    }
+                    // Accessibility idle does not imply the animation has drawn its final frame.
+                    val cancelDeadline = android.os.SystemClock.uptimeMillis() + 3000
+                    var changedAfterCancel = Int.MAX_VALUE
+                    while (changedAfterCancel >= 30 && android.os.SystemClock.uptimeMillis() < cancelDeadline) {
+                        Thread.sleep(40)
+                        val cancelled = capture("ui-settings-back-cancelled.png")
+                        try { changedAfterCancel = differences(before, cancelled) } finally { cancelled.recycle() }
+                    }
+                    assertTrue("Cancelled gesture must return to the unchanged child, changed=$changedAfterCancel", changedAfterCancel < 30)
+                    waitFor(s["settings.theme.mode"])
+                    scenario.onActivity {
+                        input.backStarted(androidx.navigationevent.NavigationEvent(swipeEdge = 0, progress = 0f, touchY = 200f))
+                        input.backProgressed(androidx.navigationevent.NavigationEvent(swipeEdge = 0, progress = .6f, touchX = 120f, touchY = 200f))
+                    }
+                    Thread.sleep(60)
+                    scenario.onActivity { input.backCancelled() }
+                    Thread.sleep(30)
+                    scenario.onActivity {
+                        input.backStarted(androidx.navigationevent.NavigationEvent(swipeEdge = 0, progress = 0f, touchY = 200f))
+                        input.backProgressed(androidx.navigationevent.NavigationEvent(swipeEdge = 0, progress = .7f, touchX = 140f, touchY = 200f))
+                        input.backCompleted()
+                    }
+                    revealAndWaitFor(s["settings.aiManage"])
+                    assertEquals(androidx.lifecycle.Lifecycle.State.RESUMED, scenario.state)
+                    assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, s["back.exit.swipeAgain"]))
+                    instrumentation.uiAutomation.waitForIdle(300, 3000)
+                    scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+                    waitFor(s["back.exit.pressAgain"])
+                    assertEquals(androidx.lifecycle.Lifecycle.State.RESUMED, scenario.state)
+                } finally {
+                    runCatching { scenario.onActivity { it.navigationEventDispatcher.removeInput(input) } }
+                    before.recycle()
+                }
+            }
+        } finally {
+            val numeric = previousScale.toFloatOrNull()?.takeIf { it.isFinite() && it >= 0 }
+            shell(if (numeric == null) "settings delete global animator_duration_scale" else "settings put global animator_duration_scale $numeric")
+        }
+    }
+
+    @Test fun notebookAndReviewViewportsMeetTheGlobalBottomBar() {
+        val dao = com.zsz.studyassistant.data.AppDatabase.get(context).questionDao()
+        val prefix = "inset-${java.util.UUID.randomUUID()}"
+        val ids = (0 until 16).map { "$prefix-$it" }
+        try {
+            kotlinx.coroutines.runBlocking {
+                ids.forEach { id ->
+                    dao.insert(com.zsz.studyassistant.data.Question(id, "Synthetic scrolling fixture ".repeat(15), "answer"))
+                    dao.insertReview(com.zsz.studyassistant.data.Review(id, nextReviewAt = 0))
+                }
+            }
+            launch().use { scenario ->
+                scenario.onActivity { activity ->
+                    val insets = androidx.core.view.ViewCompat.getRootWindowInsets(activity.window.decorView)
+                    assertTrue("Fixture requires a visible system navigation bar", (insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0) > 0)
+                }
+                for ((entry, image) in listOf("home.notebook" to "ui-notebook-edge.png", "home.review" to "ui-review-edge.png")) {
+                    tap(s[entry])
+                    instrumentation.uiAutomation.waitForIdle(300, 3000)
+                    val deadline = android.os.SystemClock.uptimeMillis() + 8000
+                    var viewport: android.graphics.Rect? = null
+                    val bar = android.graphics.Rect()
+                    while (viewport == null && android.os.SystemClock.uptimeMillis() < deadline) {
+                        val root = instrumentation.uiAutomation.rootInActiveWindow
+                        val containers = mutableListOf<android.graphics.Rect>()
+                        fun visit(node: AccessibilityNodeInfo?) {
+                            if (node == null) return
+                            if (node.isScrollable && node.isVisibleToUser) {
+                                val bounds = android.graphics.Rect()
+                                node.getBoundsInScreen(bounds)
+                                if (bounds.height() > 100 && bounds.width() > 200) containers += bounds
+                            }
+                            for (i in 0 until node.childCount) visit(node.getChild(i))
+                        }
+                        visit(root)
+                        viewport = containers.maxByOrNull { it.width() * it.height() }
+                        clickable(root, s["nav.stats"])?.getBoundsInScreen(bar)
+                        if (viewport == null) Thread.sleep(80)
+                    }
+                    val readyViewport = requireNotNull(viewport) { "No scrolling viewport for $entry\n${uiDiagnostics()}" }
+                    val screenshot = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+                    try { java.io.File(context.filesDir, image).outputStream().use { screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
+                    finally { screenshot.recycle() }
+                    assertTrue("$entry viewport=$viewport must reach bottom bar=$bar", kotlin.math.abs(readyViewport.bottom - bar.top) <= 2)
+                    scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+                    waitFor(s["home.key.later"])
+                    dismissHomeKeyDialog()
+                    waitFor(s["home.camera"])
+                }
+            }
+        } finally { kotlinx.coroutines.runBlocking { ids.forEach { dao.deleteById(it) } } }
+    }
+
     @Test fun settingsChildrenReturnToTheirOwnParents() {
         launch().use { scenario ->
             tap("Settings")
@@ -690,7 +849,7 @@ class UiSmokeTest {
             tap("←")
             waitFor(s["data.crash"])
             scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
-            waitFor(s["settings.aiManage"])
+            revealAndWaitFor(s["settings.aiManage"])
         }
     }
     @Test fun lastBackupIsVisibleWithAutomaticBackupOnOrOffAndWithoutRecords() {

@@ -18,6 +18,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -333,7 +338,11 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.weight(1f)) {
+                        // The sibling NavigationBar already owns the bottom system inset.
+                        // Pass that ownership to child Scaffolds, keeping top/side insets intact.
+                        Box(Modifier.weight(1f).then(if (showBottomBar)
+                            Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                        else Modifier)) {
                             NavHost(
                                 nav,
                                 startDestination = AppNav.HOME,

@@ -130,7 +130,7 @@ object AppNav {
     }
 
     /**
-     * 「设置」页内部的子页树（内部 state，不走 NavHost）。
+     * 「设置」页内部 NavHost 的子页树。
      * ```
      * 设置(main)
      * ├── ai          AI 管理 ──┬── ai.api     API 管理（含用量统计）
@@ -169,6 +169,40 @@ object AppNav {
         /** Complete registry, including leaf settings pages without children. */
         val all = setOf(MAIN, AI, AI_API, AI_CROP, AI_SOLVE, AI_PROMPT, LANG, THEME, NOTIFY,
             DATA, DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT)
+
+        /** Direct notification/repair entries must retain the same Back parents as menu entries. */
+        fun path(page: String): List<String> = buildList {
+            require(page in all)
+            var current = page
+            add(current)
+            while (current != MAIN) {
+                current = parent(current)
+                add(current)
+            }
+            reverse()
+        }
+
+        fun open(nav: NavHostController, page: String) {
+            require(page in all)
+            val current = nav.currentDestination?.route
+            if (current == page) return
+            if (page == MAIN) {
+                nav.popBackStack(MAIN, false)
+                return
+            }
+            if (parent(page) != current) {
+                nav.popBackStack(MAIN, false)
+                path(page).drop(1).dropLast(1).forEach { ancestor ->
+                    nav.navigate(ancestor) { launchSingleTop = true }
+                }
+            }
+            nav.navigate(page) { launchSingleTop = true }
+        }
+
+        fun back(nav: NavHostController) {
+            val current = nav.currentDestination?.route ?: return
+            if (current != MAIN && !nav.popBackStack(parent(current), false)) open(nav, parent(current))
+        }
 
         /** 所有设置页的唯一父节点：AI 子页 → AI 管理，数据子页 → 数据管理，其余 → 设置主页。 */
         fun parent(page: String): String = when (page) {

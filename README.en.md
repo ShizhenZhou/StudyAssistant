@@ -44,6 +44,11 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## Version history
 
+### v0.6.8.3
+
+- ↩️ Add predictive back previews, cancellation and interruptible transitions to settings pages, preserving parent navigation and bottom-tab switching.
+- 🎨 Remove extra space above the bottom bar on Notebook, Review and related pages.
+
 ### v0.6.8.2
 
 - ⬆️ Improve version checks and compatibility metadata retrieval, add an official fallback and clarify update errors.

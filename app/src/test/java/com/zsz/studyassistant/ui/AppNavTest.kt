@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
@@ -118,5 +119,19 @@ class AppNavTest {
         assertTrue(routes.none { it.isBlank() })
         // 解题页的路由模板必须和 [AppNav.SOLVE] 对得上，否则 NavHost 匹配不到
         assertTrue(AppNav.SOLVE_PATTERN.startsWith(AppNav.SOLVE + "/{"))
+    }
+
+    @Test fun directSettingsEntriesIncludeTheirRealParents() {
+        val pages = AppNav.SettingsPages
+        assertEquals(listOf(pages.MAIN, pages.DATA, pages.DATA_BACKUP), pages.path(pages.DATA_BACKUP))
+        assertEquals(listOf(pages.MAIN, pages.AI, pages.AI_PROMPT), pages.path(pages.AI_PROMPT))
+        assertEquals(listOf(pages.MAIN, pages.UPDATE), pages.path(pages.UPDATE))
+        assertEquals(listOf(pages.MAIN), pages.path(pages.MAIN))
+        for (page in pages.all) {
+            val path = pages.path(page)
+            assertEquals(path.size, path.distinct().size)
+            assertEquals(page, path.last())
+        }
+        assertThrows(IllegalArgumentException::class.java) { pages.path("unknown.settings.page") }
     }
 }

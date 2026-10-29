@@ -49,15 +49,15 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.updateTransition
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,163 +107,165 @@ import com.zsz.studyassistant.data.UpdateChecker
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, onRootStateChanged: (Boolean) -> Unit = {}) {
-    var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(AppNav.SettingsPages.MAIN) }
+    val settingsNav = androidx.navigation.compose.rememberNavController()
+    val entry by settingsNav.currentBackStackEntryAsState()
+    val page = entry?.destination?.route ?: AppNav.SettingsPages.MAIN
     var fastReturn by remember { mutableStateOf(false) }
-    var backPending by remember { mutableStateOf(false) }
+    var rootReady by remember { mutableStateOf(false) }
+    val reportRoot by androidx.compose.runtime.rememberUpdatedState(onRootStateChanged)
+    LaunchedEffect(entry) {
+        rootReady = false
+        val current = entry
+        if (current == null) {
+            reportRoot(false)
+            return@LaunchedEffect
+        }
+        current.lifecycle.currentStateFlow.collect { state ->
+            val atRoot = current.destination.route == AppNav.SettingsPages.MAIN &&
+                state == androidx.lifecycle.Lifecycle.State.RESUMED
+            reportRoot(atRoot)
+            if (atRoot) {
+                // Let the outer root Back callback receive its enabled state first.
+                androidx.compose.runtime.withFrameNanos { }
+                rootReady = true
+            }
+            if (state == androidx.lifecycle.Lifecycle.State.RESUMED) fastReturn = false
+        }
+    }
     LaunchedEffect(returnToRootRequest) {
         if (returnToRootRequest > 0 && page != AppNav.SettingsPages.MAIN) {
             fastReturn = true
-            backPending = true
-            page = AppNav.SettingsPages.MAIN
+            AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.MAIN)
         }
     }
-    // ★ 设置页的"上一级"由页面树统一算（ui/AppNav.kt → SettingsPages.parent）：
-    //   ai.* → AI 管理，data.* → 数据管理；返回箭头和系统返回都使用同一个父节点。
-    // ★ 2026-10-16：从"数据格式需要升级"提示 / "旧格式数据"警示**直达**「数据升级 / 修复」子页
     LaunchedEffect(vm.openDataUpgradePage) {
         if (vm.openDataUpgradePage) {
-            page = AppNav.SettingsPages.DATA_UPGRADE
+            AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.DATA_UPGRADE)
             vm.openDataUpgradePage = false
         }
     }
     LaunchedEffect(vm.openBackupManagementPage) {
         if (vm.openBackupManagementPage) {
-            page = AppNav.SettingsPages.DATA_BACKUP
+            AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.DATA_BACKUP)
             vm.openBackupManagementPage = false
         }
     }
     LaunchedEffect(vm.openUpdatePage) {
         if (vm.openUpdatePage) {
-            page = AppNav.SettingsPages.UPDATE
+            AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.UPDATE)
             vm.openUpdatePage = false
         }
     }
     val s = LocalStrings.current
-
-    val pageTransition = updateTransition(page, label = "settingsPage")
-    val transitioning = pageTransition.isRunning || pageTransition.currentState != page || pageTransition.targetState != page
-    // Keep Back intercepted until the incoming root page is settled; never fall through
-    // to Activity's default Back in the gap between child and root callbacks.
-    fun returnToParent() {
-        if (!transitioning && !backPending && page != AppNav.SettingsPages.MAIN) {
-            backPending = true
-            page = AppNav.SettingsPages.parent(page)
-        }
-    }
-    BackHandler(enabled = page != AppNav.SettingsPages.MAIN || transitioning || backPending) { returnToParent() }
-    LaunchedEffect(page) {
-        androidx.compose.runtime.snapshotFlow {
-            pageTransition.isRunning || pageTransition.currentState != page || pageTransition.targetState != page
-        }.collect { moving ->
-            onRootStateChanged(page == AppNav.SettingsPages.MAIN && !moving)
-            if (!moving) {
-                androidx.compose.runtime.withFrameNanos { }
-                backPending = false
-                fastReturn = false
-            }
-        }
-    }
-    Box(Modifier.fillMaxSize()) {
-    pageTransition.AnimatedContent(modifier = Modifier.fillMaxSize(), transitionSpec = {
-        val backwards = targetState == AppNav.SettingsPages.parent(initialState) || targetState == AppNav.SettingsPages.MAIN
-        val direction = if (backwards) -1 else 1
-        val duration = if (fastReturn) 90 else 180
-        (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(duration)) { direction * it / 12 } +
-            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(duration))).togetherWith(
-            androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(duration)) { -direction * it / 12 } +
-                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(duration)))
-    }) { shownPage ->
-    Box(Modifier.fillMaxSize().then(if (transitioning || shownPage != page) Modifier.clearAndSetSemantics { } else Modifier)) {
-    when (shownPage) {
-        AppNav.SettingsPages.AI -> SettingsSubPage(s["settings.aiManage"], { returnToParent() }) {
-            SettingEntry(s["settings.api"]) { page = AppNav.SettingsPages.AI_API }
-            SettingEntry(s["settings.aiCropPage"]) { page = AppNav.SettingsPages.AI_CROP }
-            SettingEntry(s["settings.solveSettings"]) { page = AppNav.SettingsPages.AI_SOLVE }
-            SettingEntry(s["settings.customPrompt"]) { page = AppNav.SettingsPages.AI_PROMPT }
-        }
-        AppNav.SettingsPages.AI_API -> SettingsSubPage(s["settings.api"], { returnToParent() }) {
-            ApiSettings(vm)
-        }
-        AppNav.SettingsPages.AI_CROP -> SettingsSubPage(s["settings.aiCropPage"], { returnToParent() }) {
-            val ctx = LocalContext.current
-            var aiCropOn by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)) }
-            AiCropSwitchSettings(checked = aiCropOn, onChecked = {
-                aiCropOn = it
-                com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
-            })
-            if (aiCropOn) {
-                Spacer(Modifier.height(20.dp))
-                AiCropTimeoutSettings()
-            }
-        }
-        AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { returnToParent() }) {
-            AiSolveModelSettings()
-        }
-        AppNav.SettingsPages.AI_PROMPT -> {
-            val ctx = LocalContext.current
-            // ★ 2026-10-13（用户要求 · 第 2 版）：自定义要求的文本 + "是否已修改"状态提到页面这一层，
-            //   把「保存」做成**跟着键盘出现**的按钮：
-            //     · 键盘**收起**时 → 保存按钮就在输入框下面（与改动前完全一样，页面底部不出现任何浮动条）
-            //     · 键盘**弹出**时 → 保存按钮挪到键盘正上方（不用先收键盘就能点）
-            //   ⚠️ 首版做成了"常驻底栏"，用户实测反馈"没弹键盘时它也在、还跟着乱跑" → 改为按 IME 可见性切换。
-            var savedPrompt by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
-            val cpText = vm.customPromptDraft ?: savedPrompt
-            val cpDirty = vm.customPromptDraft != null
-            // 键盘（IME）当前是否可见：可见才给底栏
-            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-            val savePrompt = {
-                com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
-                savedPrompt = cpText
-                vm.customPromptDraft = null
-            }
-            // 键盘弹出时贴在键盘上方的那颗「保存」（没改动时置灰）
-            val promptSaveBar: @Composable () -> Unit = {
-                Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
-            }
-            SettingsSubPage(
-                title = s["settings.customPrompt"],
-                onBack = { returnToParent() },
-                // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
-                bottomBar = promptSaveBar.takeIf { imeVisible }
-            ) {
-                AiCustomPromptSettings(cpText, onText = { vm.customPromptDraft = it })
-                // 键盘收起时：保存按钮留在输入框下面（原来的位置）—— 与浮动底栏二选一，绝不同时出现
-                if (!imeVisible) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
+    fun returnToParent() { AppNav.SettingsPages.back(settingsNav) }
+    // Use the same NavHost predictive-back and interruption machinery as learning pages.
+    androidx.navigation.compose.NavHost(
+        settingsNav, startDestination = AppNav.SettingsPages.MAIN, modifier = Modifier.fillMaxSize(),
+        enterTransition = { pageEnterTransition(initialState.destination.route, targetState.destination.route, fastReturn = fastReturn) },
+        exitTransition = { pageExitTransition(initialState.destination.route, targetState.destination.route, fastReturn = fastReturn) },
+        popEnterTransition = { pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true, fastReturn = fastReturn) },
+        popExitTransition = { pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true, fastReturn = fastReturn) }
+    ) {
+        AppNav.SettingsPages.all.forEach { destination ->
+            composable(destination) { shownEntry ->
+                val state by shownEntry.lifecycle.currentStateFlow.collectAsState()
+                // Pointer input stays blocked on moving content; system Back remains interruptible.
+                val moving = if (state == androidx.lifecycle.Lifecycle.State.RESUMED) Modifier else
+                    Modifier.clearAndSetSemantics { }.pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                Box(Modifier.fillMaxSize().then(moving)) {
+                    when (destination) {
+                        AppNav.SettingsPages.AI -> SettingsSubPage(s["settings.aiManage"], { returnToParent() }) {
+                            SettingEntry(s["settings.api"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_API) }
+                            SettingEntry(s["settings.aiCropPage"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_CROP) }
+                            SettingEntry(s["settings.solveSettings"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_SOLVE) }
+                            SettingEntry(s["settings.customPrompt"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_PROMPT) }
+                        }
+                        AppNav.SettingsPages.AI_API -> SettingsSubPage(s["settings.api"], { returnToParent() }) {
+                            ApiSettings(vm)
+                        }
+                        AppNav.SettingsPages.AI_CROP -> SettingsSubPage(s["settings.aiCropPage"], { returnToParent() }) {
+                            val ctx = LocalContext.current
+                            var aiCropOn by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)) }
+                            AiCropSwitchSettings(checked = aiCropOn, onChecked = {
+                                aiCropOn = it
+                                com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
+                            })
+                            if (aiCropOn) {
+                                Spacer(Modifier.height(20.dp))
+                                AiCropTimeoutSettings()
+                            }
+                        }
+                        AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { returnToParent() }) {
+                            AiSolveModelSettings()
+                        }
+                        AppNav.SettingsPages.AI_PROMPT -> {
+                            val ctx = LocalContext.current
+                            // ★ 2026-10-13（用户要求 · 第 2 版）：自定义要求的文本 + "是否已修改"状态提到页面这一层，
+                            //   把「保存」做成**跟着键盘出现**的按钮：
+                            //     · 键盘**收起**时 → 保存按钮就在输入框下面（与改动前完全一样，页面底部不出现任何浮动条）
+                            //     · 键盘**弹出**时 → 保存按钮挪到键盘正上方（不用先收键盘就能点）
+                            //   ⚠️ 首版做成了"常驻底栏"，用户实测反馈"没弹键盘时它也在、还跟着乱跑" → 改为按 IME 可见性切换。
+                            var savedPrompt by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
+                            val cpText = vm.customPromptDraft ?: savedPrompt
+                            val cpDirty = vm.customPromptDraft != null
+                            // 键盘（IME）当前是否可见：可见才给底栏
+                            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+                            val savePrompt = {
+                                com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
+                                savedPrompt = cpText
+                                vm.customPromptDraft = null
+                            }
+                            // 键盘弹出时贴在键盘上方的那颗「保存」（没改动时置灰）
+                            val promptSaveBar: @Composable () -> Unit = {
+                                Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
+                            }
+                            SettingsSubPage(
+                                title = s["settings.customPrompt"],
+                                onBack = { returnToParent() },
+                                // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
+                                bottomBar = promptSaveBar.takeIf { imeVisible }
+                            ) {
+                                AiCustomPromptSettings(cpText, onText = { vm.customPromptDraft = it })
+                                // 键盘收起时：保存按钮留在输入框下面（原来的位置）—— 与浮动底栏二选一，绝不同时出现
+                                if (!imeVisible) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
+                                    }
+                                }
+                            }
+                        }
+                        AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { returnToParent() }) { LanguageSettings(vm) }
+                        AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { returnToParent() }) { ThemeSettings(vm) { AppNav.SettingsPages.open(settingsNav, it) } }
+                        AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { returnToParent() }) { NotifyBackgroundSettings() }
+                        // 数据管理：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 标签整理
+                        AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { returnToParent() }) { DataMenu(vm) { AppNav.SettingsPages.open(settingsNav, it) } }
+                        AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { returnToParent() }) { DataSettings(vm) }
+                        AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { returnToParent() }) { DataSettings(vm, "crash") }
+                        AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { returnToParent() }) { DataUpgradePage(vm) }
+                        AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { returnToParent() }) { TagMergePage(vm) }
+                        AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { returnToParent() }) { UpdatePage() }
+                        AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { returnToParent() }) { AboutPage() }
+                        else -> SettingsMain { AppNav.SettingsPages.open(settingsNav, it) }
                     }
                 }
             }
         }
-        AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { returnToParent() }) { LanguageSettings(vm) }
-        AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { returnToParent() }) { ThemeSettings(vm) { page = it } }
-        AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { returnToParent() }) { NotifyBackgroundSettings() }
-        // 数据管理：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 标签整理
-        AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { returnToParent() }) { DataMenu(vm) { page = it } }
-        AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { returnToParent() }) { DataSettings(vm) }
-        AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { returnToParent() }) { DataSettings(vm, "crash") }
-        AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { returnToParent() }) { DataUpgradePage(vm) }
-        AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { returnToParent() }) { TagMergePage(vm) }
-        AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { returnToParent() }) { UpdatePage() }
-        AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { returnToParent() }) { AboutPage() }
-        else -> SettingsMain { page = it }
     }
-    }
-    }
-    if (transitioning) Box(Modifier.fillMaxSize().pointerInput(Unit) {
-        awaitPointerEventScope {
-            while (true) {
-                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
-                event.changes.forEach { it.consume() }
-            }
-        }
-    })
-    }
+    // The inner host has no Back entry at its root. Cover only the brief root handoff,
+    // so a second committed Back cannot fall through and leave the Activity mid-animation.
+    BackHandler(enabled = page == AppNav.SettingsPages.MAIN && !rootReady) { }
 }
 
 /** ℹ️ 关于：上面「应用信息」，下面「功能」说明（更新历史移到「应用更新」页） */

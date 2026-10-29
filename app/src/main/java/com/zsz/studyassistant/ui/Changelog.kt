@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.3
+· ↩️ 为设置子页面补齐返回手势预览、取消和中断过渡，保持父级返回和底栏切换。
+· 🎨 修复错题本、复习等页面底栏上方的多余留白。
+
 v0.6.8.2
 · ⬆️ 改进版本检查和兼容信息读取，增加备用入口，优化更新失败提示。
 · 🎨 新增可选系统壁纸背景，优化主题可读性、页面布局与过渡动画。
@@ -511,6 +515,10 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.3
+· ↩️ Add predictive back previews, cancellation and interruptible transitions to settings pages, preserving parent navigation and bottom-tab switching.
+· 🎨 Remove extra space above the bottom bar on Notebook, Review and related pages.
+
 v0.6.8.2
 · ⬆️ Improve version checks and compatibility metadata retrieval, add an official fallback and clarify update errors.
 · 🎨 Add an optional system wallpaper background and improve theme readability, layouts and transitions.
@@ -1017,6 +1025,10 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.3
+· ↩️ 設定の子ページに戻るジェスチャーのプレビュー・キャンセル・中断可能な画面遷移を追加し、親ページへの戻り方と下部タブ切り替えを維持。
+· 🎨 ノート・復習などの画面で、下部バーの上に生じる余分な余白を修正。
+
 v0.6.8.2
 · ⬆️ バージョン確認と互換性情報の取得を改善し、公式の代替取得先と分かりやすいエラー表示を追加。
 · 🎨 システム壁紙を表示する設定を追加し、テーマの読みやすさ・配置・画面遷移を改善。
@@ -1523,6 +1535,10 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.3
+· ↩️ 설정 하위 화면에 예측 뒤로 가기 미리보기, 취소 및 중단 가능한 전환을 추가하고 상위 화면 복귀와 하단 탭 전환을 유지했습니다.
+· 🎨 오답 노트와 복습 등 화면의 하단 바 위에 생기는 불필요한 여백을 수정했습니다.
+
 v0.6.8.2
 · ⬆️ 버전 확인과 호환 정보 조회를 개선하고 공식 대체 경로와 명확한 업데이트 오류 안내를 추가했습니다.
 · 🎨 시스템 배경화면 표시 옵션을 추가하고 테마 가독성, 화면 배치와 전환 효과를 개선했습니다.
