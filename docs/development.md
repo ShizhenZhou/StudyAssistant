@@ -90,3 +90,8 @@ CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、
 ### 带后缀测试版的更新身份
 
 `0.6.9_beta` 这类版本须使用 `start --version 0.6.9_beta --channel beta`，后缀仅支持明确的 `_beta`。APK、候选构件清单、标签和源码版本保留完整后缀，原证书签名仍验证它们的精确身份。公开 schema-1 `update-manifest.json` 的 `version` 使用数字核心（如 `0.6.9`），兼容已发布客户端的标签规范化规则；`versionCode`、APK 文件名、大小与 SHA-256 仍绑定精确安装包，`channel=beta` 与 GitHub prerelease 明确标记可选测试版。不能仅修改新版客户端而让现有正式客户端无法下载首个测试版。跨渠道仍严格递增 versionCode。
+
+
+### 发布基线无法核验时的全量回退
+
+新版本可显式使用 `tools/release.ps1 start --version VERSION --channel beta --full-verification`（正式版仍用 `--channel stable`）。该模式不依赖历史 Release 下载、不复用历史测试证据，CI 的 `base_sha` 为空，以当前完整测试清单生成并核对全部验证项；本地仍按有效输入复用已有编译和测试。模式绑定准备状态，恢复时必须保留同一选项；签名、源码/候选一致性、逐项设备证据、下载与归档门禁照常执行。该选项不能用于同版本替换；替换始终需要精确原始发布基线证明。
