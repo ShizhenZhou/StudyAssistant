@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
-zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases)에서 받으세요.
+zsz가 DeepSeek-V4/V4.1 및 GPT-6.1 Sol의 도움으로 개발했습니다. 설치 파일은 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases)에서 받으세요.
 
 ## 기능
 
@@ -43,12 +43,6 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**(DB v1
 AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. 백업 v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
-
-### v0.6.9_beta
-
-- 📷 기본 카메라를 시험 도입했습니다. 촬영할 때마다 영역을 선택하고 한 장·두 장 풀이와 채점을 지원합니다.
-- 👆 홈 촬영 버튼 오른쪽에서 한 장·여러 장을 전환합니다. 왼쪽을 1초간 누른 뒤 놓으면 채점, 위로 밀면 취소합니다.
-- 🧪 기능이 불안정할 수 있는 선택적 테스트 버전입니다. 기본 카메라 흐름에는 아직 갤러리 선택을 연결하지 않았습니다.
 
 ### v0.6.8.5
 

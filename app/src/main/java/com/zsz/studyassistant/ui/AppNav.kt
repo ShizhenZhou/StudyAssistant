@@ -79,12 +79,6 @@ object AppNav {
 
     fun solve(origin: Origin): String = "$SOLVE/${origin.key}"
 
-    fun openCamera(nav: NavHostController, context: android.content.Context, grade: Boolean, multiple: Boolean) {
-        com.zsz.studyassistant.data.CapturePrefs.setGradeToggle(context, grade)
-        com.zsz.studyassistant.data.CapturePrefs.setSolveDouble(context, multiple)
-        nav.navigate(CAMERA) { launchSingleTop = true }
-    }
-
     /** 拍照 → 框选：拍题页用完即弃（栈 = home → crop），保证返回键不会回到相机预览 */
     fun openCrop(nav: NavHostController) {
         nav.navigate(CROP) { popUpTo(CAMERA) { inclusive = true } }

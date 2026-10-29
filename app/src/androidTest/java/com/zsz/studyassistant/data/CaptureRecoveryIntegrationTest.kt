@@ -91,57 +91,6 @@ class CaptureRecoveryIntegrationTest {
         assertNull(fresh.captureRecoveryNoticeKey)
     }
 
-    @Test fun returningFromSecondCameraReplacesTheFirstCropInsteadOfDuplicatingIt() = runBlocking {
-        val (vm, _) = model()
-        withContext(Dispatchers.Main) {
-            vm.startCropFlow(listOf(image("revisit-first.bin")), grade = true, expect = 2)
-            vm.submitCropResult(byteArrayOf(4, 5))
-            vm.cropGoBackOne()
-        }
-        vm.awaitCaptureCheckpoint()
-        assertFalse("Revisiting must exit the awaiting-second-photo stage", vm.cropNeedsMore)
-        assertEquals(0, vm.cropIndex)
-        assertTrue("The old first crop must be removed before resubmitting", journal.read()!!.results.isEmpty())
-        withContext(Dispatchers.Main) { vm.submitCropResult(byteArrayOf(8)) }
-        vm.awaitCaptureCheckpoint()
-        assertTrue(vm.cropNeedsMore)
-        assertArrayEquals(byteArrayOf(8), journal.read()!!.results.single())
-        assertFalse(vm.busy)
-    }
-
-    @Test fun returningAfterWholeImageSkipRestoresAValidFirstCropIndex() = runBlocking {
-        val (vm, _) = model()
-        val path = image("skipped-first.bin")
-        withContext(Dispatchers.Main) {
-            vm.startCropFlow(listOf(path), grade = true, expect = 2)
-            assertTrue(vm.skipRemainingCrop { byteArrayOf(6) })
-            assertTrue(vm.cropNeedsMore)
-            vm.cropGoBackOne()
-        }
-        vm.awaitCaptureCheckpoint()
-        assertEquals(0, vm.cropIndex)
-        assertEquals(path, vm.currentCropPath)
-        assertFalse(vm.cropNeedsMore)
-        assertTrue(journal.read()!!.results.isEmpty())
-    }
-
-    @Test fun cancelledSystemCaptureRemovesOnlyItsConsumedSources() = runBlocking {
-        val (vm, _) = model()
-        val dir = File(context.cacheDir, "system-camera").apply { mkdirs() }
-        val source = File(dir, "capture-consumed.jpg").apply { writeBytes(File(image("cleanup.bin")).readBytes()) }
-        val pending = File(dir, "capture-still-pending.jpg").apply { writeBytes(byteArrayOf(9)) }
-        val other = File(dir, "unrelated.jpg").apply { writeBytes(byteArrayOf(7)) }
-        try {
-            withContext(Dispatchers.Main) { vm.startCropFlow(listOf(source.absolutePath), true, 2) }
-            vm.awaitCaptureCheckpoint()
-            withContext(Dispatchers.Main) { vm.cancelCropFlow() }
-            vm.awaitCaptureCheckpoint()
-            assertFalse("Consumed system-camera source should be removed", source.exists())
-            assertTrue("Do not delete a file still owned by an external capture", pending.exists())
-            assertTrue(other.exists())
-        } finally { source.delete(); pending.delete(); other.delete() }
-    }
-
     @Test fun failedWholeImageBatchPreservesBothInputOrderAndCurrentIndex() = runBlocking {
         val (vm, _) = model()
         val paths = listOf(image("question.bin"), image("answer.bin"))

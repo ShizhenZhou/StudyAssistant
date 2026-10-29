@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Narrow per-feature directories; never expose the entire cache. -->
+<!-- FileProvider 暴露的目录：只暴露 cacheDir/updates（应用内更新下载的 APK），不要暴露整个 cache -->
 <paths>
     <cache-path name="updates" path="updates/" />
-    <cache-path name="system-camera" path="system-camera/" />
 </paths>

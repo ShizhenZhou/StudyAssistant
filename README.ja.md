@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
-zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) から入手できます。
+zsz が DeepSeek-V4/V4.1 と GPT-6.1 Sol の支援で開発。公開版は [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) から入手できます。
 
 ## 機能
 
@@ -43,12 +43,6 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。バックアップv4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
-
-### v0.6.9_beta
-
-- 📷 標準カメラを試験導入。撮影ごとに切り抜き、1枚・2枚の解答と採点に対応。
-- 👆 ホーム撮影ボタンの右側で1枚・複数枚を切替。左側を1秒長押しして離すと採点へ、上スワイプで取消。
-- 🧪 任意のテスト版です。動作が不安定な場合があります。標準カメラのフローにはギャラリー選択を未接続。
 
 ### v0.6.8.5
 

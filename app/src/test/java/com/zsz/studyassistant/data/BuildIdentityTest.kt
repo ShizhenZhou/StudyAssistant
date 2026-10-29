@@ -4,11 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BuildIdentityTest {
-    @Test fun betaAttachmentBuildTimeUsesTheNumericWireVersion() {
-        assertEquals(BuildIdentity.parseStamp("20261029180000"),
-            BuildIdentity.assetTime("StudyAssistant-0.6.9_beta-20261029180000.apk", "0.6.9"))
-        assertEquals(0L, BuildIdentity.assetTime("StudyAssistant-0.6.9_beta-20261029180000.apk", "0.6.8"))
-    }
     private val old = BuildIdentity.parseStamp("202610240609")
     private val newer = BuildIdentity.parseStamp("20261024160001")
     @Test fun parsesLegacyMinutesAndNewUtcSeconds() {

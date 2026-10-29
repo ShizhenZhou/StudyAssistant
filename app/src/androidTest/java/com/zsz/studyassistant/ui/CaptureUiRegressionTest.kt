@@ -81,7 +81,7 @@ class CaptureUiRegressionTest {
         val roots = automation.windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
             .mapNotNull { it.root }.filter { it.packageName?.toString() == context.packageName }
         val active = automation.rootInActiveWindow
-        return if (active?.packageName?.toString() == context.packageName) listOf(active) + roots else roots
+        return if (active?.packageName?.toString() == context.packageName) roots + active else roots
     }
 
     private fun find(node: AccessibilityNodeInfo?, text: String): AccessibilityNodeInfo? {
@@ -134,8 +134,42 @@ class CaptureUiRegressionTest {
     }
 
     private fun tap(text: String) {
-        // Exercise a real touch in the active dialog; ACTION_CLICK may acknowledge a stale semantics node.
-        touch(text)
+        val deadline = SystemClock.uptimeMillis() + 8000
+        while (SystemClock.uptimeMillis() < deadline) {
+            for (root in roots()) {
+                var node: AccessibilityNodeInfo? = find(root, text)
+                while (node != null && !node.isClickable) node = node.parent
+                if (node?.isEnabled == true && node.isVisibleToUser &&
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    instrumentation.waitForIdleSync()
+                    return
+                }
+            }
+            Thread.sleep(60)
+        }
+        error("Capture action was not clickable: $text\n${diagnostics()}")
+    }
+
+    private fun dismissModeChange() {
+        tap(s["common.cancel"])
+        waitUntilAbsent(s["camera.discardTitle"])
+        // Verify the camera page's controls have returned before querying the grade switch.
+        waitFor(s["camera.gallery"])
+    }
+
+    private fun tapGradeSwitch() {
+        val deadline = SystemClock.uptimeMillis() + 8000
+        while (SystemClock.uptimeMillis() < deadline) {
+            for (root in roots()) {
+                val node = switch(root)
+                if (node != null && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    instrumentation.waitForIdleSync()
+                    return
+                }
+            }
+            Thread.sleep(60)
+        }
+        error("Grade switch was not clickable after dialog dismissal\n${diagnostics()}")
     }
 
     private fun touch(text: String, holdMs: Long = 0, slideUp: Boolean = false) {
@@ -235,47 +269,99 @@ class CaptureUiRegressionTest {
         } finally { fixture.delete() }
     }
 
-    @Test fun unavailableSystemCameraRetakeRequiresExplicitAbandonment() {
+    private fun switch(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isCheckable && node.isEnabled && node.isClickable && node.isVisibleToUser) return node
+        for (i in 0 until node.childCount) switch(node.getChild(i))?.let { return it }
+        return null
+    }
+
+    @Test fun deniedCameraKeepsGalleryAndBothModeChangesRequireExplicitAbandonment() {
         val fixture = File.createTempFile("synthetic-ui-fixture", ".jpg", context.cacheDir)
+        // A real valid image allows the durable capture journal to validate its synthetic input.
         val bitmap = android.graphics.Bitmap.createBitmap(12, 12, android.graphics.Bitmap.Config.ARGB_8888)
         fixture.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }
         bitmap.recycle()
         var model: MainViewModel? = null
-        val registry = object : androidx.activity.result.ActivityResultRegistry(), androidx.activity.result.ActivityResultRegistryOwner {
-            override val activityResultRegistry get() = this
-            override fun <I, O> onLaunch(requestCode: Int, contract: androidx.activity.result.contract.ActivityResultContract<I, O>,
-                input: I, options: androidx.core.app.ActivityOptionsCompat?) {
-                throw android.content.ActivityNotFoundException("Synthetic unavailable camera")
-            }
-        }
+        val previousDouble = com.zsz.studyassistant.data.CapturePrefs.solveDouble(context)
+        val previousGrade = com.zsz.studyassistant.data.CapturePrefs.gradeToggle(context)
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 scenario.onActivity { activity ->
-                    val vm = ViewModelProvider(activity)[MainViewModel::class.java]; model = vm
+                    val vm = ViewModelProvider(activity)[MainViewModel::class.java]
+                    model = vm
                     vm.cancelCropFlow()
                     vm.startCropFlow(listOf(fixture.absolutePath), grade = true, expect = 2)
                     vm.submitCropResult(fixture.readBytes())
+                    assertTrue(vm.cropNeedsMore)
+                    // Model a denial without revoking permission (which would kill the test app).
+                    val deniedContext = object : ContextWrapper(activity) {
+                        override fun checkPermission(permission: String, pid: Int, uid: Int): Int =
+                            if (permission == Manifest.permission.CAMERA) PackageManager.PERMISSION_DENIED
+                            else super.checkPermission(permission, pid, uid)
+                    }
                     activity.setContent {
-                        CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides registry,
-                            LocalStrings provides s) {
+                        CompositionLocalProvider(LocalContext provides deniedContext,
+                            LocalStrings provides s, LocalUiLang provides UiLang.EN) {
                             MaterialTheme { CameraScreen(rememberNavController(), vm) }
                         }
                     }
                 }
-                waitFor(s["camera.system.unavailable"])
+                waitFor(s["camera.permNeeded"])
+                val gallery = waitFor(s["camera.gallery"])
+                assertTrue("Gallery remains enabled after camera permission denial", gallery.isEnabled)
                 waitFor("2 / 2")
+                waitFor(s["camera.capturedFirst"])
                 tap(s["camera.restart"])
                 waitFor(s["camera.restartTitle"])
                 tap(s["common.cancel"])
+                // The dialog and the underlying progress card both say "Retake".
+                // Wait for disposal before the next action, or a stale dialog node can
+                // confirm the discarded dialog instead of opening a new one on CI.
                 waitUntilAbsent(s["camera.restartTitle"])
-                scenario.onActivity { assertTrue(model!!.cropNeedsMore); assertEquals(1, model!!.cropPaths.size) }
+                scenario.onActivity { assertTrue(model!!.cropNeedsMore) }
                 tap(s["camera.restart"])
                 waitFor(s["camera.restartTitle"])
                 tap(s["camera.restart"])
                 waitUntilAbsent(s["camera.restartTitle"])
                 waitFor("1 / 2")
+                scenario.onActivity {
+                    assertTrue(model!!.cropPaths.isEmpty())
+                    assertFalse(model!!.cropNeedsMore)
+                    model!!.startCropFlow(listOf(fixture.absolutePath), grade = true, expect = 2)
+                    model!!.submitCropResult(fixture.readBytes())
+                }
+                waitFor("2 / 2")
+                tap(s["camera.mode.two"])
+                waitFor(s["camera.discardTitle"])
+                scenario.onActivity { assertEquals(listOf(fixture.absolutePath), model!!.cropPaths); assertTrue(model!!.cropGrade) }
+                dismissModeChange()
+                scenario.onActivity { assertTrue(model!!.cropNeedsMore); assertEquals(1, model!!.cropPaths.size) }
+                // Grade switch must use the same confirmation and preserve the first result on cancel.
+                tapGradeSwitch()
+                waitFor(s["camera.discardTitle"])
+                scenario.onActivity { assertTrue(model!!.cropGrade); assertTrue(model!!.cropNeedsMore) }
+                dismissModeChange()
+                tap(s["camera.mode.two"])
+                tap(s["camera.discardConfirm"])
+                waitFor(s["camera.mode.one"])
                 scenario.onActivity { assertTrue(model!!.cropPaths.isEmpty()); assertFalse(model!!.cropNeedsMore) }
+                // Start another grade pair; confirming the grade change must also clear the queue.
+                scenario.onActivity {
+                    model!!.startCropFlow(listOf(fixture.absolutePath), grade = true, expect = 2)
+                    model!!.submitCropResult(fixture.readBytes())
+                }
+                instrumentation.waitForIdleSync()
+                tapGradeSwitch()
+                tap(s["camera.discardConfirm"])
+                scenario.onActivity { assertTrue(model!!.cropPaths.isEmpty()); assertFalse(model!!.cropNeedsMore) }
+                scenario.onActivity { model!!.cancelCropFlow() }
             }
-        } finally { instrumentation.runOnMainSync { model?.cancelCropFlow() }; fixture.delete() }
+        } finally {
+            instrumentation.runOnMainSync { model?.cancelCropFlow() }
+            com.zsz.studyassistant.data.CapturePrefs.setSolveDouble(context, previousDouble)
+            com.zsz.studyassistant.data.CapturePrefs.setGradeToggle(context, previousGrade)
+            fixture.delete()
+        }
     }
 }

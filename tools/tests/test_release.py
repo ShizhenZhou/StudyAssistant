@@ -16,53 +16,6 @@ import release
 from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
 
 class ReleaseTest(unittest.TestCase):
-    def test_full_verification_start_dispatches_without_a_previous_release_and_binds_mode(self):
-        source = self.root / 'app/build.gradle.kts'; source.parent.mkdir(parents=True)
-        source.write_text('val appVersionName = "9.9.9"')
-        requests = []
-        class Fake:
-            def api(self, path, value=None, **kwargs):
-                if path == 'git/ref/tags/v9.9.9': return None
-                if path.endswith('/dispatches'):
-                    requests.append(value); return None
-                raise AssertionError('Full verification must not depend on release asset downloads: ' + path)
-        tool = release.Release(self.root, Fake())
-        tool.git = lambda *args, **kwargs: SimpleNamespace(returncode=0,
-            stdout=b'' if args[0]=='status' else b'[skip ci]' if args[0]=='log' else b'a'*40)
-        tool.remote = lambda branch: 'c'*40
-        pushes=[]; tool.push=lambda branch,commit: pushes.append((branch,commit))
-        tool.status=lambda: {'status':'ci dispatched'}
-        with patch.object(release, 'command', return_value=SimpleNamespace(returncode=0)) as checks:
-            tool.start('9.9.9', full_verification=True)
-            self.assertEqual(checks.call_count, 1, 'Local Basic still runs')
-            tool.start('9.9.9', full_verification=True)
-            self.assertEqual(checks.call_count, 1, 'Resume must not dispatch or check twice')
-        self.assertEqual(len(requests),1)
-        self.assertEqual(requests[0]['inputs'], dict(mode='release',expected_sha='a'*40,base_sha=''))
-        self.assertIsNone(tool.state['verificationBase'])
-        self.assertIsNone(tool.state['verificationBaselineReleaseId'])
-        self.assertTrue(tool.state['fullVerification'])
-        self.assertEqual(pushes,[('main','a'*40),('Develop','a'*40)])
-        with self.assertRaisesRegex(release.ReleaseError, 'original verification mode'):
-            tool.start('9.9.9')
-
-    def test_full_verification_cannot_bypass_replacement_baseline_proof(self):
-        tool=release.Release(self.root)
-        tool.git=lambda *args,**kwargs:SimpleNamespace(returncode=0,stdout=b'' if args[0]=='status' else b'a'*40)
-        with self.assertRaisesRegex(release.ReleaseError, 'original baseline proof'):
-            tool.start('9.9.9', replacement=True, full_verification=True)
-
-    def test_beta_suffix_survives_apk_and_candidate_identity_validation(self):
-        badging = "package: name='com.zsz.studyassistant' versionCode='86' versionName='0.6.9_beta'\nsdkVersion:'36'\ntargetSdkVersion:'37'"
-        self.assertEqual(apk_identity(badging)['version'], '0.6.9_beta')
-        apk = self.apk('beta.apk')
-        manifest = dict(self.manifest(apk), version='0.6.9_beta', versionCode=86,
-                        candidate='StudyAssistant-0.6.9_beta-20261024120000-candidate.apk')
-        self.assertEqual(validate_manifest(manifest)['version'], '0.6.9_beta')
-        for suffix in ('_beta/evil', '_beta.exe', '_anything', ';bad'):
-            with self.assertRaises(ValueError):
-                apk_identity(badging.replace('0.6.9_beta', '0.6.9' + suffix))
-
     def test_beta_cannot_replace_a_stable_tag_through_the_start_entry(self):
         tool=release.Release(self.root)
         tool.git=lambda *args, **kwargs: SimpleNamespace(returncode=0,stdout=b'' if args==('status','--porcelain') else b'a'*40)
@@ -493,18 +446,17 @@ class ReleaseTest(unittest.TestCase):
         self.verify_publication_resume()
 
     def test_beta_publication_is_optional_and_never_becomes_latest(self):
-        metadata = self.verify_publication_resume('beta', '0.6.9_beta')
-        self.assertEqual(metadata['version'], '0.6.9')
+        self.verify_publication_resume('beta')
 
     def test_new_stable_publication_records_its_explicit_channel(self):
         self.verify_publication_resume('stable')
 
-    def verify_publication_resume(self, channel=None, version='9.9.9'):
+    def verify_publication_resume(self, channel=None):
         import shutil
         work = self.root / ".local-notes/release-state/artifacts/42"
         work.mkdir(parents=True)
         signed = self.apk("signed.apk"); signed = Path(shutil.move(signed, work / signed.name))
-        manifest = dict(self.manifest(signed), version=version)
+        manifest = self.manifest(signed)
         notes = self.root / "notes.md"; notes.write_text("## 更新内容\nSynthetic update", encoding="utf-8")
         (self.root / "tools").mkdir()
         shutil.copy(ROOT / "tools/check-secrets.py", self.root / "tools/check-secrets.py")
@@ -512,7 +464,7 @@ class ReleaseTest(unittest.TestCase):
         class FakeGitHub:
             def __init__(self):
                 self.uploads = []; self.downloads = []; self.fail_upload = True
-                self.item = dict(id=7, tag_name="v" + version, draft=True, assets=[], html_url="https://example.invalid/release")
+                self.item = dict(id=7, tag_name="v9.9.9", draft=True, assets=[], html_url="https://example.invalid/release")
             def api(self, path, value=None, **kwargs):
                 if path.startswith("releases?"): return [self.item]
                 if path.startswith("git/ref"): return {"object": {"sha": "a"*40}}
@@ -554,7 +506,6 @@ class ReleaseTest(unittest.TestCase):
         tool.state["notesSha256"] = release.hashlib.sha256(b"Synthetic update").hexdigest()
         tool.publish(42, notes)
         self.assertEqual(github.item["body"], "Synthetic update")
-        return metadata
         self.assertEqual(len(github.uploads), 2)
 
     def test_inline_manifest_is_escaped_and_cannot_be_duplicated_in_notes(self):

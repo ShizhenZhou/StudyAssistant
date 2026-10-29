@@ -987,9 +987,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val currentCropPath: String? get() = cropPaths.getOrNull(cropIndex)
     internal val cropRevision: Long get() = captureFlowRevision
-    // Durable identity ignores source-file relocation performed by capture recovery.
-    internal val cameraRequestToken: String get() =
-        if (cropPaths.isEmpty()) "empty" else "$captureStartedAt|$cropIndex|$cropGrade|$cropExpect|$cropNeedsMore"
     /**
      * 是否还有待框选的图。
      * 注意：submitCropResult 里"前进"是立刻发生的，所以提交完第一张后
@@ -1286,9 +1283,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     /** 两张模式：从第 2 张返回第 1 张重新框（丢弃第 1 张已提交的结果，保持队列一致） */
     fun cropGoBackOne() {
-        if (cropIndex <= 0 && !cropNeedsMore) return
+        if (cropIndex <= 0) return
         if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
-        cropIndex = if (cropNeedsMore) cropPaths.lastIndex.coerceAtLeast(0) else cropIndex - 1
+        cropIndex -= 1
         cropNeedsMore = false
         checkpointCaptureFlow()
     }
@@ -1345,22 +1342,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cancelCropFlow() {
-        val abandonedSources = cropPaths.toList()
         captureRecoveryChecked = true
         val revision = ++captureFlowRevision
         val ticket = captureFlowStore.reserve()
         captureWriteJob?.cancel()
-        captureWriteJob = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+        captureWriteJob = viewModelScope.launch {
             try {
-                // Complete bounded cleanup even if a new checkpoint cancels this job meanwhile.
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
-                    captureFlowStore.clear(ticket)
-                    val cameraDirectory = java.io.File(getApplication<android.app.Application>().cacheDir, "system-camera").canonicalFile
-                    abandonedSources.forEach { path ->
-                        val file = java.io.File(path).canonicalFile
-                        if (file.parentFile == cameraDirectory && file.name.startsWith("capture-") && file.name.endsWith(".jpg")) file.delete()
-                    }
-                }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { captureFlowStore.clear(ticket) }
             } catch (error: kotlinx.coroutines.CancellationException) { throw error }
             catch (_: Exception) {
                 if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryClearFailed"

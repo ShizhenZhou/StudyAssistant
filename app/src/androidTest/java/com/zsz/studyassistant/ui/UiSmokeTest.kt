@@ -319,22 +319,12 @@ class UiSmokeTest {
                 val bounds = android.graphics.Rect()
                 waitFor(s["home.camera"])
                 requireNotNull(clickable(instrumentation.uiAutomation.rootInActiveWindow, s["home.camera"])).getBoundsInScreen(bounds)
-                val primaryBounds = android.graphics.Rect(bounds)
-                val modeBounds = android.graphics.Rect()
-                val modeLabel = s[if (com.zsz.studyassistant.data.CapturePrefs.solveDouble(context))
-                    "home.camera.multiple" else "camera.mode.one"]
-                waitFor(modeLabel)
-                requireNotNull(clickable(instrumentation.uiAutomation.rootInActiveWindow, modeLabel)).getBoundsInScreen(modeBounds)
-                bounds.union(modeBounds)
                 scenario.onActivity { activity ->
                     val width = activity.window.decorView.width
                     val density = activity.resources.displayMetrics.density
                     assertTrue("Exercise a genuinely wide window: $width", width >= 1000)
                     assertTrue("Home actions must not stretch across the window: $bounds", bounds.width() <= 560 * density + 2)
                     assertTrue("Home actions stay centered: $bounds / $width", kotlin.math.abs(bounds.centerX() - width / 2) <= 2 * density)
-                    assertTrue("The mode switch stays to the right of the main action", modeBounds.left >= primaryBounds.right)
-                    assertTrue("The mode switch keeps a usable touch target", modeBounds.width() >= 48 * density)
-                    assertTrue("Both segments share the same row", kotlin.math.abs(modeBounds.centerY() - primaryBounds.centerY()) <= 2 * density)
                 }
                 val image = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
                 try { java.io.File(context.filesDir, "ui-home-wide.png").outputStream().use {

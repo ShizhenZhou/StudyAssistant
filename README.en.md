@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
-Developed by zsz with assistance from DeepSeek and GPT. Download published builds from [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases).
+Developed by zsz with assistance from DeepSeek-V4/V4.1 and GPT-6.1 Sol. Download published builds from [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases).
 
 ## Features
 
@@ -43,12 +43,6 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4** (DB v
 AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Backup format v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](DATA_SCHEMA.md).
 
 ## Version history
-
-### v0.6.9_beta
-
-- 📷 Try the system camera, cropping each photo before continuing with one- or two-image solving and grading.
-- 👆 Switch single/multiple images on the right of the Home camera button; hold the left side for 1 second, release to grade, or slide up to cancel.
-- 🧪 Optional beta with potentially unstable features; the system camera flow does not yet include gallery selection.
 
 ### v0.6.8.5
 

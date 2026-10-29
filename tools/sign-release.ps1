@@ -111,7 +111,7 @@ if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDi
 
 $aapt = Join-Path $bt.FullName 'aapt.exe'
 $identity = (& $aapt dump badging $InApk 2>$null) -join "`n"
-if ($LASTEXITCODE -ne 0 -or $identity -notmatch "package: name='com\.zsz\.studyassistant'.*versionName='([0-9]+(?:\.[0-9]+){2,3}(?:_beta)?)'") {
+if ($LASTEXITCODE -ne 0 -or $identity -notmatch "package: name='com\.zsz\.studyassistant'.*versionName='([0-9]+(?:\.[0-9]+){2,3})'") {
     throw 'Unexpected APK identity; no signature applied.'
 }
 $ver = $Matches[1]

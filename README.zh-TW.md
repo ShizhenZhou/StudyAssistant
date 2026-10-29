@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
-由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
+由 zsz 開發，DeepSeek-V4/V4.1 與 GPT-6.1 Sol 輔助編寫。
 安裝包和已發布版本以 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) 為準。
 
 ## 功能
@@ -45,12 +45,6 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 構建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
 
 ## 版本記錄
-
-### v0.6.9_beta
-
-- 📷 測試接入系統相機，每拍一張進入框選，保留單張和兩張解題／批改流程。
-- 👆 主頁拍照按鈕右側切換單張／多張；左側長按1秒切換批改，鬆手進入，上滑取消。
-- 🧪 本版本為可選測試版，功能可能不穩定；系統相機流程暫不接入圖庫。
 
 ### v0.6.8.5
 
