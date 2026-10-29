@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
-Developed by zsz with assistance from DeepSeek-V4/V4.1 and GPT-6.1 Sol. Download published builds from [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases).
+Developed by zsz with assistance from DeepSeek and GPT. Download published builds from [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases).
 
 ## Features
 

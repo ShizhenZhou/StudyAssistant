@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
-zsz가 DeepSeek-V4/V4.1 및 GPT-6.1 Sol의 도움으로 개발했습니다. 설치 파일은 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases)에서 받으세요.
+zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases)에서 받으세요.
 
 ## 기능
 

@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
-zsz が DeepSeek-V4/V4.1 と GPT-6.1 Sol の支援で開発。公開版は [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) から入手できます。
+zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) から入手できます。
 
 ## 機能
 
