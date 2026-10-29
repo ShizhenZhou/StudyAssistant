@@ -297,10 +297,15 @@ class CaptureUiRegressionTest {
                 tap(s["camera.restart"])
                 waitFor(s["camera.restartTitle"])
                 tap(s["common.cancel"])
+                // The dialog and the underlying progress card both say "Retake".
+                // Wait for disposal before the next action, or a stale dialog node can
+                // confirm the discarded dialog instead of opening a new one on CI.
+                waitUntilAbsent(s["camera.restartTitle"])
                 scenario.onActivity { assertTrue(model!!.cropNeedsMore) }
                 tap(s["camera.restart"])
                 waitFor(s["camera.restartTitle"])
                 tap(s["camera.restart"])
+                waitUntilAbsent(s["camera.restartTitle"])
                 waitFor("1 / 2")
                 scenario.onActivity {
                     assertTrue(model!!.cropPaths.isEmpty())
