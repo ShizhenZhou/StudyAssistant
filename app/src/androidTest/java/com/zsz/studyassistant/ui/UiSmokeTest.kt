@@ -502,7 +502,9 @@ class UiSmokeTest {
                 waitFor(s.format("catManage.drag", "name" to firstName)).getBoundsInScreen(a)
                 waitFor(s.format("catManage.drag", "name" to secondName)).getBoundsInScreen(b)
                 assertTrue(a.centerY() < b.centerY())
-                tap(s["catManage.customOrder"])
+                // After activity recreation, accessibility actions can retain stale click flags.
+                // Exercise the visible chip with a real touch, then verify persisted state below.
+                tapPhysical(s["catManage.customOrder"])
                 assertFalse(prefs.getBoolean("category_order_custom", true))
                 tapPhysical(s["nav.learn"])
                 dismissHomeKeyDialog()

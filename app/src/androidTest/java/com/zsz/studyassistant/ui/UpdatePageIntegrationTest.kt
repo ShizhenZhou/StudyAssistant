@@ -208,6 +208,11 @@ class UpdatePageIntegrationTest {
                     while (prefs.contains("session") && android.os.SystemClock.uptimeMillis() < deadline) Thread.sleep(80)
                     assertFalse("Installed legacy task must be forgotten without a network check", prefs.contains("session"))
                     waitUntilAbsent(s["update.compatibilityUnknown"])
+                    // Removing the persisted task precedes recomposition/accessibility publication.
+                    // Await the enabled check action rather than treating absent text as a rendered page.
+                    val checkDeadline = android.os.SystemClock.uptimeMillis() + 8000
+                    while (clickable(instrumentation.uiAutomation.rootInActiveWindow, s["update.check"]) == null &&
+                        android.os.SystemClock.uptimeMillis() < checkDeadline) Thread.sleep(80)
                     assertNotNull(clickable(instrumentation.uiAutomation.rootInActiveWindow, s["update.check"]))
                 } else {
                     waitFor(s["update.compatibilityUnknown"])

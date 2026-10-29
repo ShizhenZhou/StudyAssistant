@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
-zsz が DeepSeek-V4/V4.1 と GPT-6.1 Sol の支援で開発。公開版は [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) から入手できます。
+zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) から入手できます。
 
 ## 機能
 
@@ -40,7 +40,7 @@ zsz が DeepSeek-V4/V4.1 と GPT-6.1 Sol の支援で開発。公開版は [GitH
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（単発バックアップ）· AlarmManager · Android Keystore。
 
-AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。バックアップv4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](DATA_SCHEMA.md) を参照してください。
+AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
 
@@ -48,22 +48,26 @@ AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk *
 
 - 🎨 「アプリ更新」「解答履歴」などの画面レイアウトを微調整。
 - 📷 安定版の撮影フローに戻し、テスト版から正式版へ上書き更新できるようにしました。
+- 📌 `versionCode` **87**。
 
 ### v0.6.8.5
 
 - 🛠️ 採点結果を解答履歴へ保存後、完了済み下書きを整理。失敗・中断した内容は復元用に保持。
 - 🧪 正式版と任意のテスト版更新を区別し、説明とダウンロードを個別に表示。公開チャンネルを明示。
 - 🎨 学習・統計・設定のホーム画面でテーマカラーのグラデーション背景を統一。
+- 📌 `versionCode` **85**。
 
 ### v0.6.8.4
 
 - 🎨 解答履歴の複数選択スタイルを統一し、復習フィルターと文字・画像質問ページを微調整。
 - ✂️ 複数画像の切り抜きスキップを1秒長押しに短縮し、振動で通知。上スワイプでの取消を維持し、手順ごとの確定表示を修正。
+- 📌 `versionCode` **84**。
 
 ### v0.6.8.3
 
 - ↩️ 設定の子ページに戻るジェスチャーのプレビュー・キャンセル・中断可能な画面遷移を追加し、親ページへの戻り方と下部タブ切り替えを維持。
 - 🎨 ノート・復習などの画面で、下部バーの上に生じる余分な余白を修正。
+- 📌 `versionCode` **83**。
 
 ### v0.6.8.2
 
@@ -72,9 +76,7 @@ AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk *
 - 🗂️ ノートの科目を問題数順またはドラッグで並べ替え可能にし、復習の科目選択と長押し選択の反応を改善。
 - ↩️ 下部タブ切り替えと二度戻る確認を改善し、撮影の進捗プレビューと撮り直しを追加。
 - 🔔 ダウンロード完了表示を2分30秒に延長し、解答関連の名称とアプリ情報を整理。
-
-> 問題のPNG/PDF出力はv0.6.4で廃止しました。v0.6.3～v0.6.3.3の関連記載は過去の記録です。
-> 3桁・4桁いずれのバージョンもREADMEとアプリ内履歴を4言語で更新し、繁体字は簡体字から変換します。発行ごとにversionCodeを増やします。これと異なる旧規則は無効です。READMEとアプリ内履歴ではv0.6.8とv0.6.7.9の間にAndroid 16以降の共通区切りを設け、GitHub Releaseでは最低Android要件を最後に記載します。
+- 📌 `versionCode` **82**。
 
 ### v0.6.8.1
 
@@ -83,11 +85,13 @@ AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk *
 - 🔔 進捗や表示状態が変わったときだけダウンロード通知を更新し、取消・完了・権限復帰の処理を維持。
 - 🗄️ システムによるバックアップ延期の端末内診断と説明を追加し、実行待ちをデータ破損と区別。
 - 🖥️ 「このアプリについて」「データ管理」「アプリ更新」などのページ内容を微調整。
+- 📌 `versionCode` **81**。
 
 ### v0.6.8
 - 🛡️ インストール権限を確認できない場合は、許可済みと判断せず停止。
 - 🔔 Android 16 のダウンロード進捗・完了通知に統一し、通知権限・取消・再開の確認を維持。
 - 🛠️ 旧OSの互換分岐を整理し、ビルド単位で再開できるリリース検証と明示的な同バージョン置換を改善。
+- 📌 `versionCode` **80**。
 
 **上記のバージョンは Android 16 以降にのみ対応しています。**
 

@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
-zsz가 DeepSeek-V4/V4.1 및 GPT-6.1 Sol의 도움으로 개발했습니다. 설치 파일은 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases)에서 받으세요.
+zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases)에서 받으세요.
 
 ## 기능
 
@@ -40,7 +40,7 @@ zsz가 DeepSeek-V4/V4.1 및 GPT-6.1 Sol의 도움으로 개발했습니다. 설�
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**(DB v10) · Retrofit / OkHttp(SSE) · kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**(일회성 백업) · AlarmManager · Android Keystore.
 
-AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. 백업 v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](DATA_SCHEMA.md)를 참고하세요.
+AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
 
@@ -48,22 +48,26 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 - 🎨 앱 업데이트·풀이 기록 등의 페이지 레이아웃을 다듬었습니다.
 - 📷 안정 버전의 촬영 흐름을 복원하고 테스트 버전에서 정식 버전으로 덮어쓰기 업데이트를 지원합니다.
+- 📌 `versionCode` **87**.
 
 ### v0.6.8.5
 
 - 🛠️ 채점 결과를 풀이 기록에 저장한 뒤 완료된 초안을 정리하고, 실패하거나 중단된 내용은 복구를 위해 보관합니다.
 - 🧪 정식 버전과 선택적 테스트 업데이트를 구분하고 설명과 다운로드를 각각 표시하며 배포 채널을 명시합니다.
 - 🎨 학습·통계·설정 홈 화면의 테마 색상 그라데이션 배경을 통일했습니다.
+- 📌 `versionCode` **85**.
 
 ### v0.6.8.4
 
 - 🎨 풀이 기록의 다중 선택 스타일을 통일하고 복습 필터와 글·이미지 질문 화면을 다듬었습니다.
 - ✂️ 여러 이미지의 자르기 건너뛰기를 1초 길게 누르기로 줄이고 진동을 추가했습니다. 위로 밀어 취소하는 동작을 유지하고 단계별 확인 문구를 개선했습니다.
+- 📌 `versionCode` **84**.
 
 ### v0.6.8.3
 
 - ↩️ 설정 하위 화면에 예측 뒤로 가기 미리보기, 취소 및 중단 가능한 전환을 추가하고 상위 화면 복귀와 하단 탭 전환을 유지했습니다.
 - 🎨 오답 노트와 복습 등 화면의 하단 바 위에 생기는 불필요한 여백을 수정했습니다.
+- 📌 `versionCode` **83**.
 
 ### v0.6.8.2
 
@@ -72,9 +76,7 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 - 🗂️ 오답 노트 과목을 문제 수 또는 드래그한 순서로 정렬하고 복습 과목 필터와 길게 눌러 선택할 때의 피드백을 개선했습니다.
 - ↩️ 하단 탭 전환과 두 번 뒤로 확인을 개선하고 촬영 진행 미리보기와 다시 촬영을 추가했습니다.
 - 🔔 다운로드 완료 표시를 2분 30초로 늘리고 풀이 관련 명칭과 앱 정보를 정리했습니다.
-
-> 문제 PNG/PDF 내보내기는 v0.6.4에서 제거했습니다. v0.6.3~v0.6.3.3의 관련 항목은 과거 기록입니다.
-> 세 자리·네 자리 버전 모두 README와 앱 내 기록을 네 언어로 갱신하며 번체는 간체에서 변환합니다. 출시마다 versionCode를 올립니다. 이와 다른 구형 규칙은 폐기되었습니다. README와 앱 내 기록에는 v0.6.8과 v0.6.7.9 사이에 Android 16 이상 안내 구분선을 두며, GitHub Release에서는 최소 Android 요구 사항을 마지막 항목에 둡니다.
+- 📌 `versionCode` **82**.
 
 ### v0.6.8.1
 
@@ -83,11 +85,13 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 - 🔔 진행률이나 표시 상태가 바뀔 때만 다운로드 알림을 갱신하고 취소·완료·권한 복구 처리를 유지합니다.
 - 🗄️ 시스템이 연기한 백업의 로컬 진단과 설명을 추가하여 실행 지연과 데이터 손상을 구분합니다.
 - 🖥️ 정보, 데이터 관리, 앱 업데이트 등의 페이지 내용을 미세 조정했습니다.
+- 📌 `versionCode` **81**.
 
 ### v0.6.8
 - 🛡️ 설치 권한을 확인할 수 없으면 허용된 것으로 간주하지 않고 설치를 중단합니다.
 - 🔔 Android 16 다운로드 진행 및 완료 알림을 통일하고 권한·취소·복구 확인을 유지합니다.
 - 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
+- 📌 `versionCode` **80**.
 
 **위 버전은 Android 16 이상만 지원합니다.**
 

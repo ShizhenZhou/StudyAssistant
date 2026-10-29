@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
-Developed by zsz with assistance from DeepSeek-V4/V4.1 and GPT-6.1 Sol. Download published builds from [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases).
+Developed by zsz with assistance from DeepSeek and GPT. Download published builds from [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases).
 
 ## Features
 
@@ -40,7 +40,7 @@ Automatic backups write only to your SAF-selected folder. The app does not initi
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4** (DB v10) · Retrofit / OkHttp (SSE) · kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0** (one-time backups) · AlarmManager · Android Keystore.
 
-AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Backup format v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](DATA_SCHEMA.md).
+AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](DATA_SCHEMA.md).
 
 ## Version history
 
@@ -48,22 +48,26 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 - 🎨 Refine the layout of App update and Solution history pages.
 - 📷 Restore the stable camera flow and allow beta installations to update to this stable release.
+- 📌 `versionCode` **87**.
 
 ### v0.6.8.5
 
 - 🛠️ Clear completed grading drafts after saving results to solving history; retain failed and interrupted work for recovery.
 - 🧪 Distinguish stable and optional test updates, with separate notes and downloads and explicit release channels.
 - 🎨 Use the same theme-colour gradient on Learn, Stats and Settings home pages.
+- 📌 `versionCode` **85**.
 
 ### v0.6.8.4
 
 - 🎨 Unify selection styling in solving history and refine the Review filters and text/image question page.
 - ✂️ Reduce the multi-image crop-skip hold to 1 second with haptic feedback, keep slide-up cancellation and clarify each confirmation step.
+- 📌 `versionCode` **84**.
 
 ### v0.6.8.3
 
 - ↩️ Add predictive back previews, cancellation and interruptible transitions to settings pages, preserving parent navigation and bottom-tab switching.
 - 🎨 Remove extra space above the bottom bar on Notebook, Review and related pages.
+- 📌 `versionCode` **83**.
 
 ### v0.6.8.2
 
@@ -72,9 +76,7 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 - 🗂️ Sort notebook subjects by problem count or a custom drag order; improve review filtering and long-press selection feedback.
 - ↩️ Improve bottom-tab switching and double-back prompts; add capture progress previews and retaking.
 - 🔔 Keep the download completion notice for 2 minutes 30 seconds; update solving labels and simplify About.
-
-> Problem export (PNG/PDF) was removed in v0.6.4. Export entries in v0.6.3–v0.6.3.3 are historical only.
-> Both three- and four-component versions require README and in-app changelogs in all four source languages; Traditional Chinese is converted from Simplified Chinese. Increment versionCode for each release. Older contrary statements are obsolete. README and in-app history use a shared Android 16+ divider between v0.6.8 and v0.6.7.9; GitHub Release notes still list minimum Android support last.
+- 📌 `versionCode` **82**.
 
 ### v0.6.8.1
 
@@ -83,11 +85,13 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 - 🔔 Refresh download notifications only when progress or presentation changes, preserving cancellation, completion and permission recovery.
 - 🗄️ Add local diagnostics and an explanation for system-deferred backups without treating scheduling delays as damaged data.
 - 🖥️ Refine content on About, Data management, App updates and related pages.
+- 📌 `versionCode` **81**.
 
 ### v0.6.8
 - 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
 - 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
 - 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
+- 📌 `versionCode` **80**.
 
 **The versions above support Android 16+ only.**
 
