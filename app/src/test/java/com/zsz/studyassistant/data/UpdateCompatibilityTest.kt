@@ -6,6 +6,18 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
 class UpdateCompatibilityTest {
+    @Test fun betaNumericWireManifestWorksWithTheExistingClientContract() {
+        val root = Json.parseToJsonElement("""{"tag_name":"v0.6.9_beta","prerelease":true,"body":"",
+            "assets":[{"name":"StudyAssistant-0.6.9_beta-20261029180000.apk","size":7,
+            "browser_download_url":"https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.9_beta/StudyAssistant-0.6.9_beta-20261029180000.apk"}]}""").jsonObject
+        val beta = UpdateChecker.parseRelease(root)!!.first
+        val metadata = """{"schema":1,"version":"0.6.9","versionCode":86,"minSdk":36,"apkName":"StudyAssistant-0.6.9_beta-20261029180000.apk","apkSha256":"${"a".repeat(64)}","apkSize":7,"channel":"beta"}"""
+        val accepted = UpdateChecker.withManifest(beta, metadata)!!
+        assertEquals(UpdateChecker.Channel.BETA, accepted.channel)
+        assertNull(UpdateChecker.compatibilityError(accepted, 36))
+        assertEquals("update.incompatible", UpdateChecker.compatibilityError(accepted, 35))
+        assertEquals(86L, accepted.versionCode)
+    }
     private val release = UpdateChecker.ReleaseInfo("v0.6.8", "0.6.8", "", "fixture.apk",
         "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.8/fixture.apk", null, 7)
     private fun manifest(min: Int = 36) = """{"schema":1,"version":"0.6.8","versionCode":78,"minSdk":$min,"apkName":"fixture.apk","apkSha256":"${"a".repeat(64)}","apkSize":7}"""

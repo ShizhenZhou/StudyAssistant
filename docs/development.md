@@ -85,3 +85,8 @@ CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、
 - `tools/release.ps1 start --version VERSION` 默认正式版；只有明确安排测试版时使用 `--channel beta`。两类都使用原有完整发布门禁和原证书，跨渠道共用严格递增的 versionCode、各版本使用独立标签；不移动已有标签，不将同一标签在两种构件间切换。
 - 新状态绑定 channel 并传入构建状态；新发布清单可选 channel 与 GitHub prerelease 一致。测试版 `prerelease=true`、`make_latest=false`，不抢占正式版 latest。Release 最后一个可见条目同时说明最低 Android 版本和正式/测试属性；旧无 channel 状态按原清单与正文摘要续跑。
 - 客户端默认同时查官方 Releases 列表，列表失败回退官方 latest。先读取兼容信息再确定最终渠道；仅附件清单声明 beta 也不能挤掉真正正式版。可用测试版在前并提示可选和不稳定，正式版说明及独立下载在后；不提供低于当前 versionCode 的安装包。下载校验与恢复流程不降低门禁，跳过测试版不隐藏正式版。
+
+
+### 带后缀测试版的更新身份
+
+`0.6.9_beta` 这类版本须使用 `start --version 0.6.9_beta --channel beta`，后缀仅支持明确的 `_beta`。APK、候选构件清单、标签和源码版本保留完整后缀，原证书签名仍验证它们的精确身份。公开 schema-1 `update-manifest.json` 的 `version` 使用数字核心（如 `0.6.9`），兼容已发布客户端的标签规范化规则；`versionCode`、APK 文件名、大小与 SHA-256 仍绑定精确安装包，`channel=beta` 与 GitHub prerelease 明确标记可选测试版。不能仅修改新版客户端而让现有正式客户端无法下载首个测试版。跨渠道仍严格递增 versionCode。

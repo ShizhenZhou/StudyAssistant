@@ -6,7 +6,7 @@
         <activity android:name="com.zsz.studyassistant.ui.UpdatePageTestActivity" android:exported="false" />
         <receiver android:name="com.zsz.studyassistant.data.ReminderReceiver" tools:node="remove" />
         <service android:name="com.zsz.studyassistant.data.AnswerForegroundService" tools:node="remove" />
-        <provider android:name="androidx.core.content.FileProvider" tools:node="remove" />
+        <!-- Use the real narrow FileProvider for synthetic system-camera output tests. -->
         <provider android:name="com.zsz.studyassistant.data.TestBackupDocumentsProvider"
             android:authorities="${applicationId}.fixture.backups" android:exported="true"
             android:grantUriPermissions="true" android:permission="android.permission.MANAGE_DOCUMENTS">

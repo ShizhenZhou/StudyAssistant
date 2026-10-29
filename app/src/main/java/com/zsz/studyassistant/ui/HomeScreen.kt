@@ -106,12 +106,11 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
                 }) { Text(s["draft.title"]) }
             }
             val gap = 12.dp
-            Button(shape = smoothPill(),
-                onClick = { nav.navigate(AppNav.CAMERA) },
-                modifier = Modifier.fillMaxWidth().height(64.dp)
-            ) {
-                HomeButtonLabel(s["home.camera"], 20.sp, shiftHalfCharLeft = true)
-            }
+            var multiple by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.solveDouble(context)) }
+            HomeCaptureButton(multiple = multiple, onToggle = {
+                multiple = !multiple
+                com.zsz.studyassistant.data.CapturePrefs.setSolveDouble(context, multiple)
+            }, onCapture = { grade -> AppNav.openCamera(nav, context, grade, multiple) })
             Spacer(Modifier.height(gap))
             // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
             Button(shape = smoothPill(),

@@ -35,7 +35,8 @@ def published_identity(published):
 def update_manifest(apk, identity, candidate):
     if any(identity.get(key) != candidate.get(key) for key in ("package", "version", "versionCode", "minSdk", "targetSdk")):
         raise ReleaseError("Signed APK identity differs from the CI manifest.")
-    return dict(schema=1, version=identity["version"], versionCode=identity["versionCode"],
+    # Existing clients compare the numeric version core; code + digest still bind the exact beta APK.
+    return dict(schema=1, version=identity["version"].removesuffix("_beta"), versionCode=identity["versionCode"],
                 minSdk=identity["minSdk"], apkName=apk.name, apkSha256=sha256(apk), apkSize=apk.stat().st_size)
 
 def release_body(notes, metadata):
@@ -576,7 +577,7 @@ class Release:
         # Persist exact metadata before any durable replacement ownership marker.
         files = {signed.name: signed}
         # Previously published legacy releases retain their single-APK layout.
-        if tuple(map(int, version.split("."))) > (0, 6, 7, 8):
+        if tuple(map(int, version.removesuffix("_beta").split("."))) > (0, 6, 7, 8):
             metadata = self.signed_identity(signed, manifest)
             update_path = signed.parent / "update-manifest.json"
             # Preserve byte-for-byte legacy metadata when resuming an existing state.
