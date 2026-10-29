@@ -50,10 +50,9 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 - 🗂️ Sort notebook subjects by problem count or a custom drag order; improve review filtering and long-press selection feedback.
 - ↩️ Improve bottom-tab switching and double-back prompts; add capture progress previews and retaking.
 - 🔔 Keep the download completion notice for 2 minutes 30 seconds; update solving labels and simplify About.
-- 📱 Requires Android 16 (API 36) or newer. Android 9–15 users should stay on v0.6.7.9.
 
 > Problem export (PNG/PDF) was removed in v0.6.4. Export entries in v0.6.3–v0.6.3.3 are historical only.
-> Both three- and four-component versions require README and in-app changelogs in all four source languages; Traditional Chinese is converted from Simplified Chinese. Increment versionCode for each release. Older contrary statements are obsolete. Minimum Android support appears last in each release's notes.
+> Both three- and four-component versions require README and in-app changelogs in all four source languages; Traditional Chinese is converted from Simplified Chinese. Increment versionCode for each release. Older contrary statements are obsolete. README and in-app history use a shared Android 16+ divider between v0.6.8 and v0.6.7.9; GitHub Release notes still list minimum Android support last.
 
 ### v0.6.8.1
 
@@ -62,13 +61,15 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 - 🔔 Refresh download notifications only when progress or presentation changes, preserving cancellation, completion and permission recovery.
 - 🗄️ Add local diagnostics and an explanation for system-deferred backups without treating scheduling delays as damaged data.
 - 🖥️ Refine content on About, Data management, App updates and related pages.
-- 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
 
 ### v0.6.8
 - 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
 - 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
 - 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
-- 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
+
+**The versions above support Android 16+ only.**
+
+---
 
 ### v0.6.7.9
 - 🛡️ Check package compatibility metadata before updating; block incompatible downloads and installations, and recheck restored downloads and packages before installation.

@@ -10,7 +10,6 @@ v0.6.8.2
 · 🗂️ 错题本科目支持按题量和自定义拖动排序，改进复习科目筛选与长按多选反馈。
 · ↩️ 优化底栏切换和主页二次返回提示，拍摄增加进度预览与重拍。
 · 🔔 下载完成提示延长至 2 分 30 秒，统一解题相关页面名称并简化关于说明。
-· 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
 
 v0.6.8.1
 · 📝 修复自定义提示词未保存草稿在旋转或窗口重建后丢失的问题。
@@ -18,13 +17,14 @@ v0.6.8.1
 · 🔔 下载通知只在进度或显示状态变化时刷新，保留取消、完成和权限恢复处理。
 · 🗄️ 补充系统暂缓备份的本机诊断与提示，避免将系统调度延迟误认为数据损坏。
 · 🖥️ 微调“关于”“数据管理”“应用更新”等页面内容。
-· 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
 
 v0.6.8
 · 🛡️ 无法查询安装授权时停止安装，避免误判为已授权。
 · 🔔 统一 Android 16 下载进度与完成通知，保留通知授权、取消和恢复检查。
 · 🛠️ 精简旧系统兼容分支，完善按构建身份续跑的发布校验与显式同版本替换流程。
-· 📱 最低支持 Android 16（API 36），Android 9–15 请保留 v0.6.7.9。
+
+**以上版本仅支持Android 16+**
+────────────────
 
 v0.6.7.9
 · 🛡️ 更新前先读取安装包兼容清单；系统低于新版要求时不下载安装，恢复下载与安装前再次校验。
@@ -515,7 +515,6 @@ v0.6.8.2
 · 🗂️ Sort notebook subjects by problem count or a custom drag order; improve review filtering and long-press selection feedback.
 · ↩️ Improve bottom-tab switching and double-back prompts; add capture progress previews and retaking.
 · 🔔 Keep the download completion notice for 2 minutes 30 seconds; update solving labels and simplify About.
-· 📱 Requires Android 16 (API 36) or newer. Android 9–15 users should stay on v0.6.7.9.
 
 v0.6.8.1
 · 📝 Preserve unsaved custom prompt drafts across rotation and window recreation.
@@ -523,13 +522,14 @@ v0.6.8.1
 · 🔔 Refresh download notifications only when progress or presentation changes, preserving cancellation, completion and permission recovery.
 · 🗄️ Add local diagnostics and an explanation for system-deferred backups without treating scheduling delays as damaged data.
 · 🖥️ Refine content on About, Data management, App updates and related pages.
-· 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
 
 v0.6.8
 · 🛡️ Stop installation when installer permission cannot be queried, instead of assuming authorization.
 · 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
 · 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
-· 📱 Requires Android 16 (API 36). Keep v0.6.7.9 on Android 9–15.
+
+**The versions above support Android 16+ only.**
+────────────────
 
 v0.6.7.9
 · 🛡️ Check package compatibility metadata before updating; block incompatible downloads and installations, and recheck restored downloads and packages before installation.
@@ -1020,7 +1020,6 @@ v0.6.8.2
 · 🗂️ ノートの科目を問題数順またはドラッグで並べ替え可能にし、復習の科目選択と長押し選択の反応を改善。
 · ↩️ 下部タブ切り替えと二度戻る確認を改善し、撮影の進捗プレビューと撮り直しを追加。
 · 🔔 ダウンロード完了表示を2分30秒に延長し、解答関連の名称とアプリ情報を整理。
-· 📱 Android 16（API 36）以降に対応。Android 9–15 では v0.6.7.9 をご利用ください。
 
 v0.6.8.1
 · 📝 回転やウィンドウ再作成で未保存のカスタム指示が失われる問題を修正。
@@ -1028,13 +1027,14 @@ v0.6.8.1
 · 🔔 進捗や表示状態が変わったときだけダウンロード通知を更新し、取消・完了・権限復帰の処理を維持。
 · 🗄️ システムによるバックアップ延期の端末内診断と説明を追加し、実行待ちをデータ破損と区別。
 · 🖥️ 「このアプリについて」「データ管理」「アプリ更新」などのページ内容を微調整。
-· 📱 Android 16（API 36）以降が必要です。Android 9～15 では v0.6.7.9 をご利用ください。
 
 v0.6.8
 · 🛡️ インストール権限を確認できない場合は、許可済みと判断せず停止。
 · 🔔 Android 16 のダウンロード進捗・完了通知に統一し、通知権限・取消・再開の確認を維持。
 · 🛠️ 旧OSの互換分岐を整理し、ビルド単位で再開できるリリース検証と明示的な同バージョン置換を改善。
-· 📱 Android 16（API 36）以降が必要です。Android 9～15 では v0.6.7.9 をご利用ください。
+
+**上記のバージョンは Android 16 以降にのみ対応しています。**
+────────────────
 
 v0.6.7.9
 · 🛡️ 更新前に互換性情報を確認し、必要なAndroidバージョンを満たさない場合はダウンロード・インストールを停止。再開時とインストール前にも再確認。
@@ -1525,7 +1525,6 @@ v0.6.8.2
 · 🗂️ 오답 노트 과목을 문제 수 또는 드래그한 순서로 정렬하고 복습 과목 필터와 길게 눌러 선택할 때의 피드백을 개선했습니다.
 · ↩️ 하단 탭 전환과 두 번 뒤로 확인을 개선하고 촬영 진행 미리보기와 다시 촬영을 추가했습니다.
 · 🔔 다운로드 완료 표시를 2분 30초로 늘리고 풀이 관련 명칭과 앱 정보를 정리했습니다.
-· 📱 Android 16(API 36) 이상을 지원합니다. Android 9–15에서는 v0.6.7.9를 사용하세요.
 
 v0.6.8.1
 · 📝 회전이나 창 재생성 시 미저장 사용자 지침 초안이 사라지는 문제를 수정했습니다.
@@ -1533,13 +1532,14 @@ v0.6.8.1
 · 🔔 진행률이나 표시 상태가 바뀔 때만 다운로드 알림을 갱신하고 취소·완료·권한 복구 처리를 유지합니다.
 · 🗄️ 시스템이 연기한 백업의 로컬 진단과 설명을 추가하여 실행 지연과 데이터 손상을 구분합니다.
 · 🖥️ 정보, 데이터 관리, 앱 업데이트 등의 페이지 내용을 미세 조정했습니다.
-· 📱 Android 16(API 36) 이상이 필요합니다. Android 9~15에서는 v0.6.7.9를 사용하세요.
 
 v0.6.8
 · 🛡️ 설치 권한을 확인할 수 없으면 허용된 것으로 간주하지 않고 설치를 중단합니다.
 · 🔔 Android 16 다운로드 진행 및 완료 알림을 통일하고 권한·취소·복구 확인을 유지합니다.
 · 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
-· 📱 Android 16(API 36) 이상이 필요합니다. Android 9~15에서는 v0.6.7.9를 사용하세요.
+
+**위 버전은 Android 16 이상만 지원합니다.**
+────────────────
 
 v0.6.7.9
 · 🛡️ 업데이트 전에 호환성 정보를 확인하고 필요한 Android 버전을 충족하지 않으면 다운로드와 설치를 차단합니다. 재개 및 설치 전에도 다시 확인합니다.

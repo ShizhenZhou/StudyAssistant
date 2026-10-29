@@ -75,6 +75,37 @@ class ChangelogFormatTest {
     }
 
     @Test
+    fun android16RequirementUsesOneSharedBoundaryInReadmeAndApp() {
+        val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
+            .first { File(it, "settings.gradle.kts").isFile }
+        val notices = listOf(
+            "README.md" to "以上版本仅支持Android 16+",
+            "README.zh-TW.md" to "以上版本僅支持Android 16+",
+            "README.en.md" to "The versions above support Android 16+ only.",
+            "README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。",
+            "README.ko.md" to "위 버전은 Android 16 이상만 지원합니다."
+        )
+        for ((index, item) in notices.withIndex()) {
+            val (file, notice) = item
+            val readme = File(root, file).readText()
+            val app = tables[index].second
+            for ((label, text, boundary) in listOf(
+                Triple(file, readme, "### v0.6.7.9"),
+                Triple(tables[index].first, app, "v0.6.7.9\n")
+            )) {
+                val above = text.substringBefore(boundary)
+                assertTrue("$label missing shared requirement", above.contains("**$notice**"))
+                assertTrue("$label requirement must follow v0.6.8", above.lastIndexOf(notice) > above.lastIndexOf("v0.6.8\n"))
+                assertTrue("$label repeats per-version requirements", !above.lineSequence().any {
+                    it.startsWith("- 📱 ") || it.startsWith("· 📱 ")
+                })
+                val divider = if (label.startsWith("README")) "---" else "────────────────"
+                assertTrue("$label missing divider below requirement", above.substringAfterLast("**$notice**").trim() == divider)
+            }
+        }
+    }
+
+    @Test
     fun `四语言都能取到更新内容`() {
         val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
             .first { File(it, "settings.gradle.kts").isFile }
