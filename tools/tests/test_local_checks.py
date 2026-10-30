@@ -117,17 +117,14 @@ class LocalChecksTest(unittest.TestCase):
             path.unlink()
             self.assertIsNone(plan([name])["recommendedSelectors"])
 
-    def test_explicit_local_diagnostics_do_not_expand_to_other_ci_suites(self):
+    def test_full_is_an_explicit_local_diagnostic_scope(self):
         from unittest.mock import patch
         import local_checks as local
         with patch.object(local,"changed_files",return_value=("a"*40,["app/src/androidTest/p/DeviceTest.kt"])),patch.object(local,"git",return_value="b"*40):
-            plan=local.plan_checks(Path("synthetic"),selectors=["p.OnlyThisTest"])
-            self.assertEqual(plan["tasks"],["testDebugUnitTest"])
-            self.assertNotIn("tool-tests",plan["steps"])
-            self.assertEqual(plan["testOwner"],"local-diagnostic")
             full=local.plan_checks(Path("synthetic"),mode="Full")
             self.assertIn("tool-tests",full["steps"])
             self.assertTrue(full["sqlite"])
+            self.assertEqual(full["testOwner"],"local-diagnostic")
 
     def test_tool_identity_is_independent_of_gradle_environment_and_version_fields(self):
         from unittest.mock import patch
@@ -188,11 +185,13 @@ class LocalChecksTest(unittest.TestCase):
             (output / "A.class").unlink()
             self.assertFalse(run_step(root, store, "gradle-compile", cmd, "inputs", outputs=[output])["reused"])
 
-    def test_basic_jvm_selector_preserves_changed_device_test_compilation(self):
+    def test_explicit_local_jvm_does_not_implicitly_compile_device_tests(self):
         from unittest.mock import patch
         import local_checks as local
         for path in ["app/src/androidTest/java/p/OneTest.kt", "app/src/integration/java/p/Host.kt"]:
             with patch.object(local, "changed_files", return_value=("a"*40, [path, "README.md"])), patch.object(local, "git", return_value="b"*40):
                 plan = local.plan_checks(Path("synthetic"), selectors=["p.JvmTest"])
-                self.assertEqual(plan["tasks"], ["testDebugUnitTest", "compileIntegrationAndroidTestKotlin"])
+                self.assertEqual(plan["tasks"], ["testDebugUnitTest"])
+                self.assertNotIn("tool-tests", plan["steps"])
+                self.assertEqual(plan["testOwner"], "local-diagnostic")
                 self.assertEqual(plan["selectors"], ["p.JvmTest"])
