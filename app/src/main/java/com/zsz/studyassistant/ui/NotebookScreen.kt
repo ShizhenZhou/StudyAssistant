@@ -404,6 +404,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                     staggeredItems(filtered, key = { it.id }) { q ->
                         NotebookItem(
                             q = q,
+                            snippet = searchMatches?.takeIf { keyword.isNotEmpty() && it.first == keyword }?.second?.get(q.id),
                             tags = (qTagIds[q.id] ?: emptyList()).mapNotNull { tagById[it] },
                             selectionMode = selectionMode,
                             selected = selectedIds.contains(q.id),
@@ -467,6 +468,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
 @Composable
 private fun NotebookItem(
     q: Question,
+    snippet: com.zsz.studyassistant.data.SearchSnippet?,
     tags: List<Tag>,
     selectionMode: Boolean,
     selected: Boolean,
@@ -508,6 +510,25 @@ private fun NotebookItem(
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium
                     )
+                }
+                snippet?.let { hit ->
+                    Text(s[if (hit.answer) "search.hit.answer" else "search.hit.question"],
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 6.dp))
+                    val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
+                    val highlightText = MaterialTheme.colorScheme.onTertiaryContainer
+                    val annotated = remember(hit, highlightColor, highlightText) {
+                        androidx.compose.ui.text.buildAnnotatedString {
+                            append(hit.text)
+                            hit.highlights.forEach { range -> addStyle(
+                                androidx.compose.ui.text.SpanStyle(background = highlightColor, color = highlightText,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                range.first, range.last + 1)
+                            }
+                        }
+                    }
+                    Text(annotated, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall)
                 }
                 Text(
                     TIME_FMT.format(Date(q.createdAt)),

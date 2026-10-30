@@ -244,17 +244,23 @@ interface QuestionDao {
     @androidx.room.Transaction
     suspend fun allLightOnce(): List<Question> = activeQuestionIdsOnce().mapNotNull { questionLightOnce(it) }
 
-    /** Full-content, Unicode ignore-case search. Only matches leave the IO reader. */
+    /** Full-content Unicode search; only bounded hit snippets leave the IO reader. */
     @androidx.room.Transaction
-    suspend fun matchingQuestionIds(query: String): Set<QuestionId> {
-        val ids=activeQuestionIdsOnce()
-        if(query.isBlank()) return ids.toSet()
-        return ids.filter { id ->
-            val text=readChunkedText(questionTextSize(id,"text")) { a,b -> questionTextPart(id,"text",a,b) }.orEmpty()
-            text.contains(query,ignoreCase=true) ||
-                readChunkedText(questionTextSize(id,"answer")) { a,b -> questionTextPart(id,"answer",a,b) }.orEmpty().contains(query,ignoreCase=true)
-        }.toSet()
+    suspend fun matchingQuestionSnippets(query: String): Map<QuestionId, SearchSnippet> {
+        if (query.isBlank()) return emptyMap()
+        return buildMap {
+            for (id in activeQuestionIdsOnce()) {
+                val text = readChunkedText(questionTextSize(id, "text")) { a,b -> questionTextPart(id,"text",a,b) }.orEmpty()
+                val hit = searchSnippet(text, query, answer = false) ?: searchSnippet(
+                    readChunkedText(questionTextSize(id,"answer")) { a,b -> questionTextPart(id,"answer",a,b) }.orEmpty(),
+                    query, answer = true)
+                if (hit != null) put(id, hit)
+            }
+        }
     }
+
+    suspend fun matchingQuestionIds(query: String): Set<QuestionId> =
+        if (query.isBlank()) activeQuestionIdsOnce().toSet() else matchingQuestionSnippets(query).keys
 
     /**
      * 「原图回填」用（2026-10-14）：找出 `imageBytes` 为空、但会话 JSON 还在的错题。

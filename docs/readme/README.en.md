@@ -13,6 +13,8 @@ Developed by zsz with assistance from DeepSeek and GPT. Download published build
 
 ## Features
 
+- 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
+- 🔎 Notebook search shows matching excerpts, identifies question or answer matches and highlights keywords.
 - 📷 Ask with text and up to 3 images; automatic/manual cropping and grading of handwritten answers.
 - 🤖 Streaming answers, image follow-ups, stop/continue generation, similar exercises and KaTeX formulas.
 - 🧠 AI management has API settings and usage, AI cropping, solver settings and custom instructions. Both fast and thinking modes use `deepseek-flash`, with thinking disabled/enabled respectively. AI output language is separate from interface language.
@@ -43,6 +45,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5** (DB v
 AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.6.8.8
+
+- 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
+- 🔎 Notebook search shows matching excerpts, identifies question or answer matches and highlights keywords.
+- 🛠️ Update core components and improve reasoning preservation, request cancellation and page resource cleanup.
+- 📌 `versionCode` **89**。
 
 ### v0.6.8.7
 

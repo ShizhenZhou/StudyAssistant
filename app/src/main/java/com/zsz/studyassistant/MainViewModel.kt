@@ -60,6 +60,7 @@ import kotlinx.serialization.json.JsonPrimitive
 data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null, val thinking: String? = null)
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+    val sharedImages = com.zsz.studyassistant.data.SharedImageInbox(app, viewModelScope)
 
     init { KeyManager.init(app) }
     private val calendarDay = MutableStateFlow(com.zsz.studyassistant.data.CalendarDay.now())
@@ -287,11 +288,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val last30Days: List<Int> = emptyList()               // 近 30 天新增
     )
 
-    /** A nullable match set reports an IO failure, not an empty successful search. */
+    /** A nullable match map reports an IO failure, not an empty successful search. */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun notebookMatches(query: String): Flow<Pair<String,Set<QuestionId>?>> = dao.getAll().mapLatest {
+    fun notebookMatches(query: String): Flow<Pair<String,Map<QuestionId,com.zsz.studyassistant.data.SearchSnippet>?>> = dao.getAll().mapLatest {
         if(query.isNotBlank()) kotlinx.coroutines.delay(200)
-        Pair<String,Set<QuestionId>?>(query,dao.matchingQuestionIds(query))
+        Pair<String,Map<QuestionId,com.zsz.studyassistant.data.SearchSnippet>?>(query,dao.matchingQuestionSnippets(query))
     }.flowOn(Dispatchers.IO).catch { emit(query to null) }
 
     val stats: StateFlow<StatsSnapshot> =
@@ -1342,13 +1343,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cancelCropFlow() {
+        val sharedSources = cropPaths.map { java.io.File(it) }.filter {
+            it.parentFile == getApplication<Application>().cacheDir && it.name.startsWith("shared_")
+        }
         captureRecoveryChecked = true
         val revision = ++captureFlowRevision
         val ticket = captureFlowStore.reserve()
         captureWriteJob?.cancel()
         captureWriteJob = viewModelScope.launch {
             try {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { captureFlowStore.clear(ticket) }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    captureFlowStore.clear(ticket)
+                    sharedSources.forEach { it.delete() }
+                }
             } catch (error: kotlinx.coroutines.CancellationException) { throw error }
             catch (_: Exception) {
                 if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryClearFailed"
@@ -1767,6 +1774,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        sharedImages.discard()
         val readJob = backupReadJob
         val exportJob = backupExportJob
         val importDirectory = preparedBackup?.directory

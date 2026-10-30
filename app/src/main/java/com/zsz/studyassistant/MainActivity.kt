@@ -105,6 +105,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
         if (intent.getBooleanExtra(AppNav.OPEN_BACKUP_EXTRA, false)) {
             intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
@@ -124,6 +125,7 @@ class MainActivity : ComponentActivity() {
         wallpaperWindowMode = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("wallpaper_background", false)
         if (wallpaperWindowMode) setTheme(R.style.Theme_StudyAssistant_Wallpaper)
         super.onCreate(savedInstanceState)
+        viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
         if (wallpaperWindowMode) setTranslucent(true)
         // 启动时清理已删除题目与孤儿记录（定期维护数据库）
@@ -218,6 +220,7 @@ class MainActivity : ComponentActivity() {
                 com.zsz.studyassistant.ui.AppFeedbackLayout(viewModel) {
                     val feedback = com.zsz.studyassistant.ui.LocalAppFeedback.current
                     val nav = rememberNavController()
+                    com.zsz.studyassistant.ui.SharedImageDialog(viewModel, nav)
                     val captureNotice = viewModel.captureRecoveryNoticeKey
                     LaunchedEffect(captureNotice) {
                         if (captureNotice != null) {

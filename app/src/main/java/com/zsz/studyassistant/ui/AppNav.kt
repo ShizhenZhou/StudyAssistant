@@ -79,6 +79,11 @@ object AppNav {
 
     fun solve(origin: Origin): String = "$SOLVE/${origin.key}"
 
+    /** 分享图片复用框选流程，主页保持为返回栈根节点。 */
+    fun openSharedCrop(nav: NavHostController) {
+        nav.navigate(CROP) { popUpTo(HOME); launchSingleTop = true }
+    }
+
     /** 拍照 → 框选：拍题页用完即弃（栈 = home → crop），保证返回键不会回到相机预览 */
     fun openCrop(nav: NavHostController) {
         nav.navigate(CROP) { popUpTo(CAMERA) { inclusive = true } }
