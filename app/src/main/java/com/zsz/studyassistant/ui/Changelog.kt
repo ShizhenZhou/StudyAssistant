@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.8
+· 📥 支持从其他应用分享 1～2 张图片，选择解题或批改后按顺序框选。
+· 🔎 错题本搜索显示命中片段，标注题干或答案并高亮关键词。
+· 🛠️ 更新基础组件，改进思考内容保存、请求取消和页面资源释放。
+
 v0.6.8.7
 · 📷 拍摄支持双指捏合变焦，并显示当前倍率。
 · 🧠 解题时请求“思考中”实时胶囊，使用应用图标与蓝色强调。
@@ -533,6 +538,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.8
+· 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
+· 🔎 Notebook search shows matching excerpts, identifies question or answer matches and highlights keywords.
+· 🛠️ Update core components and improve reasoning preservation, request cancellation and page resource cleanup.
+
 v0.6.8.7
 · 📷 Pinch to zoom in the camera and see the current zoom ratio.
 · 🧠 Request a Thinking live update during answers, with the app icon and blue accent.
@@ -1061,6 +1071,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.8
+· 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取れます。
+· 🔎 ノート検索に一致箇所を表示し、問題文・解答の区別とキーワードの強調を追加しました。
+· 🛠️ 基盤コンポーネントを更新し、思考内容の保存、リクエストのキャンセル、画面リソースの解放を改善しました。
+
 v0.6.8.7
 · 📷 撮影時のピンチズームに対応し、現在の倍率を表示。
 · 🧠 解答中に「思考中」のライブ通知を要求し、アプリアイコンと青いアクセントを使用。
@@ -1589,6 +1604,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.8
+· 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자를 수 있습니다.
+· 🔎 오답노트 검색에서 일치 구절과 문제·답변 구분을 표시하고 키워드를 강조합니다.
+· 🛠️ 핵심 구성 요소를 업데이트하고 생각 내용 저장, 요청 취소 및 화면 리소스 해제를 개선했습니다.
+
 v0.6.8.7
 · 📷 카메라에서 두 손가락 확대·축소를 지원하고 현재 배율을 표시합니다.
 · 🧠 풀이 중 앱 아이콘과 파란 강조색으로 생각 중 실시간 알림을 요청합니다.

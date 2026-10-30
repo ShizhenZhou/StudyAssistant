@@ -1,5 +1,58 @@
 package com.zsz.studyassistant.ui
 
+private val V688_ZH = mapOf(
+    "share.title" to "导入分享图片",
+    "share.ready" to "已收到 {n} 张图片，将按分享顺序逐张框选。请选择解题或批改；双张批改时，第一张为题目、第二张为作答。当前对话会保存到记录，尚未提交的输入和框选将被替换。",
+    "share.solve" to "解题",
+    "share.grade" to "批改",
+    "share.wait" to "请先完成当前生成或处理保存异常，再导入新题。",
+    "share.pending" to "已有图片正在导入，请先完成或取消，再重新分享。",
+    "share.invalid" to "请一次分享 1～2 张可读取的图片。暂不支持网址、文件路径或其他文件类型。",
+    "share.readFailed" to "无法读取分享图片，或单张超过 32 MB。请从相册重新分享；本次没有导入任何图片。",
+    "search.hit.question" to "题干匹配",
+    "search.hit.answer" to "答案匹配",
+)
+
+private val V688_EN = mapOf(
+    "share.title" to "Import shared images",
+    "share.ready" to "Received {n} image(s). Crop them in shared order, then solve or grade. For two-image grading, the first is the question and the second your work. The current conversation will be saved; unsent input and unfinished cropping will be replaced.",
+    "share.solve" to "Solve",
+    "share.grade" to "Grade",
+    "share.wait" to "Finish the current generation or resolve the save issue before importing.",
+    "share.pending" to "An import is already pending. Finish or cancel it, then share again.",
+    "share.invalid" to "Share 1–2 readable images at a time. Links, file paths and other file types are not supported.",
+    "share.readFailed" to "An image could not be read or exceeds 32 MB. Share again from your gallery; no images were imported.",
+    "search.hit.question" to "Question match",
+    "search.hit.answer" to "Answer match",
+)
+
+private val V688_JA = mapOf(
+    "share.title" to "共有画像を取り込む",
+    "share.ready" to "画像 {n} 枚を共有順に切り取ります。解答または添削を選んでください。2枚の添削では1枚目が問題、2枚目が解答です。現在の会話は保存され、未送信の入力と未完了の切り取りは置き換えられます。",
+    "share.solve" to "解答",
+    "share.grade" to "添削",
+    "share.wait" to "生成の完了、または保存エラーの解決後に取り込んでください。",
+    "share.pending" to "取り込み中です。完了またはキャンセル後にもう一度共有してください。",
+    "share.invalid" to "読み取り可能な画像を1～2枚共有してください。URL、ファイルパス、その他の形式には対応していません。",
+    "share.readFailed" to "画像を読み取れないか、1枚が32 MBを超えています。アルバムから再共有してください。今回は何も取り込んでいません。",
+    "search.hit.question" to "問題文の一致",
+    "search.hit.answer" to "解答の一致",
+)
+
+private val V688_KO = mapOf(
+    "share.title" to "공유 이미지 가져오기",
+    "share.ready" to "이미지 {n}장을 공유된 순서대로 자릅니다. 풀이 또는 채점을 선택하세요. 두 장 채점은 첫째가 문제, 둘째가 작성한 답입니다. 현재 대화는 저장되며 미전송 입력과 진행 중인 자르기는 교체됩니다.",
+    "share.solve" to "풀이",
+    "share.grade" to "채점",
+    "share.wait" to "현재 생성이 끝나거나 저장 오류를 해결한 뒤 가져오세요.",
+    "share.pending" to "가져오기가 진행 중입니다. 완료하거나 취소한 뒤 다시 공유하세요.",
+    "share.invalid" to "한 번에 읽을 수 있는 이미지 1~2장을 공유하세요. 링크, 파일 경로 및 다른 파일 형식은 지원하지 않습니다.",
+    "share.readFailed" to "이미지를 읽을 수 없거나 한 장이 32 MB를 초과합니다. 갤러리에서 다시 공유하세요. 이번에는 아무 이미지도 가져오지 않았습니다.",
+    "search.hit.question" to "문제 일치",
+    "search.hit.answer" to "답변 일치",
+)
+
+
 private val B14_ZH = mapOf(
     "camera.unavailable" to "相机暂不可用，仍可从图库选择图片。",
     "camera.gallery" to "从图库选择",
@@ -2850,7 +2903,7 @@ private val UPDATE_CHANNEL_ZH = mapOf(
     "update.downloadBeta" to "下载测试版（可选）"
 )
 
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Minimum Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2909,7 +2962,7 @@ private val UPDATE_CHANNEL_EN = mapOf(
     "update.downloadBeta" to "Download test version (optional)"
 )
 
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "最低 Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -2968,7 +3021,7 @@ private val UPDATE_CHANNEL_JA = mapOf(
     "update.downloadBeta" to "テスト版をダウンロード（任意）"
 )
 
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "최소 Android 16 · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3027,4 +3080,4 @@ private val UPDATE_CHANNEL_KO = mapOf(
     "update.downloadBeta" to "테스트 버전 다운로드 (선택)"
 )
 
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO
