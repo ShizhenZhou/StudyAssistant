@@ -1,6 +1,6 @@
 # Study Assistant 📚
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
+[简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
@@ -42,7 +42,7 @@
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（一次性備份任務）· AlarmManager · Android Keystore。
 
-構建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
+構建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 
 ## 版本記錄
 
@@ -649,7 +649,7 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 
 ## 開發與測試
 
-開發約定見 [AGENTS.md](AGENTS.md)，CI、緩存與 GitHub 操作見 [開發流程](docs/development.md)，隔離 Android 測試見 [測試說明](docs/testing/reliability.md)。建議使用英文路徑。
+開發約定見 [AGENTS.md](../../AGENTS.md)，CI、緩存與 GitHub 操作見 [開發流程](../development.md)，隔離 Android 測試見 [測試說明](../development.md#隔离测试的覆盖范围)。建議使用英文路徑。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
@@ -665,7 +665,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 
 
 正式流程：**本地基礎檢查 → 合並main → 一次完整CI → 本地簽名 → 發布與下載校驗歸檔**。CI只編譯未簽名候選包並運行人工數據測試；簽名私鑰及口令僅在本機使用，不上傳GitHub。簽名沿用原證書與lineage，不重編譯，並校驗代碼資源與候選包一致。
 
-通用入口 tools/release.ps1 提供 start/status/verify/publish，記錄本地進度並支持續跑；main推送和tag不重複構建，不移動已有標簽，不自動替換已發布版本。詳細命令、上傳邊界和Git/API分工見[開發流程](docs/development.md)。內部設計、排查及逐版本過程只在本地歸檔。
+通用入口 tools/release.ps1 提供 start/status/verify/publish，記錄本地進度並支持續跑；main推送和tag不重複構建，不移動已有標簽，不自動替換已發布版本。詳細命令、上傳邊界和Git/API分工見[開發流程](../development.md)。內部設計、排查及逐版本過程只在本地歸檔。
 
 ## API Key 與權限
 
@@ -675,4 +675,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 
 
 ## 許可證
 
-[MIT License](LICENSE) · Copyright © 2026 ShizhenZhou
+[MIT License](../../LICENSE) · Copyright © 2026 ShizhenZhou

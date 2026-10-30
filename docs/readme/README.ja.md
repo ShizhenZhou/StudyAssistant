@@ -1,6 +1,6 @@
 # Study Assistant 📚
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
+[简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
@@ -40,7 +40,7 @@ zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](htt
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（単発バックアップ）· AlarmManager · Android Keystore。
 
-AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](DATA_SCHEMA.md) を参照してください。
+AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
 
@@ -581,7 +581,7 @@ AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk *
 
 ## 開発とテスト
 
-[AGENTS.md](AGENTS.md)、[開発フロー](docs/development.md)、[隔離Androidテスト](docs/testing/reliability.md) を参照。作業パスは英数字を推奨します。
+[AGENTS.md](../../AGENTS.md)、[開発フロー](../development.md)、[隔離Androidテスト](../development.md#隔离测试的覆盖范围) を参照。作業パスは英数字を推奨します。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
@@ -606,4 +606,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 
 
 ## ライセンス
 
-[MIT License](LICENSE) · Copyright © 2026 ShizhenZhou
+[MIT License](../../LICENSE) · Copyright © 2026 ShizhenZhou

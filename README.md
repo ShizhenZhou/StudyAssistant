@@ -1,6 +1,6 @@
 # Study Assistant 📚
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
+[简体中文](README.md) · [繁體中文](docs/readme/README.zh-TW.md) · [EN](docs/readme/README.en.md) · [JA](docs/readme/README.ja.md) · [KO](docs/readme/README.ko.md)
 
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
@@ -42,7 +42,7 @@
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（一次性备份任务）· AlarmManager · Android Keystore。
 
-构建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](DATA_SCHEMA.md)。
+构建使用 AGP **8.13.0**、Gradle wrapper **8.14** 和 JDK **21**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
 
 ## 版本记录
 
@@ -649,7 +649,7 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 
 ## 开发与测试
 
-开发约定见 [AGENTS.md](AGENTS.md)，CI、缓存与 GitHub 操作见 [开发流程](docs/development.md)，隔离 Android 测试见 [测试说明](docs/testing/reliability.md)。建议使用英文路径。
+开发约定见 [AGENTS.md](AGENTS.md)，CI、缓存与 GitHub 操作见 [开发流程](docs/development.md)，隔离 Android 测试见 [测试说明](docs/development.md#隔离测试的覆盖范围)。建议使用英文路径。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1

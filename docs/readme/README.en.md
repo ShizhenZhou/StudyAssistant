@@ -1,6 +1,6 @@
 # Study Assistant 📚
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
+[简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
@@ -40,7 +40,7 @@ Automatic backups write only to your SAF-selected folder. The app does not initi
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4** (DB v10) · Retrofit / OkHttp (SSE) · kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0** (one-time backups) · AlarmManager · Android Keystore.
 
-AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](DATA_SCHEMA.md).
+AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
 
@@ -581,7 +581,7 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## Development and testing
 
-See [AGENTS.md](AGENTS.md), [development workflow](docs/development.md) and [isolated Android testing](docs/testing/reliability.md). ASCII workspace paths are recommended.
+See [AGENTS.md](../../AGENTS.md), [development workflow](../development.md) and [isolated Android testing](../development.md#隔离测试的覆盖范围). ASCII workspace paths are recommended.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
@@ -606,4 +606,4 @@ Features use network, camera, notifications, review alarms/boot recovery, backgr
 
 ## License
 
-[MIT License](LICENSE) · Copyright © 2026 ShizhenZhou
+[MIT License](../../LICENSE) · Copyright © 2026 ShizhenZhou

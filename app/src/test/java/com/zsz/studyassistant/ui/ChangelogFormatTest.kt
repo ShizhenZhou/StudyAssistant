@@ -80,10 +80,10 @@ class ChangelogFormatTest {
             .first { File(it, "settings.gradle.kts").isFile }
         val notices = listOf(
             "README.md" to "以上版本仅支持Android 16+",
-            "README.zh-TW.md" to "以上版本僅支持Android 16+",
-            "README.en.md" to "The versions above support Android 16+ only.",
-            "README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。",
-            "README.ko.md" to "위 버전은 Android 16 이상만 지원합니다."
+            "docs/readme/README.zh-TW.md" to "以上版本僅支持Android 16+",
+            "docs/readme/README.en.md" to "The versions above support Android 16+ only.",
+            "docs/readme/README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。",
+            "docs/readme/README.ko.md" to "위 버전은 Android 16 이상만 지원합니다."
         )
         for ((index, item) in notices.withIndex()) {
             val (file, notice) = item
@@ -99,7 +99,7 @@ class ChangelogFormatTest {
                 assertTrue("$label repeats per-version requirements", !above.lineSequence().any {
                     it.startsWith("- 📱 ") || it.startsWith("· 📱 ")
                 })
-                val divider = if (label.startsWith("README")) "---" else "────────────────"
+                val divider = if (File(label).name.startsWith("README")) "---" else "────────────────"
                 assertTrue("$label missing divider below requirement", above.substringAfterLast("**$notice**").trim() == divider)
             }
         }

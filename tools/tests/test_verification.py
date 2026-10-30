@@ -29,7 +29,8 @@ class VerificationTest(unittest.TestCase):
     def test_docs_do_not_require_device_but_notifications_cover_both_paths(self):
         v = self.api()
         inventory = ["com.zsz.studyassistant.data.UpdateDownloadNotificationsIntegrationTest#done", "p.Unrelated#one"]
-        self.assertEqual(v.device_plan(["docs/development.md"], inventory, True), [])
+        for path in ("docs/development.md", "docs/readme/README.en.md", "README.en.md"):
+            self.assertEqual(v.device_plan([path], inventory, True), [], path)
         plan = v.device_plan(["app/src/main/java/com/zsz/studyassistant/data/UpdateDownloadNotifications.kt"], inventory, True)
         self.assertEqual([r["api"] for r in plan], [35, 36])
         self.assertEqual(plan[0]["tests"], inventory[:1])

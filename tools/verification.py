@@ -53,7 +53,7 @@ BUILD_INPUTS = MAIN_INPUTS + ["app/src/integration", "app/src/androidTest"]
 
 def task_inputs(tasks):
     values = set(MAIN_INPUTS)
-    if any("UnitTest" in t for t in tasks): values.update(["app/src/test", "README.md"])
+    if any("UnitTest" in t for t in tasks): values.update(["app/src/test", "README.md", "docs/readme"])
     if any("Integration" in t for t in tasks): values.update(["app/src/integration", "app/src/androidTest"])
     if any("Release" in t for t in tasks): values.add("app/src/release")
     if any("Debug" in t for t in tasks): values.add("app/src/debug")
@@ -148,7 +148,10 @@ def device_plan(changed, inventory, baseline_known=True, min_sdk=28, platform_mi
     full = not baseline_known or platform_migration
     required_apis = [p["api"] for p in platform_constraints(min_sdk, policy)["platforms"]]
     for path in changed:
-        if path.startswith(("docs/", "app/src/test/")) or path in ("README.md", "AGENTS.md", "DATA_SCHEMA.md", "@version-only"):
+        if path.startswith(("docs/", "app/src/test/")) or path in (
+            "README.md", "README.en.md", "README.ja.md", "README.ko.md", "README.zh-TW.md",
+            "AGENTS.md", "DATA_SCHEMA.md", "@version-only"
+        ):
             continue
         if path in (MAIN + "ui/L10n.kt", MAIN + "ui/Changelog.kt"):
             continue

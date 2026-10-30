@@ -6,4 +6,3 @@ tools/*.py text eol=lf
 tools/tests/*.py text eol=lf
 tools/*.ps1 text eol=crlf
 AGENTS.md text eol=lf
-DEV_ENV_NOTES.md text eol=lf

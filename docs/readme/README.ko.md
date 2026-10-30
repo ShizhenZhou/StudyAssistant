@@ -1,6 +1,6 @@
 # Study Assistant 📚
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
+[简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
@@ -40,7 +40,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [Gi
 
 Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**(DB v10) · Retrofit / OkHttp(SSE) · kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**(일회성 백업) · AlarmManager · Android Keystore.
 
-AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](DATA_SCHEMA.md)를 참고하세요.
+AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
 
@@ -581,7 +581,7 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## 개발과 테스트
 
-[AGENTS.md](AGENTS.md), [개발 절차](docs/development.md), [격리 Android 테스트](docs/testing/reliability.md)를 참고하세요. 영문 작업 경로를 권장합니다.
+[AGENTS.md](../../AGENTS.md), [개발 절차](../development.md), [격리 Android 테스트](../development.md#隔离测试的覆盖范围)를 참고하세요. 영문 작업 경로를 권장합니다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
@@ -606,4 +606,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 
 
 ## 라이선스
 
-[MIT License](LICENSE) · Copyright © 2026 ShizhenZhou
+[MIT License](../../LICENSE) · Copyright © 2026 ShizhenZhou

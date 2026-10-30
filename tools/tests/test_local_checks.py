@@ -104,17 +104,18 @@ class LocalChecksTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=TOOLS.parent / "app/build/tool-tests") as tmp:
             root = Path(tmp)
             subprocess.run(["git", "init", "-q", str(root)], check=True)
-            files = ["README.md", "app/src/main/Main.kt", "app/src/test/Jvm.kt", "app/src/androidTest/Device.kt"]
+            files = ["README.md", "app/src/main/Main.kt", "app/src/test/Jvm.kt", "app/src/androidTest/Device.kt", "docs/readme/README.en.md"]
             for name in files:
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text("initial")
             jvm_before = source_digest(root, task_inputs(["testDebugUnitTest"]))
             compile_before = source_digest(root, task_inputs(["compileDebugKotlin"]))
             apk_before = source_digest(root, task_inputs(["assembleIntegrationAndroidTest"]))
-            for name in [files[0], files[2]]:
+            for name in [files[0], files[2], files[4]]:
                 (root / name).write_text("changed")
                 self.assertNotEqual(source_digest(root, task_inputs(["testDebugUnitTest"])), jvm_before)
                 self.assertEqual(source_digest(root, task_inputs(["compileDebugKotlin"])), compile_before)
                 self.assertEqual(source_digest(root, task_inputs(["assembleIntegrationAndroidTest"])), apk_before)
+                (root / name).write_text("initial")
             (root / files[3]).write_text("changed")
             self.assertEqual(source_digest(root, task_inputs(["compileDebugKotlin"])), compile_before)
             self.assertNotEqual(source_digest(root, task_inputs(["assembleIntegrationAndroidTest"])), apk_before)
