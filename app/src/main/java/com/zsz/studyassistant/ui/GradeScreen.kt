@@ -1,7 +1,6 @@
 package com.zsz.studyassistant.ui
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -49,7 +48,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -57,9 +56,9 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.StudyAssistant
 import java.io.File
-import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 /** 批改题目：拍照（单张=题目；两张=题目+手写答案）→ AI 批改正误/错误步骤/针对性讲解 */
 @Composable
@@ -72,7 +71,13 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPermission = it }
 
     // 离开本页就退出"重做模式"（否则下次从首页进批改页会仍按"只拍作答"处理）
-    DisposableEffect(Unit) { onDispose { vm.leaveRedoCamera() } }
+    val screenActive = remember { java.util.concurrent.atomic.AtomicBoolean(true) }
+    DisposableEffect(Unit) {
+        onDispose {
+            screenActive.set(false)
+            vm.leaveRedoCamera()
+        }
+    }
 
     if (!hasPermission) {
         Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -88,20 +93,28 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
     var doubleMode by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.gradeDouble(context)) }
     var questionBytes by remember { mutableStateOf<ByteArray?>(null) }
     var awaitingAnswer by remember { mutableStateOf(false) }
-    // 最近一次批改实际使用的题目/作答图（用于结果区展示，与批改请求保持一致）
-    var shownQuestion by remember { mutableStateOf<ByteArray?>(null) }
-    var shownAnswer by remember { mutableStateOf<ByteArray?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         val previewView = remember { PreviewView(context) }
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
         var camera by remember { mutableStateOf<Camera?>(null) }
+        var captureInFlight by remember { mutableStateOf(false) }
         LaunchedEffect(lifecycleOwner) {
-            val p = awaitCameraProvider(context)
-            p.unbindAll()
-            camera = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA,
-                Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }, imageCapture)
+            var provider: ProcessCameraProvider? = null
+            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+            try {
+                provider = awaitCameraProvider(context)
+                camera = provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+                awaitCancellation()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                vm.showError(s["camera.unavailable"])
+            } finally {
+                camera = null
+                provider?.let { runCatching { it.unbind(preview, imageCapture) } }
+            }
         }
 
         // 点击对焦：tap 位置显示对焦框并触发 AF
@@ -198,7 +211,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                 else if (doubleMode) galleryMulti.launch(imagePickRequest(maxItems = 2))
                 else gallerySingle.launch(imagePickRequest())
             },
-            enabled = !vm.gradeBusy,
+            enabled = !vm.gradeBusy && !captureInFlight,
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 20.dp, bottom = 28.dp).size(60.dp)
@@ -209,17 +222,38 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         // 快门（严格横向居中，拍题页同款）
         Surface(
             onClick = {
-                val file = File.createTempFile("grade", ".jpg", context.cacheDir)
-                imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(),
-                    ContextCompat.getMainExecutor(context),
-                    object : ImageCapture.OnImageSavedCallback {
-                        override fun onImageSaved(o: ImageCapture.OutputFileResults) {
-                            processImage(StudyAssistant.compressImage(file))
-                        }
-                        override fun onError(e: ImageCaptureException) { vm.showError(s.format("camera.errShot", "msg" to (e.message ?: ""))) }
-                    })
+                if (captureInFlight || camera == null) return@Surface
+                captureInFlight = true
+                var pendingFile: File? = null
+                try {
+                    val file = File.createTempFile("grade", ".jpg", context.cacheDir)
+                    pendingFile = file
+                    imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(),
+                        ContextCompat.getMainExecutor(context),
+                        object : ImageCapture.OnImageSavedCallback {
+                            override fun onImageSaved(o: ImageCapture.OutputFileResults) {
+                                captureInFlight = false
+                                try {
+                                    if (screenActive.get()) processImage(StudyAssistant.compressImage(file))
+                                } catch (e: Exception) {
+                                    if (screenActive.get()) vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
+                                } finally {
+                                    file.delete()
+                                }
+                            }
+                            override fun onError(e: ImageCaptureException) {
+                                captureInFlight = false
+                                file.delete()
+                                if (screenActive.get()) vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
+                            }
+                        })
+                } catch (e: Exception) {
+                    captureInFlight = false
+                    pendingFile?.delete()
+                    vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
+                }
             },
-            enabled = !vm.gradeBusy,
+            enabled = !vm.gradeBusy && !captureInFlight && camera != null,
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 20.dp).size(76.dp)
@@ -235,6 +269,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                     com.zsz.studyassistant.data.CapturePrefs.setGradeDouble(context, doubleMode)
                     questionBytes = null; awaitingAnswer = false
                 },
+                enabled = !vm.gradeBusy && !captureInFlight,
                 shape = RoundedCornerShape(22.dp),
                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
                 modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 36.dp).height(44.dp)
@@ -251,9 +286,3 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         // 批改结果不再显示在相机页：拍完直接进入全屏批改页（复用解题界面，流式输出）
     }
 }
-
-private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider =
-    suspendCancellableCoroutine { cont ->
-        val future = ProcessCameraProvider.getInstance(context)
-        future.addListener({ cont.resume(future.get()) }, ContextCompat.getMainExecutor(context))
-    }

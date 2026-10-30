@@ -1,14 +1,14 @@
 ﻿#Requires -Version 5.1
-# Dot-source: . ./tools/codex-env.ps1 [-JavaHome <JDK21>] [-SdkRoot <SDK>]
+# Dot-source: . ./tools/codex-env.ps1 [-JavaHome <JDK25>] [-SdkRoot <SDK>]
 # Process-local settings only; never changes system configuration.
 param([string]$JavaHome = '', [string]$SdkRoot = '')
 
-function Test-CodexJdk21([string]$Candidate) {
+function Test-CodexJdk25([string]$Candidate) {
     if (-not $Candidate) { return $false }
     $releaseFile = Join-Path $Candidate 'release'
     return ((Test-Path -LiteralPath (Join-Path $Candidate 'bin\java.exe')) -and
         (Test-Path -LiteralPath $releaseFile) -and
-        [bool](Select-String -LiteralPath $releaseFile -Pattern '^JAVA_VERSION="21[.+\-"]'))
+        [bool](Select-String -LiteralPath $releaseFile -Pattern '^JAVA_VERSION="25[.+\-"]'))
 }
 function Test-CodexSdk([string]$Candidate) {
     return ($Candidate -and (Test-Path -LiteralPath (Join-Path $Candidate 'platform-tools\adb.exe')))
@@ -24,8 +24,8 @@ if (-not $JavaHome) {
             Sort-Object Name -Descending | ForEach-Object { $_.FullName })
     }
 }
-$codexJdk = $codexJdkCandidates | Where-Object { Test-CodexJdk21 $_ } | Select-Object -First 1
-if (-not $codexJdk) { throw 'JDK 21 not found. Pass -JavaHome with a valid JDK 21 installation.' }
+$codexJdk = $codexJdkCandidates | Where-Object { Test-CodexJdk25 $_ } | Select-Object -First 1
+if (-not $codexJdk) { throw 'JDK 25 not found. Pass -JavaHome with a valid JDK 25 installation.' }
 $codexSdkCandidates = @($SdkRoot)
 if (-not $SdkRoot) {
     $codexSdkCandidates = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT,

@@ -30,9 +30,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -156,7 +153,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                                             modifier = Modifier.weight(1f, fill = false)
                                         )
                                         Spacer(Modifier.width(4.dp))
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = s["review.filter.chooseSubject"], modifier = Modifier.size(16.dp))
+                                        Icon(androidx.compose.ui.res.painterResource(com.zsz.studyassistant.R.drawable.ic_arrow_drop_down), contentDescription = s["review.filter.chooseSubject"], modifier = Modifier.size(16.dp))
                                     }
                                     DropdownMenu(expanded = catMenu, onDismissRequest = { catMenu = false }) {
                                         DropdownMenuItem(

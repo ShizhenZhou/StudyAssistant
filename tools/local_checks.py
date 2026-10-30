@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def plan_checks(selectors=(), compile_app=False):
     if any(not value.strip() or value.strip() == "*" for value in selectors):
         raise ValueError("Choose a specific test class or method")
-    tasks = ["testDebugUnitTest"] if selectors else ["compileDebugKotlin"] if compile_app else []
+    tasks = ["testIntegrationUnitTest"] if selectors else ["compileDebugKotlin"] if compile_app else []
     return dict(steps=["diff", "diff-staged", "credentials"], tasks=tasks, selectors=list(selectors),
                 note="No device tests, online checks or implicit full suite. Gradle reuses unchanged task outputs.")
 

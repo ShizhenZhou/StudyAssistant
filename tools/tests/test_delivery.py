@@ -27,7 +27,7 @@ class DeliveryTest(unittest.TestCase):
 
     def test_targeted_test_owns_its_compilation_without_expanding_scope(self):
         plan = local_checks.plan_checks(["example.Test.method"], compile_app=True)
-        self.assertEqual(["testDebugUnitTest"], plan["tasks"])
+        self.assertEqual(["testIntegrationUnitTest"], plan["tasks"])
         self.assertEqual(["example.Test.method"], plan["selectors"])
         with self.assertRaises(ValueError): local_checks.plan_checks(["*"])
 

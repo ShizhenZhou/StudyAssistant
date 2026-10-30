@@ -63,6 +63,7 @@
 ## 1. Room 数据库 `study_assistant.db`
 
 - 当前 **schema version = 10**（`AppDatabase.SCHEMA_VERSION`），自 App v0.6.6.3 起；v0.6.6.5 保持 v10，v0.6.6.2 使用 DB v9。
+- Room 库版本与数据格式版本独立：构建使用 Room 2.8.5 / KSP；库或代码生成器更新不自动提升 DB/Bak 版本。现有实体、索引与迁移链保持不变时继续使用 DB v10 / Bak v4。
 - 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10`，全部用 `Migration` + `addMigrations(...)`。
 - 保留 v9 → v10 的原地升级；历史 migration 链仍保留。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。v0.6.6.5 无主库迁移，不会仅因应用版本更新再次要求升级。
 - 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v<目标版本>-from-v<原版本>-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。此前 `.pre-v9` / `.pre-v10-*` 文件不删除。

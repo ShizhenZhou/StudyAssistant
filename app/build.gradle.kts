@@ -6,10 +6,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.ksp)
 }
 
 // 应用版本（供 versionName 与 APK 命名使用）
@@ -146,10 +145,15 @@ kotlin {
     }
 }
 
+ksp {
+    // Preserve Java DAO generation while replacing kapt's Kotlin metadata reader.
+    arg("room.generateKotlin", "false")
+}
+
 // The SQLite verifier consumes these extra test outputs. Include them in Gradle's
 // task cache so a cached successful test run also restores the files it produced.
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
-    if (name == "testDebugUnitTest") {
+    if (name == "testIntegrationUnitTest") {
         // These tests read files directly instead of through the runtime classpath.
         // Declare them so README/HTML-only changes invalidate cached test results.
         inputs.files(rootProject.file("README.md"), project.file("build.gradle.kts"),
@@ -195,7 +199,7 @@ dependencies {
     // 本地存储（错题本）
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
-    kapt(libs.room.compiler)
+    ksp(libs.room.compiler)
 
     // 单元测试（纯 JVM）：答案解析、版本比较、文案表 —— 见 app/src/test
     testImplementation(libs.junit)

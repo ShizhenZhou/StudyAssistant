@@ -70,7 +70,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -557,7 +557,7 @@ internal fun CaptureProgress(step: Int, hint: String, firstPath: String?, enable
     }
 }
 
-private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider =
+internal suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider =
     suspendCancellableCoroutine { cont ->
         try {
             val future = ProcessCameraProvider.getInstance(context)

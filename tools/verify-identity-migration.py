@@ -1,6 +1,6 @@
 """Verify actual Kotlin-emitted migration SQL using disposable in-memory SQLite only.
 
-Run Gradle testDebugUnitTest first; QuestionIdentityTest emits the real migration plan.
+Run Gradle testIntegrationUnitTest first; QuestionIdentityTest emits the real migration plan.
 No Android device, user database, or backup file is read or changed.
 """
 import json
@@ -10,7 +10,7 @@ import sqlite3
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = json.loads((ROOT / "app/build/identity-work/migration-plan.json").read_text(encoding="utf-8"))
-GENERATED = (ROOT / "app/build/generated/source/kapt/debug/com/zsz/studyassistant/data/AppDatabase_Impl.java").read_text(encoding="utf-8")
+GENERATED = (ROOT / "app/build/generated/ksp/integration/java/com/zsz/studyassistant/data/AppDatabase_Impl.java").read_text(encoding="utf-8")
 UNDO_SCHEMA = (ROOT / "app/build/identity-work/tag-merge-schema.sql").read_text(encoding="utf-8")
 
 
