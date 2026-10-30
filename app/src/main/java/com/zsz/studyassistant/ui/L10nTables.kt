@@ -2352,17 +2352,19 @@ private val B10_ZH = mapOf(
     "about.features" to "📋 功能",
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
-        "· 📷 拍照或图文提问，最多 3 张图片；自动/手动框选与作答批改\n" +
-        "· 💬 流式解答、附图追问、中止与继续生成、同类题练习；支持 KaTeX 公式（含矩阵）\n" +
-        "· 🧠 快速/思考模式均使用 deepseek-flash，分别关闭/开启思考\n" +
-        "· 📚 错题本支持分类、标签、搜索、排序和批量处理；删除后 3 秒内可撤销\n" +
-        "· 🕘 解题记录只记录首次解题/图文提问，保留 30 天内最近 200 条；从错题本或复习打开不新增记录\n" +
-        "· 🏷️ 标签整理支持 AI 建议、手动分组、预览确认与撤销最近一次合并；草稿保存在本机\n" +
-        "· 📖 间隔复习、每日提醒与学习统计（含新增趋势，复习日期统计为估算）；AI 批改建议需确认。界面语言、主题和字号可调整\n" +
-        "· 🗄️ 压缩备份包支持图片去重、大备份分卷及旧 v3 JSON 导入；每天打开后约30秒择机自动备份，当天已有完整手动或自动备份则不排计划；可立即接管待执行计划并在离页后继续，自动备份含旧命名统一清理，超过3套先留最新2套、成功后留3套；空错题本不自动备份，前台成功气泡提示，后台最终失败发系统通知（需允许通知）\n" +
-        "· 💾 保存失败可重试，中断对话草稿可恢复；冲突不覆盖，救援导出供人工恢复，草稿不进入普通备份\n" +
-        "· 🔎 AI 分析保留最近 20 条本机诊断，可手动导出或清空\n" +
-        "· ⬆️ 更新由系统后台下载，通知显示进度并可返回更新页；实时胶囊由系统决定。安装前校验签名证书及可用的 SHA-256"
+        "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
+        "· 🤖 流式解答、附图追问、继续生成与同类题练习，支持公式显示。\n" +
+        "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
+        "· 📚 错题本支持分类、标签、排序和批量管理。\n" +
+        "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
+        "· 🏷 标签整理支持 AI 建议、预览确认和合并撤销。\n" +
+        "· 📖 间隔复习、每日提醒与学习统计。\n" +
+        "· 🌐 五种界面语言，可调整主题、壁纸背景和字号。\n" +
+        "· 📦 手动备份、每日自动备份与恢复，支持大备份分卷。\n" +
+        "· 💾 保存失败可重试，中断对话可恢复，删除操作支持撤销。\n" +
+        "· ⬆️ 应用内检查正式版和可选测试版，支持后台下载与安装前校验。\n" +
+        "· 📥 从其他应用分享 1～2 张图片，选择解题或批改并按顺序框选。\n" +
+        "· 🔎 错题本搜索显示题干或答案的命中片段，并高亮关键词。"
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
@@ -2411,17 +2413,19 @@ private val B10_EN = mapOf(
     "about.features" to "📋 Features",
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
-        "· 📷 Ask by photo or text with up to 3 images; automatic/manual cropping and answer grading\n" +
-        "· 💬 Stream solutions, attach images to follow-ups, stop/resume, practise similar questions and render KaTeX formulas including matrices\n" +
-        "· 🧠 Fast and thinking modes both use deepseek-flash, with thinking disabled/enabled respectively\n" +
-        "· 📚 Categorise, tag, search, sort and batch-manage notebook entries; undo deletion within 3 seconds\n" +
-        "· 🕘 History records initial searches/text-image questions only, keeping the latest 200 within 30 days; opening notebook/review entries adds no history\n" +
-        "· 🏷️ Organise labels with AI suggestions, manual groups, preview confirmation and undo of the latest merge; drafts stay on-device\n" +
-        "· 📖 Spaced review, new-question trends, estimated review-date statistics and daily reminders; confirm AI grading suggestions; adjustable language, theme and font size\n" +
-        "· 🗄️ Compressed backups deduplicate images, split large sets and import legacy v3 JSON. Opening the app schedules backup after 30 seconds unless a complete backup exists today; Back up now replaces pending plans and work continues after leaving the page; includes legacy automatic sets in retention: over 3 before backup keeps 2, then 3 after success. Empty notebooks skip automatic backup; foreground success uses a bubble and final background failures post a system notification (permission required)\n" +
-        "· 💾 Retry failed saves and recover local conversation drafts without overwriting conflicts; rescue exports need assisted recovery and drafts are excluded from normal backups\n" +
-        "· 🔎 Keep the latest 20 local AI analysis diagnostics, with manual export or clearing\n" +
-        "· ⬆️ Android downloads updates in the background; progress notifications return to App update. Live capsules depend on the system. Verify the signing certificate and available SHA-256 before installation"
+        "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
+        "· 🤖 Stream answers, ask image follow-ups, continue generation and practise similar questions, with formula rendering.\n" +
+        "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
+        "· 📚 Organize notebook entries with categories, tags, sorting and batch actions.\n" +
+        "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
+        "· 🏷 Organize tags with AI suggestions, merge previews and undo.\n" +
+        "· 📖 Spaced review, daily reminders and learning statistics.\n" +
+        "· 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.\n" +
+        "· 📦 Manual and daily automatic backups, restore, and split archives for large backups.\n" +
+        "· 💾 Retry failed saves, recover interrupted conversations and undo deletions.\n" +
+        "· ⬆️ Check stable and optional beta updates, download in the background and verify before installation.\n" +
+        "· 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.\n" +
+        "· 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords."
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
@@ -2470,17 +2474,19 @@ private val B10_JA = mapOf(
     "about.features" to "📋 機能",
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
-        "· 📷 撮影・文字と最大3枚の画像で質問。自動/手動の切り抜きと解答添削\n" +
-        "· 💬 逐次解答、画像付き追加質問、生成の中止・再開、類似問題演習、KaTeX数式（行列など）\n" +
-        "· 🧠 高速/思考モードは共に deepseek-flash を使用し、思考を無効/有効に切り替え\n" +
-        "· 📚 誤答ノートの分類・タグ・検索・並べ替え・一括操作。削除は3秒以内に取り消し可能\n" +
-        "· 🕘 解答履歴は最初の解答・文字画像質問のみ。30日以内の直近200件を保持し、ノートや復習から開いても追加しない\n" +
-        "· 🏷️ AI候補・手動グループ・プレビュー確認・直近統合の取り消しに対応。下書きは端末に保存\n" +
-        "· 📖 間隔復習・新規問題の推移・推定の復習日統計・毎日の通知。AI判定は確認が必要。言語・テーマ・文字サイズを変更可能\n" +
-        "· 🗄️ 圧縮バックアップは画像の重複排除・分巻・旧v3 JSON読み込みに対応。起動後30秒で自動予約。本日分の完全なバックアップがあれば予約せず、即時実行で待機予約を置き換え、画面を閉じても継続。旧名称も含め開始前に3セット超なら最新2セット、成功後は3セット保持。空の問題集は自動保存せず、前面で成功を通知。背面での最終失敗はシステム通知（許可が必要）\n" +
-        "· 💾 保存の再試行と会話下書きの復元。競合は上書きしない。救済出力は手動復旧用で、下書きは通常バックアップ対象外\n" +
-        "· 🔎 AI分析の診断を端末に直近20件保持し、手動出力・消去に対応\n" +
-        "· ⬆️ 更新はシステムが背面で取得し、進捗通知から更新ページへ戻れます。ライブカプセルはシステム次第です。署名証明書と提供されたSHA-256をインストール前に検証"
+        "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
+        "· 🤖 逐次解答、画像付き追加質問、生成の継続、類似問題の練習と数式表示に対応。\n" +
+        "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
+        "· 📚 間違いノートを分類・タグ・並べ替え・一括操作で管理。\n" +
+        "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
+        "· 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。\n" +
+        "· 📖 間隔を空けた復習、毎日の通知と学習統計。\n" +
+        "· 🌐 5言語の画面表示、テーマ・壁紙背景・文字サイズの調整。\n" +
+        "· 📦 手動・毎日の自動バックアップと復元。大きなバックアップは分割可能。\n" +
+        "· 💾 保存失敗の再試行、中断した会話の復元、削除の取り消し。\n" +
+        "· ⬆️ 正式版と任意のテスト版の更新確認、バックグラウンドダウンロードとインストール前の検証。\n" +
+        "· 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取り。\n" +
+        "· 🔎 ノート検索で問題文・解答の一致箇所とキーワードの強調を表示。"
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
@@ -2529,17 +2535,19 @@ private val B10_KO = mapOf(
     "about.features" to "📋 기능",
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
-        "· 📷 사진 또는 글과 최대 3장의 이미지로 질문. 자동/수동 자르기와 답안 채점\n" +
-        "· 💬 스트리밍 풀이, 이미지 후속 질문, 생성 중지·계속, 유사 문제 연습 및 KaTeX 수식(행렬 등)\n" +
-        "· 🧠 빠른/사고 모드는 모두 deepseek-flash를 사용하며 사고를 각각 끄거나 켬\n" +
-        "· 📚 오답의 분류·태그·검색·정렬·일괄 관리. 삭제는 3초 안에 취소 가능\n" +
-        "· 🕘 최초 검색/글·이미지 질문만 기록하며 30일 이내 최근 200개 유지. 오답·복습에서 열면 기록을 추가하지 않음\n" +
-        "· 🏷️ AI 제안·수동 그룹·미리보기 확인·최근 병합 취소 지원. 초안은 기기에 저장\n" +
-        "· 📖 간격 복습·신규 문제 추이·추정 복습일 통계·매일 알림. AI 판정은 확인 필요. 언어·테마·글꼴 크기 조정\n" +
-        "· 🗄️ 압축 백업은 이미지 중복 제거, 분할 및 기존 v3 JSON 가져오기를 지원. 앱을 열면 30초 후 자동 백업을 예약하며 오늘의 완전한 백업이 있으면 예약하지 않음. 지금 백업으로 대기 예약을 대체하고 화면을 닫아도 계속하며 기존 이름도 포함해 시작 전 3세트 초과 시 최신 2세트, 성공 후 3세트 유지. 빈 노트는 자동 백업하지 않으며 앞에서 실행 중이면 성공 알림, 백그라운드 최종 실패는 시스템 알림 표시(권한 필요)\n" +
-        "· 💾 저장 재시도 및 대화 초안 복원. 충돌은 덮어쓰지 않음. 복구용 내보내기는 수동 복구용이며 초안은 일반 백업에서 제외\n" +
-        "· 🔎 최근 20회의 로컬 AI 분석 진단을 보관하며 수동 내보내기·지우기 지원\n" +
-        "· ⬆️ 시스템이 백그라운드에서 업데이트를 다운로드하고 진행률 알림에서 업데이트 페이지로 이동. 실시간 캡슐은 시스템에 따라 표시. 설치 전 서명 인증서와 제공된 SHA-256 확인"
+        "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
+        "· 🤖 스트리밍 답변, 이미지 후속 질문, 이어서 생성, 유사 문제 연습과 수식 표시를 지원합니다.\n" +
+        "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
+        "· 📚 분류, 태그, 정렬과 일괄 작업으로 오답노트를 관리합니다.\n" +
+        "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
+        "· 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.\n" +
+        "· 📖 간격 복습, 매일 알림과 학습 통계.\n" +
+        "· 🌐 5개 화면 언어, 테마·배경화면·글자 크기 조절.\n" +
+        "· 📦 수동·매일 자동 백업과 복원, 대용량 백업 분할.\n" +
+        "· 💾 저장 실패 재시도, 중단된 대화 복구와 삭제 실행 취소.\n" +
+        "· ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 백그라운드 다운로드와 설치 전 검증.\n" +
+        "· 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자릅니다.\n" +
+        "· 🔎 오답노트 검색에서 문제·답변의 일치 구절과 강조된 키워드를 표시합니다."
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (

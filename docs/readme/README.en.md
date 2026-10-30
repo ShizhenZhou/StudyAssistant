@@ -13,26 +13,19 @@ Developed by zsz with assistance from DeepSeek and GPT. Download published build
 
 ## Features
 
+- 📷 Ask with photos or text and images, crop images and grade handwritten work.
+- 🤖 Stream answers, ask image follow-ups, continue generation and practise similar questions, with formula rendering.
+- 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.
+- 📚 Organize notebook entries with categories, tags, sorting and batch actions.
+- 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.
+- 🏷 Organize tags with AI suggestions, merge previews and undo.
+- 📖 Spaced review, daily reminders and learning statistics.
+- 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.
+- 📦 Manual and daily automatic backups, restore, and split archives for large backups.
+- 💾 Retry failed saves, recover interrupted conversations and undo deletions.
+- ⬆️ Check stable and optional beta updates, download in the background and verify before installation.
 - 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
-- 🔎 Notebook search shows matching excerpts, identifies question or answer matches and highlights keywords.
-- 📷 Ask with text and up to 3 images; automatic/manual cropping and grading of handwritten answers.
-- 🤖 Streaming answers, image follow-ups, stop/continue generation, similar exercises and KaTeX formulas.
-- 🧠 AI management has API settings and usage, AI cropping, solver settings and custom instructions. Both fast and thinking modes use `deepseek-flash`, with thinking disabled/enabled respectively. AI output language is separate from interface language.
-- 📚 Categorize, tag, search, sort and batch-manage notebook entries.
-- 🕘 Solving history retains initial solutions, text/image questions and grading (**latest 200 entries, up to 30 days**). Follow-ups update the same entry and preserve its first time; opening Notebook/Review creates no new history.
-- 🏷 Preview AI suggestions or manual tag groups before merging; undo the latest merge. Tag drafts save automatically; the latest 20 local AI-analysis diagnostics can be exported manually.
-- 📖 Review at `0/1/2/4/7/15/30` days, with statistics and daily reminders.
-- 🌐 Simplified/Traditional Chinese, English, Japanese and Korean interfaces; themes and global text size.
-- 📦 ZIP backups (`.zip`) deduplicate images and split large archives; legacy v3 JSON import remains supported. Names use `SABak-timestamp.zip`, with `-1of3` for parts; select all parts when restoring. Local content wins for matching question IDs; categories/tags are imported only for new questions.
-- 🗄️ Automatic backups use `SABak_auto-` and become eligible about 30 seconds after opening the app each day. Skip empty notebooks or days with a complete manual/automatic backup; otherwise back up daily even if unchanged. A manual request can take over a queued automatic job, which continues after leaving the page. If more than **3 complete sets** exist, retain the newest **2** before starting; retain **3** after success. Legacy automatic names are included; manual, damaged, incomplete and unrecognized files are kept. Foreground success shows an in-app notice; final background failure uses a notification when permitted.
-- 💾 Retry failed saves and recover persisted copies after restart. Conflicts never overwrite existing content; pending content can be exported manually.
-- 💬 Regeneration keeps the old answer until success. Interrupted conversations become local drafts recoverable from Home or data management; excluded from ordinary backups, with rescue export for assisted recovery.
-- ↩️ A 3-second undo window follows deletion of questions, history or categories. Review keeps the current session's selection; AI grading needs confirmation. Daily/weekly/streak/trend statistics are estimates from latest review dates.
-- ⬆️ In-app updates use Android background downloads, restore progress after navigation and offer notification progress/cancellation. Downloads continue when notifications are unavailable; Live Update presentation depends on the device and needs physical-device confirmation. Transfers attempt to resume after connectivity returns. Same-version packages are compared by UTC build time. Compatibility metadata blocks unsupported downloads; installation checks actual minimum OS, signing certificate, version and SHA-256.
-
-## Shared images and search
-
-Select 1–2 images in your gallery or another app, use the system Share menu to choose Study Assistant, then select Solve or Grade. Each image must be at most 32 MB; two-image grading uses question first, then your work. Cancelling or a read failure leaves the current content intact. Notebook search cards show matching question/answer excerpts with highlighted keywords.
+- 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords.
 
 ## Data and privacy
 
