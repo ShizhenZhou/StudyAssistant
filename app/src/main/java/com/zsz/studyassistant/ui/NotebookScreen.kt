@@ -1,5 +1,9 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import android.graphics.BitmapFactory
@@ -118,11 +122,13 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val categoryById = remember(categories) { categories.associateBy { it.id } }
     val tags by vm.tags.collectAsStateWithLifecycle()
     val questionTags by vm.questionTags.collectAsStateWithLifecycle()
-    var filterCategoryId by remember { mutableStateOf<Long?>(null) } // null = 全部
-    var showUncategorized by remember { mutableStateOf(false) }
-    var filterTagIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var query by remember { mutableStateOf("") }
-    var searchOpen by remember { mutableStateOf(false) }
+    var filterCategoryId by rememberSaveable { mutableStateOf<Long?>(null) } // null = 全部
+    var showUncategorized by rememberSaveable { mutableStateOf(false) }
+    var filterTagIds by rememberSaveable(stateSaver = listSaver<Set<Long>, Long>(
+        save = { it.toList() }, restore = { it.toSet() }
+    )) { mutableStateOf<Set<Long>>(emptySet()) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     val sortMode by vm.notebookSort.collectAsStateWithLifecycle()
     // 列表滚动状态：切换排序后**主动回到顶部**。
@@ -130,13 +136,20 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     // 你在顶部时第一个可见项是"最近添加"的那道题，切换成"最早添加"后它跑到列表末尾 →
     // 视图跟着它跳到**底部**（用户实测反馈的 bug）。
     val gridState = rememberLazyStaggeredGridState()
-    LaunchedEffect(sortMode) { runCatching { gridState.scrollToItem(0) } }
+    var appliedSort by rememberSaveable { mutableStateOf(sortMode.id) }
+    LaunchedEffect(sortMode) {
+        if (appliedSort != sortMode.id) {
+            gridState.scrollToItem(0)
+            appliedSort = sortMode.id
+        }
+    }
     var page by remember { mutableStateOf("list") }   // list / manage（科目管理）
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
     var showBatchCategory by remember { mutableStateOf(false) }
     var showBatchDelete by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
+    var requestSearchFocus by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
 
     fun closeSearch() {
@@ -247,7 +260,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             // ★ 2026-10-14（用户要求）：与解题页「⏸ 中止 / 🔄 重新生成」**同字号** →
                             //   用它们同一个常量 BTN_LABEL_SOLVE（13sp），别再自创字号。
                             TextButton(
-                                onClick = { if (searchOpen) closeSearch() else searchOpen = true },
+                                onClick = { if (searchOpen) closeSearch() else { searchOpen = true; requestSearchFocus = true } },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) { Text("🔍", fontSize = BTN_LABEL_SOLVE) }
                             // ⇅ 排序（A5）：最近添加 / 最早添加 / 下次复习 / 复习次数 / 最不熟
@@ -302,7 +315,9 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
             if (!selectionMode) {
                 // 搜索框：点标题栏 🔍 才出现
                 if (searchOpen) {
-                    LaunchedEffect(Unit) { searchFocus.requestFocus() }
+                    LaunchedEffect(requestSearchFocus) {
+                        if (requestSearchFocus) { searchFocus.requestFocus(); requestSearchFocus = false }
+                    }
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
@@ -404,6 +419,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                     staggeredItems(filtered, key = { it.id }) { q ->
                         NotebookItem(
                             q = q,
+                            modifier = Modifier.animateItem(fadeInSpec = null, placementSpec = tween(180), fadeOutSpec = tween(140)),
                             snippet = searchMatches?.takeIf { keyword.isNotEmpty() && it.first == keyword }?.second?.get(q.id),
                             tags = (qTagIds[q.id] ?: emptyList()).mapNotNull { tagById[it] },
                             selectionMode = selectionMode,
@@ -468,6 +484,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
 @Composable
 private fun NotebookItem(
     q: Question,
+    modifier: Modifier = Modifier,
     snippet: com.zsz.studyassistant.data.SearchSnippet?,
     tags: List<Tag>,
     selectionMode: Boolean,
@@ -476,13 +493,9 @@ private fun NotebookItem(
     onLongClick: () -> Unit
 ) {
     val s = LocalStrings.current
-    // 用 remember 缓存 + 降采样解码，避免每次重组都解码全尺寸大图
-    // ★★ 2026-10-14（用户："错题本中只能显示一个图"）：卡片也要显示**全部原图**（最多 3 张，竖向排列）。
-    //   以前这里只取一张（`imageBytes` 或会话里的第一张）→ 双图只看得见一张。
-    //   统一走 `mergeImageKeys`：主图 + 会话附图，按 base64 去重。
-    val bitmaps = questionCardBitmaps(q, 400)
     Card(
-        modifier = Modifier
+        modifier = modifier
+            .animateContentSize(tween(140))
             .padding(horizontal = 4.dp)
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
@@ -491,26 +504,7 @@ private fun NotebookItem(
     ) {
         Box {
             Column(Modifier.padding(8.dp)) {
-                if (bitmaps.isNotEmpty()) {
-                    bitmaps.forEach { bm ->
-                        Image(
-                            bitmap = bm.asImageBitmap(),
-                            contentDescription = s["notebook.imageDesc"],
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 4.dp)
-                                .aspectRatio(bm.width.toFloat() / bm.height.toFloat()),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-                } else {
-                    Text(
-                        TextPretty.oneLine(q.text, 110),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                QuestionCardPreview(q, s["notebook.imageDesc"])
                 snippet?.let { hit ->
                     Text(s[if (hit.answer) "search.hit.answer" else "search.hit.question"],
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,

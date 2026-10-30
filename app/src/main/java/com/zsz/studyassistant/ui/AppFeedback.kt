@@ -136,7 +136,7 @@ fun AppFeedbackLayout(vm: MainViewModel, content: @Composable () -> Unit) {
         FeedbackMessage(vm.draftError, true) { vm.clearDraftError() }
         Surface(Modifier.fillMaxSize(), contentColor = MaterialTheme.colorScheme.onSurface,
             color = MaterialTheme.colorScheme.surface.let {
-            if (vm.wallpaperBackground) wallpaperSurface(it) else it
+            if (vm.wallpaperBackground) wallpaperSurface(it, vm.wallpaperShade) else it
         }) {
             Box(Modifier.fillMaxSize()) {
                 content()

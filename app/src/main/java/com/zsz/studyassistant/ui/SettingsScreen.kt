@@ -1486,6 +1486,18 @@ private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
         Switch(checked = vm.wallpaperBackground, onCheckedChange = vm::updateWallpaperBackground,
             modifier = Modifier.semantics { contentDescription = s["settings.theme.wallpaper"] })
     }
+    if (vm.wallpaperBackground) {
+        Spacer(Modifier.height(8.dp))
+        Text(s["settings.theme.wallpaperShade"], style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WallpaperShade.entries.forEach { shade ->
+                FilterChip(selected = vm.wallpaperShade == shade,
+                    onClick = { vm.updateWallpaperShade(shade) },
+                    label = { Text(s["settings.theme.wallpaperShade.${shade.id}"]) })
+            }
+        }
+    }
 
     // ③ 字号（C14）：只缩放 App 内文字（界面 + 对话区），不动系统设置
     Spacer(Modifier.height(18.dp))

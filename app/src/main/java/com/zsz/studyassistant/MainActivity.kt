@@ -190,7 +190,8 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(
                 // 配色：深色/浅色 + 用户选择的预设色板或自定义色（设置 → 应用主题）
                 colorScheme = com.zsz.studyassistant.ui.appColorScheme(
-                    dark, viewModel.themeColor, viewModel.customColor
+                    dark, viewModel.themeColor, viewModel.customColor,
+                    if (viewModel.wallpaperBackground) viewModel.wallpaperShade else com.zsz.studyassistant.ui.WallpaperShade.STANDARD
                 ),
                 // 字体：按钮/标签统一比 Material3 默认小 2sp（用户要求"所有按钮字号缩小 1~2 个字号"）
                 typography = com.zsz.studyassistant.ui.appTypography()

@@ -114,6 +114,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .edit().putBoolean("wallpaper_background", enabled).apply()
     }
 
+    var wallpaperShade by mutableStateOf(com.zsz.studyassistant.ui.WallpaperShade.fromId(
+        app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .getString("wallpaper_shade", null)
+    ))
+        private set
+    fun updateWallpaperShade(shade: com.zsz.studyassistant.ui.WallpaperShade) {
+        wallpaperShade = shade
+        getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit().putString("wallpaper_shade", shade.id).apply()
+    }
+
     // ---- 应用主题配色（预设色板，默认紫色）----
     var themeColor by mutableStateOf(
         com.zsz.studyassistant.ui.AppThemeColor.fromId(

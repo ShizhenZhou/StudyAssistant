@@ -16,6 +16,7 @@
 | 搜题记录（防"忘了存错题本"） | Room 数据库 `solve_sessions` 表 | 与错题本分表，共享永久题目编号；包含在当前 v4 压缩备份中（兼容导入 v3 JSON） |
 | 应用主题 | `SharedPreferences("settings")` 的 `theme` | system/light/dark |
 | 系统壁纸背景（v0.6.8.2） | `settings.wallpaper_background: Boolean` | 缺失时 false；本机外观偏好，不包含在题库备份中；DB v10 / Bak v4 不变 |
+| 壁纸遮罩强度 | `settings.wallpaper_shade: String` | light / standard / strong；缺失或未知值使用 standard，保留原浅色 0.88 / 深色 0.90 遮罩。仅本机外观偏好，不纳入题库备份，不改变 DB v10 / Bak v4 |
 | 科目显示顺序（v0.6.8.2） | `settings.category_order_custom: Boolean` / `category_order_ids: String` | 默认关闭自定义；逗号分隔的正科目 ID，`-1` 仅代表界面“未分类”。忽略重复/损坏/已删除项，新科目追加；仅本机偏好，不修改 categories 表、不包含在题库备份中 |
 | DeepSeek API Key | Android Keystore（AES/GCM） | 运行时经 `KeyManager` 解密；**不存源码** |
 | 本机凭据备份 | 仓库之外的本地文件（**不入库**） | 用户手动维护，绝不上传 |
