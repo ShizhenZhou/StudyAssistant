@@ -1630,29 +1630,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         val te = full.indexOf("</思考>")
                         var bodyText = full
                         // 兜底②：模型没写标记但用了"思考：…解答："这类纯文本写法时，也能分流
-                        var ts2 = ts
-                        var te2 = te
-                        if (ts2 < 0) {
+                        var thinkingStart = if (ts >= 0) ts + "<思考>".length else -1
+                        var thinkingEnd = te
+                        var bodyStart = if (te >= 0) te + "</思考>".length else -1
+                        if (ts < 0) {
                             val m = Regex("(?:^|\\n)\\s*(?:思考|分析|思路)[:：]").find(full)
                             val mEnd = Regex("\\n\\s*(?:解答|答案|题目)[:：]").find(full)
                             if (m != null && mEnd != null && mEnd.range.first > m.range.last) {
-                                ts2 = m.range.first; te2 = mEnd.range.first
-                                val think = full.substring(m.range.last + 1, te2)
-                                val nowT = System.currentTimeMillis()
-                                if (nowT - lastThinkEmit >= 120) {
-                                    lastThinkEmit = nowT
-                                    withContext(Dispatchers.Main) { thinkingText = think.trim() }
-                                }
+                                thinkingStart = m.range.last + 1
+                                thinkingEnd = mEnd.range.first
+                                // Keep the answer/question label; it belongs to the normal output parser.
+                                bodyStart = mEnd.range.first
                             }
                         }
-                        if (ts2 >= 0) {
-                            val think = if (te2 > ts2) full.substring(ts2 + 4, te2) else full.substring(ts2 + 4)
+                        if (thinkingStart >= 0) {
+                            val think = if (thinkingEnd >= thinkingStart) full.substring(thinkingStart, thinkingEnd) else full.substring(thinkingStart)
                             val nowT = System.currentTimeMillis()
                             if (nowT - lastThinkEmit >= 120) {
                                 lastThinkEmit = nowT
-                                withContext(Dispatchers.Main) { thinkingText = think }
+                                withContext(Dispatchers.Main) { if (mySeq == callSeq) thinkingText = think }
                             }
-                            bodyText = if (te2 > ts2) full.substring(te2 + 5) else ""
+                            bodyText = if (thinkingEnd >= thinkingStart) full.substring(bodyStart) else ""
                         }
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -1677,6 +1675,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     })
                 }
                 if (mySeq != callSeq) return@launch
+                // The last reasoning delta may arrive within the UI throttle window.
+                // Flush it before onDone snapshots thinkingText into the saved message.
+                if (thinkSb.isNotEmpty()) thinkingText = thinkSb.toString()
                 thinkingDone = true
                 recordUsage(app, owner.usage)
                 // ⚠️ 这里原先有一段「把 thinkingText 挂到 indexOfLast{assistant}」的代码，已删除：
@@ -1685,7 +1686,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 //   本轮思考由 addItem() 的默认值自动挂到**新建的那条**助手消息上（见 addItem）。
                 onDone(prefix + reply.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim())
                 if(mySeq==callSeq) {
-                    val completed=activeDraft?.copy(raw=prefix+reply,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
+                    val completed=activeDraft?.copy(raw=prefix+reply,thinking=thinkingText,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
                     activeDraft=completed
                     completed?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
                     withContext(kotlinx.coroutines.NonCancellable) { persistCompletedConversation() }
@@ -1711,6 +1712,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 keepPartial = partial.isNotBlank() || aborted || e is com.zsz.studyassistant.data.StreamIncompleteException
                 // 已被新请求取代的旧请求：不改界面状态（否则会把新请求的「思考中…」/内容冲掉）
                 if (mySeq == callSeq) {
+                    if (thinkSb.isNotEmpty()) thinkingText = thinkSb.toString()
                     activeDraft=activeDraft?.copy(raw=partial,thinking=thinkingText)
                     activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
                     withContext(kotlinx.coroutines.NonCancellable) { refreshDrafts() }

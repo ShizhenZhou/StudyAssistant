@@ -134,7 +134,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     val scope = rememberCoroutineScope()
 
     val downloads = remember(context.applicationContext, taskStore) { taskStore ?: UpdateDownloads(context.applicationContext) }
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var observingDownload by remember { mutableStateOf(true) }
     val installed = remember { UpdateChecker.installedVersion(context) }
     var phase by remember { mutableStateOf(Phase.RESTORING) }

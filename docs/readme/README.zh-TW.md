@@ -40,7 +40,7 @@
 
 ## 技術棧
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（一次性備份任務）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose · WorkManager **2.12.0**（一次性備份任務）· AlarmManager · Android Keystore。
 
 構建使用 AGP **9.4.0**、Gradle wrapper **9.8.2** 和 JDK **25**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 

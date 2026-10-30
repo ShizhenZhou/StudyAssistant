@@ -1,11 +1,11 @@
 name: build
-run-name: "release: ${{ inputs.run_description || github.ref_name }}"
+run-name: "${{ github.ref_name == 'main' && 'release' || 'build' }}: ${{ inputs.run_description || github.ref_name }}"
 # Validation is local and scoped. Push/PR/tag do not start duplicate builds.
 on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: Exact reviewed main commit
+        description: Exact reviewed main or Develop commit
         required: true
         type: string
       run_description:
@@ -15,7 +15,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: release-build
+  group: build-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   build:
@@ -27,7 +27,7 @@ jobs:
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
         run: |
-          test "$GITHUB_REF" = refs/heads/main
+          case "$GITHUB_REF" in refs/heads/main|refs/heads/Develop) ;; *) exit 1 ;; esac
           test "$EXPECTED_SHA" = "$GITHUB_SHA"
           python3 -B tools/check-secrets.py --tracked
       - uses: actions/setup-java@v6.1.0
@@ -40,8 +40,10 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease --console=plain
       - name: Record APK identity and hashes
+        if: github.ref == 'refs/heads/main'
         run: python3 -B tools/ci-release.py
       - uses: actions/upload-artifact@v7.0.2
+        if: github.ref == 'refs/heads/main'
         with:
           name: release-candidate
           path: |
@@ -49,3 +51,11 @@ jobs:
             app/build/release-candidate/release-manifest.json
           if-no-files-found: error
           retention-days: 30
+      - name: Upload development build
+        if: github.ref == 'refs/heads/Develop'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: development-build
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 7

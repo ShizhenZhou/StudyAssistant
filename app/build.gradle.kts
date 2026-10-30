@@ -153,7 +153,7 @@ ksp {
 // The SQLite verifier consumes these extra test outputs. Include them in Gradle's
 // task cache so a cached successful test run also restores the files it produced.
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
-    if (name == "testDebugUnitTest") {
+    if (name == "testIntegrationUnitTest") {
         // These tests read files directly instead of through the runtime classpath.
         // Declare them so README/HTML-only changes invalidate cached test results.
         inputs.files(rootProject.file("README.md"), project.file("build.gradle.kts"),

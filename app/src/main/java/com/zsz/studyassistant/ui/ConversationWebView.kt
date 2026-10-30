@@ -116,6 +116,7 @@ fun ConversationWebView(
     var lastJson by remember { mutableStateOf<String?>(null) }
     var zoomImage by remember { mutableStateOf<String?>(null) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
+    val bridgeHandler = remember { Handler(Looper.getMainLooper()) }
 
     /** 多选状态 → JS 载荷（选择/锁定变化也要触发重渲染，故与消息一起进入去重 key） */
     fun selectionJson(): String =
@@ -175,6 +176,7 @@ fun ConversationWebView(
             factory = { ctx ->
                 ResetOnFocusWebView(ctx).apply {
                     webRef = this
+                    val bridgeView = this
                     configureConversationWebView(this)
                     setBackgroundColor(Color.TRANSPARENT)
                     isVerticalScrollBarEnabled = true
@@ -191,43 +193,43 @@ fun ConversationWebView(
                     addJavascriptInterface(object {
                         @JavascriptInterface
                         fun openImage(b64: String) {
-                            Handler(Looper.getMainLooper()).post { zoomImage = b64 }
+                            bridgeHandler.post { if (webRef === bridgeView) zoomImage = b64 }
                         }
 
                         /** 气泡末尾的蓝色「继续生成」被点击 */
                         @JavascriptInterface
                         fun continueGeneration() {
-                            Handler(Looper.getMainLooper()).post { currentOnContinue() }
+                            bridgeHandler.post { if (webRef === bridgeView) currentOnContinue() }
                         }
 
                         /** 长按消息气泡 → 进入原生多选（编辑）界面，并选中被长按的那条 */
                         @JavascriptInterface
                         fun longPressMessage(idx: Int) {
-                            Handler(Looper.getMainLooper()).post { currentOnLongPress(idx) }
+                            bridgeHandler.post { if (webRef === bridgeView) currentOnLongPress(idx) }
                         }
 
                         /** 多选态下点击气泡 → 切换选中 */
                         @JavascriptInterface
                         fun toggleMessage(idx: Int) {
-                            Handler(Looper.getMainLooper()).post { currentOnToggleSelect(idx) }
+                            bridgeHandler.post { if (webRef === bridgeView) currentOnToggleSelect(idx) }
                         }
 
                         /** 用户点了「展开 / 折叠思考区」→ 记进全局偏好（所有题目共用） */
                         @JavascriptInterface
                         fun thinkToggled(open: Boolean) {
-                            Handler(Looper.getMainLooper()).post { currentOnThinkToggled(open) }
+                            bridgeHandler.post { if (webRef === bridgeView) currentOnThinkToggled(open) }
                         }
 
                         /** 网页上报「是否已滚动到顶部」→ 按钮在 ↑ / ↓ 之间切换 */
                         @JavascriptInterface
                         fun onAtTop(atTop: Boolean) {
-                            Handler(Looper.getMainLooper()).post { currentOnAtTopChange(atTop) }
+                            bridgeHandler.post { if (webRef === bridgeView) currentOnAtTopChange(atTop) }
                         }
 
                         /** 网页上报「内容是否超过一屏」→ false 时界面隐藏 ↑/↓ 按钮 */
                         @JavascriptInterface
                         fun onScrollable(scrollable: Boolean) {
-                            Handler(Looper.getMainLooper()).post { currentOnScrollableChange(scrollable) }
+                            bridgeHandler.post { if (webRef === bridgeView) currentOnScrollableChange(scrollable) }
                         }
 
                         @JavascriptInterface
@@ -237,7 +239,7 @@ fun ConversationWebView(
                     }, "Android")
                     webViewClient = object : ConversationAssetClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
-                            if (url != CONVERSATION_ASSET_URL) return
+                            if (view !== webRef || url != CONVERSATION_ASSET_URL) return
                             loaded = true
                             val json = buildMessagesJson(currentMessages)
                             val sel = selectionJson()
@@ -262,6 +264,16 @@ fun ConversationWebView(
                         v.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale, \"$currentThinkPref\");", null)
                     }
                 }
+            },
+            onRelease = { view ->
+                webRef = null
+                loaded = false
+                lastJson = null
+                bridgeHandler.removeCallbacksAndMessages(null)
+                view.removeJavascriptInterface("Android")
+                view.setOnTouchListener(null)
+                view.stopLoading()
+                view.destroy()
             },
             modifier = Modifier.fillMaxSize()
         )

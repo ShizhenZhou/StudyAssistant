@@ -200,7 +200,10 @@ object StudyAssistant {
                     ?.split('、', '，', ',')?.map { it.trim() }?.filter { it.isNotBlank() }?.take(5)
                 ?: emptyList()
             (if (needCategory) cat else null) to (if (needTags) tgs else emptyList())
-        }.getOrDefault(null to emptyList())
+        }.getOrElse { error ->
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            null to emptyList()
+        }
     }
 
     /** 追问等场景：文字 + 1~3 张图 → 视觉模型 user 消息（多图 image_url） */
@@ -278,7 +281,7 @@ object StudyAssistant {
      * 实现要点：
      * - 走 [ApiClient.deepSeekStream]（无整体 callTimeout），手写 SSE 逐行解析，**不引新依赖**；
      * - 忽略心跳/空行，读取 finish_reason；非正常结束保留部分内容并由用户决定续写。
-     * - 最后一片带 `usage` 时写入 [lastUsage]，保证「API 管理」用量统计不断档。
+     * - 最后一片带 `usage` 时保存在本次 [StreamOwner]，避免不同请求互相覆盖用量。
      *
      * @param onDelta 每收到一段增量调用一次（调用方负责节流，避免频繁重渲染）
      */
@@ -305,7 +308,7 @@ object StudyAssistant {
             )
         )
         owner.attach { call.cancel() }
-        val body = kotlinx.coroutines.suspendCancellableCoroutine<ResponseBody> { continuation ->
+        val body = try { kotlinx.coroutines.suspendCancellableCoroutine<ResponseBody> { continuation ->
             continuation.invokeOnCancellation { owner.cancel() }
             call.enqueue(object : retrofit2.Callback<ResponseBody> {
                 override fun onResponse(call: retrofit2.Call<ResponseBody>, response: retrofit2.Response<ResponseBody>) {
@@ -321,6 +324,10 @@ object StudyAssistant {
                     if (continuation.isActive) continuation.resumeWith(Result.failure(error))
                 }
             })
+        } } catch (error: Throwable) {
+            // Header/connection failures happen before the body-reading finally block below.
+            owner.finish()
+            throw error
         }
         val sb = StringBuilder()
         var usage: DeepSeekUsage? = null

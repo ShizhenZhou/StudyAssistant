@@ -1084,7 +1084,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         canNotify = com.zsz.studyassistant.data.BackupNotifications.canNotify(context)
     }
-    val backupLifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val backupLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(backupLifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {

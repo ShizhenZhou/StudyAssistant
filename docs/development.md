@@ -57,7 +57,7 @@ git push origin main
 ./tools/release.ps1 publish --run RUN_ID
 ```
 
-也可快进到已有规范提交。start只接受已推送的干净main，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
+也可快进到已有规范提交。start只接受已推送的干净main，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job；Develop 可在用户要求时构建一次 development-build，成功后规范合并 main，合并不自动重跑。正式发布候选仍只能由 main 生成：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
 
 schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时间、SHA、签名后保持的代码资源摘要与预期证书，不含JVM/设备通过结论。旧schema1/2仅保留历史读取兼容；不要求为新版本下载旧测试证据，不对新流程回退全量。
 
