@@ -152,7 +152,8 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     if (name == "testDebugUnitTest") {
         // These tests read files directly instead of through the runtime classpath.
         // Declare them so README/HTML-only changes invalidate cached test results.
-        inputs.files(rootProject.file("README.md"), project.file("build.gradle.kts"))
+        inputs.files(rootProject.file("README.md"), project.file("build.gradle.kts"),
+            rootProject.fileTree("docs/readme") { include("README*.md") })
             .withPropertyName("documentationInputs")
             .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
         inputs.dir(layout.projectDirectory.dir("src/main/assets"))

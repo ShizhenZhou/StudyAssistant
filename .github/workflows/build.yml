@@ -1,5 +1,5 @@
 name: build
-run-name: "${{ github.event_name == 'workflow_dispatch' && format('{0}: {1}', inputs.mode, github.sha) || format('check: {0}', github.ref_name) }}"
+run-name: "${{ github.event_name == 'workflow_dispatch' && format('{0}: {1}', inputs.mode, inputs.run_description || github.ref_name) || format('check: {0}', github.event.pull_request.title || github.event.head_commit.message || github.ref_name) }}"
 # main/tag do not trigger duplicate builds. CI never receives local signing materials.
 on:
   push:
@@ -13,6 +13,10 @@ on:
         type: choice
         options: [check, device, release]
         default: check
+      run_description:
+        description: Human-readable version and purpose (source identity is checked separately)
+        type: string
+        default: ''
       expected_sha:
         description: Optional immutable source commit required by the release coordinator
         type: string
@@ -155,19 +159,26 @@ jobs:
         with:
           name: verification-build
           path: app/build/verification
-      - name: Enable KVM on disposable runner
+      - name: Prepare emulator host and SDK location
+        id: sdk
         run: |
+          echo "root=$ANDROID_HOME" >> "$GITHUB_OUTPUT"
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Require declared system image (never downgrade)
-        run: |
-          image="system-images;android-${{ matrix.imageApi }};${{ matrix.target }};${{ matrix.arch }}"
-          available=$("${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --list)
-          if ! printf '%s\n' "$available" | grep -F "$image" >/dev/null; then
-            echo "::error::Required emulator image unavailable: $image"; exit 1
-          fi
-      - uses: reactivecircus/android-emulator-runner@v2
+      # Only the declared SDK image is cached: no AVD userdata, app files or test evidence.
+      # The runner installs this exact package; an unavailable image still fails, never downgrades.
+      - name: Cache declared SDK image
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.sdk.outputs.root }}/system-images/android-${{ matrix.imageApi }}/${{ matrix.target }}/${{ matrix.arch }}
+          key: sdk-image-${{ runner.os }}-${{ matrix.imageApi }}-${{ matrix.target }}-${{ matrix.arch }}-v1
+      - name: Install required APK inspection tools
+        timeout-minutes: 3
+        run: '"${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"'
+      - name: Run declared emulator verification
+        # v2, pinned to the revision used by the audited successful and failed runs.
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: ${{ matrix.imageApi }}
           system-image-api-level: ${{ matrix.imageApi }}
@@ -177,7 +188,6 @@ jobs:
           emulator-port: 5554
           disable-animations: true
           script: |
-            "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" >/dev/null
             python3 -B tools/run-android-integration.py --serial emulator-5554 --plan app/build/verification/plan.json --api ${{ matrix.api }}
       - name: Preserve device verification
         if: always()
@@ -192,7 +202,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-test-log-api-${{ matrix.api }}
+          name: android-test-log-api-${{ matrix.api }}-attempt-${{ github.run_attempt }}
           path: app/build/android-integration/instrumentation.log
           if-no-files-found: ignore
           overwrite: true

@@ -1,12 +1,47 @@
 """Local checks with content-bound evidence; --plan never runs checks or creates reports."""
 import argparse
 import json
+import os
+import platform
+import re
+import shutil
 from pathlib import Path
 import subprocess
 import sys
 import time
 from verification import (ROOT, EvidenceStore, changed_files, digest, environment_identity,
                           file_sha, git, source_digest, task_inputs, write_json)
+
+
+# Only actual tool-test inputs belong here; app Gradle files are synthetic fixtures.
+TOOL_INPUTS = ["tools", ".github", ".githooks", ".gitignore"]
+DOCUMENTATION_TESTS = ["com.zsz.studyassistant.ui.AboutDocumentationTest", "com.zsz.studyassistant.ui.ChangelogFormatTest"]
+
+
+def tool_environment_identity():
+    # Resolve tools after PATH changes; irrelevant JDK/SDK/cache prefixes do not expire Python tests.
+    tools = {}
+    for name in ("git", "powershell.exe", "pwsh"):
+        path = shutil.which(name)
+        tools[name] = (path, file_sha(path)) if path and Path(path).is_file() else None
+    return digest([sys.version, sys.executable, platform.system(), platform.release(), platform.machine(),
+                   os.environ.get("PSModulePath", ""), tools])
+
+
+def inferred_basic_tests(root, changed):
+    selected = set()
+    for name in changed:
+        if name.startswith("app/src/test/"):
+            path = Path(root) / name
+            if not name.endswith("Test.kt") or not path.is_file(): return None
+            text = path.read_text(encoding="utf-8")
+            package = re.search(r"(?m)^\s*package\s+([A-Za-z_][\w.]*)\s*$", text)
+            if not package or not re.search(r"\bclass\s+" + re.escape(path.stem) + r"\b", text) or not re.search(r"@(?:org\.junit\.)?Test\b", text):
+                return None  # Shared helpers, removed files or unfamiliar structures retain full JVM coverage.
+            selected.add(package[1] + "." + path.stem)
+        if name == "README.md" or name.startswith("docs/readme/"):
+            selected.update(DOCUMENTATION_TESTS)
+    return sorted(selected)
 
 
 def run_step(root, store, name, command, identity, force=False, outputs=(), unchanged=lambda: True, family=None):
@@ -50,6 +85,11 @@ def plan_checks(root, mode="Basic", selectors=(), base="origin/main", release=Fa
     if mode != "Full" and (release or android):
         raise ValueError("Release and CompileAndroidTests require -Mode Full")
     base_sha, changed = changed_files(root, base)
+    selection = "explicit" if selectors else "full" if mode == "Full" else "affected inputs"
+    if mode == "Basic" and not selectors:
+        inferred = inferred_basic_tests(root, changed)
+        selectors = inferred or ()
+        if inferred is None: selection = "full JVM: shared/deleted/unknown test input"
     tasks = []
     android_changes = any(p.startswith(("app/src/androidTest/", "app/src/integration/")) for p in changed)
     if mode == "Full" or selectors:
@@ -67,7 +107,7 @@ def plan_checks(root, mode="Basic", selectors=(), base="origin/main", release=Fa
                 inputs={task: task_inputs([task]) for task in tasks},
                 reuse="Per-step content + environment + log + required output hashes; plan does not assert a cache hit. Full Git-visible source drift is audited throughout execution.",
                 mode=mode, base=base_sha, changedFiles=changed, tasks=tasks,
-                selectors=sorted(selectors), sqlite=mode == "Full" and not selectors,
+                selectors=sorted(selectors), selectionReason=selection, sqlite=mode == "Full" and not selectors,
                 credentialScope="current Git index", commit=git(root, "rev-parse", "HEAD"))
 
 
@@ -83,8 +123,10 @@ def execute(root, plan, force=False):
         for name, command in [("diff", ["git", "diff", "--check"]), ("diff-staged", ["git", "diff", "--cached", "--check"]),
                               ("credentials", python + ["tools/check-secrets.py", "--tracked"])]:
             report["steps"].append(run_step(root, store, name, command, digest([name, source, env]), force=True))
-        tool_inputs = source_digest(root, ["tools", ".github", ".githooks", ".gitignore", "app/build.gradle.kts"])
-        report["steps"].append(run_step(root, store, "tool-tests", python + ["-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_*.py"], digest(["tools", tool_inputs, env]), force,
+        tool_inputs = source_digest(root, TOOL_INPUTS)
+        tool_env = tool_environment_identity()
+        report["toolEnvironment"] = tool_env
+        report["steps"].append(run_step(root, store, "tool-tests", python + ["-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_*.py"], digest(["tools-v2", tool_inputs, tool_env]), force,
                                        unchanged=lambda: source_digest(root) == source))
         for task in plan["tasks"]:
             command = [str(Path(root) / "gradlew.bat"), task, "--console=plain", "-Pkotlin.compiler.execution.strategy=in-process"]

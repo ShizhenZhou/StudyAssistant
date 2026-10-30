@@ -15,10 +15,32 @@ APK_PATHS = ("app/build/outputs/apk/integration/app-integration.apk",
 BUILD_RECORD = "app/build/outputs/apk/integration-build.json"
 
 
+def output_text(value):
+    # TimeoutExpired may contain bytes even when subprocess.run requested text mode.
+    return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else (value or "")
+
+
+def safe_diagnostic(value, limit=2000):
+    text = output_text(value)
+    text = re.sub(r"https?://[^\s\"'<>]+", "[url]", text, flags=re.I)
+    text = re.sub(r"(?i)\bBearer\s+\S+|\b(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]+", "[credential]", text)
+    text = re.sub(r"(?i)\b(?:token|api[_-]?key|authorization|password|secret)\s*[:=]\s*\S+", "[credential]", text)
+    text = re.sub(r"(?<!\w)(?:[A-Za-z]:[\\/]|\\\\|/)[^\s\"'<>]+", "[path]", text)
+    text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]|[\x00-\x08\x0b-\x1f\x7f]", "", text)
+    return text[-limit:]
+
+
 def checked(args, timeout=60):
-    result = subprocess.run([str(a) for a in args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    tool = Path(str(args[0])).name
+    try:
+        result = subprocess.run([str(a) for a in args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        detail = safe_diagnostic(error.stderr or error.stdout)
+        raise RuntimeError(f"Android tool timed out: {tool}; after={timeout}s; {detail}") from None
+    except OSError:
+        raise RuntimeError(f"Android tool could not start: {tool}") from None
     if result.returncode:
-        raise RuntimeError("Android tool failed: " + Path(str(args[0])).name)
+        raise RuntimeError(f"Android tool failed: {tool}; exit={result.returncode}; {safe_diagnostic(result.stderr or result.stdout)}")
     return result.stdout
 
 
@@ -113,36 +135,54 @@ def run(serial, expected=None, selectors=(), api=None, force=False, report_path=
                   targetMinSdk=minimums[0], testMinSdk=minimums[1],
                   fingerprint=prop("ro.build.fingerprint"), abi=prop("ro.product.cpu.abi"),
                   targetSha256=build["targetSha256"], testSha256=build["testSha256"], tests=chosen,
-                  passed=[], skipped=[], success=False)
+                  passed=[], skipped=[], success=False, stage="ready")
     report_path = report_path or ROOT / "app/build/android-integration" / f"evidence-api-{actual_api}.json"
     store = EvidenceStore(ROOT / ".local-notes/verification/android")
     identity = execution_identity(build, report)
     cached = None if force or os.environ.get("CI") == "true" else store.find(identity, chosen)
     if cached:
-        report.update(success=True, passed=chosen)
+        report.update(success=True, passed=chosen, stage="cached")
         write_json(report_path, report)
         print("Reusing successful Android evidence; no installation or test execution")
         return report
     record = store.begin(identity, chosen)
     log = store.folder / record["log"]
+    public_log = ROOT / "app/build/android-integration/instrumentation.log"
+    text = ""
     write_json(report_path, report)
     try:
-        for path in (target, tests): checked([adb, "-s", serial, "install", "-r", path], timeout=120)
+        for path, stage in ((target, "install-target"), (tests, "install-tests")):
+            report["stage"] = stage
+            checked([adb, "-s", serial, "install", "-r", path], timeout=120)
+        report["stage"] = "instrumentation"
         # Only validated class#method tokens reach the device shell.
         result = subprocess.run([str(adb), "-s", serial, "shell", "am", "instrument", "-w", "-r", "-e", "class", ",".join(chosen),
                                  "com.zsz.studyassistant.integration.test/androidx.test.runner.AndroidJUnitRunner"],
                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
-        text = result.stdout + result.stderr
-        log.write_text(text, encoding="utf-8")
-        public_log = ROOT / "app/build/android-integration/instrumentation.log"
-        public_log.parent.mkdir(parents=True, exist_ok=True)
-        public_log.write_text(text, encoding="utf-8")
-        if result.returncode: raise RuntimeError("Instrumentation process failed")
+        text = output_text(result.stdout) + output_text(result.stderr)
+        if result.returncode: raise RuntimeError(f"Instrumentation process failed: exit={result.returncode}")
+        report["stage"] = "result-validation"
         report.update(instrumentation_results(text, chosen))
+        report["stage"] = "source-validation"
         load_build()  # Detect source/APK changes while the test was running.
         report["success"] = True
+        report["stage"] = "complete"
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        if isinstance(error, subprocess.TimeoutExpired):
+            text = output_text(error.stdout) + output_text(error.stderr)
+            message = f"Instrumentation timed out after {error.timeout}s"
+        else:
+            message = safe_diagnostic(str(error))
+        report["error"] = message
+        diagnostic = f"Android checks failed at stage={report['stage']}: {message}"
+        text += "\n" + diagnostic + "\n"
+        print(diagnostic, file=sys.stderr)
+        print("Instrumentation diagnostic tail:\n" + safe_diagnostic("\n".join(text.splitlines()[-40:]), limit=6000), file=sys.stderr)
+        raise RuntimeError(diagnostic) from None
     finally:
-        if not log.exists(): log.write_text("Instrumentation did not complete\n", encoding="utf-8")
+        log.write_text(text or "Instrumentation did not complete\n", encoding="utf-8")
+        public_log.parent.mkdir(parents=True, exist_ok=True)
+        public_log.write_text(text or "Instrumentation did not complete\n", encoding="utf-8")
         store.finish(record, report["success"])
         write_json(report_path, report)
     print(f"Android checks passed: {len(chosen)}; API {actual_api}; isolated emulator only")
@@ -152,10 +192,12 @@ def run(serial, expected=None, selectors=(), api=None, force=False, report_path=
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial")
-    parser.add_argument("--test", action="append", default=[])
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument("--test", action="append", default=[])
+    scope.add_argument("--all", action="store_true", help="Explicitly execute every isolated Android test")
     parser.add_argument("--api", type=int)
     parser.add_argument("--expected-tests", type=int, help="Assert inventory count; never override discovery")
-    parser.add_argument("--plan", type=Path, help="Use the selected API row from a verification plan")
+    scope.add_argument("--plan", type=Path, help="Use the selected API row from a verification plan")
     parser.add_argument("--list", action="store_true", help="Read-only test selection preview")
     parser.add_argument("--record-build", action="store_true", help="CI only: record freshly built APK provenance")
     parser.add_argument("--prepare", action="store_true")
@@ -167,6 +209,8 @@ def main():
             if os.environ.get("CI") != "true": raise ValueError("--record-build requires CI")
             record_build()
             return 0
+        if not args.list and not (args.test or args.all or args.plan):
+            raise ValueError("Select --test or --all explicitly before execution (CI may use --plan)")
         selectors = args.test
         if args.plan:
             plan = json.loads(args.plan.read_text(encoding="utf-8"))
@@ -174,6 +218,7 @@ def main():
             rows = [r for r in plan["devices"] if r["api"] == args.api]
             if plan["commit"] != git(ROOT, "rev-parse", "HEAD") or len(rows) != 1: raise ValueError("Wrong plan/source/API")
             selectors = rows[0]["tests"]
+            if not selectors: raise ValueError("Verification plan must select at least one test")
         chosen = select_tests(android_inventory(ROOT), selectors)
         if args.list:
             print(json.dumps(chosen, indent=2))

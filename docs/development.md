@@ -1,26 +1,37 @@
 # 开发检查与 GitHub 操作
 
+## 选择验证范围
+
+| 阶段 | 默认执行 | 合并或复用方式 |
+| --- | --- | --- |
+| 日常开发 | Basic；明确变动的 JVM 测试类，运行行为改动按需补相关设备类/方法 | 不先跑本地 Full；生产编译、JVM、设备 APK 各按输入复用 |
+| 普通 Develop 提交 / main PR | 一次 check CI，JVM、工具及 SQLite | 不自动运行模拟器；准备直接发版时用 `[skip ci]`，进入一次 release CI |
+| 正式发布 | 一次 release CI：完整 JVM/工具/SQLite、共用策略选择的 API 36 设备用例、一个候选包 | 不先另跑 device CI；SQLite直接读本轮 JVM 输出，多个设备复用同一测试 APK |
+| CI 已成功 | `publish --run` 内核验、签名、上传、下载归档 | 不例行先 `verify` 再 `publish`；不因签名或上传重跑测试 |
+
+常规发版路径为 `start → status → publish`。独立 `verify` 供只验签名或故障诊断时使用；`publish` 本身会执行同样的源码、门禁与签名检查。未变化的检查复用有摘要的证据，不复用单个“成功”标志。流程或工具改动只验证工具及必要配置，不增加应用设备测试。
+
 ## 本地检查
 
 - 默认 tools/check-project.ps1：每次检查当前差异、Git索引中的凭据和私有数据；工具回归及必要编译按内容、环境和测试范围复用有效记录。应用或构建配置变化时编译debug；纯JVM测试变化运行JVM测试，androidTest/integration变化实际编译 `compileIntegrationAndroidTestKotlin`，混合文档/工具修改不掩盖测试编译。测试所需数据均为人工夹具，不读取手机、真实备份或真实Key。
 - `-Plan` 只展示计划，不执行检查、不配置 SDK、不创建报告；`-BaseRef` 指定已知基线，默认 origin/main，引用缺失或非祖先会明确失败。`-Force` 只强制本次选定范围重新执行，不扩大范围。
-- 已知相关用例通过 -TestClass 指定。只有这些用例通过时，不称为完整回归；不使用旧迁移输出冒充本轮校验。
+- 已知相关用例通过 -TestClass 指定，显式选择优先。Basic可从变动的普通JVM测试文件推导package/class；README及译文变动选择两类文档校验；共享夹具、删除或无法识别的测试结构仍回退完整JVM。只有所选用例通过时，不称为完整回归。
 - -Mode Full 显式运行全部JVM与SQLite校验；只有明确诊断需要时才加 -Release / -CompileAndroidTests。本地不默认R8打正式包。
-- 缓存、临时文件和日志在项目内。凭据扫描读取索引，修改必须审阅、暂存后才能对实际提交版本检查；提交前hook再次扫描。
+- 工具回归的缓存单独绑定Python、OS以及实际Git/PowerShell可执行文件，不因JDK/SDK准备或纯应用版本号变化失效；真实工具源码、工作流和入口规则变化仍失效。缓存、临时文件和日志在项目内。凭据扫描读取索引，修改必须审阅、暂存后才能对实际提交版本检查；提交前hook再次扫描。
 - Gradle输入按任务分开：生产源码/构建配置、JVM测试（含直接读取的根README与docs/readme/译文）、integration/androidTest各自进入相关摘要；README与JVM测试变化不使无关APK/生产编译失效。每个任务独立执行或复用，完整任务多次Gradle调用由同一daemon和Gradle增量缓存承接；这是为了让未变化任务保留独立有效证据。计划展示步骤、输入及复用限制，本身不声称命中缓存。执行开始和结束仍审计全部Git可见源码漂移。
 - 本地证据在 `.local-notes/verification/`：包含输入/环境摘要、测试范围和日志校验。新失败或中断阻断旧成功；日志损坏不复用；编译class目录、测试XML、APK和SQLite生成SQL/Room输出必须存在且摘要匹配，清理/改写输出会重跑生产步骤；测试失败/中断仍阻断同输入下较早的完整测试成功。签名、上传、下载归档不要求重新测试。
-- Android 本地入口 `tools/run-android-tests.ps1 -Serial emulator-N -TestClass 包名.类名[#方法]`。`-Plan` 只列出所选用例；`-UseExistingApks` 要求现成 APK、源码与构建环境匹配，否则拒绝。默认构建只在没有匹配 APK 时发生。两个入口共用结果解析，逐项核对用例身份与数量，未知选择、零测试、失败及未获解释的跳过均不放行。
+- Android 本地入口 `tools/run-android-tests.ps1 -Serial emulator-N -TestClass 包名.类名[#方法]`。执行必须显式选择类/方法，只有主动要求全套时使用 `-All`；空选择会在环境准备和编译之前拒绝。CI按核验计划使用`--plan`，不受本地便捷选项影响。`-Plan` 只列出所选用例；`-UseExistingApks` 要求现成 APK、源码与构建环境匹配，否则拒绝。默认构建只在没有匹配 APK 时发生。两个入口共用结果解析，逐项核对用例身份与数量，未知选择、零测试、失败及未获解释的跳过均不放行。
 
 ## 唯一CI工作流
 
 - Develop push / main PR 自动 mode=check：全量JVM、工具回归、SQLite校验；不编译设备测试包或正式包。
 - 手动 mode=device/release：共用 `tools/verification.py` policy3，唯一平台声明由实际Gradle minSdk生成。旧min28保留API35/36；当前min36以API36为常规门禁，首次最低版本迁移运行API36全套；API37在具体兼容变化或专项要求时补测，未来min37则要求API37。无基线、未知或共享运行时/构建输入变化回退声明平台全套；通知专项覆盖声明平台，拍题专项取声明中的最高API，经审查独立测试类覆盖声明平台。通知组显式包含下载仓库、通知服务、独立更新页的恢复/已安装旧记录/未来旧记录，以及UiSmoke通知入口；共享FakeTransfers变化覆盖所有消费者。文档、纯JVM测试及普通工具变化不要求设备测试，runner/策略变化仍回退全套。
-- 平台声明区分运行API37与SDK镜像标识37.0，CI明确要求 `system-images;android-37.0;google_apis;x86_64`（API35/36沿用整数标识），分配4096MiB内存；先检查准确镜像存在，缺失失败，不降级。设备安装前从两个实际APK读取minSdk并拒绝低于要求的模拟器。门禁验证平台/ABI、源码、run/attempt、候选与测试APK、逐项测试及计划重算；policy1历史证据仍按35/36解释，policy2的min36证据仍按36/37解释，未知policy拒绝。
+- 平台声明区分运行API37与SDK镜像标识37.0，CI明确要求 `system-images;android-37.0;google_apis;x86_64`（API35/36沿用整数标识），分配4096MiB内存；按声明安装准确镜像，缺失失败，不降级。SDK系统镜像按OS/API/target/ABI缓存，不缓存AVD用户数据或测试证据；移除额外的sdkmanager --list，固定build-tools 36在启动前安装，emulator runner锁定经审计的SHA，避免浮动tag变化。设备安装前从两个实际APK读取minSdk并拒绝低于要求的模拟器。门禁验证平台/ABI、源码、run/attempt、候选与测试APK、逐项测试及计划重算；policy1历史证据仍按35/36解释，policy2的min36证据仍按36/37解释，未知policy拒绝。
 - 正式 mode=release 仍执行一次全量JVM、SQLite及工具检查，加一次R8候选编译和计划要求的设备测试。`base_sha` 由release.start解析上一已发布构件来源：精确Release APK/兼容清单摘要和大小、签名包payload/构建时间与CI候选、成功main发布CI及其验证证据必须同时匹配。旧同版本替换可从匹配releaseId/版本/签名APK摘要的本机已归档状态找source/run，但仍重新验证全部公开构件和CI证据，不相信说明正文或target_commitish。证据过期或缺失保守回退不可变tag（覆盖较大差异）；tag不是祖先则留空走全套。纯版本字段变化可排除出设备风险，其他构建脚本变化不排除。CI不读取本机凭据或签名Secrets。
 - main push / tag不重复触发CI。正式候选只允许main，可提供expected_sha防止触发时源码漂移。发布准备提交使用[skip ci]避免Develop重复检查。
 - 候选包附件仍仅允许*-candidate.apk与release-manifest.json；schema2 增加计划摘要。设备完成后单独生成 `verification-evidence`，绑定run/attempt、源码、计划、候选及两个测试APK摘要、API和逐项测试结果；候选生成时不能提前声明设备通过。不含本机路径或凭据。
 - 集成测试APK按计划需要生成一次，多个模拟器下载复用，附带源码与构件记录。设备测试依据普通JUnit4测试源码清单核对框架发现和实际执行身份，不能通过降低预期数量放行。
-- JVM小型XML报告与人工数据设备日志保留7天；候选、测试APK及验证证据保留30天，过期缺失时明确阻止续跑。缓存来自CI自己生成的Gradle数据；绝不上传本机缓存或整个工作区。
+- JVM小型XML报告与人工数据设备日志保留7天；设备日志名包含run_attempt，重跑不覆盖上一次失败日志；超时也保存部分输出、失败阶段及简短诊断，仍阻断门禁。候选、测试APK及验证证据保留30天，过期缺失时明确阻止续跑。缓存来自CI自己生成的Gradle数据；绝不上传本机缓存或整个工作区。
 - Windows工具检查并行，正式候选不被普通提交取消。不强制clean、不重复测试同一个未变化的构件。
 - 设备镜像/网络故障只重试失败任务并复用已成功的 build 和候选；汇总门禁重跑后再次核对全部所需结果。若 build 自身失败，重跑可能产生新候选，旧候选的签名/摘要不能沿用。后续失败不能被早期成功覆盖，不无限自动重试。
 - 当前不跨workflow自动寻找或拼接历史结果，也不把本地测试记录上传作为CI放行凭据；Develop push 与PR仍保留独立check。发布准备使用[skip ci]避开重复。后续若增加跨run复用，必须先实现可信来源、有效输入与失败历史的完整核验。
@@ -40,7 +51,11 @@
 
 状态以 `version + commit + runId + buildUtc` 绑定实际构建，常规发布与显式替换共用身份规则，不靠操作名选择签名缓存；不同构建各有独立状态。CI 调度前保存独立 pending 状态，旧 `<version>.json` 只读兼容，迁入新状态时不覆盖原文件。候选 artifact/清单身份变化拒绝复用签名；重新签名不改变 lineage 的 API28 rotation 阈值。`status --version <版本> --run <run>` 可明确选择构建，多义状态不猜测。
 
-状态与私有操作日志存 .local-notes/release-state/，故障后续跑同一个run。编译输入、代码资源摘要和候选摘要必须匹配；签名后的APK摘要与候选摘要不同是正常现象。签名只允许改变签名信息，代码、资源和构建时间不变。
+状态与私有操作日志存 .local-notes/release-state/，故障后续跑同一个run。状态/缓存落盘仍用原子替换；仅Windows 5/32/33短暂文件锁最多等待0.35秒，永久拒绝仍阻断且保留旧状态，不据此重试网络请求或测试。
+
+旧发布基线及CI证据的真实下载字节可缓存在`.local-notes/release-state/download-cache/`：必须同时绑定远端对象ID、大小和SHA-256，每次重验缓存内容。Release/run/attempt、源码、过期状态及构件身份仍重新查询，逐项证据和签名检查仍执行。摘要缺失的历史artifact不复用此缓存；损坏缓存会重新下载并核验，远端变化或失败继续阻断。最终发布后的公开附件仍真实下载校验，不用刚签名的本地文件冒充下载。精确匹配本仓库的公开附件优先通过系统curl和官方asset API读取（HTTP/1.1、IPv4、HTTPS与固定超时，不带令牌、不内部重试）；没有curl时保留原gh方式，其它API与CI artifact读取不变。
+
+Actions手动发布标题使用`release: v版本 · 提交说明`，普通提交/PR使用提交首行或PR标题；完整SHA保留在运行元数据和校验清单，标题不参与源码身份判断。历史运行保留原名称与证据。编译输入、代码资源摘要和候选摘要必须匹配；签名后的APK摘要与候选摘要不同是正常现象。签名只允许改变签名信息，代码、资源和构建时间不变。
 
 integration 是独立调试变体，release经过R8；同源码设备验证不等于正式APK或用户手机验收。用户反馈通知卡1%问题基本解决，本轮不以此为阻断项；工具测试不等同于手机验收，复发时保留现场证据。
 
@@ -64,7 +79,7 @@ CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、
 2. push/fetch 重置后先查询远端实际 SHA。连接失败不代表服务器没收下提交；已成功就不重推。
 3. 需要 Git 传输时，最多额外尝试一次进程级 `git -c http.version=HTTP/1.1 ...`；不改全局代理、不关闭 TLS、不反复盲重试。
 4. 目标提交已在远端时可安全走 refs API 快进；新提交仍未上传时，refs API 无法替代对象传输，停止并报告明确错误。非快进、权限、分支保护错误不能用 force 绕过。
-5. API/gh 也可能遇到重置、限流和权限问题；没有 API 永远更快或 Git 永远更慢的保证。合并查询、按 SHA 核验结果，CI 通常间隔 20–30 秒查询一次。
+5. API/gh 也可能遇到重置、限流和权限问题；没有 API 永远更快或 Git 永远更慢的保证。合并查询、按 SHA 核验结果，CI通常每60秒做一次状态查询，失败后才取相应任务日志；不要并行反复查询同一状态。
 6. refs API 触发 CI 与鉴权身份有关；Actions 自带 GITHUB_TOKEN 的 push 通常不会再触发新工作流。每次更新后确认对应 SHA 的 CI 实际出现，不凭 HTTP 成功推断。
 
 官方依据：[Gradle 缓存](https://github.com/gradle/actions/blob/v4/docs/setup-gradle.md)、[Git HTTP 配置](https://git-scm.com/docs/git-config)、[refs API](https://docs.github.com/en/rest/git/refs)、[工作流触发](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。

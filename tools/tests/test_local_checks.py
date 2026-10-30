@@ -89,14 +89,56 @@ class LocalChecksTest(unittest.TestCase):
     def test_basic_test_only_selects_real_test_compilation(self):
         from unittest.mock import patch
         import local_checks as local
-        for files, tasks in [(["app/src/androidTest/java/p/OneTest.kt", "README.md", "tools/example.py"], ["compileIntegrationAndroidTestKotlin"]),
+        for files, tasks in [(["app/src/androidTest/java/p/OneTest.kt", "README.md", "tools/example.py"], ["testDebugUnitTest", "compileIntegrationAndroidTestKotlin"]),
                              (["app/src/integration/java/p/Host.kt", "docs/development.md"], ["compileIntegrationAndroidTestKotlin"]),
                              (["app/src/test/java/p/OneTest.kt"], ["testDebugUnitTest"]),
-                             (["README.md"], [])]:
+                             (["README.md"], ["testDebugUnitTest"])]:
             with patch.object(local, "changed_files", return_value=("a"*40, files)), patch.object(local, "git", return_value="b"*40):
                 plan = local.plan_checks(Path("synthetic"))
                 self.assertEqual(plan["tasks"], tasks)
                 self.assertIn("does not assert a cache hit", plan["reuse"])
+
+    def test_basic_scopes_changed_jvm_classes_and_keeps_unknown_helpers_full(self):
+        from unittest.mock import patch
+        import local_checks as local
+        folder = TOOLS.parent / "app/build/tool-tests"; folder.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=folder) as tmp:
+            root = Path(tmp)
+            name = "app/src/test/java/p/ChangedTest.kt"
+            path = root / name; path.parent.mkdir(parents=True)
+            path.write_text("package p\nclass ChangedTest { @Test fun checkIt() {} }", encoding="utf-8")
+            def plan(paths, selectors=()):
+                with patch.object(local, "changed_files", return_value=("a"*40, paths)), patch.object(local, "git", return_value="b"*40):
+                    return local.plan_checks(root, selectors=selectors)
+            self.assertEqual(plan([name])["selectors"], ["p.ChangedTest"])
+            self.assertEqual(plan([name], ["p.Explicit"])["selectors"], ["p.Explicit"])
+            self.assertEqual(plan([name, "app/src/test/java/p/SharedFixture.kt"])["selectors"], [])
+            path.unlink()
+            self.assertEqual(plan([name])["selectors"], [])
+
+    def test_tool_identity_is_independent_of_gradle_environment_and_version_fields(self):
+        from unittest.mock import patch
+        import local_checks as local
+        self.assertTrue(hasattr(local, "tool_environment_identity"))
+        before = local.tool_environment_identity()
+        with patch.dict("os.environ", {"JAVA_HOME": "different-jdk", "ANDROID_HOME": "different-sdk", "GRADLE_USER_HOME": "different-cache"}):
+            self.assertEqual(local.tool_environment_identity(), before)
+        self.assertNotIn("app/build.gradle.kts", local.TOOL_INPUTS)
+
+    def test_tool_identity_tracks_pwsh_resolution_and_binary_changes(self):
+        from unittest.mock import patch
+        import local_checks as local
+        folder = TOOLS.parent / "app/build/tool-tests"; folder.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=folder) as tmp:
+            first = Path(tmp) / "pwsh-a"; second = Path(tmp) / "pwsh-b"
+            first.write_bytes(b"version-one"); second.write_bytes(b"version-two")
+            def identity(path):
+                with patch.object(local.shutil, "which", side_effect=lambda name: str(path) if name == "pwsh" else None):
+                    return local.tool_environment_identity()
+            before = identity(first)
+            self.assertNotEqual(before, identity(second))
+            first.write_bytes(b"updated-in-place")
+            self.assertNotEqual(before, identity(first))
 
     def test_scoped_inputs_ignore_docs_jvm_and_android_tests_for_main_compile(self):
         from verification import task_inputs, source_digest

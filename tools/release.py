@@ -25,6 +25,24 @@ WORKFLOW = "build.yml"
 
 class ReleaseError(RuntimeError): pass
 
+
+def atomic_replace(source, target):
+    """Keep state atomic while tolerating only brief Windows access/sharing locks."""
+    for attempt in range(4):
+        try:
+            source.replace(target)
+            return
+        except PermissionError as error:
+            if getattr(error, "winerror", None) not in (5, 32, 33) or attempt == 3:
+                raise
+            time.sleep(0.05 * (2 ** attempt))
+
+def run_description(version, message):
+    """A short display label only; source identity still comes from expected_sha."""
+    subject = message.splitlines()[0] if message.splitlines() else ""
+    subject = " ".join(subject.replace("[skip ci]", "").split())
+    return ("v" + version + (" · " + subject if subject else ""))[:200]
+
 def published_identity(published):
     """Release and asset identity, excluding counters and mutable presentation fields."""
     value={key:published[key] for key in ('id','tag_name','draft','prerelease')}
@@ -92,6 +110,14 @@ class GitHub:
             raise ReleaseError("GitHub request failed; its outcome must be checked before retrying.")
         return json.loads(result.stdout) if result.stdout.strip() else None
     def download(self, path, binary=False):
+        # Public final-asset reads need no token. Keep artifact/authenticated traffic on gh.
+        if binary and re.fullmatch(r"repos/" + re.escape(REPO) + r"/releases/assets/[1-9][0-9]*\?download=1", path):
+            curl = shutil.which("curl.exe") or shutil.which("curl")
+            if curl:
+                return command([curl, "--disable", "--silent", "--show-error", "--http1.1", "--ipv4",
+                    "--fail", "--location", "--connect-timeout", "15", "--max-time", "120",
+                    "--proto", "=https", "--proto-redir", "=https", "-H", "Accept: application/octet-stream",
+                    "https://api.github.com/" + path], root=self.root, timeout=130).stdout
         return self.call("api", path, "-H", "Accept: " + ("application/octet-stream" if binary else "application/json"))
 
 def update_notes(text):
@@ -151,6 +177,37 @@ class Release:
         self.github = github or GitHub(self.root)
         self.state = None
         self.path = None
+    def verified_download(self, obj, url, kind, binary=False):
+        """Cache downloaded bytes only when current remote metadata binds their identity.
+
+        Callers must freshly query remote status/expiry and rerun every provenance check.
+        Public post-upload checks intentionally use github.download directly instead.
+        """
+        size = obj.get("size_in_bytes") if kind == "action-artifact" else obj.get("size")
+        checksum = obj.get("digest")
+        trusted = (type(obj.get("id")) is int and obj["id"] > 0 and type(size) is int and size > 0 and
+                   isinstance(checksum, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", checksum))
+        def download():
+            return self.github.download(url, binary=True) if binary else self.github.download(url)
+        if not trusted: return download()
+        key = hashlib.sha256(json.dumps([REPO, kind, obj["id"], size, checksum]).encode()).hexdigest()
+        folder = self.root / ".local-notes/release-state/download-cache"
+        path = folder / (key + ".bin")
+        def valid(data):
+            return len(data) == size and "sha256:" + hashlib.sha256(data).hexdigest() == checksum
+        if path.is_file():
+            data = path.read_bytes()
+            if valid(data): return data
+        data = download()
+        if not valid(data): raise ReleaseError("Downloaded bytes differ from current remote object identity")
+        folder.mkdir(parents=True, exist_ok=True)
+        temporary = folder / (key + "-" + uuid.uuid4().hex + ".tmp")
+        try:
+            temporary.write_bytes(data)
+            atomic_replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return data
     def bind(self, version, commit):
         self.path = self.root / ".local-notes/release-state" / (version + "-" + commit + "-pending.json")
         self.state = bind_state(self.path, version, commit)
@@ -237,7 +294,7 @@ class Release:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.path.with_suffix(".tmp")
         temp.write_text(json.dumps(self.state, indent=2)+"\n", encoding="utf-8")
-        temp.replace(self.path)
+        atomic_replace(temp, self.path)
     def git(self, *args, check=True):
         return command(["git", *args], root=self.root, check=check)
     def remote(self, branch):
@@ -274,7 +331,7 @@ class Release:
                 if sha256(path)!=record['sha256']: raise ReleaseError("Original baseline proof file changed")
                 data=path.read_bytes()
             else:
-                data = self.github.download(f"repos/{REPO}/releases/assets/{asset['id']}?download=1", binary=True)
+                data = self.verified_download(asset, f"repos/{REPO}/releases/assets/{asset['id']}?download=1", "release-asset", binary=True)
             if len(data) != asset["size"] or asset.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
                 raise ReleaseError("Public asset digest mismatch")
             if capture is not None:
@@ -318,7 +375,7 @@ class Release:
         def artifact(name):
             found = [a for a in artifacts if a["name"] == name and not a["expired"]]
             if len(found) != 1: raise ReleaseError("Published CI proof unavailable")
-            return self.github.download(found[0]["archive_download_url"])
+            return self.verified_download(found[0], found[0]["archive_download_url"], "action-artifact")
         folder = self.root / ".local-notes/release-state/baseline-proof"
         folder.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=folder) as tmp:
@@ -392,7 +449,8 @@ class Release:
                 raise ReleaseError("Explicit replacement requires an existing public release")
             self.proven_published_source(previous)
             self.state["replacementRequested"]=True; self.save()
-        if b"[skip ci]" not in self.git("log", "-1", "--format=%B").stdout:
+        message = self.git("log", "-1", "--format=%B").stdout.decode("utf-8", errors="replace")
+        if "[skip ci]" not in message:
             raise ReleaseError("Use a reviewed release-preparation commit with [skip ci] to avoid duplicate development CI.")
         # The entry validates/reuses content-bound evidence; a historical boolean is not proof.
         command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/check-project.ps1"],
@@ -414,7 +472,7 @@ class Release:
         self.push("main", commit); self.push("Develop", commit)
         self.state.update(dispatchAttempted=True, requestedAt=datetime.now(timezone.utc).isoformat())
         self.save()  # Persist before the request: a timeout must never trigger a blind second CI.
-        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":"main", "inputs":{"mode":"release", "expected_sha":commit, "base_sha":base or ""}})
+        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":"main", "inputs":{"mode":"release", "expected_sha":commit, "base_sha":base or "", "run_description":run_description(version, message)}})
         return self.status()
     def status(self):
         if not self.state.get("runId") and self.state.get("dispatchAttempted"):
@@ -524,7 +582,7 @@ class Release:
             if not modern: raise ReleaseError("Verification gate is missing")
             evidence_artifacts = [a for a in artifacts if a["name"] == "verification-evidence" and not a["expired"]]
             if len(evidence_artifacts) != 1: raise ReleaseError("Expected one verification artifact")
-            evidence = read_verification_artifact(self.github.download(evidence_artifacts[0]["archive_download_url"]))
+            evidence = read_verification_artifact(self.verified_download(evidence_artifacts[0], evidence_artifacts[0]["archive_download_url"], "action-artifact"))
             validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
             plan = evidence["plan"]
             base = plan.get("base")
