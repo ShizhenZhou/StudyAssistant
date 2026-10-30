@@ -30,6 +30,10 @@ Developed by zsz with assistance from DeepSeek and GPT. Download published build
 - ↩️ A 3-second undo window follows deletion of questions, history or categories. Review keeps the current session's selection; AI grading needs confirmation. Daily/weekly/streak/trend statistics are estimates from latest review dates.
 - ⬆️ In-app updates use Android background downloads, restore progress after navigation and offer notification progress/cancellation. Downloads continue when notifications are unavailable; Live Update presentation depends on the device and needs physical-device confirmation. Transfers attempt to resume after connectivity returns. Same-version packages are compared by UTC build time. Compatibility metadata blocks unsupported downloads; installation checks actual minimum OS, signing certificate, version and SHA-256.
 
+## Shared images and search
+
+Select 1–2 images in your gallery or another app, use the system Share menu to choose Study Assistant, then select Solve or Grade. Each image must be at most 32 MB; two-image grading uses question first, then your work. Cancelling or a read failure leaves the current content intact. Notebook search cards show matching question/answer excerpts with highlighted keywords.
+
 ## Data and privacy
 
 Questions, history and review databases stay on the device. Necessary prompts, images, context, custom instructions, related category/tag names and parameters go directly to the **official DeepSeek API**, authenticated with your own key; there is no developer relay. Android Keystore encrypts the locally stored key.
@@ -40,9 +44,9 @@ Automatic backups write only to your SAF-selected folder. The app does not initi
 
 ## Technology
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5** (DB v10) · Retrofit / OkHttp (SSE) · kotlinx.serialization · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose · WorkManager **2.12.0** (one-time backups) · AlarmManager · Android Keystore.
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5** (DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (one-time backups) · AlarmManager · Android Keystore.
 
-AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
+AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
 

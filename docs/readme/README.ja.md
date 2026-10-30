@@ -30,6 +30,10 @@ zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](htt
 - ↩️ 問題・解答履歴・分類の削除後3秒間は取り消し可能。復習中の対象範囲を固定し、AI採点案は確認後に適用。日別・週別・連続日数・傾向は直近の復習日から推定します。
 - ⬆️ アプリ更新はAndroidの背景ダウンロードを使用。ページを離れても継続し、戻ると進捗を復元。通知から進捗確認・ページ移動・取消ができ、通知が制限されても取得は継続します。ライブ表示は端末側の判断で、実機確認が必要です。通信復旧後に再開を試みます。同一バージョンはUTCビルド時刻で比較。互換情報で非対応OSの取得を止め、インストール前に実際の最低OS、署名、バージョン、SHA-256を検証します。
 
+## 画像共有と検索
+
+アルバムなどで画像を1～2枚選び、システムの「共有 → Study Assistant」から解答または添削を選びます。1枚の上限は32 MBです。2枚の添削では問題、解答の順になります。キャンセルや読み取り失敗時は現在の内容を置き換えません。ノート検索では問題文・解答の一致箇所と強調キーワードがカードに表示されます。
+
 ## データとプライバシー
 
 問題・解答履歴・復習DBは端末内に保存します。必要な問題文、画像、文脈、カスタム指示、関連分類・タグ名とパラメーターを、ご自身のKeyで **DeepSeek公式API** に直接送信します。開発者サーバーは経由せず、KeyはAndroid Keystoreで暗号化して保存します。
@@ -40,9 +44,9 @@ zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](htt
 
 ## 技術構成
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose · WorkManager **2.12.0**（単発バックアップ）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（単発バックアップ）· AlarmManager · Android Keystore。
 
-AGP **9.4.0**、Gradle wrapper **9.8.2**、JDK **25**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
+AGP **9.4.0**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
 

@@ -4,7 +4,11 @@
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.4.0、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
 
-AGP 9 使用内置 Kotlin，Compose/serialization 与 Kotlin 同版本；Room 2.8.5 使用 KSP 2.3.12，保留 Java DAO 生成，不改变数据库格式。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。
+AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 2.8.5 使用 KSP 2.3.12，保留 Java DAO 生成，不改变数据库格式。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。
+
+当前运行依赖：Compose BOM 2026.09.00、Lifecycle 2.11.0、Navigation Compose 2.10.2、CameraX 1.6.2、Retrofit 3.0.0、OkHttp 5.5.1、kotlinx.serialization 1.12.0、WorkManager 2.12.0。离线 KaTeX 0.19.1 的来源与打包说明见 [third-party-assets.md](third-party-assets.md)。版本声明以 `gradle/libs.versions.toml` 为准。
+
+GitHub Actions 直接使用官方 Google Maven、Maven Central 与 Gradle Plugin Portal；国内本地开发保留原镜像优先配置。定向 JVM 的实际任务为 `testIntegrationUnitTest`（AGP 9 对应 `testBuildType = integration`），仍由 `-TestClass` 显式选择，不启动设备。
 
 Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时 Beta 真机/ADB → 相关修正与补验 → 规范合并 main → 一次 CI 构建 → 本地签名、Release、下载校验。
 
@@ -74,3 +78,5 @@ schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时
 ## 流程维护边界
 
 开发中不自行扩大必跑测试范围。新增测试/流程必须有具体风险与收益，优先已有短用例或真机步骤；不重复覆盖，不维护为了维持复杂流程而新增的整套协议。退役自动规划和工具测试已在.local-notes/retired-files/20261030-test-flow本地归档。只保留与当前发布/本地入口直接相关的小型工具回归，按需本地运行，CI不调用。
+
+JDK 25 的原生访问警告可能写入 stderr。本地 PowerShell 签名脚本按 apksigner 的退出码判断成功，同时保留证书、v3 与内容摘要验证，不把警告误当作签名失败。只修改文档或本地签名脚本时不重建已经核验的应用候选包。

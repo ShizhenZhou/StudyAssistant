@@ -30,6 +30,10 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [Gi
 - ↩️ 문제·풀이 기록·분류 삭제 후 3초 동안 취소할 수 있습니다. 복습은 해당 회차의 선택 범위를 유지하며 AI 채점 제안은 확인이 필요합니다. 일간·주간·연속일·추세는 최근 복습 날짜로 추정합니다.
 - ⬆️ 앱 업데이트는 Android 백그라운드 다운로드를 사용합니다. 페이지를 떠나도 진행하고 돌아오면 상태를 복원합니다. 알림에서 진행 확인·업데이트 페이지 이동·취소가 가능하며 알림이 제한되어도 다운로드합니다. 실시간 표시는 기기 OS에 따라 달라 실제 기기 확인이 필요합니다. 연결 복구 후 재개를 시도하고 같은 버전은 UTC 빌드 시각으로 비교합니다. 호환 정보로 지원하지 않는 OS의 다운로드를 차단하며 설치 전 실제 최소 OS·서명·버전·SHA-256을 확인합니다.
 
+## 이미지 공유와 검색
+
+갤러리 등에서 이미지 1~2장을 선택하고 시스템의 공유 메뉴에서 Study Assistant를 선택한 뒤 풀이 또는 채점을 누르세요. 한 장은 최대 32 MB이며 두 장 채점은 문제, 작성한 답 순서입니다. 취소하거나 읽기에 실패하면 현재 내용을 교체하지 않습니다. 오답노트 검색 카드에는 문제·답변의 일치 구절과 강조된 키워드가 표시됩니다.
+
 ## 데이터와 개인정보
 
 문제·풀이 기록·복습 DB는 기기에 보관합니다. 필요한 문제·이미지·문맥·사용자 지침·관련 분류 및 태그 이름·매개변수만 본인 Key로 **DeepSeek 공식 API**에 직접 전송합니다. 개발자 서버를 거치지 않으며 Key는 Android Keystore로 암호화해 저장합니다.
@@ -40,9 +44,9 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [Gi
 
 ## 기술 구성
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5**(DB v10) · Retrofit / OkHttp(SSE) · kotlinx.serialization · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose · WorkManager **2.12.0**(일회성 백업) · AlarmManager · Android Keystore.
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**(DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**(일회성 백업) · AlarmManager · Android Keystore.
 
-AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
+AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
 

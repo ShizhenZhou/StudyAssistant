@@ -32,6 +32,10 @@
 - ↩️ 删除错题、解题记录与分类后有 3 秒撤销窗口；复习固定本轮筛选范围，AI 批改建议需确认。今日/本周/连续天数和趋势按最近复习日期估算。
 - ⬆️ 应用内检查更新，由 Android 系统后台下载，离开页面后继续，返回恢复进度；持续通知显示进度并可点按回到更新页，通知受限时仍继续系统下载。实时胶囊由手机系统决定，需真机确认；网络恢复后尝试续传，支持主动取消。同版本比较包的 UTC 构建时间；下载前读取发布兼容清单，系统低于安装包要求时不下载，安装前核对实际最低系统版本、签名证书、版本及 SHA-256 摘要。
 
+## 分享图片与搜索
+
+从相册等应用选择 1～2 张图片，点击系统“分享 → Study Assistant”，再选择解题或批改。单张限 32 MB；双张批改依次为题目、作答。取消或读取失败不替换当前内容。错题本搜索会在卡片中显示题干/答案的命中片段与高亮关键词。
+
 ## 数据与隐私
 
 错题、解题记录与复习数据库保存在本机。AI 功能将必要的题干、图片、上下文、自定义要求、相关分类/标签名和参数直接发往 **DeepSeek 官方 API**，使用用户自备 Key 鉴权，不经过开发者服务器。Key 以 Android Keystore 加密保存在本机。
@@ -42,9 +46,9 @@
 
 ## 技术栈
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose · WorkManager **2.12.0**（一次性备份任务）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（一次性备份任务）· AlarmManager · Android Keystore。
 
-构建使用 AGP **9.4.0**、Gradle wrapper **9.8.2** 和 JDK **25**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
+构建使用 AGP **9.4.0**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
 
 ## 版本记录
 
