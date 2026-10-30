@@ -155,8 +155,14 @@ try {
         '--v3-signing-enabled', 'true',
         '--out', $out, $InApk
     )
-    $raw = & $apksigner @args 2>&1
-    $code = $LASTEXITCODE
+    # Windows PowerShell 5.1 treats native stderr warnings as terminating errors under Stop.
+    # Preserve diagnostics, but determine native success strictly from its exit code.
+    $nativePreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $raw = & $apksigner @args 2>&1
+        $code = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $nativePreference }
     if ($code -ne 0) {
         Write-Err2 "签名失败（exit=$code）"
         $raw | Select-Object -First 12 | ForEach-Object { Write-Host "    $_" }
@@ -169,12 +175,20 @@ try {
 
 # ── 校验：证书必须是新证书 + v3 方案 + 能过 minSdk ──────────────────────────
 Write-Step '校验'
-$ver = & $apksigner verify --print-certs --min-sdk-version $apkMinSdk $out 2>&1
-$vcode = $LASTEXITCODE
+$nativePreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $ver = & $apksigner verify --print-certs --min-sdk-version $apkMinSdk $out 2>&1
+    $vcode = $LASTEXITCODE
+} finally { $ErrorActionPreference = $nativePreference }
 $ver | Select-String -Pattern 'certificate DN|SHA-256 digest' | Select-Object -First 2 | ForEach-Object { Write-Host "    $($_.Line.Trim())" }
-$scheme = & $apksigner verify -v --min-sdk-version $apkMinSdk $out 2>&1
+try {
+    $ErrorActionPreference = 'Continue'
+    $scheme = & $apksigner verify -v --min-sdk-version $apkMinSdk $out 2>&1
+    $schemeCode = $LASTEXITCODE
+} finally { $ErrorActionPreference = $nativePreference }
 $v3 = ($scheme | Select-String -Pattern 'Verified using v3 scheme.*true').Count -gt 0
-if ($vcode -ne 0 -or -not $v3) {
+if ($vcode -ne 0 -or $schemeCode -ne 0 -or -not $v3) {
     Write-Err2 "校验未通过（exit=$vcode, v3=$v3）"
     $scheme | Select-Object -First 12 | ForEach-Object { Write-Host "    $_" }
     exit 1
