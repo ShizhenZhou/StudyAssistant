@@ -43,6 +43,14 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.8.10
+
+- ↔️ Swipe across blank areas to switch between Learning, Statistics and Settings.
+- 📚 Keep search, filters and position when returning to lists; improve thumbnail loading and list transitions.
+- 🎨 Choose from three wallpaper shade levels to balance visibility and text readability.
+- ⚡ Optimize notebook sorting and statistics, and improve type and null checks in backup handling.
+- 📌 `versionCode` **91**.
+
 ### v0.6.8.9
 
 - 🎨 Restore theme colors and borders for outlined buttons.
