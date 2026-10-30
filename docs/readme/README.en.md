@@ -43,6 +43,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.8.9
+
+- 🎨 Restore theme colors and borders for outlined buttons.
+- ↩️ Restore slide-led back transitions in learning and settings pages, retaining subtle scaling and gesture cancellation.
+- 📝 Simplify feature descriptions in the README and About page.
+- 📌 `versionCode` **90**.
+
 ### v0.6.8.8
 
 - 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
