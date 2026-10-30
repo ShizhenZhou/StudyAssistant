@@ -2,6 +2,10 @@
 
 ## 日常开发
 
+构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.4.0、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
+
+AGP 9 使用内置 Kotlin，Compose/serialization 与 Kotlin 同版本；Room 2.8.5 使用 KSP 2.3.12，保留 Java DAO 生成，不改变数据库格式。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。
+
 Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时 Beta 真机/ADB → 相关修正与补验 → 规范合并 main → 一次 CI 构建 → 本地签名、Release、下载校验。
 
 每次先说明具体风险及最小验证范围。不要给每项功能增加新测试、流程或门禁；没有必要就不测。保留对可靠性的要求，但不以全套测试替代判断。同输入结果复用；改动只补相关部分。失败不扩大范围、不默认重跑、不改断言求绿色。测试失败、应用错误、环境问题和未确定原因分别报告。

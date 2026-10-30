@@ -59,7 +59,7 @@ internal object BackupTree {
                             val relative=root.toPath().relativize(path).joinToString("/") { it.toString() }
                             if(relative.toByteArray(Charsets.UTF_8).size>4096) invalid()
                             val file=path.toFile()
-                            index.execSQL("INSERT INTO files VALUES(?,?,?)",arrayOf(relative,file.length(),digest(file,check)))
+                            index.execSQL("INSERT INTO files VALUES(?,?,?)",arrayOf<Any>(relative,file.length(),digest(file,check)))
                             return java.nio.file.FileVisitResult.CONTINUE
                         }
                         override fun preVisitDirectory(path:java.nio.file.Path,attributes:java.nio.file.attribute.BasicFileAttributes):java.nio.file.FileVisitResult {

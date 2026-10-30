@@ -38,9 +38,9 @@ zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](htt
 
 ## 技術構成
 
-Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（単発バックアップ）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 · MVVM · Room **2.8.5**（DB v10）· Retrofit / OkHttp（SSE）· kotlinx.serialization · CameraX · WebView / KaTeX · Navigation Compose · WorkManager **2.12.0**（単発バックアップ）· AlarmManager · Android Keystore。
 
-AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
+AGP **9.4.0**、Gradle wrapper **9.8.2**、JDK **25**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
 
