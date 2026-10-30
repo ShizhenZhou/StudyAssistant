@@ -1,360 +1,51 @@
 name: build
-run-name: "${{ github.event_name == 'workflow_dispatch' && format('{0}: {1}', inputs.mode, inputs.run_description || github.ref_name) || format('check: {0}', github.event.pull_request.title || github.event.head_commit.message || github.ref_name) }}"
-# main/tag do not trigger duplicate builds. CI never receives local signing materials.
+run-name: "release: ${{ inputs.run_description || github.ref_name }}"
+# Validation is local and scoped. Push/PR/tag do not start duplicate builds.
 on:
-  push:
-    branches: [Develop]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
-      mode:
-        description: check, device, or an unsigned release candidate
-        type: choice
-        options: [check, device, release]
-        default: check
-      run_description:
-        description: Human-readable version and purpose (source identity is checked separately)
-        type: string
-        default: ''
       expected_sha:
-        description: Optional immutable source commit required by the release coordinator
+        description: Exact reviewed main commit
+        required: true
         type: string
-        default: ''
-      base_sha:
-        description: Previous published release commit; empty means full device coverage
+      run_description:
+        description: Version and concise purpose
+        required: true
         type: string
-        default: ''
-      test_before_main:
-        description: Test Develop first, then wait for explicit verified main promotion in this run
-        type: boolean
-        default: false
-      promotion_base_sha:
-        description: Exact main SHA before staged tests (required with test_before_main)
-        type: string
-        default: ''
 permissions:
   contents: read
-  statuses: read
-  actions: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode == 'release' && 'release' || 'check' }}
-  cancel-in-progress: ${{ inputs.mode != 'release' }}
+  group: release-build
+  cancel-in-progress: false
 jobs:
-  windows-tools:
-    name: Windows tool tests
-    runs-on: windows-latest
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -B -m unittest discover -s tools/tests -p 'test_*.py'
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    outputs:
-      devices: ${{ steps.plan.outputs.devices }}
-      matrix: ${{ steps.plan.outputs.matrix }}
-    env:
-      MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'check' }}
-      EXPECTED_SHA: ${{ inputs.expected_sha }}
-      BASE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || inputs.base_sha }}
-      TEST_BEFORE_MAIN: ${{ inputs.test_before_main }}
-      PROMOTION_BASE_SHA: ${{ inputs.promotion_base_sha }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check immutable source and clean CI inputs
-        run: |
-          if [[ -n "$EXPECTED_SHA" && "$EXPECTED_SHA" != "$GITHUB_SHA" ]]; then
-            echo "::error::Source moved after dispatch"; exit 1
-          fi
-          if [[ "$TEST_BEFORE_MAIN" == true && ( "$MODE" != release || "$GITHUB_REF" != refs/heads/Develop || -z "$EXPECTED_SHA" || -z "$PROMOTION_BASE_SHA" ) ]]; then
-            echo "::error::Staged release requires exact Develop/main identities"; exit 1
-          fi
-          if [[ "$MODE" == release && "$TEST_BEFORE_MAIN" != true && "$GITHUB_REF" != refs/heads/main ]]; then
-            echo "::error::Release candidates must use main"; exit 1
-          fi
-          test ! -e secrets.properties
-          test ! -e keys
-          test ! -e .secrets
-      - name: Plan required verification
-        id: plan
-        run: python3 -B tools/ci-verification.py plan
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/Develop') }}
-      - name: Credential boundary and tool regression
-        run: |
-          python3 -B tools/check-secrets.py --tracked
-          python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
-      - name: Full JVM tests and required compilation (one Gradle invocation)
-        run: |
-          chmod +x ./gradlew
-          tasks=(testDebugUnitTest)
-          if [[ "${{ steps.plan.outputs.devices }}" == true ]]; then
-            tasks+=(assembleIntegration assembleIntegrationAndroidTest)
-          elif [[ "${{ steps.plan.outputs.compile_android_tests }}" == true ]]; then
-            tasks+=(compileIntegrationAndroidTestKotlin)
-          fi
-          if [[ "$MODE" == release && "$TEST_BEFORE_MAIN" != true ]]; then tasks+=(assembleRelease); fi
-          ./gradlew "${tasks[@]}" --console=plain
-      - name: Record isolated APK identity
-        if: steps.plan.outputs.devices == 'true'
-        run: python3 -B tools/run-android-integration.py --record-build
-      - name: SQLite migration verification
-        run: python3 -B tools/verify-identity-migration.py
-      - name: Prepare unsigned candidate and public manifest
-        if: env.MODE == 'release' && env.TEST_BEFORE_MAIN != 'true'
-        run: python3 -B tools/ci-release.py
-      - name: Upload candidate allowlist
-        if: env.MODE == 'release' && env.TEST_BEFORE_MAIN != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-candidate
-          overwrite: true
-          path: |
-            app/build/release-candidate/*-candidate.apk
-            app/build/release-candidate/release-manifest.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Upload isolated test APK allowlist
-        if: steps.plan.outputs.devices == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-apks
-          overwrite: true
-          path: |
-            app/build/outputs/apk/integration/app-integration.apk
-            app/build/outputs/apk/androidTest/integration/app-integration-androidTest.apk
-            app/build/outputs/apk/integration-build.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Record build verification
-        run: python3 -B tools/ci-verification.py build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: verification-build
-          overwrite: true
-          path: |
-            app/build/verification/plan.json
-            app/build/verification/build.json
-            app/build/verification/staged.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Preserve small JVM reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jvm-test-reports
-          overwrite: true
-          path: app/build/test-results/testDebugUnitTest/TEST-*.xml
-          if-no-files-found: ignore
-          retention-days: 7
-  android-device:
-    name: Android emulator tests (API ${{ matrix.api }})
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
-    needs: build
-    if: needs.build.outputs.devices == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: integration-apks
-          path: app/build/outputs/apk
-      - uses: actions/download-artifact@v4
-        with:
-          name: verification-build
-          path: app/build/verification
-      - name: Prepare emulator host and SDK location
-        id: sdk
-        run: |
-          echo "root=$ANDROID_HOME" >> "$GITHUB_OUTPUT"
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      # Only the declared SDK image is cached: no AVD userdata, app files or test evidence.
-      # The runner installs this exact package; an unavailable image still fails, never downgrades.
-      - name: Cache declared SDK image
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.sdk.outputs.root }}/system-images/android-${{ matrix.imageApi }}/${{ matrix.target }}/${{ matrix.arch }}
-          key: sdk-image-${{ runner.os }}-${{ matrix.imageApi }}-${{ matrix.target }}-${{ matrix.arch }}-v1
-      - name: Install required APK inspection tools
-        timeout-minutes: 3
-        run: '"${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"'
-      - name: Run declared emulator verification
-        # v2, pinned to the revision used by the audited successful and failed runs.
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
-        with:
-          api-level: ${{ matrix.imageApi }}
-          system-image-api-level: ${{ matrix.imageApi }}
-          target: ${{ matrix.target }}
-          arch: ${{ matrix.arch }}
-          ram-size: 4096M
-          emulator-port: 5554
-          disable-animations: true
-          script: |
-            python3 -B tools/run-android-integration.py --serial emulator-5554 --plan app/build/verification/plan.json --api ${{ matrix.api }}
-      - name: Preserve device verification
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: verification-device-${{ matrix.api }}
-          path: app/build/android-integration/evidence-api-${{ matrix.api }}.json
-          if-no-files-found: ignore
-          overwrite: true
-          retention-days: 30
-      - name: Preserve synthetic-data test log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-test-log-api-${{ matrix.api }}-attempt-${{ github.run_attempt }}
-          path: app/build/android-integration/instrumentation.log
-          if-no-files-found: ignore
-          overwrite: true
-          retention-days: 7
-  pre-main-verification:
-    name: Pre-main verification gate
-    needs: [build, windows-tools, android-device]
-    if: always() && inputs.test_before_main == true
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@v4
-        with:
-          name: verification-build
-          path: app/build/verification
-      - uses: actions/download-artifact@v4
-        if: needs.build.outputs.devices == 'true'
-        with:
-          pattern: verification-device-*
-          merge-multiple: true
-          path: app/build/verification/devices
-      - name: Verify all required results
+      - name: Check requested source and credential boundary
         env:
-          NEEDS_JSON: ${{ toJSON(needs) }}
-        run: python3 -B tools/ci-verification.py pre-main
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pre-main-evidence
-          path: app/build/verification/verification.json
-          if-no-files-found: error
-          overwrite: true
-          retention-days: 30
-  candidate:
-    name: Staged release candidate
-    needs: pre-main-verification
-    if: inputs.test_before_main == true
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    env:
-      TEST_BEFORE_MAIN: 'true'
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@v4
-        with:
-          name: pre-main-evidence
-          path: app/build/verification/pre-main
-      - name: Wait for verified explicit main promotion (30 minute bound)
-        run: python3 -B tools/ci-verification.py await-promotion
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$EXPECTED_SHA" = "$GITHUB_SHA"
+          python3 -B tools/check-secrets.py --tracked
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build the one unsigned candidate after tests and main promotion
+      - name: Build unsigned release APK (no application tests)
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease --console=plain
-          python3 -B tools/ci-release.py
-      - name: Upload candidate allowlist
-        uses: actions/upload-artifact@v4
+      - name: Record APK identity and hashes
+        run: python3 -B tools/ci-release.py
+      - uses: actions/upload-artifact@v4
         with:
           name: release-candidate
-          overwrite: true
           path: |
             app/build/release-candidate/*-candidate.apk
             app/build/release-candidate/release-manifest.json
           if-no-files-found: error
-          retention-days: 30
-      - uses: actions/upload-artifact@v4
-        with:
-          name: verification-promotion
-          overwrite: true
-          path: app/build/verification/promotion.json
-          if-no-files-found: error
-          retention-days: 30
-  verification:
-    name: Verification gate
-    needs: [build, windows-tools, android-device, pre-main-verification, candidate]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@v4
-        if: inputs.test_before_main != true
-        with:
-          name: verification-build
-          path: app/build/verification
-      - uses: actions/download-artifact@v4
-        if: inputs.test_before_main != true && needs.build.outputs.devices == 'true'
-        with:
-          pattern: verification-device-*
-          merge-multiple: true
-          path: app/build/verification/devices
-      - uses: actions/download-artifact@v4
-        if: inputs.test_before_main == true
-        with:
-          name: pre-main-evidence
-          path: app/build/verification/pre-main
-      - uses: actions/download-artifact@v4
-        if: inputs.test_before_main == true
-        with:
-          name: release-candidate
-          path: app/build/release-candidate
-      - uses: actions/download-artifact@v4
-        if: inputs.test_before_main == true
-        with:
-          name: verification-promotion
-          path: app/build/verification
-      - name: Verify all required results and candidate provenance
-        env:
-          NEEDS_JSON: ${{ toJSON(needs) }}
-          TEST_BEFORE_MAIN: ${{ inputs.test_before_main }}
-        run: |
-          if [[ "$TEST_BEFORE_MAIN" == true ]]; then
-            python3 -B tools/ci-verification.py collect-staged
-          else
-            python3 -B tools/ci-verification.py collect
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: verification-evidence
-          path: app/build/verification/verification.json
-          if-no-files-found: error
-          overwrite: true
           retention-days: 30

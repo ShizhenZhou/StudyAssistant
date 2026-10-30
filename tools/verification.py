@@ -1,4 +1,6 @@
-"""Shared, conservative verification policy. No build/device/network side effects on import."""
+"""Legacy schema1/2 evidence reader and optional local device helpers.
+New releases never call the historical device-selection policy.
+"""
 import argparse
 from datetime import datetime
 import hashlib
@@ -453,15 +455,5 @@ def validate_staged_evidence(report, manifest, run_id, attempt):
         raise ValueError("Final candidate was not bound to the original full test evidence")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base")
-    parser.add_argument("--output", type=Path)
-    args = parser.parse_args()
-    plan = make_plan(base=args.base)
-    if args.output:
-        write_json(args.output, plan)
-    print(json.dumps(plan, indent=2))
-
-
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    sys.exit("Automatic test planning is retired. Select a necessary local check explicitly; see docs/development.md.")

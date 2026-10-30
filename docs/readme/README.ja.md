@@ -588,22 +588,15 @@ AGP **8.13.0**、Gradle wrapper **8.14**、JDK **21**、compileSdk / targetSdk *
 
 ## 開発とテスト
 
-[AGENTS.md](../../AGENTS.md)、[開発フロー](../development.md)、[隔離Androidテスト](../development.md#隔离测试的覆盖范围) を参照。作業パスは英数字を推奨します。
+Develop/機能ブランチで開発 → 必要最小限のローカル検証 → 必要に応じBeta実機テストとADB補助 → 関連箇所の修正・再確認 → 規約に従いmainへ統合 → CIで一度ビルド → 署名・公開。
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Mode Full
-```
-
-通常はBasicチェック、関連単体テストは `-TestClass` を指定します。Fullは完全なローカル回帰が明確に必要な場合のみ使用。キャッシュと報告はプロジェクト内に保存します。件数は当該CI報告を参照し、端末テストは独立パッケージと人工データだけを使います。
+`tools/check-project.ps1` は通常、差分と機密情報のみ確認します。必要な場合だけ `-Compile` またはクラス/メソッド指定の `-TestClass` を使用します。全件テストやエミュレーターを既定で実行せず、ローカルとオンラインで重複させません。機能開発で検証範囲を勝手に拡大せず、操作感は利用者に実機確認を依頼します。[開発手順](../development.md) と [AGENTS.md](../../AGENTS.md) を参照してください。
 
 ## 認証情報とリリース
 
-公開リポジトリです。API Key、トークン、署名材料、ローカル設定、実データ・バックアップをコミットやCI添付に含めません。`.githooks` の検査は差分レビューの代わりにはなりません。
+CIは手動で未署名APKと識別情報を生成します。通常はJVM・ツール・端末テストを実行せず、push/PR/tagによる重複ビルドも行いません。コミットとマージにはfeat:/fix:/build:/ci:などの接頭辞を使用します。
 
-**ローカル基本検査 → mainへ統合 → 1回のリリースCI → ローカル署名 → 公開・再取得検証・保管**。CIは未署名候補と人工データのテストのみ。秘密鍵・パスワードは端末内で使い、元の証明書とlineageで再コンパイルせず署名し、コード・リソースの一致を確認します。
-
-`tools/release.ps1` の start/status/verify/publish がローカル状態と再開を管理します。mainへのpushとtagで再ビルドせず、既存tagを移動せず、公開版を自動置換しません。詳細は開発フローを参照。内部設計・調査・版ごとの作業記録はローカルだけに保管します。
+検証後mainへ統合・pushしてから `tools/release.ps1 start --version VERSION` → `status` → `publish --run RUN_ID` を使用します。既存証明書とlineageはローカルでのみ使用し、APKの識別情報・コード・リソースを照合します。公開ファイルを実際にダウンロードしてハッシュを確認し保存します。最低Android要件と正式/Betaの区別を保持し、既存タグは移動しません。Key、署名情報、実データ、バックアップ、端末ログをCIへ送信しません。
 
 ## API Keyと権限
 

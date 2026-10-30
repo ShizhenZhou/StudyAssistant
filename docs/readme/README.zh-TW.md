@@ -656,23 +656,15 @@ Kotlin **2.2.20** · Jetpack Compose / Material3 · MVVM · Room **2.8.4**（DB 
 
 ## 開發與測試
 
-開發約定見 [AGENTS.md](../../AGENTS.md)，CI、緩存與 GitHub 操作見 [開發流程](../development.md)，隔離 Android 測試見 [測試說明](../development.md#隔离测试的覆盖范围)。建議使用英文路徑。
+Develop/功能分支開發 → 本機最小必要驗證 → 必要時Beta真機測試與ADB輔助 → 相關修正/補驗 → 規範合併main → 一次CI建置 → 簽署發布。
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
-# 只在明確需要完整本地迴歸時：
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Mode Full
-```
-
-默認做基礎檢查，相關單測用 -TestClass 指定；緩存和報告留在項目內。測試項數以本次 CI 報告為準；設備測試只用獨立包和人工數據，具體限制見測試說明。
+預設 `tools/check-project.ps1` 僅檢查差異和敏感內容；確有必要才用 `-Compile` 或 `-TestClass` 指定類別/方法。無預設全套或模擬器，不在本機與線上重複測試。功能開發不自行擴大測試流程，互動效果優先請使用者真機確認。詳見 [開發流程](../development.md) 和 [AGENTS.md](../../AGENTS.md)。
 
 ## 密鑰與發布
 
-本倉庫公開，API Key、令牌、簽名材料、本地配置、真實題庫與備份不得提交或作為CI附件。提交前掃描入口為 .githooks；掃描不能替代差異審閱。
+CI僅手動建置未簽署APK及身分清單，不預設JVM、工具或裝置測試；push/PR/tag不重複建置。提交與合併標題使用feat:/fix:/build:/ci:等規範前綴。
 
-正式流程：**本地基礎檢查 → 合並main → 一次完整CI → 本地簽名 → 發布與下載校驗歸檔**。CI只編譯未簽名候選包並運行人工數據測試；簽名私鑰及口令僅在本機使用，不上傳GitHub。簽名沿用原證書與lineage，不重編譯，並校驗代碼資源與候選包一致。
-
-通用入口 tools/release.ps1 提供 start/status/verify/publish，記錄本地進度並支持續跑；main推送和tag不重複構建，不移動已有標簽，不自動替換已發布版本。詳細命令、上傳邊界和Git/API分工見[開發流程](../development.md)。內部設計、排查及逐版本過程只在本地歸檔。
+驗證完成並合併推送main後，使用 `tools/release.ps1 start --version VERSION` → `status` → `publish --run RUN_ID`。原憑證與lineage僅在本機使用，核對套件身分/程式資源，再實際下載驗證歸檔。保留最低系統需求及正式/測試渠道說明，不移動既有標籤。Key、簽署資料、題庫、備份與手機日誌不得提交或上傳CI。
 
 ## API Key 與權限
 

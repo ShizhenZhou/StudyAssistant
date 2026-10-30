@@ -1,121 +1,72 @@
-# 开发检查与 GitHub 操作
+# 开发、真机验证与发布
 
-## 选择验证范围
+## 日常开发
 
-| 阶段 | 默认执行 | 合并或复用方式 |
-| --- | --- | --- |
-| 本地准备 | Basic仅差异、凭据和只读范围规划 | 默认不编译、不执行JVM/工具/SQLite/模拟器；测试统一交CI |
-| 普通 Develop 提交 / main PR | 一次 check CI，JVM、工具及 SQLite | 不自动运行模拟器；准备直接发版时用 `[skip ci]`，进入一次 release CI |
-| 正式发布 | 一次 release CI：完整 JVM/工具/SQLite、共用策略选择的 API 36 设备用例、一个候选包 | 不先另跑 device CI；SQLite直接读本轮 JVM 输出，多个设备复用同一测试 APK |
-| CI 已成功 | `publish --run` 内核验、签名、上传、下载归档 | 不例行先 `verify` 再 `publish`；不因签名或上传重跑测试 |
+Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时 Beta 真机/ADB → 相关修正与补验 → 规范合并 main → 一次 CI 构建 → 本地签名、Release、下载校验。
 
-测试归属统一：本地默认不跑测试，在线CI是唯一常规执行方。本地`-TestClass`/`Full`或指定模拟器仅用于具体失败复现、专项诊断或用户要求，不作为CI前置清单；修复后只验证受影响范围，不把诊断结果冒充正式CI。
+每次先说明具体风险及最小验证范围。不要给每项功能增加新测试、流程或门禁；没有必要就不测。保留对可靠性的要求，但不以全套测试替代判断。同输入结果复用；改动只补相关部分。失败不扩大范围、不默认重跑、不改断言求绿色。测试失败、应用错误、环境问题和未确定原因分别报告。
 
-常规发版路径为 `start → status → publish`。独立 `verify` 供只验签名或故障诊断时使用；`publish` 本身会执行同样的源码、门禁与签名检查。未变化的检查复用有摘要的证据，不复用单个“成功”标志。流程或工具改动只验证工具及必要配置，不增加应用设备测试。
+## 本地入口
 
-用户要求先测试再合并 main 时，使用 `start --version VERSION --test-before-main → status → promote --run RUN_ID → status → publish --run RUN_ID`。先在 Develop 提交精确源码（例如 `feat: ... [skip ci]`），同一个 release workflow 完整运行 Windows/Linux 工具、JVM、SQLite 和计划要求的设备测试；`Pre-main verification gate` 成功后候选任务最多等待30分钟。协调器 `promote` 重新核对远端任务、逐项证据及本地精确源码/计划，才将 main 快进到该已测试 SHA，并写入绑定 run/attempt/gate 的公开 commit status。工作流只有读取权限，确认 main 和该晋级状态后才执行一次 R8 候选构建；最终 `Verification gate` 绑定同一轮测试、原始测试 APK、晋级时间和候选摘要。等待期间可使用本轮 CI 生成的隔离 APK 做用户要求的本地专项检查，不上传本机证据。超时后只恢复失败候选任务，不另派发一轮测试；已有失败或变化仍阻断。此选项与全量验证选项独立，恢复时必须保持原模式。
+```powershell
+# 默认仅diff/staged diff/敏感内容扫描；不会加载Android环境
+./tools/check-project.ps1
+# 先查看范围，不执行
+./tools/check-project.ps1 -Plan
+# 仅确有必要时选择其中一种；单测本身包含所需编译
+./tools/check-project.ps1 -Compile
+./tools/check-project.ps1 -TestClass 'com.zsz.studyassistant.data.UpdateCompatibilityTest'
+```
 
-## 本地检查
+无 Full 模式、无自动选全套。已有JVM方法按需调用；不要在本地跑后又在CI跑。Gradle沿用自身增量结果，日志留`.local-notes/verification/local`，不新建跨环境证据状态机。
 
-- 默认 tools/check-project.ps1 的 Basic仅检查当前差异、Git索引中的凭据和私有数据，并记录建议范围（通过-Plan查看）；不自动调用Gradle、工具回归或模拟器。测试数据仍必须是人工夹具，不读取手机、真实备份或真实Key。
-- `-Plan` 只展示计划，不执行检查、不配置 SDK、不创建报告；`-BaseRef` 指定已知基线，默认 origin/main，引用缺失或非祖先会明确失败。`-Force` 只强制本次选定范围重新执行，不扩大范围。
-- 明确诊断时通过-TestClass指定本地JVM用例；不会自动附带工具全套或设备编译。Basic可推荐相关类，但推荐不触发测试；共享或未知输入的推荐为空，由CI权威验证。
-- -Mode Full是主动诊断入口，显式运行工具、全部JVM与SQLite校验；只有明确诊断需要时才加 -Release / -CompileAndroidTests。本地不默认R8打正式包。
-- 工具回归的缓存单独绑定Python、OS以及实际Git/PowerShell可执行文件，不因JDK/SDK准备或纯应用版本号变化失效；真实工具源码、工作流和入口规则变化仍失效。缓存、临时文件和日志在项目内。凭据扫描读取索引，修改必须审阅、暂存后才能对实际提交版本检查；提交前hook再次扫描。
-- Gradle输入按任务分开：生产源码/构建配置、JVM测试（含直接读取的根README与docs/readme/译文）、integration/androidTest各自进入相关摘要；README与JVM测试变化不使无关APK/生产编译失效。每个任务独立执行或复用，完整任务多次Gradle调用由同一daemon和Gradle增量缓存承接；这是为了让未变化任务保留独立有效证据。计划展示步骤、输入及复用限制，本身不声称命中缓存。执行开始和结束仍审计全部Git可见源码漂移。
-- 本地证据在 `.local-notes/verification/`：包含输入/环境摘要、测试范围和日志校验。新失败或中断阻断旧成功；日志损坏不复用；编译class目录、测试XML、APK和SQLite生成SQL/Room输出必须存在且摘要匹配，清理/改写输出会重跑生产步骤；测试失败/中断仍阻断同输入下较早的完整测试成功。签名、上传、下载归档不要求重新测试。
-- Android 本地入口 `tools/run-android-tests.ps1 -Serial emulator-N -TestClass 包名.类名[#方法]`。执行必须显式选择类/方法，只有主动要求全套时使用 `-All`；空选择会在环境准备和编译之前拒绝。CI按核验计划使用`--plan`，不受本地便捷选项影响。`-Plan` 只列出所选用例；`-UseExistingApks` 要求现成 APK、源码与构建环境匹配，否则拒绝。默认构建只在没有匹配 APK 时发生。两个入口共用结果解析，逐项核对用例身份与数量，未知选择、零测试、失败及未获解释的跳过均不放行。
+验证选择：纯文案/布局通常差异检查及必要人工查看；纯计算或版本/解析等高风险逻辑选相关JVM方法；数据库/备份变动选相关数据回归或SQLite专项，不每次调用全部数据测试。工具变动只运行相关离线工具用例，不触发应用测试。现有app/src/test、androidTest是可选诊断资料，不是发布必跑清单。
 
-## 唯一CI工作流
+## 真机与Beta
 
-- Develop push / main PR 自动 mode=check：执行JVM、工具回归、SQLite；仅androidTest/integration变化或缺少可用基线时编译设备测试代码，不打设备APK、不启动模拟器。push使用before、PR使用base SHA规划实际差异，首次全零SHA按无基线处理。
-- 手动 mode=device/release：共用 `tools/verification.py` policy4，唯一平台声明由实际Gradle minSdk生成。旧min28保留API35/36；当前min36以API36为常规门禁，首次最低版本迁移运行API36全套；API37在具体兼容变化或专项要求时补测，未来min37则要求API37。无基线、未知或共享运行时/构建输入变化回退声明平台全套；通知专项覆盖声明平台，拍题专项取声明中的最高API，经审查独立测试类覆盖声明平台。通知组显式包含下载仓库、通知服务、独立更新页的恢复/已安装旧记录/未来旧记录，以及UiSmoke通知入口；共享FakeTransfers变化覆盖所有消费者。文档、纯JVM测试及流程/runner/策略变化由工具或JVM验证，不自动触发设备；受审查的文案、主题、形状、框选坐标计算及纯解析/日期模块也交JVM，源码不得引入Android平台API。权限、后台、存储、导航等真实Android边界、未知运行路径、SDK迁移或无法核验基线仍选择相关设备或回退全套。
-- 平台声明区分运行API37与SDK镜像标识37.0，CI明确要求 `system-images;android-37.0;google_apis;x86_64`（API35/36沿用整数标识），分配4096MiB内存；按声明安装准确镜像，缺失失败，不降级。SDK系统镜像按OS/API/target/ABI缓存，不缓存AVD用户数据或测试证据；移除额外的sdkmanager --list，固定build-tools 36在启动前安装，emulator runner锁定经审计的SHA，避免浮动tag变化。设备安装前从两个实际APK读取minSdk并拒绝低于要求的模拟器。门禁验证平台/ABI、源码、run/attempt、候选与测试APK、逐项测试及计划重算；policy1历史证据仍按35/36解释，policy2的min36证据仍按36/37解释，policy3仍按其原范围重算，未知policy拒绝。
-- 正式 mode=release 仍执行一次全量JVM、SQLite及工具检查，加一次R8候选编译和计划要求的设备测试。`base_sha` 由release.start解析上一已发布构件来源：精确Release APK/兼容清单摘要和大小、签名包payload/构建时间与CI候选、成功main发布CI及其验证证据必须同时匹配。旧同版本替换可从匹配releaseId/版本/签名APK摘要的本机已归档状态找source/run，但仍重新验证全部公开构件和CI证据，不相信说明正文或target_commitish。证据过期或缺失保守回退不可变tag（覆盖较大差异）；tag不是祖先则留空走全套。纯版本字段变化可排除出设备风险，其他构建脚本变化不排除。CI不读取本机凭据或签名Secrets。
-- main push / tag不重复触发CI。普通正式候选只允许main；显式 `test_before_main` 只允许精确 Develop 源码，候选必须等待同轮完整预门禁及可重新核验的 main 晋级证据。`expected_sha` 防止触发时源码漂移，发布准备提交使用[skip ci]避免Develop重复检查。
-- 候选包附件仍仅允许*-candidate.apk与release-manifest.json；schema2 增加计划摘要。设备完成后单独生成 `verification-evidence`，绑定run/attempt、源码、计划、候选及两个测试APK摘要、API和逐项测试结果；候选生成时不能提前声明设备通过。不含本机路径或凭据。
-- 集成测试APK按计划需要生成一次，多个模拟器下载复用，附带源码与构件记录。设备测试依据普通JUnit4测试源码清单核对框架发现和实际执行身份，不能通过降低预期数量放行。
-- JVM小型XML报告与人工数据设备日志保留7天；设备日志名包含run_attempt，重跑不覆盖上一次失败日志；超时也保存部分输出、失败阶段及简短诊断，仍阻断门禁。候选、测试APK及验证证据保留30天，过期缺失时明确阻止续跑。缓存来自CI自己生成的Gradle数据；绝不上传本机缓存或整个工作区。
-- Windows工具检查并行，正式候选不被普通提交取消。不强制clean、不重复测试同一个未变化的构件。
-- 设备镜像/网络故障只重试失败任务并复用已成功的 build 和候选；汇总门禁重跑后再次核对全部所需结果。若 build 自身失败，重跑可能产生新候选，旧候选的签名/摘要不能沿用。后续失败不能被早期成功覆盖，不无限自动重试。
-- 当前不跨workflow自动寻找或拼接历史结果，也不把本地测试记录上传作为CI放行凭据；Develop push 与PR仍保留独立check。发布准备使用[skip ci]避开重复。后续若增加跨run复用，必须先实现可信来源、有效输入与失败历史的完整核验。
+相机缩放、厂商通知胶囊、触摸振动、返回动画、后台行为优先用户真机。开发者提供安装包、构建/源码身份、3—5条操作和预期结果；用户反馈后再定位，避免自行搭建长UI自动化。
 
-更新兼容信息继续使用 schema1：正式附件保留 `update-manifest.json`，新发布同时将相同元数据写入 Release 正文的隐藏 `studyassistant-update-manifest` HTML 注释。新客户端优先验证正文中的版本、最低 API、versionCode、APK 文件名/大小/SHA；旧发布仍读取独立附件，浏览器下载入口失败后只补试一次官方 GitHub asset API（无令牌），每个清单请求限制 15 秒和 64 KiB。元数据缺失或不匹配不按版本号猜测，不绕过系统要求；实际 APK 安装前继续校验 minSdk、版本、摘要和原签名。正文注释不出现在应用更新说明中。既有发布状态按原说明摘要续跑，不强制改写历史发布正文；原 JSON 字段及附加 provenance 仍兼容。
+Beta可从开发分支本地按需构建一次：`./gradlew.bat assembleRelease --console=plain`，再用现有`tools/sign-release.ps1 -InApk app/build/outputs/apk/release/app-release-unsigned.apk`签名。这只生成可交付测试包，不自动发GitHub Release、不安装手机。版本号/versionCode、渠道与分发方式按当次安排：覆盖安装要原证书，正式后继versionCode不得低于已交付Beta；公开测试版须明确标prerelease且不得latest。公开Beta发布若需离开main的独立路径，应当次明确安排，不能悄悄合并实验分支。
 
-## 本地签名和可续跑发布
+用户允许后使用指定设备的有线/无线ADB；配对/连接参数由用户实际设备提供。不自动选择USB手机。定位只取相关日志、进程/通知状态；不清数据、不卸载、不导出真实题库、Key或全量日志。手机反馈是该包该设备的证据，不夸大到全部机型。Beta之后修改相关代码，需要相关补验；纯打包签名不重跑行为测试。
 
-使用tools/release.ps1；它只设置当前进程JDK/SDK/项目内缓存。命令由协作开发者在用户授权的版本范围内执行：
+## 可选模拟器诊断
 
-- start --version VERSION：要求版本已准备、工作区干净、发布提交含[skip ci]；本地基础入口自动复用有效步骤，不能再手工先跑一遍整套；快进main与Develop，派发一次main release CI。存在标签时拒绝自动替换。
-- start --version VERSION --test-before-main：只推送精确 Develop 源码，记录测试前 main SHA，派发一次分阶段 release CI；测试完成前不更新 main、不生成正式候选。`promote --run RUN_ID` 核验同轮预门禁后快进 main，并创建公开晋级状态；重复执行先查远端结果，不重复写入相同状态。可选的本地手机专项由开发者在晋级前按用户要求完成，与 CI 门禁分别记录。
-- status --version VERSION：只查询已记录的CI。请求超时也先查询匹配提交的run，不重复派发。
-- verify --run RUN_ID：接受成功的main release CI；Develop 来源只接受带完整分阶段证据的成功 release CI，且必须重新查询精确 gate 与公开晋级状态，main 仍须等于候选源码。后续发布基线也执行相同晋级证据核验，不泛化放宽分支约束。schema2 必须通过 Verification gate，重新计算源码计划、核对基线与逐项证据；schema1 历史记录仍要求main及API35/36全套。下载候选白名单，校验源码/摘要，在本地使用原私钥和lineage签名，再验证证书及代码资源逐项摘要未变。重复调用复用已签名文件，不重编译、不重签。
-- publish --run RUN_ID：从本机版本说明只取“更新内容”，再次扫描该节凭据；建立新标签、草稿，自 v0.6.7.9 起仅允许最终 APK 与 `update-manifest.json` 两个附件。清单 schema=1，包含不带 v 的 version、versionCode、minSdk、apkName、apkSha256、apkSize；版本和最低系统版本从最终签名 APK 提取并逐字段匹配 CI 清单，SHA-256 与大小绑定最终签名文件，不解析更新说明。后续schema2候选的发布清单还附加可向后兼容的 `provenance.sourceCommit/runId`，客户端仍按schema1兼容字段读取；旧清单/历史归档不改写。两附件分别核对服务端摘要/大小后发布，再分别下载核对并归档（清单归档名带 APK 版本/构建时间）。恢复时只上传缺失附件，错误已有附件拒绝覆盖；旧版本保留原单 APK 布局，不补写历史 Release。普通 publish 对已有版本/异源标签拒绝覆盖。 后续提高最低系统版本只修改 Gradle 的 minSdk（Android 16 为 36），不手工填写更新清单；CI 候选清单和本地发布清单均从 APK 读取。客户端从 v0.6.7.9 开始要求新版兼容清单，缺失或不匹配时禁止下载；仅已发布的 v0.6.7.8 及以前允许沿用 API 28 的旧约定。
+模拟器不参与默认本地/在线/发布流程。确需可重复的Android系统边界验证且真机不合适时，说明理由并选最少类/方法：
 
-同版本替换先用显式 `tools/release.ps1 start --version <版本> --replace` 准备并调度同一套完整门禁；已有成功候选也可直接验证。发布替换只允许显式 `tools/release.ps1 replace --run <成功release CI run>`（可选 `--notes <本地说明>`），普通 `start`/`publish` 不自动转换为替换。替换源码必须继承原不可变标签；先验证原已发布 APK 与成功 CI 来源，原标签不移动、不重新建立。新 APK 上传并下载核对后，才切换固定名 `update-manifest.json`；新清单下载核对后才删除旧 APK。两附件上传、清单删除/上传间隙、旧包清理、正文更新或归档中断，均查询现状后用同一 `replace --run` 续跑；已有未知附件、摘要冲突或无所有权记录的缺失会阻断。固定清单切换存在短暂缺失窗口，客户端按既有规则停止下载，不退回猜测兼容性。
+```powershell
+./tools/run-android-tests.ps1 -Serial emulator-5554 -TestClass '完整类名#方法名' -UseExistingApks
+```
 
-状态以 `version + commit + runId + buildUtc` 绑定实际构建，常规发布与显式替换共用身份规则，不靠操作名选择签名缓存；不同构建各有独立状态。CI 调度前保存独立 pending 状态，旧 `<version>.json` 只读兼容，迁入新状态时不覆盖原文件。候选 artifact/清单身份变化拒绝复用签名；重新签名不改变 lineage 的 API28 rotation 阈值。`status --version <版本> --run <run>` 可明确选择构建，多义状态不猜测。
+必须指定已确认的模拟器；测试只用隔离包和合成数据。不因新增功能或未知文件自动全量；`-All`仅用户明确要求的专项。失败后复用成功构件，定位失败方法，不重新执行不相关用例。
 
-状态与私有操作日志存 .local-notes/release-state/，故障后续跑同一个run。状态/缓存落盘仍用原子替换；仅Windows 5/32/33短暂文件锁最多等待0.35秒，永久拒绝仍阻断且保留旧状态，不据此重试网络请求或测试。
+## 合并与构建
 
-旧发布基线及CI证据的真实下载字节可缓存在`.local-notes/release-state/download-cache/`：必须同时绑定远端对象ID、大小和SHA-256，每次重验缓存内容。Release/run/attempt、源码、过期状态及构件身份仍重新查询，逐项证据和签名检查仍执行。摘要缺失的历史artifact不复用此缓存；损坏缓存会重新下载并核验，远端变化或失败继续阻断。最终发布后的公开附件仍真实下载校验，不用刚签名的本地文件冒充下载。精确匹配本仓库的公开附件优先通过系统curl和官方asset API读取（HTTP/1.1、IPv4、HTTPS与固定超时，不带令牌、不内部重试）；没有curl时保留原gh方式，其它API与CI artifact读取不变。
+本地必要验证/用户反馈完成后再合并main。提交含feat:/fix:/build:/ci:等前缀；合并冲突改变运行代码时只验证受影响部分。
 
-Actions手动发布标题使用`release: v版本 · 提交说明`，普通提交/PR使用提交首行或PR标题；完整SHA保留在运行元数据和校验清单，标题不参与源码身份判断。历史运行保留原名称与证据。编译输入、代码资源摘要和候选摘要必须匹配；签名后的APK摘要与候选摘要不同是正常现象。签名只允许改变签名信息，代码、资源和构建时间不变。
+```powershell
+git switch main
+git merge --no-ff Develop -m 'feat: describe the completed change'
+git push origin main
+./tools/release.ps1 start --version VERSION
+./tools/release.ps1 status --version VERSION --run RUN_ID
+./tools/release.ps1 publish --run RUN_ID
+```
 
-integration 是独立调试变体，release经过R8；同源码设备验证不等于正式APK或用户手机验收。用户反馈通知卡1%问题基本解决，本轮不以此为阻断项；工具测试不等同于手机验收，复发时保留现场证据。
+也可快进到已有规范提交。start只接受已推送的干净main，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
 
-CI从不使用用户或开发者真实DeepSeek Key，不上传题库、原图、备份JSON、恢复副本、崩溃日志、内部笔记或签名材料。Git/gh必要鉴权按用户授权使用已有凭据，不将凭据作为文件上传。模式扫描、文件名与格式拦截、上传白名单和人工差异审阅共同约束上传范围。
+schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时间、SHA、签名后保持的代码资源摘要与预期证书，不含JVM/设备通过结论。旧schema1/2仅保留历史读取兼容；不要求为新版本下载旧测试证据，不对新流程回退全量。
 
-旧功能分支保持原样；若将来推送旧分支，其自身历史工作流仍可能执行，另行处理。
+## 签名与发布底线
 
-## Git 与 GitHub API 的选择
+只使用原自有证书/lineage；CI不读取签名材料。候选必须非debuggable且未签名，运行成功、main与本地源码吻合；签名后重新核对身份、原证书及代码资源摘要。发布保留不可变tag、正式/beta渠道与最低系统要求、versionCode、更新清单、最终公开附件真实下载SHA和history_apk归档。普通发版start→status→publish，verify只是按需诊断，不固定多执行一次。签名、发布、归档不触发测试。
 
-| 操作 | 默认方式 | 原因 |
-| --- | --- | --- |
-| status、diff、commit、merge、worktree、冲突处理、本地历史 | 本地 Git | 无网络，保留完整版本控制语义 |
-| clone、fetch、上传新提交及批量文件 | Git | 批量传输对象；避免逐文件 API 创建零散提交 |
-| CI 状态/日志、PR、Release、附件、远端 SHA 查询 | GitHub 连接器；能力不足时 gh/API | 直接查询服务状态，不为看状态执行 fetch |
-| main 快进到已在 GitHub 上的 Develop 提交 | Git push；传输异常时 refs API | 已有对象无需再上传；更新前核对最新远端和祖先关系，force=false，写后复核 |
-| 新 tag | Git；仅当对象已存在远端时可用 Git database API | 注解 tag 必须保留注解对象和目标提交，已有 tag 绝不移动 |
+同版本替换仍须用户明确安排，使用start --replace与replace --run，保留原标签；不默认替换既有Release。历史精确来源检查仅用于此类替换和历史恢复，不作为每次新版本前置。
 
-传输失败处理：
+## 网络与隐私
 
-1. 本地 Git 命令不因网络故障而改用 API。
-2. push/fetch 重置后先查询远端实际 SHA。连接失败不代表服务器没收下提交；已成功就不重推。
-3. 需要 Git 传输时，最多额外尝试一次进程级 `git -c http.version=HTTP/1.1 ...`；不改全局代理、不关闭 TLS、不反复盲重试。
-4. 目标提交已在远端时可安全走 refs API 快进；新提交仍未上传时，refs API 无法替代对象传输，停止并报告明确错误。非快进、权限、分支保护错误不能用 force 绕过。
-5. API/gh 也可能遇到重置、限流和权限问题；没有 API 永远更快或 Git 永远更慢的保证。合并查询、按 SHA 核验结果，CI通常每60秒做一次状态查询，失败后才取相应任务日志；不要并行反复查询同一状态。
-6. refs API 触发 CI 与鉴权身份有关；Actions 自带 GITHUB_TOKEN 的 push 通常不会再触发新工作流。每次更新后确认对应 SHA 的 CI 实际出现，不凭 HTTP 成功推断。
+源码/分支用Git；状态/日志/Release优先GitHub连接器，能力不足用gh/API。网络失败先检查远端是否已成功；必要时仅一次进程级HTTP/1.1重试，不修改全局代理、不强推。测试/签名/发布状态均存.local-notes；真实题库、Key、签名材料、手机日志不得提交或上传CI。普通状态查询不高频轮询。
 
-官方依据：[Gradle 缓存](https://github.com/gradle/actions/blob/v4/docs/setup-gradle.md)、[Git HTTP 配置](https://git-scm.com/docs/git-config)、[refs API](https://docs.github.com/en/rest/git/refs)、[工作流触发](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。
+## 流程维护边界
 
-
-## 隔离测试的覆盖范围
-
-- `integration` 包名为 `com.zsz.studyassistant.integration`，使用专门的 Application；不读取正式应用的 Key、崩溃日志或后台任务状态；备份调度测试只使用隔离包的私有状态和人工夹具。Manifest 移除联网权限以及正式服务/Provider；测试不应请求在线 AI、读取真实数据或使用签名材料。
-- 保留真实 MainActivity 供 `UiSmokeTest` 检查设置返回路径、语言切换后的统计标签，以及 WebView 的实际列表编号。使用 ActivityScenario 和现有 Android 测试依赖，未增加 Compose 测试框架。
-- `UpdatePageIntegrationTest` 用integration专属空Activity直接挂载注入FakeTransfers的UpdatePage，避开Home/API Key弹窗和系统下载；真实通知导航仍由UiSmoke覆盖。
-- `ReliabilityRegressionTest` 只用人工数据检查 ViewModel 的草稿和复习生命周期；故障注入明确模拟下一题读取异常。`LargeFieldIntegrationTest` 检查大字段、原图、全文搜索及导出读取契约。
-- 压缩备份测试覆盖 ZIP 分卷完整性、SAF 所有权与读回校验、空错题本不调度、前台成功事件、后台终局失败通知、v3 兼容导入和 96 MiB 人工题库完整往返。系统通知授权只针对 integration 包，不触及正式应用或真实手机。
-- 本地仍通过 `tools/run-android-tests.ps1 -Serial emulator-<端口>` 明确选择模拟器；CI 沿用同一套测试的自动发现，不另起重复工作流。测试包可打开主界面不等于已在用户手机实测，不能据此承诺所有机型效果。
-
-
-## 正式与测试更新渠道
-
-- `tools/release.ps1 start --version VERSION` 默认正式版；只有明确安排测试版时使用 `--channel beta`。两类都使用原有完整发布门禁和原证书，跨渠道共用严格递增的 versionCode、各版本使用独立标签；不移动已有标签，不将同一标签在两种构件间切换。
-- 新状态绑定 channel 并传入构建状态；新发布清单可选 channel 与 GitHub prerelease 一致。测试版 `prerelease=true`、`make_latest=false`，不抢占正式版 latest。Release 最后一个可见条目同时说明最低 Android 版本和正式/测试属性；旧无 channel 状态按原清单与正文摘要续跑。
-- 客户端默认同时查官方 Releases 列表，列表失败回退官方 latest。先读取兼容信息再确定最终渠道；仅附件清单声明 beta 也不能挤掉真正正式版。可用测试版在前并提示可选和不稳定，正式版说明及独立下载在后；不提供低于当前 versionCode 的安装包。下载校验与恢复流程不降低门禁，跳过测试版不隐藏正式版。
-
-
-### 发布基线无法核验时的全量回退
-
-新版本可显式使用 `tools/release.ps1 start --version VERSION --channel beta --full-verification`（正式版仍用 `--channel stable`）。该模式不依赖历史 Release 下载、不复用历史测试证据，CI 的 `base_sha` 为空，以当前完整测试清单生成并核对全部验证项；本地仍按有效输入复用已有编译和测试。模式绑定准备状态，恢复时必须保留同一选项；签名、源码/候选一致性、逐项设备证据、下载与归档门禁照常执行。该选项不能用于同版本替换；替换始终需要精确原始发布基线证明。
-
-## 手机补测
-
-按实际改动选择相关场景，模拟器结果与手机实测分别记录。隔离测试只使用人工数据；真实 AI 输出和系统通知样式仍以用户手机验证为准。
-
-- 备份目录授权撤回后，核对失败原因、时间和重新选择目录后的恢复；成功写入并读回校验后再解除警示。
-- 标签整理草稿保存后结束进程再打开，核对分组与勾选恢复，确认合并前仍须重新预览；标签已变更时不套用旧方案。
-- 快速/思考模式、取消和断网后，核对诊断类型、耗时与导出字段；不包含题目、标签正文、响应原文或密钥。
-- 在较小窗口、大字号与英/日/韩长文案下检查按钮、状态和页面导航，避免横向裁切。
+开发中不自行扩大必跑测试范围。新增测试/流程必须有具体风险与收益，优先已有短用例或真机步骤；不重复覆盖，不维护为了维持复杂流程而新增的整套协议。退役自动规划和工具测试已在.local-notes/retired-files/20261030-test-flow本地归档。只保留与当前发布/本地入口直接相关的小型工具回归，按需本地运行，CI不调用。

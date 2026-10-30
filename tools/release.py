@@ -1,4 +1,4 @@
-"""Resumable local coordinator: basic check -> main CI -> local signing -> publication.
+"""Build-only release coordinator: reviewed main -> CI build -> local signing -> publication.
 No action runs merely by importing this module. Signing secrets never enter GitHub requests.
 """
 import argparse
@@ -17,8 +17,8 @@ import io
 import zipfile
 import tempfile
 from release_common import VERSION, apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
-from verification import (make_plan, validate_ci_evidence, validate_pre_main_evidence,
-                          validate_promotion, pre_main_gate, promotion_context, promotion_description)
+from verification import (make_plan, validate_ci_evidence,
+                          validate_promotion, pre_main_gate)
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = "ShizhenZhou/StudyAssistant"
@@ -381,13 +381,17 @@ class Release:
         folder.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=folder) as tmp:
             manifest, _ = extract_candidate(artifact("release-candidate"), Path(tmp) / "candidate")
-            if (manifest["schema"] != 2 or manifest["commit"] != commit or
+            if (manifest["schema"] not in (2, 3) or manifest["commit"] != commit or
                 any(metadata.get(k) != manifest.get(k) for k in ("version", "versionCode", "minSdk")) or
                 apk_payload(io.BytesIO(apk)) != (manifest["payloadSha256"], manifest["buildUtc"])):
                 raise ReleaseError("Published APK does not match CI payload/source")
-            evidence = read_verification_artifact(artifact("verification-evidence"))
-            validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
-            self.validate_run_promotion(run, evidence)
+            if manifest["schema"] == 2:  # Read-only compatibility for archived releases.
+                evidence = read_verification_artifact(artifact("verification-evidence"))
+                validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
+                self.validate_run_promotion(run, evidence)
+            else:
+                if run.get("head_branch") != "main" or required_jobs(self.run_jobs(run_id), []).get("build", {}).get("conclusion") != "success":
+                    raise ReleaseError("Published build did not succeed")
         if self.git("merge-base", "--is-ancestor", commit, "HEAD", check=False).returncode:
             raise ReleaseError("Published source is not an ancestor")
         return commit
@@ -425,71 +429,43 @@ class Release:
         self.state['verificationBaselineReleaseId']=published['id'];self.save()
         return commit
 
-    def start(self, version, replacement=False, channel="stable", full_verification=False, test_before_main=False):
-        if self.git("status", "--porcelain").stdout.strip(): raise ReleaseError("Commit/review local changes first.")
+    def start(self, version, replacement=False, channel="stable"):
+        # Merge/review happens before this command; it never starts tests or merges branches.
+        if self.git("status", "--porcelain").stdout.strip():
+            raise ReleaseError("Commit/review local changes first.")
+        if self.git("branch", "--show-current").stdout.decode().strip() != "main":
+            raise ReleaseError("Complete scoped validation and merge main before requesting a release build.")
         commit = self.git("rev-parse", "HEAD").stdout.decode().strip()
-        self.bind(version, commit)
-        if self.state.get("replacementRequested") and not replacement:
-            raise ReleaseError("Resume this explicitly requested replacement with start --replace")
+        if self.remote("main") != commit:
+            raise ReleaseError("Push the reviewed main commit before requesting its build.")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
-        if replacement and channel == "beta": raise ReleaseError("Beta replacement requires a new prerelease version; do not change a stable tag's channel")
-        if replacement and full_verification: raise ReleaseError("Replacement requires its exact original baseline proof; use full verification only for a new version")
-        if self.state.get("channel", channel) != channel: raise ReleaseError("Resume with the original release channel")
-        if self.state.get("fullVerification", full_verification) != full_verification:
-            raise ReleaseError("Resume with the original verification mode")
-        if self.state.get("testBeforeMain", test_before_main) != test_before_main:
-            raise ReleaseError("Resume with the original main-promotion mode")
-        if self.state.get("dispatchAttempted"): return self.status()
-        self.state.update(channel=channel, fullVerification=full_verification); self.save()
-        if test_before_main:
-            if self.git("branch", "--show-current").stdout.decode().strip() != "Develop":
-                raise ReleaseError("Test-before-main starts from a clean Develop checkout")
-            self.state.update(testBeforeMain=True, dispatchBranch="Develop"); self.save()
         source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
         if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
             raise ReleaseError("Requested version differs from source.")
+        self.bind(version, commit)
+        if self.state.get("testBeforeMain"):
+            raise ReleaseError("Retired staged-release state; do not resume its promotion workflow.")
+        if self.state.get("channel", channel) != channel:
+            raise ReleaseError("Resume with the original release channel")
+        if self.state.get("replacementRequested") and not replacement:
+            raise ReleaseError("Resume this explicitly requested replacement with start --replace")
+        if self.state.get("dispatchAttempted"): return self.status()
         tag = self.github.api("git/ref/tags/v" + version, missing=True)
-        if tag and not replacement:
-            raise ReleaseError("Tag already exists. Existing tags/releases are never replaced automatically.")
+        if tag and not replacement: raise ReleaseError("Tag exists; replacement must be explicitly requested.")
         if replacement:
-            if not tag: raise ReleaseError("Explicit replacement requires the existing immutable tag")
-            previous=self.github.api("releases/tags/v"+version,missing=True)
+            if not tag or channel != "stable": raise ReleaseError("Replacement requires an existing stable tag")
+            previous = self.github.api("releases/tags/v" + version, missing=True)
             if not previous or previous.get("draft") or previous.get("prerelease"):
-                raise ReleaseError("Explicit replacement requires an existing public release")
-            self.proven_published_source(previous)
-            self.state["replacementRequested"]=True; self.save()
-        message = self.git("log", "-1", "--format=%B").stdout.decode("utf-8", errors="replace")
-        if "[skip ci]" not in message:
-            raise ReleaseError("Use a reviewed release-preparation commit with [skip ci] to avoid duplicate development CI.")
-        # The entry validates/reuses content-bound evidence; a historical boolean is not proof.
-        command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/check-project.ps1"],
-            root=self.root, log=self.path.parent / (version + "-basic.log"), timeout=600)
-        self.state["basicChecked"] = True
-        # No historical evidence is reused in explicit full mode; CI must validate the entire inventory.
-        previous = None if full_verification else self.github.api("releases/latest", missing=True)
-        base = self.published_baseline(previous) if previous else None
-        self.state["verificationBase"] = base
-        self.state["verificationBaselineReleaseId"] = previous["id"] if previous else None
-        self.save()
-        for branch in ("main", "Develop"):
-            head = self.remote(branch)
-            if branch == "main": main_before = head
-            if self.git("cat-file", "-e", head + "^{commit}", check=False).returncode:
-                self.git("fetch", "origin", branch)
-            if self.git("merge-base", "--is-ancestor", head, commit, check=False).returncode:
-                raise ReleaseError(branch + " diverged; resolve locally before release.")
-        if test_before_main:
-            if main_before == commit: raise ReleaseError("main already contains the source; staged tests must precede promotion")
-            self.state["mainBefore"] = main_before
-            self.push("Develop", commit)
-        else:
-            self.git("switch", "main"); self.git("merge", "--ff-only", commit)
-            self.push("main", commit); self.push("Develop", commit)
-        self.state.update(dispatchAttempted=True, requestedAt=datetime.now(timezone.utc).isoformat())
-        self.save()  # Persist before the request: a timeout must never trigger a blind second CI.
-        inputs = dict(mode="release", expected_sha=commit, base_sha=base or "", run_description=run_description(version, message))
-        if test_before_main: inputs.update(test_before_main="true", promotion_base_sha=main_before)
-        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":self.state.get("dispatchBranch", "main"), "inputs":inputs})
+                raise ReleaseError("Replacement requires an existing public stable release")
+            self.state["replacementRequested"] = True
+        message = self.git("log", "-1", "--format=%s").stdout.decode("utf-8").strip()
+        if not re.match(r"^(feat|fix|build|ci|docs|test|refactor|chore|perf|revert)(?:\([^)]+\))?!?: .+", message):
+            raise ReleaseError("Use a Conventional Commit title for the reviewed main commit.")
+        self.state.update(channel=channel, dispatchBranch="main", dispatchAttempted=True,
+                          requestedAt=datetime.now(timezone.utc).isoformat())
+        self.save()  # Never blindly dispatch again after an ambiguous network response.
+        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":"main", "inputs":{
+            "expected_sha":commit, "run_description":run_description(version, message)}})
         return self.status()
     def status(self):
         if not self.state.get("runId") and self.state.get("dispatchAttempted"):
@@ -565,51 +541,6 @@ class Release:
         if not statuses or {key: max(statuses, key=lambda row: row["id"]).get(key) for key in promotion["status"]} != promotion["status"]:
             raise ReleaseError("Remote promotion status changed or is missing")
 
-    def promote(self, run_id):
-        run = self.github.api(f"actions/runs/{run_id}")
-        if (run.get("event") != "workflow_dispatch" or run.get("head_branch") != "Develop" or
-            run.get("status") not in ("in_progress", "queued") or run.get("conclusion") is not None or
-            not run.get("display_title", "").startswith("release:") or
-            not run.get("path", "").startswith(".github/workflows/" + WORKFLOW)):
-            raise ReleaseError("Promotion requires the active staged release workflow")
-        commit = run["head_sha"]
-        if self.git("rev-parse", "HEAD").stdout.decode().strip() != commit or self.git("status", "--porcelain").stdout.strip():
-            raise ReleaseError("Promotion requires the exact clean tested source")
-        version = re.search(r'val appVersionName = "([^" ]+)"', (self.root / "app/build.gradle.kts").read_text(encoding="utf-8"))[1]
-        self.bind(version, commit)
-        if not self.state.get("testBeforeMain") or self.state.get("runId") != run_id:
-            raise ReleaseError("Promotion must resume its original test-before-main preparation state")
-        jobs = self.run_jobs(run_id)
-        artifacts = self.github.api(f"actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
-        found = [a for a in artifacts if a["name"] == "pre-main-evidence" and not a["expired"]]
-        if len(found) != 1: raise ReleaseError("Expected one unexpired pre-main evidence artifact")
-        report = read_verification_artifact(self.verified_download(found[0], found[0]["archive_download_url"], "action-artifact"))
-        validate_pre_main_evidence(report, run_id, run.get("run_attempt", 1), commit)
-        gate = pre_main_gate(jobs, report)
-        if self.state.get("mainBefore") != report["staged"]["mainBefore"]:
-            raise ReleaseError("Pre-main evidence differs from prepared main identity")
-        plan = make_plan(self.root, report["plan"].get("base")); plan["mode"] = "release"
-        if plan != report["plan"] or plan.get("base") != self.state.get("verificationBase"):
-            raise ReleaseError("Pre-main plan differs from reviewed source/baseline")
-        main = self.remote("main")
-        if main not in (commit, self.state["mainBefore"]): raise ReleaseError("main changed during staged tests")
-        if self.git("merge-base", "--is-ancestor", self.state["mainBefore"], commit, check=False).returncode:
-            raise ReleaseError("Tested source cannot fast-forward prepared main")
-        context = promotion_context(run_id, report["attempt"])
-        expected = dict(state="success", context=context, description=promotion_description(commit, gate["id"]),
-                        target_url=f"https://github.com/{REPO}/actions/runs/{run_id}/job/{gate['id']}")
-        statuses = [s for s in self.promotion_statuses(commit) if s.get("context") == context]
-        if statuses and any(max(statuses, key=lambda row: row["id"]).get(k) != v for k, v in expected.items()):
-            raise ReleaseError("Existing promotion status conflicts with this gate")
-        self.state.update(phase="promoting", promotionGate=gate); self.save()
-        self.git("switch", "main"); self.git("merge", "--ff-only", commit)
-        if main != commit: self.push("main", commit)
-        if self.remote("main") != commit: raise ReleaseError("main promotion was not confirmed")
-        # Persist the successful post-gate promotion remotely. Workflow only reads this status.
-        if not statuses: self.github.api(f"statuses/{commit}", expected)
-        self.state["phase"] = "candidate"; self.save()
-        return dict(version=version, runId=run_id, commit=commit, phase="candidate", promotedMain=True)
-
     def signed_identity(self, path, manifest):
         sdk = Path(os.environ.get("ANDROID_HOME", "")) / "build-tools/36.0.0"
         identity = apk_identity(command([sdk / "aapt.exe", "dump", "badging", path], root=self.root).stdout.decode(errors="replace"))
@@ -635,7 +566,6 @@ class Release:
             if len(batch) < 100: break
             page += 1
         modern = any(j["name"] == "Verification gate" for j in jobs)
-        required_jobs(jobs, [] if modern else [35, 36], modern)
         commit = run["head_sha"]
         self.assert_source(commit)
         artifacts = self.github.api(f"actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
@@ -672,7 +602,13 @@ class Release:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
                     self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","fullVerification") if k in old})
-        if manifest["schema"] == 2:
+        if manifest["schema"] == 3:
+            if run.get("head_branch") != "main" or run.get("path", "").split("@")[0] != ".github/workflows/" + WORKFLOW:
+                raise ReleaseError("Candidate must come from the reviewed main build workflow")
+            latest = required_jobs(jobs, [])
+            if latest.get("build", {}).get("conclusion") != "success":
+                raise ReleaseError("Release build did not succeed")
+        elif manifest["schema"] == 2:
             if not modern: raise ReleaseError("Verification gate is missing")
             evidence_artifacts = [a for a in artifacts if a["name"] == "verification-evidence" and not a["expired"]]
             if len(evidence_artifacts) != 1: raise ReleaseError("Expected one verification artifact")
@@ -741,7 +677,7 @@ class Release:
             update_path = signed.parent / "update-manifest.json"
             # Preserve byte-for-byte legacy metadata when resuming an existing state.
             legacy = update_path.exists() and json.loads(update_path.read_text(encoding="utf-8")) == metadata
-            if manifest["schema"] == 2 and (replacement or not legacy):
+            if manifest["schema"] in (2, 3) and (replacement or not legacy):
                 metadata["provenance"] = dict(sourceCommit=manifest["commit"], runId=self.state["runId"])
             if "channel" in self.state: metadata["channel"] = channel
             encoded = (json.dumps(metadata, indent=2) + "\n").encode("utf-8")
@@ -760,7 +696,7 @@ class Release:
         if (self.state.get("replacement") or self.state.get("replacementRequested")) and not replacement:
             raise ReleaseError("Resume this explicit replacement with replace --run")
         if replacement:
-            if manifest["schema"] != 2 or len(found)!=1 or found[0].get("draft") or found[0].get("prerelease"):
+            if manifest["schema"] not in (2, 3) or len(found)!=1 or found[0].get("draft") or found[0].get("prerelease"):
                 raise ReleaseError("Replacement requires an existing public release and verified modern CI")
             remote_tag = self.github.api("git/ref/tags/"+tag, missing=True)
             if not remote_tag: raise ReleaseError("Replacement requires the existing immutable tag")
@@ -836,21 +772,18 @@ def main():
         item = sub.add_parser(operation); item.add_argument("--version", required=True)
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
-        if operation == "start": item.add_argument("--full-verification", action="store_true", help="For a new version, validate every CI test without relying on prior published evidence")
-        if operation == "start": item.add_argument("--test-before-main", action="store_true", help="Test exact Develop source first; promote --run advances main before the same workflow builds its candidate")
         if operation == "status": item.add_argument("--run",type=int,help="Select an exact build when a version has multiple states")
-    for operation in ("promote", "verify", "publish", "replace"):
+    for operation in ("verify", "publish", "replace"):
         item = sub.add_parser(operation,help="Explicitly replace the same version's public assets; never moves its tag" if operation=="replace" else None)
         item.add_argument("--run", required=True, type=int)
         if operation in ("publish","replace"): item.add_argument("--notes")
     args = parser.parse_args()
     coordinator = Release()
     try:
-        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel,full_verification=args.full_verification,test_before_main=args.test_before_main)
+        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel)
         elif args.operation == "status":
             result=coordinator.load_status(args.version,args.run)
         elif args.operation == "verify": result = coordinator.verify(args.run)
-        elif args.operation == "promote": result = coordinator.promote(args.run)
         else: result = coordinator.publish(args.run, args.notes, replacement=args.operation=="replace")
         print(json.dumps(result, ensure_ascii=False)); return 0
     except ReleaseError as error:
