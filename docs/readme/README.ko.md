@@ -44,6 +44,13 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## 버전 기록
 
+### v0.6.8.7
+
+- 📷 카메라에서 두 손가락 확대·축소를 지원하고 현재 배율을 표시합니다.
+- 🧠 풀이 중 앱 아이콘과 파란 강조색으로 생각 중 실시간 알림을 요청합니다.
+- 🔔 다운로드 완료 알림을 열거나 설치를 누르면 알림을 지웁니다. 완료 캡슐은 2분 후 일반 알림으로 유지됩니다.
+- 📌 `versionCode` **88**.
+
 ### v0.6.8.6
 
 - 🎨 앱 업데이트·풀이 기록 등의 페이지 레이아웃을 다듬었습니다.
@@ -581,22 +588,15 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## 개발과 테스트
 
-[AGENTS.md](../../AGENTS.md), [개발 절차](../development.md), [격리 Android 테스트](../development.md#隔离测试的覆盖范围)를 참고하세요. 영문 작업 경로를 권장합니다.
+Develop/기능 브랜치 개발 → 최소한의 로컬 검증 → 필요할 때 Beta 실기기 테스트와 ADB 지원 → 관련 수정·재확인 → 규칙에 맞게 main 병합 → CI에서 한 번 빌드 → 서명·릴리스.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Mode Full
-```
-
-기본은 Basic 검사이며 관련 단위 테스트는 `-TestClass`로 선택합니다. Full은 전체 로컬 회귀가 명확히 필요한 경우만 사용합니다. 캐시·보고서는 프로젝트에 보관합니다. 테스트 수는 해당 CI 보고서를 따르며 기기 테스트는 별도 패키지와 인공 데이터만 사용합니다.
+`tools/check-project.ps1`의 기본 작업은 차이와 민감 정보 검사입니다. 꼭 필요할 때만 `-Compile` 또는 클래스/메서드를 지정한 `-TestClass`를 사용합니다. 전체 테스트나 에뮬레이터를 기본 실행하지 않고 로컬·온라인 중복 검증을 피합니다. 기능 개발 중 테스트 절차를 임의로 확대하지 않으며 조작감은 사용자에게 실기기 확인을 요청합니다. [개발 안내](../development.md)와 [AGENTS.md](../../AGENTS.md)를 참고하세요.
 
 ## 인증 정보와 릴리스
 
-공개 저장소입니다. API Key·토큰·서명 자료·로컬 설정·실제 문제·백업을 커밋하거나 CI에 첨부하지 마세요. `.githooks` 검사는 변경 내용 검토를 대신하지 않습니다.
+CI는 수동으로 서명되지 않은 APK와 식별 정보를 생성합니다. 기본적으로 JVM·도구·기기 테스트를 실행하지 않으며 push/PR/tag도 중복 빌드를 시작하지 않습니다. 커밋과 병합에는 feat:/fix:/build:/ci: 등의 접두사를 사용합니다.
 
-**로컬 기본 검사 → main 병합 → 한 번의 릴리스 CI → 로컬 서명 → 배포·다운로드 검증·보관**. CI는 미서명 후보와 인공 데이터 테스트만 처리합니다. 개인키와 암호는 로컬에서만 사용하고 원래 인증서와 lineage로 재컴파일 없이 서명한 뒤 코드·리소스 일치를 확인합니다.
-
-`tools/release.ps1`의 start/status/verify/publish가 로컬 진행 상태와 재개를 관리합니다. main push와 tag는 다시 빌드하지 않으며 기존 tag를 이동하거나 공개 버전을 자동 교체하지 않습니다. 명령·업로드 범위·Git/API 역할은 개발 절차를 참고하세요. 내부 설계·조사·버전별 과정 기록은 로컬에만 보관합니다.
+검증 후 main을 병합·push한 다음 `tools/release.ps1 start --version VERSION` → `status` → `publish --run RUN_ID`를 사용합니다. 기존 인증서와 lineage는 로컬에서만 사용하며 APK 식별 정보와 코드·리소스를 확인합니다. 공개 파일을 실제 다운로드해 해시를 검사하고 보관합니다. 최소 Android 요구 사항과 정식/Beta 구분을 유지하고 기존 태그는 이동하지 않습니다. Key, 서명 자료, 실제 학습 데이터, 백업과 휴대폰 로그는 CI에 업로드하지 않습니다.
 
 ## API Key와 권한
 

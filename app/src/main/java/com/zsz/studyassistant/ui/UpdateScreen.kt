@@ -146,6 +146,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     var message by remember { mutableStateOf<String?>(null) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
     var notificationsAllowed by remember { mutableStateOf(UpdateDownloadNotifications.canPost(context)) }
+    var displayedTaskToken by remember { mutableStateOf<String?>(null) }
     var verifiedSha by remember { mutableStateOf<Boolean?>(null) }
     // 「跳过此版本」记在本地（UpdateChecker 里持久化）；跳过只影响**提示**，不影响手动下载
     var skipRevision by remember { mutableIntStateOf(0) }
@@ -156,6 +157,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     }
 
     fun showDownload(task: UpdateDownloads.Snapshot) {
+        displayedTaskToken = task.token
         latest = task.release
         progress = task.progress
         verifiedSha = task.phase == UpdateDownloads.Phase.READY && task.release.assetSha256 != null
@@ -205,6 +207,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         }
     }
     fun goInstall() {
+        // A click acknowledges the notice even if permission or subsequent APK verification fails.
+        displayedTaskToken?.let { UpdateDownloadNotifications.acknowledgeCompletion(context, it) }
         val generation = ++operationGeneration
         observingDownload = false
         phase = Phase.VERIFYING

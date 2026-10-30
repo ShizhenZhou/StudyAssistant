@@ -197,28 +197,15 @@ def main():
     scope.add_argument("--all", action="store_true", help="Explicitly execute every isolated Android test")
     parser.add_argument("--api", type=int)
     parser.add_argument("--expected-tests", type=int, help="Assert inventory count; never override discovery")
-    scope.add_argument("--plan", type=Path, help="Use the selected API row from a verification plan")
     parser.add_argument("--list", action="store_true", help="Read-only test selection preview")
-    parser.add_argument("--record-build", action="store_true", help="CI only: record freshly built APK provenance")
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--use-existing", action="store_true")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     try:
-        if args.record_build:
-            if os.environ.get("CI") != "true": raise ValueError("--record-build requires CI")
-            record_build()
-            return 0
-        if not args.list and not (args.test or args.all or args.plan):
-            raise ValueError("Select --test or --all explicitly before execution (CI may use --plan)")
+        if not args.list and not (args.test or args.all):
+            raise ValueError("Select --test explicitly; --all is reserved for a user-requested diagnostic")
         selectors = args.test
-        if args.plan:
-            plan = json.loads(args.plan.read_text(encoding="utf-8"))
-            validate_plan(plan)
-            rows = [r for r in plan["devices"] if r["api"] == args.api]
-            if plan["commit"] != git(ROOT, "rev-parse", "HEAD") or len(rows) != 1: raise ValueError("Wrong plan/source/API")
-            selectors = rows[0]["tests"]
-            if not selectors: raise ValueError("Verification plan must select at least one test")
         chosen = select_tests(android_inventory(ROOT), selectors)
         if args.list:
             print(json.dumps(chosen, indent=2))

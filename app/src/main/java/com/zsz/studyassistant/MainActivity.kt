@@ -105,6 +105,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
         if (intent.getBooleanExtra(AppNav.OPEN_BACKUP_EXTRA, false)) {
             intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
             viewModel.openBackupManagementPage = true
@@ -123,6 +124,7 @@ class MainActivity : ComponentActivity() {
         wallpaperWindowMode = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("wallpaper_background", false)
         if (wallpaperWindowMode) setTheme(R.style.Theme_StudyAssistant_Wallpaper)
         super.onCreate(savedInstanceState)
+        com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
         if (wallpaperWindowMode) setTranslucent(true)
         // 启动时清理已删除题目与孤儿记录（定期维护数据库）
         viewModel.purgeDeletedData()

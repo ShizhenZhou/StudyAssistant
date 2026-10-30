@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.7
+· 📷 拍摄支持双指捏合变焦，并显示当前倍率。
+· 🧠 解题时请求“思考中”实时胶囊，使用应用图标与蓝色强调。
+· 🔔 点开下载完成通知或点击安装后立即清除提示；完成胶囊显示两分钟，随后保留普通通知。
+
 v0.6.8.6
 · 🎨 微调“应用更新”“解题记录”等页面布局。
 · 📷 恢复稳定版拍照流程，支持测试版覆盖更新至正式版。
@@ -528,6 +533,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.7
+· 📷 Pinch to zoom in the camera and see the current zoom ratio.
+· 🧠 Request a Thinking live update during answers, with the app icon and blue accent.
+· 🔔 Clear download-complete alerts when opened or Install is tapped; show the completion capsule for two minutes, then retain a regular notification.
+
 v0.6.8.6
 · 🎨 Refine the layout of App update and Solution history pages.
 · 📷 Restore the stable camera flow and allow beta installations to update to this stable release.
@@ -1051,6 +1061,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.7
+· 📷 撮影時のピンチズームに対応し、現在の倍率を表示。
+· 🧠 解答中に「思考中」のライブ通知を要求し、アプリアイコンと青いアクセントを使用。
+· 🔔 ダウンロード完了通知を開くかインストールを押すと通知を消去。完了カプセルは2分間表示し、その後は通常の通知を保持。
+
 v0.6.8.6
 · 🎨 「アプリ更新」「解答履歴」などの画面レイアウトを微調整。
 · 📷 安定版の撮影フローに戻し、テスト版から正式版へ上書き更新できるようにしました。
@@ -1574,6 +1589,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.7
+· 📷 카메라에서 두 손가락 확대·축소를 지원하고 현재 배율을 표시합니다.
+· 🧠 풀이 중 앱 아이콘과 파란 강조색으로 생각 중 실시간 알림을 요청합니다.
+· 🔔 다운로드 완료 알림을 열거나 설치를 누르면 알림을 지웁니다. 완료 캡슐은 2분 후 일반 알림으로 유지됩니다.
+
 v0.6.8.6
 · 🎨 앱 업데이트·풀이 기록 등의 페이지 레이아웃을 다듬었습니다.
 · 📷 안정 버전의 촬영 흐름을 복원하고 테스트 버전에서 정식 버전으로 덮어쓰기 업데이트를 지원합니다.

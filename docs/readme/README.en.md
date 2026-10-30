@@ -44,6 +44,13 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## Version history
 
+### v0.6.8.7
+
+- 📷 Pinch to zoom in the camera and see the current zoom ratio.
+- 🧠 Request a Thinking live update during answers, with the app icon and blue accent.
+- 🔔 Clear download-complete alerts when opened or Install is tapped; show the completion capsule for two minutes, then retain a regular notification.
+- 📌 `versionCode` **88**.
+
 ### v0.6.8.6
 
 - 🎨 Refine the layout of App update and Solution history pages.
@@ -581,22 +588,15 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## Development and testing
 
-See [AGENTS.md](../../AGENTS.md), [development workflow](../development.md) and [isolated Android testing](../development.md#隔离测试的覆盖范围). ASCII workspace paths are recommended.
+Develop/feature branch → minimal necessary local validation → Beta testing on the user's device with ADB assistance when needed → scoped fixes and rechecks → conventional merge into main → one CI build → signing and release.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check-project.ps1 -Mode Full
-```
-
-Basic checks are the default; select related unit tests with `-TestClass`. Use Full only for an explicitly needed full local regression. Cache and reports stay in the project. CI reports determine actual test counts; device tests use an isolated package and synthetic data.
+`tools/check-project.ps1` checks diffs and sensitive content by default. Use `-Compile` or `-TestClass` with a specific class/method only when necessary. No default full suite or emulator, and no duplicate local/online testing. Feature work must not silently expand testing requirements; ask for device feedback on interaction effects. See the [development guide](../development.md) and [AGENTS.md](../../AGENTS.md).
 
 ## Credentials and releases
 
-This repository is public. Never commit or attach API keys, tokens, signing materials, local configuration, real questions or backups to CI. `.githooks` scans before commits; scanning does not replace diff review.
+CI manually builds an unsigned APK and identity manifest. It does not run application, tool or device tests by default; pushes, PRs and tags do not trigger duplicate builds. Use Conventional Commit prefixes such as feat:, fix:, build: and ci: for commits and merges.
 
-**Local basic checks → merge main → one release CI → local signing → publish, download verification and archive**. CI builds unsigned candidates and tests synthetic data. Signing keys/passwords remain local. Reuse the original certificate and lineage without recompilation; verify code/resources match the candidate.
-
-`tools/release.ps1` provides start/status/verify/publish and resumable local state. Main pushes and tags do not rebuild; existing tags never move and published releases are not replaced automatically. Commands, upload boundaries and Git/API responsibilities are in the development guide. Internal design, investigation and release-process notes remain local.
+After validation and merging/pushing main, use `tools/release.ps1 start --version VERSION` → `status` → `publish --run RUN_ID`. Keep the existing certificate and lineage local; verify APK identity and payload, then download and hash the published assets for archival. Preserve minimum Android requirements, release channels and immutable tags. Never commit or upload keys, signing materials, real study data, backups or phone logs to CI.
 
 ## API key and permissions
 

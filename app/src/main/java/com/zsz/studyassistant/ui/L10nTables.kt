@@ -1518,6 +1518,7 @@ private val B6_ZH = mapOf(
     "notif.review.channel" to "复习提醒",
     "notif.review.text" to "今天还有 {today} 道错题要复习！本周末前还有 {week} 道！",
     "notif.answer.channel" to "生成答案",
+    "notif.answer.thinkingShort" to "思考中",
     "notif.answer.text" to "正在生成答案…（点击回到生成页面）",
 
     "err.timeout" to "请求超时了，请检查网络后重试",
@@ -1539,6 +1540,7 @@ private val B6_EN = mapOf(
     "notif.review.channel" to "Review reminder",
     "notif.review.text" to "You have {today} problems to review today and {week} by the end of this week!",
     "notif.answer.channel" to "Generating answer",
+    "notif.answer.thinkingShort" to "Thinking",
     "notif.answer.text" to "Generating the answer… (tap to return)",
 
     "err.timeout" to "The request timed out — check your network and try again",
@@ -1560,6 +1562,7 @@ private val B6_JA = mapOf(
     "notif.review.channel" to "復習リマインダー",
     "notif.review.text" to "今日の復習は {today} 問、今週末までに {week} 問あります！",
     "notif.answer.channel" to "解答を生成中",
+    "notif.answer.thinkingShort" to "思考中",
     "notif.answer.text" to "解答を生成しています…（タップで戻る）",
 
     "err.timeout" to "リクエストがタイムアウトしました。ネットワークを確認してください",
@@ -1581,6 +1584,7 @@ private val B6_KO = mapOf(
     "notif.review.channel" to "복습 알림",
     "notif.review.text" to "오늘 복습할 오답 {today}개, 이번 주말까지 {week}개 있습니다!",
     "notif.answer.channel" to "답변 생성 중",
+    "notif.answer.thinkingShort" to "생각 중",
     "notif.answer.text" to "답변을 생성하는 중… (탭하면 돌아갑니다)",
 
     "err.timeout" to "요청 시간이 초과되었습니다. 네트워크를 확인하세요",

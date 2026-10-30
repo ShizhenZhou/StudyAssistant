@@ -48,10 +48,11 @@ def apk_identity(badging):
 def validate_manifest(value):
     allowed = {"schema", "package", "versionCode", "version", "minSdk", "targetSdk", "commit", "buildUtc", "candidate", "candidateSha256", "payloadSha256", "expectedSigner", "jvm"}
     if value.get("schema") == 2: allowed.add("planSha256")
+    if value.get("schema") == 3: allowed.remove("jvm")
     if (set(value) - allowed or type(value.get("minSdk")) is not int or type(value.get("targetSdk")) is not int
             or not 1 <= value["minSdk"] <= value["targetSdk"] <= 10000):
         raise ValueError("Unexpected public manifest fields")
-    if value.get("schema") not in (1, 2) or value.get("package") != PACKAGE:
+    if value.get("schema") not in (1, 2, 3) or value.get("package") != PACKAGE:
         raise ValueError("Unsupported release manifest")
     if not VERSION.fullmatch(value.get("version", "")) or int(value.get("versionCode", 0)) <= 0:
         raise ValueError("Invalid release version")

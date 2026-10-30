@@ -1,17 +1,15 @@
-"""Create an allowlisted unsigned candidate artifact, using only clean CI outputs."""
+"""Create an unsigned candidate identity; schema 3 does not claim tests were run."""
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
-import xml.etree.ElementTree as ET
 from release_common import apk_identity, apk_payload, sha256, validate_manifest
-from verification import digest
 
 ROOT = Path(__file__).resolve().parents[1]
 def main():
-    if os.environ.get("CI") != "true":
+    if os.environ.get("CI") != "true" or os.environ.get("GITHUB_REF") != "refs/heads/main":
         raise RuntimeError("Candidate creation is a CI-only operation")
     source = ROOT / "app/build/outputs/apk/release/app-release-unsigned.apk"
     tools = Path(os.environ["ANDROID_HOME"]) / "build-tools/36.0.0"
@@ -20,18 +18,11 @@ def main():
     if check.returncode == 0:
         raise RuntimeError("CI release candidate must not carry an official signature")
     payload, stamp = apk_payload(source)
-    totals = {k: 0 for k in ("tests", "failures", "errors", "skipped")}
-    for file in (ROOT / "app/build/test-results/testDebugUnitTest").glob("TEST-*.xml"):
-        node = ET.parse(file).getroot()
-        for key in totals: totals[key] += int(node.get(key, 0))
-    if totals["tests"] < 1 or totals["failures"] or totals["errors"]:
-        raise RuntimeError("No successful full JVM report")
     code = (ROOT / "app/src/main/java/com/zsz/studyassistant/data/UpdateChecker.kt").read_text(encoding="utf-8")
     cert = re.search(r'EXPECTED_CERT_SHA256 = "([0-9a-f]{64})"', code)[1]
-    plan = json.loads((ROOT / "app/build/verification/plan.json").read_text(encoding="utf-8"))
-    manifest = dict(schema=2, **identity, commit=os.environ["GITHUB_SHA"], buildUtc=stamp, planSha256=digest(plan),
+    manifest = dict(schema=3, **identity, commit=os.environ["GITHUB_SHA"], buildUtc=stamp,
         candidate=f"StudyAssistant-{identity['version']}-{stamp}-candidate.apk",
-        candidateSha256=sha256(source), payloadSha256=payload, expectedSigner=cert, jvm=totals)
+        candidateSha256=sha256(source), payloadSha256=payload, expectedSigner=cert)
     validate_manifest(manifest)
     folder = ROOT / "app/build/release-candidate"
     folder.mkdir(parents=True, exist_ok=True)

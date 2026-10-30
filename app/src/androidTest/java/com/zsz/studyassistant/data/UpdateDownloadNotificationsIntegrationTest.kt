@@ -257,13 +257,17 @@ class UpdateDownloadNotificationsIntegrationTest {
                 }
                 val completionSeenAt = android.os.SystemClock.elapsedRealtime()
                 val settled = awaitNotice(false, timeout = UpdateDownloadMonitor.COMPLETION_CHIP_MS + 8000)
-                assertTrue("Keep completion for more than two minutes",
-                    android.os.SystemClock.elapsedRealtime() - completionSeenAt > 120_000)
+                assertEquals(120_000L, UpdateDownloadMonitor.COMPLETION_CHIP_MS)
+                assertTrue("Completion should settle after its two-minute window",
+                    android.os.SystemClock.elapsedRealtime() - completionSeenAt in 117_000L..128_000L)
                 assertTrue(settled.flags and Notification.FLAG_AUTO_CANCEL != 0)
                 assertFalse(NotificationCompat.isRequestPromotedOngoing(settled))
                 assertEquals(0, settled.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
                 assertFalse(settled.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE))
                 assertNotNull(settled.contentIntent)
+                // Android may add its own retention TTL to the posted copy; the app request is checked below.
+                kotlinx.coroutines.delay(1500)
+                assertTrue(manager.activeNotifications.any { it.id == UpdateDownloadNotifications.TERMINAL_ID })
                 // A new request removes the preceding ordinary completion notice.
                 scenario.onActivity { request = UpdateDownloadMonitor.request(it) }
                 assertTrue(kotlinx.coroutines.withTimeout(4000) { request!!.ready.await() })
@@ -288,6 +292,7 @@ class UpdateDownloadNotificationsIntegrationTest {
             assertTrue(note.actions.isNullOrEmpty())
             assertNull(NotificationCompat.Style.extractStyleFromNotification(note))
             assertNotNull(note.contentIntent)
+            assertEquals("App must not request automatic expiry for ordinary notices", 0L, note.timeoutAfter)
         }
     }
     @Test fun pendingNotificationNeverInventsProgressOrOffersUnboundCancellation() {
@@ -296,4 +301,127 @@ class UpdateDownloadNotificationsIntegrationTest {
         assertFalse(NotificationCompat.isRequestPromotedOngoing(note))
         assertTrue(note.actions.isNullOrEmpty())
     }
+    @Test fun answerNotificationRequestsPromotionWithLocalizedTextAndAppMark() {
+        val previous = UiLangStore.load(context)
+        try {
+            for (lang in listOf(com.zsz.studyassistant.ui.UiLang.ZH_CN, com.zsz.studyassistant.ui.UiLang.EN,
+                com.zsz.studyassistant.ui.UiLang.JA, com.zsz.studyassistant.ui.UiLang.KO)) {
+                UiLangStore.save(context, lang)
+                val note = AnswerForegroundService.buildNotification(context)
+                assertTrue(NotificationCompat.isRequestPromotedOngoing(note))
+                assertEquals(stringsFor(lang)["notif.answer.thinkingShort"], NotificationCompat.getShortCriticalText(note))
+                assertTrue(note.flags and Notification.FLAG_ONGOING_EVENT != 0)
+                assertFalse(note.extras.getBoolean(Notification.EXTRA_COLORIZED))
+                assertEquals(0xFF2563EB.toInt(), note.color)
+                assertEquals(com.zsz.studyassistant.R.drawable.ic_stat_answer, note.smallIcon.resId)
+                assertNotNull(note.getLargeIcon())
+                assertEquals(NotificationIntents.answerRunning(context), note.contentIntent)
+            }
+        } finally { UiLangStore.save(context, previous) }
+    }
+
+    @Test fun completionPendingIntentsKeepOldTokensAndDoNotAcknowledgeOrdinaryPageOpens() {
+        val first = java.util.UUID.randomUUID().toString()
+        val second = java.util.UUID.randomUUID().toString()
+        val firstClick = NotificationIntents.update(context, first, completed = true)
+        val secondClick = NotificationIntents.update(context, second, completed = true)
+        assertNotEquals(firstClick, secondClick)
+        assertNotEquals(firstClick, NotificationIntents.update(context, first, completed = false))
+        assertEquals(firstClick, NotificationIntents.update(context, first, completed = true))
+        val ordinary = android.content.Intent().putExtra(com.zsz.studyassistant.ui.AppNav.OPEN_UPDATE_EXTRA, true)
+        NotificationIntents.consumeUpdateCompletion(context, ordinary)
+        assertFalse(UpdateDownloadNotifications.isAcknowledged(context, first))
+        assertFalse(UpdateDownloadNotifications.isAcknowledged(context, second))
+    }
+
+    @Test fun coldAndWarmActivityEntriesAcknowledgeOnlyTheirCompletionTokens() = kotlinx.coroutines.runBlocking {
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+            .grantRuntimePermission(context.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
+        val first = java.util.UUID.randomUUID().toString()
+        val second = java.util.UUID.randomUUID().toString()
+        fun entry(token: String) = android.content.Intent(context, com.zsz.studyassistant.MainActivity::class.java)
+            .putExtra(com.zsz.studyassistant.ui.AppNav.OPEN_UPDATE_EXTRA, true)
+            .putExtra(NotificationIntents.UPDATE_COMPLETION_TOKEN_EXTRA, token)
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        suspend fun awaitCleared() = kotlinx.coroutines.withTimeout(4000) {
+            while (manager.activeNotifications.any { it.id == UpdateDownloadNotifications.TERMINAL_ID }) kotlinx.coroutines.delay(50)
+        }
+        try {
+            UpdateDownloadNotifications.postTerminal(context, UpdateDownloadNotifications.build(context, task(UpdateDownloads.Phase.READY).copy(token = first)))
+            androidx.test.core.app.ActivityScenario.launch<com.zsz.studyassistant.MainActivity>(entry(first)).use { scenario ->
+                scenario.onActivity { assertFalse(it.intent.hasExtra(NotificationIntents.UPDATE_COMPLETION_TOKEN_EXTRA)) }
+                assertTrue(UpdateDownloadNotifications.isAcknowledged(context, first))
+                awaitCleared()
+                UpdateDownloadNotifications.postTerminal(context, UpdateDownloadNotifications.build(context, task(UpdateDownloads.Phase.READY).copy(token = second)))
+                // Deliver through Android so the existing Activity receives its protected onNewIntent callback.
+                scenario.onActivity { it.startActivity(entry(second)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)) }
+                kotlinx.coroutines.withTimeout(4000) {
+                    while (!UpdateDownloadNotifications.isAcknowledged(context, second)) kotlinx.coroutines.delay(50)
+                }
+                scenario.onActivity { assertFalse(it.intent.hasExtra(NotificationIntents.UPDATE_COMPLETION_TOKEN_EXTRA)) }
+                awaitCleared()
+            }
+        } finally { UpdateDownloadNotifications.clear(context) }
+    }
+
+    @Test fun acknowledgedCompletionStopsMonitorWithoutChangingReadyAndOldTokenCannotClearReplacement() = kotlinx.coroutines.runBlocking {
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+            .grantRuntimePermission(context.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
+        val backend = UpdateDownloadsIntegrationTest.FakeTransfers()
+        val downloads = UpdateDownloads(context, backend) { _, _ -> UpdateChecker.VerifyResult(true, true, true, null) }
+        val original = UpdateDownloadMonitor.downloadsFactory
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        var request: UpdateDownloadMonitor.Request? = null
+        suspend fun awaitNote(token: String, ready: Boolean) = kotlinx.coroutines.withTimeout(7000) {
+            while (manager.activeNotifications.none { it.id == UpdateDownloadNotifications.NOTIFICATION_ID &&
+                it.notification.extras.getString(UpdateDownloadNotifications.TOKEN_EXTRA) == token &&
+                (NotificationCompat.getShortCriticalText(it.notification) == stringsFor(UiLangStore.load(context))["update.notif.completedShort"]) == ready }) kotlinx.coroutines.delay(50)
+        }
+        try {
+            downloads.cancel()
+            UpdateDownloadMonitor.downloadsFactory = { downloads }
+            androidx.test.core.app.ActivityScenario.launch<com.zsz.studyassistant.MainActivity>(
+                android.content.Intent(context, com.zsz.studyassistant.MainActivity::class.java)).use { scenario ->
+                scenario.onActivity { request = UpdateDownloadMonitor.request(it) }
+                assertTrue(kotlinx.coroutines.withTimeout(4000) { request!!.ready.await() })
+                val started = downloads.start(rel.copy(assetSize = 7), appNotification = true)
+                request!!.bound(started)
+                awaitNote(started.token, false)
+                backend.file!!.writeText("fixture")
+                backend.current = backend.current!!.copy(status = UpdateDownloads.TransferPhase.SUCCESS, bytes = 7)
+                awaitNote(started.token, true)
+                scenario.onActivity { UpdateDownloadNotifications.acknowledgeCompletion(it, started.token) }
+                kotlinx.coroutines.withTimeout(4000) {
+                    while (manager.activeNotifications.any { it.id in setOf(UpdateDownloadNotifications.NOTIFICATION_ID, UpdateDownloadNotifications.TERMINAL_ID) }) kotlinx.coroutines.delay(50)
+                }
+                kotlinx.coroutines.delay(2300) // The former completion monitor must not repost on its next poll.
+                assertTrue(manager.activeNotifications.none { it.id in setOf(UpdateDownloadNotifications.NOTIFICATION_ID, UpdateDownloadNotifications.TERMINAL_ID) })
+                val ready = downloads.snapshot()!!
+                assertEquals(UpdateDownloads.Phase.READY, ready.phase)
+                assertTrue(ready.file!!.exists())
+                assertFalse(UpdateDownloadNotifications.post(context, UpdateDownloadNotifications.build(context, ready, completionChip = true)))
+                UpdateDownloadNotifications.postTerminal(context, UpdateDownloadNotifications.build(context, ready))
+                assertTrue(manager.activeNotifications.none { it.id == UpdateDownloadNotifications.TERMINAL_ID })
+                // A new fixture transfer owns a different UUID and remains protected from stale clicks.
+                scenario.onActivity { request = UpdateDownloadMonitor.request(it) }
+                assertTrue(kotlinx.coroutines.withTimeout(4000) { request!!.ready.await() })
+                downloads.cancel()
+                val replacement = downloads.start(rel.copy(assetSize = 7), appNotification = true)
+                request!!.bound(replacement)
+                awaitNote(replacement.token, false)
+                scenario.onActivity { UpdateDownloadNotifications.acknowledgeCompletion(it, started.token) }
+                awaitNote(replacement.token, false)
+                assertFalse(UpdateDownloadNotifications.isAcknowledged(context, replacement.token))
+                assertEquals(replacement.token, downloads.snapshot()!!.token)
+            }
+        } finally {
+            request?.aborted()
+            context.stopService(android.content.Intent(context, UpdateDownloadMonitor::class.java))
+            UpdateDownloadNotifications.clear(context)
+            UpdateDownloadMonitor.downloadsFactory = original
+            downloads.cancel()
+        }
+    }
+
 }
