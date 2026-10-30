@@ -354,7 +354,10 @@ class MainActivity : ComponentActivity() {
                                 enterTransition = { com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route) },
                                 exitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route) },
                                 popEnterTransition = { com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true) },
-                                popExitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true) }
+                                popExitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true) },
+                                // Predictive Back has separate defaults since Navigation 2.10.
+                                predictivePopEnterTransition = { _ -> com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true) },
+                                predictivePopExitTransition = { _ -> com.zsz.studyassistant.ui.pagePredictiveExitTransition(initialState.destination.route, targetState.destination.route) }
                             ) {
                                 // ⚠️ 路由常量与"谁能进谁、返回去哪"全部集中在 ui/AppNav.kt（页面树），这里只做绑定
                                 composable(AppNav.HOME) { HomeScreen(nav, viewModel) }

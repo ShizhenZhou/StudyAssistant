@@ -3,6 +3,7 @@ package com.zsz.studyassistant.ui
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -35,3 +36,8 @@ internal fun pageExitTransition(from: String?, to: String?, pop: Boolean = false
     }
     return fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { (if (pop) 1 else -1) * it / 20 }
 }
+
+/** Keep the existing slide as the main motion; a small scale is only gesture feedback. */
+internal fun pagePredictiveExitTransition(from: String?, to: String?, fastReturn: Boolean = false): ExitTransition =
+    pageExitTransition(from, to, pop = true, fastReturn = fastReturn) +
+        scaleOut(tween(if (fastReturn) 90 else 180), targetScale = .98f)

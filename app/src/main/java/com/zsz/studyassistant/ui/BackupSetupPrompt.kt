@@ -97,7 +97,7 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
                 val path = backupFolderLabel(id, null, s["data.autoBackup.internalStorage"])
                 Text(s["data.autoBackup.pathLabel"] + path.orEmpty(), style = MaterialTheme.typography.bodySmall)
             }
-            OutlinedButton(onClick = { picker.launch(AutoBackup.treeUri(context)) }, enabled = !busy) {
+            AppOutlinedButton(onClick = { picker.launch(AutoBackup.treeUri(context)) }, enabled = !busy) {
                 Text(s[if (usable) "data.autoBackup.change" else "data.autoBackup.pick"])
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

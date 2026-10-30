@@ -50,7 +50,7 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
         Button(onClick = {
             if (model.drafts.isNotEmpty()) replaceConfirm = true else model.analyze(language)
         }, enabled = !model.busy && (base?.tags?.size ?: 0) >= 2, modifier = Modifier.weight(1f)) { Text(s["tagMerge.analyze"]) }
-        OutlinedButton(onClick = { model.load() }, enabled = !model.busy, modifier = Modifier.weight(1f)) { Text(s["tagMerge.reload"]) }
+        AppOutlinedButton(onClick = { model.load() }, enabled = !model.busy, modifier = Modifier.weight(1f)) { Text(s["tagMerge.reload"]) }
     }
     model.draftStatusKey?.let { key ->
         Text(s[key], style = MaterialTheme.typography.bodySmall,
@@ -115,7 +115,7 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
         Text(s["tagMerge.preview"])
     }
     Spacer(Modifier.height(12.dp))
-    OutlinedButton(onClick = { undoConfirm = true }, enabled = !model.busy && model.undoAllowed, modifier = Modifier.fillMaxWidth()) {
+    AppOutlinedButton(onClick = { undoConfirm = true }, enabled = !model.busy && model.undoAllowed, modifier = Modifier.fillMaxWidth()) {
         Text(s["tagMerge.undo"])
     }
     Text(s[if (!model.undoPresent) "tagMerge.undoNone" else if (!model.undoAllowed) "tagMerge.undoUnavailable" else "tagMerge.undoHint"],

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -123,14 +122,14 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(gap))
             // 错题本 / 复习：名字短，半宽放得下；仍留 maxLines=2 兜底 —— **任何情况都不出「…」**
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                OutlinedButton(shape = smoothPill(),
+                AppOutlinedButton(shape = smoothPill(),
                     onClick = { nav.navigate(AppNav.NOTEBOOK) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
                 ) {
                     HomeButtonLabel(s["home.notebook"], 19.sp)
                 }
-                OutlinedButton(shape = smoothPill(),
+                AppOutlinedButton(shape = smoothPill(),
                     onClick = { nav.navigate(AppNav.REVIEW) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
@@ -140,7 +139,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
             }
             Spacer(Modifier.height(gap))
             // 第 5 个入口：🕘 搜题记录（独占一行、撑满宽度）
-            OutlinedButton(shape = smoothPill(),
+            AppOutlinedButton(shape = smoothPill(),
                 onClick = { nav.navigate(AppNav.HISTORY) },
                 modifier = Modifier
                     .fillMaxWidth()

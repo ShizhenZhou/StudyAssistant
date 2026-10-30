@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.9
+· 🎨 恢复无底色按钮的主题配色与描边样式。
+· ↩️ 恢复学习与设置子页面以滑动为主的返回过渡，保留轻微缩放与手势取消。
+· 📝 精简 README 与关于页的功能说明。
+
 v0.6.8.8
 · 📥 支持从其他应用分享 1～2 张图片，选择解题或批改后按顺序框选。
 · 🔎 错题本搜索显示命中片段，标注题干或答案并高亮关键词。
@@ -538,6 +543,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.9
+· 🎨 Restore theme colors and borders for outlined buttons.
+· ↩️ Restore slide-led back transitions in learning and settings pages, retaining subtle scaling and gesture cancellation.
+· 📝 Simplify feature descriptions in the README and About page.
+
 v0.6.8.8
 · 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
 · 🔎 Notebook search shows matching excerpts, identifies question or answer matches and highlights keywords.
@@ -1071,6 +1081,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.9
+· 🎨 枠線付きボタンのテーマ色と枠線のスタイルを復元しました。
+· ↩️ 学習・設定の子画面でスライド中心の戻るアニメーションを復元し、軽い縮小とジェスチャーのキャンセルを維持しました。
+· 📝 README と「このアプリについて」の機能説明を簡潔にしました。
+
 v0.6.8.8
 · 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取れます。
 · 🔎 ノート検索に一致箇所を表示し、問題文・解答の区別とキーワードの強調を追加しました。
@@ -1604,6 +1619,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.9
+· 🎨 테두리 버튼의 테마 색상과 테두리 스타일을 복원했습니다.
+· ↩️ 학습·설정 하위 화면의 슬라이드 중심 뒤로 가기 전환을 복원하고 미세한 축소와 제스처 취소를 유지했습니다.
+· 📝 README와 앱 정보의 기능 설명을 간결하게 정리했습니다.
+
 v0.6.8.8
 · 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자를 수 있습니다.
 · 🔎 오답노트 검색에서 일치 구절과 문제·답변 구분을 표시하고 키워드를 강조합니다.

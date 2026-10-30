@@ -18,7 +18,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -375,7 +374,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         Spacer(Modifier.height(12.dp))
                         val skipped = remember(skipRevision, rel) { UpdateChecker.isSkipped(context, rel) }
                         if (skipped) Text(s.format("update.skipped", "v" to rel.version), style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = {
+                        AppOutlinedButton(onClick = {
                             if (skipped) UpdateChecker.clearSkippedVersion(context, rel.channel)
                             else UpdateChecker.skipVersion(context, rel.version, rel.channel)
                             skipRevision++
@@ -451,7 +450,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     // 兜底：网络/校验都不行时，用浏览器打开发布页手动装。
     // 放在灰框**外面**，样式对齐主页底部两个按钮（OutlinedButton 描边、无填充）
     Spacer(Modifier.height(12.dp))
-    OutlinedButton(
+    AppOutlinedButton(
         onClick = { openUrl(context, UpdateChecker.RELEASES_URL) },
         shape = smoothPill(),
         modifier = Modifier.fillMaxWidth().height(56.dp)
