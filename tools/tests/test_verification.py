@@ -62,7 +62,7 @@ class VerificationTest(unittest.TestCase):
                            platformConstraints=self.api().platform_constraints(36))
                 output=root/f"output-{index}"
                 with patch.object(ci,"FOLDER",root/f"report-{index}"),patch.object(ci,"make_plan",return_value=value) as make, \
-                     patch.dict(os.environ,{"MODE":mode,"BASE_SHA":base,"GITHUB_OUTPUT":str(output)}),contextlib.redirect_stdout(io.StringIO()):
+                     patch.dict(os.environ,{"MODE":mode,"BASE_SHA":base,"GITHUB_OUTPUT":str(output),"TEST_BEFORE_MAIN":"false"}),contextlib.redirect_stdout(io.StringIO()):
                     ci.plan()
                 make.assert_called_once_with(base=normalized)
                 fields=dict(line.split("=",1) for line in output.read_text().splitlines())
