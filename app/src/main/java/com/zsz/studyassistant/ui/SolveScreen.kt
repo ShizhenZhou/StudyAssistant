@@ -54,7 +54,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -851,7 +850,7 @@ fun SolveScreen(
                     Text(msg, style = MaterialTheme.typography.bodySmall)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for ((level, key) in listOf(0 to "solve.forgot", 1 to "solve.vague", 2 to "solve.familiar")) {
-                            OutlinedButton(enabled = !vm.reviewBusy && !vm.isDeleted, onClick = { vm.confirmRedo(level, onReviewFinished) },
+                            AppOutlinedButton(enabled = !vm.reviewBusy && !vm.isDeleted, onClick = { vm.confirmRedo(level, onReviewFinished) },
                                 modifier = Modifier.weight(1f)) { Text(s[key]) }
                         }
                     }
@@ -893,7 +892,7 @@ fun SolveScreen(
                     }
                 }
                 // B6 重做：先在纸上自己写一遍 → 拍一张 → AI 批改并**自动**更新掌握度
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = {
                         vm.startRedo()
                         nav.navigate(AppNav.GRADE)

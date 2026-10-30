@@ -41,7 +41,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -164,7 +163,10 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, onRootStateChan
         enterTransition = { pageEnterTransition(initialState.destination.route, targetState.destination.route, fastReturn = fastReturn) },
         exitTransition = { pageExitTransition(initialState.destination.route, targetState.destination.route, fastReturn = fastReturn) },
         popEnterTransition = { pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true, fastReturn = fastReturn) },
-        popExitTransition = { pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true, fastReturn = fastReturn) }
+        popExitTransition = { pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true, fastReturn = fastReturn) },
+        // Predictive Back has separate defaults since Navigation 2.10.
+        predictivePopEnterTransition = { _ -> pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true, fastReturn = fastReturn) },
+        predictivePopExitTransition = { _ -> pagePredictiveExitTransition(initialState.destination.route, targetState.destination.route, fastReturn = fastReturn) }
     ) {
         AppNav.SettingsPages.all.forEach { destination ->
             composable(destination) { shownEntry ->
@@ -1010,7 +1012,7 @@ private fun BackupSettings(vm: MainViewModel) {
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) vm.prepareBackupImport(uris)
     }
-    OutlinedButton(shape = smoothPill(), onClick = {
+    AppOutlinedButton(shape = smoothPill(), onClick = {
         importLauncher.launch(arrayOf("application/json", "application/zip", "application/octet-stream", "*/*"))
     }, enabled = idle && vm.preparedExport == null, modifier = Modifier.fillMaxWidth()) { Text(s["data.import"]) }
     Spacer(Modifier.height(4.dp))
@@ -1243,7 +1245,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         } }) { Text(s["data.backupCancel"]) }
     }
     Spacer(Modifier.height(8.dp))
-    OutlinedButton(shape = smoothPill(), onClick = { folderLauncher.launch(null) },
+    AppOutlinedButton(shape = smoothPill(), onClick = { folderLauncher.launch(null) },
         enabled = !requesting && !vm.dataBusy && vm.preparedBackup == null && vm.preparedExport == null,
         modifier = Modifier.fillMaxWidth().height(44.dp)) {
         Text(if (autoFolder == null) s["data.autoBackup.pick"] else s["data.autoBackup.change"])
@@ -1329,7 +1331,7 @@ private fun CrashLogSettings(vm: MainViewModel) {
 
     Spacer(Modifier.height(12.dp))
 
-    OutlinedButton(
+    AppOutlinedButton(
         shape = smoothPill(),
         enabled = crashCount > 0,
         onClick = { showCrashClearConfirm = true },
