@@ -44,6 +44,13 @@ AGP **8.13.0**, Gradle wrapper **8.14**, JDK **21**; compileSdk / targetSdk **37
 
 ## Version history
 
+### v0.6.8.7
+
+- 📷 Pinch to zoom in the camera and see the current zoom ratio.
+- 🧠 Request a Thinking live update during answers, with the app icon and blue accent.
+- 🔔 Clear download-complete alerts when opened or Install is tapped; show the completion capsule for two minutes, then retain a regular notification.
+- 📌 `versionCode` **88**.
+
 ### v0.6.8.6
 
 - 🎨 Refine the layout of App update and Solution history pages.

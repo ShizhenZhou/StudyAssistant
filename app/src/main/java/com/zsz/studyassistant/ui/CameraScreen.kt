@@ -3,6 +3,9 @@ package com.zsz.studyassistant.ui
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,13 +18,13 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCase
+import androidx.camera.core.ZoomState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -63,7 +66,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.FrameLuma
@@ -111,6 +114,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
         var camera by remember { mutableStateOf<Camera?>(null) }
+        var zoomRatio by remember { mutableStateOf<Float?>(null) }
         var cameraFailed by remember { mutableStateOf(false) }
         var captureInFlight by remember { mutableStateOf(false) }
         val screenActive = remember { java.util.concurrent.atomic.AtomicBoolean(true) }
@@ -125,6 +129,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         DisposableEffect(Unit) {
             onDispose {
                 screenActive.set(false)
+                camera = null
                 boundProvider?.let { provider -> runCatching { provider.unbind(*cameraUseCases.toTypedArray()) } }
                 autoEvJob?.cancel()
                 analysisExecutor.shutdown()
@@ -132,8 +137,8 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         }
 
         LaunchedEffect(lifecycleOwner, hasPermission) {
-            if (!hasPermission) return@LaunchedEffect
             camera = null
+            if (!hasPermission) return@LaunchedEffect
             cameraFailed = false
             try {
                 val provider = awaitCameraProvider(context)
@@ -166,6 +171,92 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         // 点击对焦：tap 位置显示对焦框并触发 AF
         var focusPoint by remember { mutableStateOf<Offset?>(null) }
         var focusDone by remember { mutableStateOf(false) }
+
+        DisposableEffect(camera, lifecycleOwner, previewView) {
+            val boundCamera = camera
+            zoomRatio = null
+            if (boundCamera == null) {
+                onDispose { }
+            } else {
+                val zoomState = boundCamera.cameraInfo.zoomState
+                val observer = Observer<ZoomState> { state ->
+                    if (screenActive.get() && camera === boundCamera) {
+                        zoomRatio = state?.zoomRatio?.takeIf { it.isFinite() && it > 0f }
+                    }
+                }
+                zoomState.observe(lifecycleOwner, observer)
+                var multiTouch = false
+                var requestedZoomRatio: Float? = null
+                val scaleDetector = ScaleGestureDetector(context,
+                    object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                            requestedZoomRatio = zoomState.value?.zoomRatio
+                            return screenActive.get() && camera === boundCamera
+                        }
+
+                        override fun onScale(detector: ScaleGestureDetector): Boolean {
+                            if (!screenActive.get() || camera !== boundCamera) return false
+                            val state = zoomState.value ?: return false
+                            val next = nextCameraZoomRatio(
+                                requestedZoomRatio ?: state.zoomRatio,
+                                detector.scaleFactor, state.minZoomRatio, state.maxZoomRatio
+                            ) ?: return false
+                            // Accumulate requests locally: observed hardware state can lag fast gestures.
+                            if (next != requestedZoomRatio &&
+                                runCatching { boundCamera.cameraControl.setZoomRatio(next) }.isSuccess
+                            ) {
+                                requestedZoomRatio = next
+                            }
+                            // CameraX supersedes older requests asynchronously; never wait on the UI thread.
+                            return true
+                        }
+
+                        override fun onScaleEnd(detector: ScaleGestureDetector) {
+                            requestedZoomRatio = null
+                        }
+                    }).apply {
+                    // Zoom requires two fingers; preserve single-finger tap/drag behavior.
+                    isQuickScaleEnabled = false
+                    isStylusScaleEnabled = false
+                }
+                val tapDetector = GestureDetector(context,
+                    object : GestureDetector.SimpleOnGestureListener() {
+                        override fun onDown(event: MotionEvent): Boolean = true
+
+                        override fun onSingleTapUp(event: MotionEvent): Boolean {
+                            if (multiTouch || !screenActive.get() || camera !== boundCamera) return false
+                            val offset = Offset(event.x, event.y)
+                            val pt = previewView.meteringPointFactory.createPoint(offset.x, offset.y)
+                            // 单击继续按点击区域对焦、测光、白平衡，再根据预览亮度微调曝光。
+                            runCatching {
+                                boundCamera.cameraControl.startFocusAndMetering(
+                                    FocusMeteringAction.Builder(
+                                        pt,
+                                        FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE or FocusMeteringAction.FLAG_AWB
+                                    ).build()
+                                )
+                            }
+                            focusPoint = offset
+                            focusDone = false
+                            autoEvJob?.cancel()
+                            autoEvJob = scope.launch { autoTuneExposure(boundCamera, latestLuma) }
+                            return true
+                        }
+                    }).apply { setIsLongpressEnabled(false) }
+                previewView.setOnTouchListener { _, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) multiTouch = false
+                    if (event.pointerCount > 1) multiTouch = true
+                    scaleDetector.onTouchEvent(event)
+                    tapDetector.onTouchEvent(event)
+                    // A two-finger sequence stays ineligible for focus even after one finger lifts.
+                    true
+                }
+                onDispose {
+                    previewView.setOnTouchListener(null)
+                    zoomState.removeObserver(observer)
+                }
+            }
+        }
 
         // 单张 / 两张拍摄模式（两张：拍两张作为同一道题一起解答）
         // 记住上次的选择：下次进本页直接沿用（存 settings SharedPreferences）
@@ -218,32 +309,20 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
 
         if (hasPermission) AndroidView(
             { previewView },
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        val cam = camera ?: return@detectTapGestures
-                        val pt = previewView.meteringPointFactory.createPoint(offset.x, offset.y)
-                        // ★ 单击 = 对焦 + **曝光**（用户 2026-10-11 要求）。
-                        //   显式带上 AE（测光/曝光）与 AWB（白平衡），测光区域就是点击点 ——
-                        //   拍电脑屏幕时点一下亮屏区域，相机就按那里测光，不容易把白底拍成一片死白。
-                        //   （默认 Builder(point) 虽然也含 3A，但显式写出来更明确，也不受 CameraX 版本默认值影响）
-                        runCatching {
-                            cam.cameraControl.startFocusAndMetering(
-                                FocusMeteringAction.Builder(
-                                    pt,
-                                    FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE or FocusMeteringAction.FLAG_AWB
-                                ).build()
-                            )
-                        }
-                        focusPoint = offset
-                        focusDone = false
-                        // ★ 再按预览帧的实际亮度微调**曝光补偿**（过曝往下压、太暗往上抬），约 1.2 秒收敛
-                        autoEvJob?.cancel()
-                        autoEvJob = scope.launch { autoTuneExposure(cam, latestLuma) }
-                    }
-                }
+            modifier = Modifier.fillMaxSize()
         )
+
+        zoomRatio?.let { ratio ->
+            Text(
+                text = String.format(java.util.Locale.ROOT, "%.1f×", ratio),
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .navigationBarsPadding().padding(bottom = 112.dp)
+                    .background(Color.Black.copy(alpha = .65f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
 
         LaunchedEffect(focusPoint) {
             if (focusPoint != null) {

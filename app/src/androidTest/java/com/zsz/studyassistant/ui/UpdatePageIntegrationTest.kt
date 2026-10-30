@@ -103,7 +103,22 @@ class UpdatePageIntegrationTest {
                 backend.current = backend.current!!.copy(status = com.zsz.studyassistant.data.UpdateDownloads.TransferPhase.SUCCESS, bytes = 7)
                 waitFor(s["update.verified"])
                 assertEquals(1, backend.enqueues)
-                assertNotNull(store.forInstall()!!.file)
+                val ready = store.forInstall()!!
+                assertNotNull(ready.file)
+                assertFalse("Opening/restoring the page must not acknowledge completion",
+                    com.zsz.studyassistant.data.UpdateDownloadNotifications.isAcknowledged(context, ready.token))
+                // Reject at install-time verification: the click still dismisses its completion notice.
+                ready.file!!.writeText("tampered fixture")
+                clickable(instrumentation.uiAutomation.rootInActiveWindow, s["update.install"], visibleOnly = false)!!
+                    .performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                kotlinx.coroutines.withTimeout(5000) {
+                    while (!com.zsz.studyassistant.data.UpdateDownloadNotifications.isAcknowledged(context, ready.token))
+                        kotlinx.coroutines.delay(50)
+                }
+                kotlinx.coroutines.withTimeout(5000) {
+                    while (store.snapshot()?.phase != com.zsz.studyassistant.data.UpdateDownloads.Phase.FAILED)
+                        kotlinx.coroutines.delay(50)
+                }
             }
         } finally { releaseQuery.countDown(); backend.queryRelease=null; store.cancel() }
     }

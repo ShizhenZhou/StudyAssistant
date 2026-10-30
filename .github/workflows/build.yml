@@ -25,8 +25,18 @@ on:
         description: Previous published release commit; empty means full device coverage
         type: string
         default: ''
+      test_before_main:
+        description: Test Develop first, then wait for explicit verified main promotion in this run
+        type: boolean
+        default: false
+      promotion_base_sha:
+        description: Exact main SHA before staged tests (required with test_before_main)
+        type: string
+        default: ''
 permissions:
   contents: read
+  statuses: read
+  actions: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode == 'release' && 'release' || 'check' }}
   cancel-in-progress: ${{ inputs.mode != 'release' }}
@@ -51,6 +61,9 @@ jobs:
       MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'check' }}
       EXPECTED_SHA: ${{ inputs.expected_sha }}
       BASE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || inputs.base_sha }}
+      TEST_BEFORE_MAIN: ${{ inputs.test_before_main }}
+      PROMOTION_BASE_SHA: ${{ inputs.promotion_base_sha }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,7 +73,10 @@ jobs:
           if [[ -n "$EXPECTED_SHA" && "$EXPECTED_SHA" != "$GITHUB_SHA" ]]; then
             echo "::error::Source moved after dispatch"; exit 1
           fi
-          if [[ "$MODE" == release && "$GITHUB_REF" != refs/heads/main ]]; then
+          if [[ "$TEST_BEFORE_MAIN" == true && ( "$MODE" != release || "$GITHUB_REF" != refs/heads/Develop || -z "$EXPECTED_SHA" || -z "$PROMOTION_BASE_SHA" ) ]]; then
+            echo "::error::Staged release requires exact Develop/main identities"; exit 1
+          fi
+          if [[ "$MODE" == release && "$TEST_BEFORE_MAIN" != true && "$GITHUB_REF" != refs/heads/main ]]; then
             echo "::error::Release candidates must use main"; exit 1
           fi
           test ! -e secrets.properties
@@ -89,7 +105,7 @@ jobs:
           elif [[ "${{ steps.plan.outputs.compile_android_tests }}" == true ]]; then
             tasks+=(compileIntegrationAndroidTestKotlin)
           fi
-          if [[ "$MODE" == release ]]; then tasks+=(assembleRelease); fi
+          if [[ "$MODE" == release && "$TEST_BEFORE_MAIN" != true ]]; then tasks+=(assembleRelease); fi
           ./gradlew "${tasks[@]}" --console=plain
       - name: Record isolated APK identity
         if: steps.plan.outputs.devices == 'true'
@@ -97,10 +113,10 @@ jobs:
       - name: SQLite migration verification
         run: python3 -B tools/verify-identity-migration.py
       - name: Prepare unsigned candidate and public manifest
-        if: env.MODE == 'release'
+        if: env.MODE == 'release' && env.TEST_BEFORE_MAIN != 'true'
         run: python3 -B tools/ci-release.py
       - name: Upload candidate allowlist
-        if: env.MODE == 'release'
+        if: env.MODE == 'release' && env.TEST_BEFORE_MAIN != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: release-candidate
@@ -131,6 +147,7 @@ jobs:
           path: |
             app/build/verification/plan.json
             app/build/verification/build.json
+            app/build/verification/staged.json
           if-no-files-found: error
           retention-days: 30
       - name: Preserve small JVM reports
@@ -209,10 +226,10 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
           retention-days: 7
-  verification:
-    name: Verification gate
+  pre-main-verification:
+    name: Pre-main verification gate
     needs: [build, windows-tools, android-device]
-    if: always()
+    if: always() && inputs.test_before_main == true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -232,7 +249,108 @@ jobs:
       - name: Verify all required results
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
-        run: python3 -B tools/ci-verification.py collect
+        run: python3 -B tools/ci-verification.py pre-main
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pre-main-evidence
+          path: app/build/verification/verification.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+  candidate:
+    name: Staged release candidate
+    needs: pre-main-verification
+    if: inputs.test_before_main == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      TEST_BEFORE_MAIN: 'true'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: pre-main-evidence
+          path: app/build/verification/pre-main
+      - name: Wait for verified explicit main promotion (30 minute bound)
+        run: python3 -B tools/ci-verification.py await-promotion
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build the one unsigned candidate after tests and main promotion
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --console=plain
+          python3 -B tools/ci-release.py
+      - name: Upload candidate allowlist
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          overwrite: true
+          path: |
+            app/build/release-candidate/*-candidate.apk
+            app/build/release-candidate/release-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verification-promotion
+          overwrite: true
+          path: app/build/verification/promotion.json
+          if-no-files-found: error
+          retention-days: 30
+  verification:
+    name: Verification gate
+    needs: [build, windows-tools, android-device, pre-main-verification, candidate]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        if: inputs.test_before_main != true
+        with:
+          name: verification-build
+          path: app/build/verification
+      - uses: actions/download-artifact@v4
+        if: inputs.test_before_main != true && needs.build.outputs.devices == 'true'
+        with:
+          pattern: verification-device-*
+          merge-multiple: true
+          path: app/build/verification/devices
+      - uses: actions/download-artifact@v4
+        if: inputs.test_before_main == true
+        with:
+          name: pre-main-evidence
+          path: app/build/verification/pre-main
+      - uses: actions/download-artifact@v4
+        if: inputs.test_before_main == true
+        with:
+          name: release-candidate
+          path: app/build/release-candidate
+      - uses: actions/download-artifact@v4
+        if: inputs.test_before_main == true
+        with:
+          name: verification-promotion
+          path: app/build/verification
+      - name: Verify all required results and candidate provenance
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          TEST_BEFORE_MAIN: ${{ inputs.test_before_main }}
+        run: |
+          if [[ "$TEST_BEFORE_MAIN" == true ]]; then
+            python3 -B tools/ci-verification.py collect-staged
+          else
+            python3 -B tools/ci-verification.py collect
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: verification-evidence

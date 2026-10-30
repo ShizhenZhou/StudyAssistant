@@ -40,6 +40,10 @@ class UpdateDownloadMonitor : Service() {
     private var completionUntil = 0L
     private var publishedKey: UpdateDownloadNotifications.PresentationKey? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+    }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val lease = latestRequest
@@ -74,6 +78,9 @@ class UpdateDownloadMonitor : Service() {
                 val visibleTask = if (task.errorKey == "update.downloadUnavailable" && task.progress < 0 && lastTask?.token == task.token)
                     task.copy(progress = lastTask!!.progress) else task
                 lastTask = visibleTask
+                if (task.phase == UpdateDownloads.Phase.READY && UpdateDownloadNotifications.isAcknowledged(this@UpdateDownloadMonitor, task.token)) {
+                    finish(null); break
+                }
                 if (task.phase == UpdateDownloads.Phase.READY && completionToken != task.token) {
                     completionToken = task.token
                     completionUntil = SystemClock.elapsedRealtime() + COMPLETION_CHIP_MS
@@ -108,6 +115,14 @@ class UpdateDownloadMonitor : Service() {
             }
         } finally { stopSelf() }
     }
+    private fun dismissAcknowledgedCompletion(token: String) {
+        // Main-thread delivery and the request lease prevent an old click stopping a new transfer.
+        val current = latestRequest
+        if (current != null && (!current.bindingComplete || current.token != token)) return
+        if (lastTask?.token != token || lastTask?.phase != UpdateDownloads.Phase.READY) return
+        observer?.cancel()
+        finish(null)
+    }
     private fun pauseMonitoring() {
         observer?.cancel()
         finish(runCatching { lastTask?.let { UpdateDownloadNotifications.build(this, it, "update.notif.monitorPaused") } }.getOrNull())
@@ -116,11 +131,18 @@ class UpdateDownloadMonitor : Service() {
     override fun onTimeout(startId: Int, fgsType: Int) { pauseMonitoring() }
     override fun onDestroy() {
         running = false
+        if (instance === this) instance = null
         scope.cancel()
         super.onDestroy()
     }
     companion object {
-        internal const val COMPLETION_CHIP_MS = 150_000L
+        internal const val COMPLETION_CHIP_MS = 120_000L
+        @Volatile private var instance: UpdateDownloadMonitor? = null
+        internal fun dismissAcknowledgedCompletion(token: String) {
+            val dismiss = Runnable { instance?.dismissAcknowledgedCompletion(token) }
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) dismiss.run()
+            else android.os.Handler(android.os.Looper.getMainLooper()).post(dismiss)
+        }
         // Shared by progress monitoring and notification actions, including isolated test backends.
         internal var downloadsFactory: (Context) -> UpdateDownloads = { UpdateDownloads(it) }
         @Volatile private var latestRequest: Request? = null

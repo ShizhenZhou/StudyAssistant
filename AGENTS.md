@@ -4,11 +4,11 @@
 
 ## 当前流程
 
-1. 检查分支和工作区，读取相关代码并说明发现；直接修改代码，不要求用户手工套补丁。
+1. 检查分支和工作区，读取相关代码并说明发现；直接修改代码，不要求用户手工套补丁。Git 提交必须使用 Conventional Commits 类型前缀（feat: / fix: / ci: / build: / docs: / test: / refactor: / chore: 等），标题说明具体改动；合并提交也遵守。
 2. 查看精确差异；本地默认只做静态检查与验证范围规划，测试由一次在线CI负责，不本地跑完再在线重跑。同一变更不先check/device CI再release CI；仅排查具体失败或用户要求时，本地定向复现，不机械全套。
 3. 用中文说明结果、验证和限制。测试与手机实测分开；未实测的效果不声称已确认。
-4. 日常在 Develop 或适当的 codex/ 分支开发。用户指定正式版本（非 Beta）后即持续授权发版：本地基础检查复用有效步骤后先合并 main，再运行一次 mode=release CI（全量JVM/工具/SQLite、按共用策略确定的设备测试、一次未签名候选 APK 与公开校验清单）。设备平台由实际minSdk统一声明：旧min28为API35/36，当前min36以API36为常规门禁，API37仅在具体兼容变化或专项要求时补测，首次迁移及未知影响回退声明平台全套；门禁必须核对计划及源码/构件/逐项证据，不得仅删除作业或降低测试数量放行。CI 成功后仅在本地使用原证书与 lineage 签名，核对代码资源与候选包一致，再建立新标签、发布与下载校验归档。main 推送和 tag 不重复构建，无需逐次再确认。Beta 按当次用户安排处理；普通未指定版本的开发任务不自动发版。已有标签不移动、不强推。
-5. 本地默认 tools/check-project.ps1 的 Basic 模式，仅静态检查，不自动执行JVM/工具/设备测试或编译；-TestClass与Full仅供明确诊断。本地推荐范围不代表已执行，CI是默认唯一测试执行方。通用发版入口 tools/release.ps1（start/status/verify/publish/replace），常规路径 start→status→publish，独立verify仅按需诊断，不先例行verify再publish；状态仅存 .local-notes/release-state/。使用标准 Git/Gradle；CI 与 Git/API 分工见 docs/development.md。网络失败先查远端结果，必要时仅重试一次进程级 HTTP/1.1；只对远端已有对象使用非强制 refs 更新，不重复盲重试。已退役脚本与组件仅在被忽略的 .local-notes/retired-files/ 本地归档，不再作为开发入口。
+4. 日常在 Develop 或适当的 codex/ 分支开发。用户指定正式版本（非 Beta）后即持续授权发版：本地基础检查复用有效步骤后先合并 main，再运行一次 mode=release CI（全量JVM/工具/SQLite、按共用策略确定的设备测试、一次未签名候选 APK 与公开校验清单）。设备平台由实际minSdk统一声明：旧min28为API35/36，当前min36以API36为常规门禁，API37仅在具体兼容变化或专项要求时补测，首次迁移及未知影响回退声明平台全套；门禁必须核对计划及源码/构件/逐项证据，不得仅删除作业或降低测试数量放行。CI 成功后仅在本地使用原证书与 lineage 签名，核对代码资源与候选包一致，再建立新标签、发布与下载校验归档。main 推送和 tag 不重复构建，无需逐次再确认。用户要求先测试后合并时，使用 start --test-before-main：精确 Develop 源提交在同一次 release CI 内先完成测试及预门禁，promote --run 校验证据后快进 main；同 workflow 的候选作业验证晋级记录后再构建，最终门禁继续绑定全部测试和候选。不要额外派发一轮 check CI。Beta 按当次用户安排处理；普通未指定版本的开发任务不自动发版。已有标签不移动、不强推。
+5. 本地默认 tools/check-project.ps1 的 Basic 模式，仅静态检查，不自动执行JVM/工具/设备测试或编译；-TestClass与Full仅供明确诊断。本地推荐范围不代表已执行，CI是默认唯一测试执行方。通用发版入口 tools/release.ps1（start/status/promote/verify/publish/replace），常规路径 start→status→publish，独立verify仅按需诊断，不先例行verify再publish；状态仅存 .local-notes/release-state/。使用标准 Git/Gradle；CI 与 Git/API 分工见 docs/development.md。网络失败先查远端结果，必要时仅重试一次进程级 HTTP/1.1；只对远端已有对象使用非强制 refs 更新，不重复盲重试。已退役脚本与组件仅在被忽略的 .local-notes/retired-files/ 本地归档，不再作为开发入口。
 6. 只读/交接不启动测试。验证前可用 -Plan 查看范围；本地证据存 .local-notes/verification/，按任务有效输入/环境/日志/输出摘要复用，README/JVM/设备测试输入不使无关编译或APK失效；仍审计全源码漂移，失败/中断阻断旧成功。androidTest/integration变化交CI编译设备测试；普通check只编译不运行模拟器。设备入口明确 emulator 序列号和相关类/方法，本地全套须显式-All，空选择拒绝执行；CI环境故障仅处理失败任务，不从头重建已成功候选。发布基线须绑定精确已发布APK与成功CI来源；旧替换状态仅作可复核线索，证据缺失回退不可变tag或全套。当前不跨workflow拼接测试结果、不上传本机证据；有远端ID/大小/SHA绑定的真实下载字节可本地缓存，但每阶段仍查询远端状态/身份并重验，最后公开附件必须真实下载；签名/发布/归档不触发应用测试。流程变化只补在线工具回归；文案/样式/纯计算优先编译或JVM，不为每项新增补模拟器用例。系统权限、后台、存储、导航等边界变化才选择设备；策略以新版计划和逐项证据核验，历史策略保持兼容。
 
 ## 必须保持的行为

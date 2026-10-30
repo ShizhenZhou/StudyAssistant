@@ -13,6 +13,8 @@
 
 常规发版路径为 `start → status → publish`。独立 `verify` 供只验签名或故障诊断时使用；`publish` 本身会执行同样的源码、门禁与签名检查。未变化的检查复用有摘要的证据，不复用单个“成功”标志。流程或工具改动只验证工具及必要配置，不增加应用设备测试。
 
+用户要求先测试再合并 main 时，使用 `start --version VERSION --test-before-main → status → promote --run RUN_ID → status → publish --run RUN_ID`。先在 Develop 提交精确源码（例如 `feat: ... [skip ci]`），同一个 release workflow 完整运行 Windows/Linux 工具、JVM、SQLite 和计划要求的设备测试；`Pre-main verification gate` 成功后候选任务最多等待30分钟。协调器 `promote` 重新核对远端任务、逐项证据及本地精确源码/计划，才将 main 快进到该已测试 SHA，并写入绑定 run/attempt/gate 的公开 commit status。工作流只有读取权限，确认 main 和该晋级状态后才执行一次 R8 候选构建；最终 `Verification gate` 绑定同一轮测试、原始测试 APK、晋级时间和候选摘要。等待期间可使用本轮 CI 生成的隔离 APK 做用户要求的本地专项检查，不上传本机证据。超时后只恢复失败候选任务，不另派发一轮测试；已有失败或变化仍阻断。此选项与全量验证选项独立，恢复时必须保持原模式。
+
 ## 本地检查
 
 - 默认 tools/check-project.ps1 的 Basic仅检查当前差异、Git索引中的凭据和私有数据，并记录建议范围（通过-Plan查看）；不自动调用Gradle、工具回归或模拟器。测试数据仍必须是人工夹具，不读取手机、真实备份或真实Key。
@@ -30,7 +32,7 @@
 - 手动 mode=device/release：共用 `tools/verification.py` policy4，唯一平台声明由实际Gradle minSdk生成。旧min28保留API35/36；当前min36以API36为常规门禁，首次最低版本迁移运行API36全套；API37在具体兼容变化或专项要求时补测，未来min37则要求API37。无基线、未知或共享运行时/构建输入变化回退声明平台全套；通知专项覆盖声明平台，拍题专项取声明中的最高API，经审查独立测试类覆盖声明平台。通知组显式包含下载仓库、通知服务、独立更新页的恢复/已安装旧记录/未来旧记录，以及UiSmoke通知入口；共享FakeTransfers变化覆盖所有消费者。文档、纯JVM测试及流程/runner/策略变化由工具或JVM验证，不自动触发设备；受审查的文案、主题、形状、框选坐标计算及纯解析/日期模块也交JVM，源码不得引入Android平台API。权限、后台、存储、导航等真实Android边界、未知运行路径、SDK迁移或无法核验基线仍选择相关设备或回退全套。
 - 平台声明区分运行API37与SDK镜像标识37.0，CI明确要求 `system-images;android-37.0;google_apis;x86_64`（API35/36沿用整数标识），分配4096MiB内存；按声明安装准确镜像，缺失失败，不降级。SDK系统镜像按OS/API/target/ABI缓存，不缓存AVD用户数据或测试证据；移除额外的sdkmanager --list，固定build-tools 36在启动前安装，emulator runner锁定经审计的SHA，避免浮动tag变化。设备安装前从两个实际APK读取minSdk并拒绝低于要求的模拟器。门禁验证平台/ABI、源码、run/attempt、候选与测试APK、逐项测试及计划重算；policy1历史证据仍按35/36解释，policy2的min36证据仍按36/37解释，policy3仍按其原范围重算，未知policy拒绝。
 - 正式 mode=release 仍执行一次全量JVM、SQLite及工具检查，加一次R8候选编译和计划要求的设备测试。`base_sha` 由release.start解析上一已发布构件来源：精确Release APK/兼容清单摘要和大小、签名包payload/构建时间与CI候选、成功main发布CI及其验证证据必须同时匹配。旧同版本替换可从匹配releaseId/版本/签名APK摘要的本机已归档状态找source/run，但仍重新验证全部公开构件和CI证据，不相信说明正文或target_commitish。证据过期或缺失保守回退不可变tag（覆盖较大差异）；tag不是祖先则留空走全套。纯版本字段变化可排除出设备风险，其他构建脚本变化不排除。CI不读取本机凭据或签名Secrets。
-- main push / tag不重复触发CI。正式候选只允许main，可提供expected_sha防止触发时源码漂移。发布准备提交使用[skip ci]避免Develop重复检查。
+- main push / tag不重复触发CI。普通正式候选只允许main；显式 `test_before_main` 只允许精确 Develop 源码，候选必须等待同轮完整预门禁及可重新核验的 main 晋级证据。`expected_sha` 防止触发时源码漂移，发布准备提交使用[skip ci]避免Develop重复检查。
 - 候选包附件仍仅允许*-candidate.apk与release-manifest.json；schema2 增加计划摘要。设备完成后单独生成 `verification-evidence`，绑定run/attempt、源码、计划、候选及两个测试APK摘要、API和逐项测试结果；候选生成时不能提前声明设备通过。不含本机路径或凭据。
 - 集成测试APK按计划需要生成一次，多个模拟器下载复用，附带源码与构件记录。设备测试依据普通JUnit4测试源码清单核对框架发现和实际执行身份，不能通过降低预期数量放行。
 - JVM小型XML报告与人工数据设备日志保留7天；设备日志名包含run_attempt，重跑不覆盖上一次失败日志；超时也保存部分输出、失败阶段及简短诊断，仍阻断门禁。候选、测试APK及验证证据保留30天，过期缺失时明确阻止续跑。缓存来自CI自己生成的Gradle数据；绝不上传本机缓存或整个工作区。
@@ -45,8 +47,9 @@
 使用tools/release.ps1；它只设置当前进程JDK/SDK/项目内缓存。命令由协作开发者在用户授权的版本范围内执行：
 
 - start --version VERSION：要求版本已准备、工作区干净、发布提交含[skip ci]；本地基础入口自动复用有效步骤，不能再手工先跑一遍整套；快进main与Develop，派发一次main release CI。存在标签时拒绝自动替换。
+- start --version VERSION --test-before-main：只推送精确 Develop 源码，记录测试前 main SHA，派发一次分阶段 release CI；测试完成前不更新 main、不生成正式候选。`promote --run RUN_ID` 核验同轮预门禁后快进 main，并创建公开晋级状态；重复执行先查远端结果，不重复写入相同状态。可选的本地手机专项由开发者在晋级前按用户要求完成，与 CI 门禁分别记录。
 - status --version VERSION：只查询已记录的CI。请求超时也先查询匹配提交的run，不重复派发。
-- verify --run RUN_ID：只接受成功的main release CI。schema2 必须通过 Verification gate，重新计算源码计划、核对基线与逐项证据；schema1 历史记录仍要求API35/36全套。下载候选白名单，校验源码/摘要，在本地使用原私钥和lineage签名，再验证证书及代码资源逐项摘要未变。重复调用复用已签名文件，不重编译、不重签。
+- verify --run RUN_ID：接受成功的main release CI；Develop 来源只接受带完整分阶段证据的成功 release CI，且必须重新查询精确 gate 与公开晋级状态，main 仍须等于候选源码。后续发布基线也执行相同晋级证据核验，不泛化放宽分支约束。schema2 必须通过 Verification gate，重新计算源码计划、核对基线与逐项证据；schema1 历史记录仍要求main及API35/36全套。下载候选白名单，校验源码/摘要，在本地使用原私钥和lineage签名，再验证证书及代码资源逐项摘要未变。重复调用复用已签名文件，不重编译、不重签。
 - publish --run RUN_ID：从本机版本说明只取“更新内容”，再次扫描该节凭据；建立新标签、草稿，自 v0.6.7.9 起仅允许最终 APK 与 `update-manifest.json` 两个附件。清单 schema=1，包含不带 v 的 version、versionCode、minSdk、apkName、apkSha256、apkSize；版本和最低系统版本从最终签名 APK 提取并逐字段匹配 CI 清单，SHA-256 与大小绑定最终签名文件，不解析更新说明。后续schema2候选的发布清单还附加可向后兼容的 `provenance.sourceCommit/runId`，客户端仍按schema1兼容字段读取；旧清单/历史归档不改写。两附件分别核对服务端摘要/大小后发布，再分别下载核对并归档（清单归档名带 APK 版本/构建时间）。恢复时只上传缺失附件，错误已有附件拒绝覆盖；旧版本保留原单 APK 布局，不补写历史 Release。普通 publish 对已有版本/异源标签拒绝覆盖。 后续提高最低系统版本只修改 Gradle 的 minSdk（Android 16 为 36），不手工填写更新清单；CI 候选清单和本地发布清单均从 APK 读取。客户端从 v0.6.7.9 开始要求新版兼容清单，缺失或不匹配时禁止下载；仅已发布的 v0.6.7.8 及以前允许沿用 API 28 的旧约定。
 
 同版本替换先用显式 `tools/release.ps1 start --version <版本> --replace` 准备并调度同一套完整门禁；已有成功候选也可直接验证。发布替换只允许显式 `tools/release.ps1 replace --run <成功release CI run>`（可选 `--notes <本地说明>`），普通 `start`/`publish` 不自动转换为替换。替换源码必须继承原不可变标签；先验证原已发布 APK 与成功 CI 来源，原标签不移动、不重新建立。新 APK 上传并下载核对后，才切换固定名 `update-manifest.json`；新清单下载核对后才删除旧 APK。两附件上传、清单删除/上传间隙、旧包清理、正文更新或归档中断，均查询现状后用同一 `replace --run` 续跑；已有未知附件、摘要冲突或无所有权记录的缺失会阻断。固定清单切换存在短暂缺失窗口，客户端按既有规则停止下载，不退回猜测兼容性。

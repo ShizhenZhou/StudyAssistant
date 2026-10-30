@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import xml.etree.ElementTree as ET
 from release_common import apk_identity, apk_payload, sha256, validate_manifest
-from verification import digest
+from verification import digest, validate_pre_main_evidence, validate_promotion
 
 ROOT = Path(__file__).resolve().parents[1]
 def main():
@@ -20,11 +20,19 @@ def main():
     if check.returncode == 0:
         raise RuntimeError("CI release candidate must not carry an official signature")
     payload, stamp = apk_payload(source)
-    totals = {k: 0 for k in ("tests", "failures", "errors", "skipped")}
-    for file in (ROOT / "app/build/test-results/testDebugUnitTest").glob("TEST-*.xml"):
-        node = ET.parse(file).getroot()
-        for key in totals: totals[key] += int(node.get(key, 0))
-    if totals["tests"] < 1 or totals["failures"] or totals["errors"]:
+    if os.environ.get("TEST_BEFORE_MAIN") == "true":
+        folder = ROOT / "app/build/verification"
+        report = json.loads((folder / "pre-main/verification.json").read_text(encoding="utf-8"))
+        run_id, attempt = int(os.environ["GITHUB_RUN_ID"]), int(os.environ["GITHUB_RUN_ATTEMPT"])
+        validate_pre_main_evidence(report, run_id, attempt, os.environ["GITHUB_SHA"])
+        validate_promotion(json.loads((folder / "promotion.json").read_text(encoding="utf-8")), report, run_id, attempt, os.environ["GITHUB_SHA"])
+        totals = report["build"]["jvm"]
+    else:
+        totals = {k: 0 for k in ("tests", "failures", "errors", "skipped")}
+        for file in (ROOT / "app/build/test-results/testDebugUnitTest").glob("TEST-*.xml"):
+            node = ET.parse(file).getroot()
+            for key in totals: totals[key] += int(node.get(key, 0))
+    if totals["tests"] < 1 or any(totals[key] for key in ("failures", "errors", "skipped")):
         raise RuntimeError("No successful full JVM report")
     code = (ROOT / "app/src/main/java/com/zsz/studyassistant/data/UpdateChecker.kt").read_text(encoding="utf-8")
     cert = re.search(r'EXPECTED_CERT_SHA256 = "([0-9a-f]{64})"', code)[1]

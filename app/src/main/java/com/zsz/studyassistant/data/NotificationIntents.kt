@@ -22,6 +22,26 @@ internal object NotificationIntents {
         }, FLAGS
     )
 
+    const val UPDATE_COMPLETION_TOKEN_EXTRA = "update_completion_token"
+
+    fun update(context: Context, taskToken: String?, completed: Boolean): PendingIntent = PendingIntent.getActivity(
+        context, 2003,
+        Intent(context, MainActivity::class.java).apply {
+            action = "${context.packageName}.notification.UPDATE"
+            // Extras alone do not distinguish PendingIntents; old completed notices retain their token.
+            data = android.net.Uri.parse("studyassistant-update:${if (completed) "complete" else "progress"}/${taskToken.orEmpty()}")
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(AppNav.OPEN_UPDATE_EXTRA, true)
+            if (completed) putExtra(UPDATE_COMPLETION_TOKEN_EXTRA, taskToken)
+        }, FLAGS
+    )
+
+    fun consumeUpdateCompletion(context: Context, intent: Intent?) {
+        val token = intent?.getStringExtra(UPDATE_COMPLETION_TOKEN_EXTRA) ?: return
+        intent.removeExtra(UPDATE_COMPLETION_TOKEN_EXTRA)
+        UpdateDownloadNotifications.acknowledgeCompletion(context, token)
+    }
+
     fun reviewReminder(context: Context): PendingIntent = PendingIntent.getActivity(
         context, REVIEW_REQUEST,
         Intent(context, MainActivity::class.java).apply {

@@ -25,19 +25,7 @@ class AnswerForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (synchronized(owners) { owners.isEmpty() }) { stopSelf(startId); return START_NOT_STICKY }
-        val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(this))
-        getSystemService(NotificationManager::class.java)?.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, s["notif.answer.channel"], NotificationManager.IMPORTANCE_LOW)
-        )
-        val contentIntent = NotificationIntents.answerRunning(this)
-        val n = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Study Assistant")
-            .setContentText(s["notif.answer.text"])
-            .setContentIntent(contentIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+        val n = buildNotification(this)
         startForeground(NOTI_ID, n)
         return START_NOT_STICKY
     }
@@ -47,6 +35,27 @@ class AnswerForegroundService : Service() {
         private const val NOTI_ID = 2001
 
         private val owners = mutableSetOf<String>()
+
+        internal fun buildNotification(context: Context): android.app.Notification {
+            val strings = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(context))
+            context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, strings["notif.answer.channel"], NotificationManager.IMPORTANCE_LOW)
+            )
+            return NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_answer)
+                .setLargeIcon(android.graphics.BitmapFactory.decodeResource(context.resources, com.zsz.studyassistant.R.mipmap.ic_launcher))
+                .setColor(0xFF2563EB.toInt())
+                // Colorized backgrounds make Android 16 notifications ineligible for promotion.
+                .setContentTitle("Study Assistant")
+                .setContentText(strings["notif.answer.text"])
+                .setContentIntent(NotificationIntents.answerRunning(context))
+                .setOngoing(true)
+                .setRequestPromotedOngoing(true)
+                .setShortCriticalText(strings["notif.answer.thinkingShort"])
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                .build()
+        }
 
         fun start(c: Context, owner: String) {
             synchronized(owners) { owners += owner }

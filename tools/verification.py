@@ -1,5 +1,6 @@
 """Shared, conservative verification policy. No build/device/network side effects on import."""
 import argparse
+from datetime import datetime
 import hashlib
 import json
 import os
@@ -360,6 +361,83 @@ def validate_ci_evidence(report, manifest, run_id, attempt):
     if not isinstance(jvm.get("tests"), int) or jvm["tests"] < 1 or any(jvm.get(k) != 0 for k in ("failures", "errors", "skipped")):
         raise ValueError("Missing or unsuccessful full JVM evidence")
     validate_device_evidence(plan, build.get("apks") or {}, report.get("devices", []), run_id, report["attempt"])
+    if "preMain" in report or "promotion" in report:
+        validate_staged_evidence(report, manifest, run_id, attempt)
+
+
+def promotion_context(run_id, attempt):
+    return f"studyassistant/pre-main/{run_id}/{attempt}"
+
+
+def promotion_description(commit, gate_id):
+    return f"main={commit}; gate={gate_id}"
+
+
+def pre_main_gate(jobs, report):
+    latest = {}
+    for job in jobs:
+        if job["name"] not in latest or job["id"] > latest[job["name"]]["id"]:
+            latest[job["name"]] = job
+    required = {"build", "Windows tool tests", "Pre-main verification gate"}
+    required.update(f"Android emulator tests (API {row['api']})" for row in report["plan"]["devices"])
+    if any(name not in latest or latest[name].get("conclusion") != "success" for name in required):
+        raise ValueError("Pre-main test jobs have not all succeeded")
+    gate = latest["Pre-main verification gate"]
+    if gate.get("run_attempt") != report["attempt"] or not gate.get("completed_at"):
+        raise ValueError("Pre-main gate attempt differs from its evidence")
+    if latest["build"].get("run_attempt") != report["build"]["attempt"]:
+        raise ValueError("Latest build differs from pre-main evidence")
+    if not 1 <= latest["Windows tool tests"].get("run_attempt", 0) <= report["attempt"]:
+        raise ValueError("Tool test attempt differs from pre-main evidence")
+    for row in report["devices"]:
+        if latest[f"Android emulator tests (API {row['api']})"].get("run_attempt") != row["attempt"]:
+            raise ValueError("Latest device job differs from pre-main evidence")
+    return dict(id=gate["id"], attempt=gate["run_attempt"], completedAt=gate["completed_at"])
+
+
+def validate_pre_main_evidence(report, run_id, attempt, commit):
+    """The same full evidence gate, before a candidate exists or main can be moved."""
+    if "preMain" in report or "promotion" in report:
+        raise ValueError("Nested pre-main evidence")
+    manifest = dict(commit=commit, candidateSha256=None, planSha256=digest(report["plan"]))
+    validate_ci_evidence(report, manifest, run_id, attempt)
+    staging = report.get("staged", {})
+    if (staging.get("sourceBranch") != "Develop" or
+        not re.fullmatch(r"[0-9a-f]{40}", staging.get("mainBefore", "")) or
+        staging["mainBefore"] == commit or report["plan"].get("mode") != "release"):
+        raise ValueError("Invalid pre-main source/main identity")
+    if report["build"].get("candidateSha256") is not None:
+        raise ValueError("Candidate was built before pre-main verification")
+    return report
+
+
+def validate_promotion(promotion, pre_main, run_id, attempt, commit):
+    validate_pre_main_evidence(pre_main, run_id, attempt, commit)
+    gate, status = promotion.get("gate", {}), promotion.get("status", {})
+    if (promotion.get("schema") != 1 or promotion.get("commit") != commit or
+        promotion.get("mainSha") != commit or promotion.get("mainBefore") != pre_main["staged"]["mainBefore"] or
+        promotion.get("runId") != run_id or promotion.get("preMainSha256") != digest(pre_main) or
+        gate.get("attempt") != pre_main["attempt"] or type(gate.get("id")) is not int or gate["id"] < 1):
+        raise ValueError("Promotion differs from tested source/run/gate")
+    expected_url = f"https://github.com/ShizhenZhou/StudyAssistant/actions/runs/{run_id}/job/{gate['id']}"
+    if (status.get("state") != "success" or type(status.get("id")) is not int or status["id"] < 1 or
+        status.get("context") != promotion_context(run_id, pre_main["attempt"]) or
+        status.get("target_url") != expected_url or
+        status.get("description") != promotion_description(commit, gate["id"])):
+        raise ValueError("Missing exact post-gate promotion status")
+    times = [datetime.fromisoformat(value.replace("Z", "+00:00")) for value in
+             (gate["completedAt"], status["created_at"], promotion["observedAt"])]
+    if any(value.tzinfo is None for value in times) or times != sorted(times):
+        raise ValueError("main promotion must follow the completed test gate")
+    return promotion
+
+
+def validate_staged_evidence(report, manifest, run_id, attempt):
+    pre_main = report["preMain"]
+    validate_promotion(report["promotion"], pre_main, run_id, attempt, manifest["commit"])
+    expected_build = dict(pre_main["build"], candidateSha256=manifest["candidateSha256"])
+    if report["plan"] != pre_main["plan"] or report["devices"] != pre_main["devices"] or report["build"] != expected_build:
+        raise ValueError("Final candidate was not bound to the original full test evidence")
 
 
 def main():

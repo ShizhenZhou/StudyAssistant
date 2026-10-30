@@ -16,8 +16,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
-import com.zsz.studyassistant.MainActivity
-import com.zsz.studyassistant.ui.AppNav
 import com.zsz.studyassistant.ui.AppThemeColor
 import com.zsz.studyassistant.ui.appColorScheme
 import com.zsz.studyassistant.ui.UiLangStore
@@ -90,16 +88,13 @@ internal object UpdateDownloadNotifications {
             percent >= 0 -> strings.format("update.notif.progress", "p" to "$percent")
             else -> strings["update.notif.preparing"]
         }
-        val open = Intent(context, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            .putExtra(AppNav.OPEN_UPDATE_EXTRA, true)
         val color = accentColor(context)
         val note = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setColor(color)
             .setContentTitle(title).setContentText(text)
-            .setContentIntent(PendingIntent.getActivity(context, NOTIFICATION_ID, open,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+            .setContentIntent(NotificationIntents.update(context, task?.token, completed))
+            .addExtras(android.os.Bundle().apply { putString(TOKEN_EXTRA, task?.token) })
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setOngoing(ongoing || showCompletion).setAutoCancel(!ongoing && !showCompletion).setOnlyAlertOnce(true).setShowWhen(false)
@@ -127,8 +122,8 @@ internal object UpdateDownloadNotifications {
         }
         return note.build()
     }
-    fun post(context: Context, note: Notification): Boolean {
-        if (!canPost(context)) return false
+    @Synchronized fun post(context: Context, note: Notification): Boolean {
+        if (isAcknowledged(context, note.extras.getString(TOKEN_EXTRA)) || !canPost(context)) return false
         return runCatching {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return false
             manager.notify(NOTIFICATION_ID, note)
@@ -137,9 +132,35 @@ internal object UpdateDownloadNotifications {
     }
     // Use a different identity from the FGS notification: its asynchronous removal must
     // never restore ongoing flags on the final, dismissible completion notice.
-    fun postTerminal(context: Context, note: Notification) {
-        if (canPost(context)) runCatching { context.getSystemService(NotificationManager::class.java)?.notify(TERMINAL_ID, note) }
+    @Synchronized fun postTerminal(context: Context, note: Notification) {
+        if (!isAcknowledged(context, note.extras.getString(TOKEN_EXTRA)) && canPost(context)) runCatching { context.getSystemService(NotificationManager::class.java)?.notify(TERMINAL_ID, note) }
     }
+    private const val NOTICE_PREFS = "update_download_notices"
+    private const val ACKNOWLEDGED_TOKENS = "acknowledged_tokens"
+
+    @Synchronized internal fun isAcknowledged(context: Context, token: String?): Boolean = token != null &&
+        context.getSharedPreferences(NOTICE_PREFS, Context.MODE_PRIVATE)
+            .getString(ACKNOWLEDGED_TOKENS, "").orEmpty().split(',').contains(token)
+
+    /** Notice-only metadata: never changes the transfer, verified APK or READY install state. */
+    @Synchronized fun acknowledgeCompletion(context: Context, token: String) {
+        if (runCatching { java.util.UUID.fromString(token).toString() != token }.getOrDefault(true)) return
+        val prefs = context.getSharedPreferences(NOTICE_PREFS, Context.MODE_PRIVATE)
+        val tokens = prefs.getString(ACKNOWLEDGED_TOKENS, "").orEmpty().split(',')
+            .filter { it.isNotEmpty() && it != token }.takeLast(15) + token
+        prefs.edit().putString(ACKNOWLEDGED_TOKENS, tokens.joinToString(",")).apply()
+        UpdateDownloadMonitor.dismissAcknowledgedCompletion(token)
+        clearToken(context, token)
+    }
+
+    internal fun clearToken(context: Context, token: String) {
+        runCatching {
+            val manager = context.getSystemService(NotificationManager::class.java) ?: return
+            manager.activeNotifications.filter { it.id in setOf(NOTIFICATION_ID, TERMINAL_ID) &&
+                it.notification.extras.getString(TOKEN_EXTRA) == token }.forEach { manager.cancel(it.id) }
+        }
+    }
+
     fun clearTerminal(context: Context) {
         runCatching { context.getSystemService(NotificationManager::class.java)?.cancel(TERMINAL_ID) }
     }
