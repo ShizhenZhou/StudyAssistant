@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.8.10
+· ↔️ 主页空白区域支持左右滑动切换学习、统计和设置。
+· 📚 返回列表保留搜索、筛选与位置，优化缩略图加载和列表过渡。
+· 🎨 壁纸背景新增三档遮罩强度，兼顾壁纸效果与文字清晰度。
+· ⚡ 优化错题排序和统计计算，完善备份处理的类型与空值检查。
+
 v0.6.8.9
 · 🎨 恢复无底色按钮的主题配色与描边样式。
 · ↩️ 恢复学习与设置子页面以滑动为主的返回过渡，保留轻微缩放与手势取消。
@@ -543,6 +549,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.8.10
+· ↔️ Swipe across blank areas to switch between Learning, Statistics and Settings.
+· 📚 Keep search, filters and position when returning to lists; improve thumbnail loading and list transitions.
+· 🎨 Choose from three wallpaper shade levels to balance visibility and text readability.
+· ⚡ Optimize notebook sorting and statistics, and improve type and null checks in backup handling.
+
 v0.6.8.9
 · 🎨 Restore theme colors and borders for outlined buttons.
 · ↩️ Restore slide-led back transitions in learning and settings pages, retaining subtle scaling and gesture cancellation.
@@ -1081,6 +1093,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.8.10
+· ↔️ ホーム画面の空白部分を左右にスワイプして、学習・統計・設定を切り替えられます。
+· 📚 一覧に戻る際の検索・絞り込み・位置を保持し、サムネイル読み込みと一覧のアニメーションを改善しました。
+· 🎨 壁紙のオーバーレイを3段階で選び、壁紙と文字の見やすさを調整できます。
+· ⚡ ノートの並べ替えと統計計算を最適化し、バックアップ処理の型と null のチェックを改善しました。
+
 v0.6.8.9
 · 🎨 枠線付きボタンのテーマ色と枠線のスタイルを復元しました。
 · ↩️ 学習・設定の子画面でスライド中心の戻るアニメーションを復元し、軽い縮小とジェスチャーのキャンセルを維持しました。
@@ -1619,6 +1637,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.8.10
+· ↔️ 홈 화면의 빈 영역을 좌우로 밀어 학습·통계·설정을 전환할 수 있습니다.
+· 📚 목록으로 돌아올 때 검색·필터·위치를 유지하고 썸네일 로딩과 목록 전환을 개선했습니다.
+· 🎨 배경화면 가림 강도를 3단계로 조절하여 배경화면과 글자의 가독성을 맞출 수 있습니다.
+· ⚡ 오답 정렬과 통계 계산을 최적화하고 백업 처리의 타입 및 null 검사를 개선했습니다.
+
 v0.6.8.9
 · 🎨 테두리 버튼의 테마 색상과 테두리 스타일을 복원했습니다.
 · ↩️ 학습·설정 하위 화면의 슬라이드 중심 뒤로 가기 전환을 복원하고 미세한 축소와 제스처 취소를 유지했습니다.

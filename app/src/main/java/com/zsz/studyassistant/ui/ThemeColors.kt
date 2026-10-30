@@ -74,7 +74,8 @@ enum class AppThemeColor(
  * 由「深色与否 + 配色预设」生成 Material3 配色方案。
  * 背景轻微随主色着色；自定义亮色也需保证按钮和文本链接的可读性。
  */
-fun appColorScheme(dark: Boolean, themeColor: AppThemeColor, customArgb: Int = 0xFF6750A4.toInt()): ColorScheme {
+fun appColorScheme(dark: Boolean, themeColor: AppThemeColor, customArgb: Int = 0xFF6750A4.toInt(),
+    wallpaperShade: WallpaperShade = WallpaperShade.STANDARD): ColorScheme {
     val base = if (dark) darkColorScheme() else lightColorScheme()
     val custom = Color(customArgb).copy(alpha = 1f)
     val rawPrimary = when {
@@ -82,7 +83,7 @@ fun appColorScheme(dark: Boolean, themeColor: AppThemeColor, customArgb: Int = 0
         // 自定义色：浅色直接用用户选的色；深色把它提亮一点，保证在深背景上够醒目
         else -> if (dark) lerp(custom, Color.White, 0.35f) ?: custom else custom
     }
-    val p = readableAccent(rawPrimary, base.surface, dark)
+    val p = readableAccent(rawPrimary, base.surface, dark, wallpaperShade)
     val pc = when {
         themeColor != AppThemeColor.CUSTOM -> Color(if (dark) themeColor.darkContainer else themeColor.lightContainer)
         // 容器色：浅色向白大量插值（浅底深字），深色向黑大量插值（深底浅字）
@@ -107,8 +108,8 @@ fun appColorScheme(dark: Boolean, themeColor: AppThemeColor, customArgb: Int = 0
         onTertiary = contrastForeground(tertiary),
         surface = surface,
         background = surface,
-        onSurfaceVariant = readableAccent(base.onSurfaceVariant, base.surface, dark),
-        outline = readableAccent(base.outline, base.surface, dark),
+        onSurfaceVariant = readableAccent(base.onSurfaceVariant, base.surface, dark, wallpaperShade),
+        outline = readableAccent(base.outline, base.surface, dark, wallpaperShade),
         surfaceVariant = lerp(base.surfaceVariant, pc, .12f),
         surfaceContainerLowest = lerp(base.surfaceContainerLowest, p, .012f),
         surfaceContainerLow = lerp(base.surfaceContainerLow, pc, .08f),
@@ -122,14 +123,21 @@ fun appColorScheme(dark: Boolean, themeColor: AppThemeColor, customArgb: Int = 0
 internal fun contrastForeground(background: Color): Color =
     if (background.luminance() > .179f) Color.Black else Color.White
 
-internal fun wallpaperSurface(surface: Color): Color =
-    surface.copy(alpha = if (surface.luminance() < .5f) .90f else .88f)
+enum class WallpaperShade(val id: String, val lightAlpha: Float, val darkAlpha: Float) {
+    LIGHT("light", .78f, .76f), STANDARD("standard", .88f, .90f), STRONG("strong", .96f, .96f);
+    companion object {
+        fun fromId(id: String?): WallpaperShade = entries.firstOrNull { it.id == id } ?: STANDARD
+    }
+}
 
-private fun readableAccent(color: Color, surface: Color, dark: Boolean): Color {
+internal fun wallpaperSurface(surface: Color, shade: WallpaperShade = WallpaperShade.STANDARD): Color =
+    surface.copy(alpha = if (surface.luminance() < .5f) shade.darkAlpha else shade.lightAlpha)
+
+private fun readableAccent(color: Color, surface: Color, dark: Boolean, shade: WallpaperShade): Color {
     val target = if (dark) Color.White else Color.Black
     // Both ends bound any wallpaper color; leave margin for the subsequent surface tint.
-    val backgrounds = listOf(surface, wallpaperSurface(surface).compositeOver(Color.Black),
-        wallpaperSurface(surface).compositeOver(Color.White))
+    val backgrounds = listOf(surface, wallpaperSurface(surface, shade).compositeOver(Color.Black),
+        wallpaperSurface(surface, shade).compositeOver(Color.White))
     fun contrast(c: Color): Float = backgrounds.minOf { background ->
         (maxOf(c.luminance(), background.luminance()) + .05f) /
             (minOf(c.luminance(), background.luminance()) + .05f)

@@ -385,8 +385,9 @@ object BackupArchive {
                                         if (!target.canonicalFile.toPath().startsWith(targetDir.canonicalFile.toPath())) invalid()
                                         space(targetDir, minOf(length, MAX_BLOCK.toLong()))
                                         owned = true
-                                        if (target.parentFile.exists() && !target.parentFile.isDirectory) invalid()
-                                        if (!target.parentFile.isDirectory && !target.parentFile.mkdirs()) throw IOException("Cannot create staging path")
+                                        val parent = target.parentFile ?: invalid()
+                                        if (parent.exists() && !parent.isDirectory) invalid()
+                                        if (!parent.isDirectory && !parent.mkdirs()) throw IOException("Cannot create staging path")
                                         current = BufferedOutputStream(Files.newOutputStream(target.toPath(), CREATE_NEW))
                                         content.update(encoded { it.writeInt(pathBytes.size); it.write(pathBytes); it.writeLong(length) })
                                         remaining = length; offset = 0; previousPath = path; fileCount++

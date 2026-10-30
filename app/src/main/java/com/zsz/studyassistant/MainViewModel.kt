@@ -114,6 +114,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .edit().putBoolean("wallpaper_background", enabled).apply()
     }
 
+    var wallpaperShade by mutableStateOf(com.zsz.studyassistant.ui.WallpaperShade.fromId(
+        app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .getString("wallpaper_shade", null)
+    ))
+        private set
+    fun updateWallpaperShade(shade: com.zsz.studyassistant.ui.WallpaperShade) {
+        wallpaperShade = shade
+        getApplication<Application>().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .edit().putString("wallpaper_shade", shade.id).apply()
+    }
+
     // ---- 应用主题配色（预设色板，默认紫色）----
     var themeColor by mutableStateOf(
         com.zsz.studyassistant.ui.AppThemeColor.fromId(
@@ -243,7 +254,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ) { allQuestions, rs, mode, deletes ->
             val qs=allQuestions.filterNot { it.id in deletes.questionIds }
             com.zsz.studyassistant.data.NotebookSorting.sort(qs, rs.associateBy { it.questionId }, mode)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** 复习记录流（A5 复习筛选用：掌握档位 / 下次复习时间） */
     val reviewRecords: StateFlow<List<Review>> =
@@ -300,8 +311,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             dao.getAll(), dao.allReviews(), dao.categories(), calendarDay, deletionState
         ) { allQuestions, rs, cats, day, deletes ->
             val qs=allQuestions.filterNot { it.id in deletes.questionIds }
-            val now = System.currentTimeMillis()
-            val dayMs = 24L * 60 * 60 * 1000
             val todayStart = day.start
             val weekStart = day.after(-6)
             val byId = rs.associateBy { it.questionId }
@@ -340,8 +349,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val to = day.after(1 - back)
                 qs.count { it.createdAt in from until to }
             }
-            val last7 = series(7)
             val last30 = series(30)
+            val last7 = last30.takeLast(7)
 
             StatsSnapshot(
                 totalQuestions = qs.size,
@@ -354,7 +363,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 last7Days = last7,
                 last30Days = last30
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsSnapshot())
+        }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsSnapshot())
     /** 错题↔标签 关联（用于按 tag 筛选） */
     val questionTags: StateFlow<List<QuestionTag>> =
         dao.allQuestionTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

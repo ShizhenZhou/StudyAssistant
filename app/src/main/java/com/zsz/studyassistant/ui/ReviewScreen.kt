@@ -1,5 +1,8 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import android.graphics.BitmapFactory
@@ -77,7 +80,7 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 @Composable
 fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
-    var tab by remember { mutableIntStateOf(0) } // 0=今天 1=本周
+    var tab by rememberSaveable { mutableIntStateOf(0) } // 0=今天 1=本周
     // 固定 Flow 实例，避免每次重组都重新订阅/查询数据库
     val todayFlow = remember { vm.dueQuestionsToday() }
     val weekFlow = remember { vm.dueQuestionsWeek() }
@@ -86,8 +89,8 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     val dueAll = if (tab == 0) dueToday else dueWeek
 
     // ── A5 复习筛选：按科目 + 只看"不熟"（掌握档位 ≤1，含未开始）──
-    var filterCat by remember { mutableStateOf<Long?>(null) }
-    var onlyWeak by remember { mutableStateOf(false) }
+    var filterCat by rememberSaveable { mutableStateOf<Long?>(null) }
+    var onlyWeak by rememberSaveable { mutableStateOf(false) }
     var catMenu by remember { mutableStateOf(false) }
     val reviewRecords by vm.reviewRecords.collectAsStateWithLifecycle()
     val stepById = remember(reviewRecords) { reviewRecords.associate { it.questionId to it.intervalStep } }
@@ -102,7 +105,14 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     // 换 tab / 改筛选后回到顶部：否则瀑布流会按"第一个可见项的 key"锚定滚动位置，
     // 列表重排后视图跟着那道题跑到中间或底部（错题本排序踩过同一个坑）
     val gridState = rememberLazyStaggeredGridState()
-    LaunchedEffect(tab, filterCat, onlyWeak) { runCatching { gridState.scrollToItem(0) } }
+    val filterKey = "$tab|$filterCat|$onlyWeak"
+    var appliedFilter by rememberSaveable { mutableStateOf(filterKey) }
+    LaunchedEffect(filterKey) {
+        if (appliedFilter != filterKey) {
+            gridState.scrollToItem(0)
+            appliedFilter = filterKey
+        }
+    }
 
     val categories by vm.categories.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
@@ -204,7 +214,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                     verticalItemSpacing = 8.dp
                 ) {
                     for (g in groups) {
-                        item(span = StaggeredGridItemSpan.FullLine) {
+                        item(key = "group:${g.first}", span = StaggeredGridItemSpan.FullLine) {
                             Text(
                                 g.first,
                                 style = MaterialTheme.typography.labelLarge,
@@ -213,7 +223,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                             )
                         }
                         items(g.second, key = { it.id }) { q ->
-                            ReviewCard(q, onClick = {
+                            ReviewCard(q, modifier = Modifier.animateItem(fadeInSpec = null, placementSpec = tween(180), fadeOutSpec = tween(140)), onClick = {
                                 // 记录本轮复习进度（第 i/n 题，n = 今日/本周待复习总数）
                                 vm.startReviewSession(flat, flat.indexOf(q))
                                 vm.loadForReview(q) { AppNav.openSolve(nav, AppNav.Origin.REVIEW) }
@@ -250,39 +260,18 @@ private fun ReviewFilterButton(
 /** 复习卡片（两列瀑布流）：图片按比例或文字 + 学科标签 + 下次时间 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ReviewCard(q: Question, onClick: () -> Unit) {
+private fun ReviewCard(q: Question, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val s = LocalStrings.current
-    // ★ 2026-10-14（用户报「双图仍会丢」）：复习自测把**全部原图**都显示出来 ——
-    //   `imageBytes` 只有一张（主图），其余图在 conversationJson 里；统一用 `mergeImageKeys` 合并去重
-    //   （不要用 Bitmap.sameAs 逐像素比较，900px 图上太慢），最多 3 张（拍题上限）。
-    val imgBitmaps = questionCardBitmaps(q, 400)
     Card(
-        modifier = Modifier
+        modifier = modifier
+            .animateContentSize(tween(140))
             .padding(horizontal = 4.dp)
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = null),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(Modifier.padding(8.dp)) {
-            if (imgBitmaps.isNotEmpty()) {
-                imgBitmaps.forEach { bm ->
-                    Image(
-                        bitmap = bm.asImageBitmap(),
-                        contentDescription = s["review.imageDesc"],
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(bottom = 4.dp)
-                            .aspectRatio(bm.width.toFloat() / bm.height.toFloat()),
-                        contentScale = ContentScale.Fit
-                    )
-                }
-            } else {
-                Text(
-                    TextPretty.oneLine(q.text, 110),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+            QuestionCardPreview(q, s["review.imageDesc"])
             Text(
                 TIME_FMT.format(Date(q.createdAt)),
                 modifier = Modifier.padding(top = 6.dp),

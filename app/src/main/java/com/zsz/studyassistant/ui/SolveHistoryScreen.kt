@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import androidx.activity.compose.BackHandler
@@ -200,6 +201,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                 items(group.items, key = { it.id }) { rec ->
                     SolveHistoryItem(
                         rec = rec,
+                        modifier = Modifier.animateItem(fadeInSpec = null, placementSpec = tween(180), fadeOutSpec = tween(140)),
                         darkTheme = darkTheme,
                         selectionMode = selectionMode,
                         selected = selectedIds.contains(rec.id),
@@ -264,6 +266,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 @Composable
 private fun SolveHistoryItem(
     rec: SolveSession,
+    modifier: Modifier = Modifier,
     darkTheme: Boolean,
     selectionMode: Boolean,
     selected: Boolean,
@@ -276,7 +279,7 @@ private fun SolveHistoryItem(
     val pickBorder = if (darkTheme) Color(0xFF8A8A8A) else Color(0xFF9E9E9E)
     val shape = RoundedCornerShape(12.dp)
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .then(if (selectionMode && selected) Modifier.border(2.dp, selectionRed, shape) else Modifier)
