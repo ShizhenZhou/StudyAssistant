@@ -19,6 +19,64 @@ class VerificationTest(unittest.TestCase):
         self.assertIsNotNone(self.v, "Shared verification policy is not implemented")
         return self.v
 
+    def test_policy_four_defers_reviewed_presentation_and_calculation_to_jvm(self):
+        v=self.api();inventory=["p.UpdatePageIntegrationTest#restore","p.Unrelated#one"]
+        for path in [*v.JVM_ONLY_PATHS, "tools/verification.py", "tools/run-android-integration.py", ".github/workflows/build.yml"]:
+            self.assertEqual(v.device_plan([path],inventory,True,36,policy=4),[],path)
+            self.assertEqual(v.device_plan([path],inventory,True,36,policy=3)[0]["tests"],sorted(inventory),path)
+        for paths,known,migration in [([next(iter(v.JVM_ONLY_PATHS))],False,False),
+                                      ([next(iter(v.JVM_ONLY_PATHS))],True,True),
+                                      ([v.MAIN+"data/Question.kt"],True,False),
+                                      ([v.MAIN+"ui/AppNav.kt"],True,False),
+                                      (["app/build.gradle.kts"],True,False)]:
+            self.assertEqual(v.device_plan(paths,inventory,known,36,migration,policy=4)[0]["tests"],sorted(inventory))
+
+    def test_policy_four_keeps_archived_policy_three_proof_valid(self):
+        v=self.api();inventory=["p.A#one"]
+        path=v.MAIN+"ui/ThemeColors.kt"
+        old=dict(schema=1,policy=3,commit="a"*40,base="b"*40,inventory=inventory,policyPaths=[path],
+                 platformMigration=False,platformConstraints=v.platform_constraints(36,policy=3),
+                 devices=v.device_plan([path],inventory,True,36,policy=3))
+        v.validate_plan(old)
+        with self.assertRaises(ValueError):v.validate_plan(dict(old,policy=4))
+        v.validate_plan(dict(old,policy=4,devices=[]))
+
+    def test_check_ci_compiles_device_tests_only_when_the_selected_inputs_require_it(self):
+        from unittest.mock import patch
+        import contextlib, io, os
+        spec=importlib.util.spec_from_file_location("ci_scope_plan",TOOLS/"ci-verification.py")
+        ci=importlib.util.module_from_spec(spec);spec.loader.exec_module(ci)
+        folder=TOOLS.parent/"app/build/tool-tests";folder.mkdir(parents=True,exist_ok=True)
+        cases=[("check","a"*40,["app/src/androidTest/p/OneTest.kt"],True),
+               ("check","a"*40,["app/src/integration/p/Host.kt"],True),
+               ("check","a"*40,["app/src/main/p/Main.kt"],False),
+               ("check","a"*40,["docs/development.md"],False),
+               ("check","",[],True),("check","0"*40,[],True),
+               ("release","a"*40,["app/src/androidTest/p/OneTest.kt"],False),
+               ("device","a"*40,["app/src/androidTest/p/OneTest.kt"],False)]
+        with tempfile.TemporaryDirectory(dir=folder) as tmp:
+            root=Path(tmp)
+            for index,(mode,base,changed,expected) in enumerate(cases):
+                normalized=None if not base or base=="0"*40 else base
+                value=dict(base=normalized,changedFiles=changed,devices=[dict(api=36,tests=["p.One#one"])],
+                           platformConstraints=self.api().platform_constraints(36))
+                output=root/f"output-{index}"
+                with patch.object(ci,"FOLDER",root/f"report-{index}"),patch.object(ci,"make_plan",return_value=value) as make, \
+                     patch.dict(os.environ,{"MODE":mode,"BASE_SHA":base,"GITHUB_OUTPUT":str(output)}),contextlib.redirect_stdout(io.StringIO()):
+                    ci.plan()
+                make.assert_called_once_with(base=normalized)
+                fields=dict(line.split("=",1) for line in output.read_text().splitlines())
+                self.assertEqual(fields["compile_android_tests"],"true" if expected else "false")
+                self.assertEqual(fields["devices"],"false" if mode=="check" else "true")
+
+    def test_jvm_only_sources_keep_platform_dependencies_out(self):
+        import re
+        v=self.api();root=TOOLS.parent
+        for name in v.JVM_ONLY_PATHS:
+            text=(root/name).read_text(encoding="utf-8")
+            self.assertNotRegex(text,r"(?m)^\s*import\s+android\.",name)
+            self.assertNotRegex(text,r"\bandroid\.(?:content|app|os|view|graphics|database|net)\.",name)
+
     def test_unknown_and_missing_baseline_require_both_full_suites(self):
         v = self.api()
         inventory = ["p.A#one", "p.B#two"]

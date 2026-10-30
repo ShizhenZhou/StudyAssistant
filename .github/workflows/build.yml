@@ -50,7 +50,7 @@ jobs:
     env:
       MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'check' }}
       EXPECTED_SHA: ${{ inputs.expected_sha }}
-      BASE_SHA: ${{ inputs.base_sha }}
+      BASE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || inputs.base_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,6 +86,8 @@ jobs:
           tasks=(testDebugUnitTest)
           if [[ "${{ steps.plan.outputs.devices }}" == true ]]; then
             tasks+=(assembleIntegration assembleIntegrationAndroidTest)
+          elif [[ "${{ steps.plan.outputs.compile_android_tests }}" == true ]]; then
+            tasks+=(compileIntegrationAndroidTestKotlin)
           fi
           if [[ "$MODE" == release ]]; then tasks+=(assembleRelease); fi
           ./gradlew "${tasks[@]}" --console=plain

@@ -15,12 +15,17 @@ def read(path):
 
 
 def plan():
-    value = make_plan(base=os.environ.get("BASE_SHA") or None)
+    base = os.environ.get("BASE_SHA") or None
+    if base == "0" * 40: base = None  # First push has no usable parent.
+    value = make_plan(base=base)
     value["mode"] = os.environ.get("MODE", "check")
     if value["mode"] == "check": value["devices"] = []
     write_json(FOLDER / "plan.json", value)
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+            compile_only = value["mode"] == "check" and (not value.get("base") or any(
+                path.startswith(("app/src/androidTest/", "app/src/integration/")) for path in value["changedFiles"]))
+            out.write("compile_android_tests=" + ("true" if compile_only else "false") + "\n")
             out.write("devices=" + ("true" if value["devices"] else "false") + "\n")
             out.write("matrix=" + json.dumps({"include": [p for p in value["platformConstraints"]["platforms"] if p["api"] in [r["api"] for r in value["devices"]]] or [dict(api=36, imageApi="36", target="google_apis", arch="x86_64")]}) + "\n")
     print(json.dumps(value, indent=2))

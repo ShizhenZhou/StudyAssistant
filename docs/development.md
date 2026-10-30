@@ -4,19 +4,21 @@
 
 | 阶段 | 默认执行 | 合并或复用方式 |
 | --- | --- | --- |
-| 日常开发 | Basic；明确变动的 JVM 测试类，运行行为改动按需补相关设备类/方法 | 不先跑本地 Full；生产编译、JVM、设备 APK 各按输入复用 |
+| 本地准备 | Basic仅差异、凭据和只读范围规划 | 默认不编译、不执行JVM/工具/SQLite/模拟器；测试统一交CI |
 | 普通 Develop 提交 / main PR | 一次 check CI，JVM、工具及 SQLite | 不自动运行模拟器；准备直接发版时用 `[skip ci]`，进入一次 release CI |
 | 正式发布 | 一次 release CI：完整 JVM/工具/SQLite、共用策略选择的 API 36 设备用例、一个候选包 | 不先另跑 device CI；SQLite直接读本轮 JVM 输出，多个设备复用同一测试 APK |
 | CI 已成功 | `publish --run` 内核验、签名、上传、下载归档 | 不例行先 `verify` 再 `publish`；不因签名或上传重跑测试 |
+
+测试归属统一：本地默认不跑测试，在线CI是唯一常规执行方。本地`-TestClass`/`Full`或指定模拟器仅用于具体失败复现、专项诊断或用户要求，不作为CI前置清单；修复后只验证受影响范围，不把诊断结果冒充正式CI。
 
 常规发版路径为 `start → status → publish`。独立 `verify` 供只验签名或故障诊断时使用；`publish` 本身会执行同样的源码、门禁与签名检查。未变化的检查复用有摘要的证据，不复用单个“成功”标志。流程或工具改动只验证工具及必要配置，不增加应用设备测试。
 
 ## 本地检查
 
-- 默认 tools/check-project.ps1：每次检查当前差异、Git索引中的凭据和私有数据；工具回归及必要编译按内容、环境和测试范围复用有效记录。应用或构建配置变化时编译debug；纯JVM测试变化运行JVM测试，androidTest/integration变化实际编译 `compileIntegrationAndroidTestKotlin`，混合文档/工具修改不掩盖测试编译。测试所需数据均为人工夹具，不读取手机、真实备份或真实Key。
+- 默认 tools/check-project.ps1 的 Basic仅检查当前差异、Git索引中的凭据和私有数据，并记录建议范围（通过-Plan查看）；不自动调用Gradle、工具回归或模拟器。测试数据仍必须是人工夹具，不读取手机、真实备份或真实Key。
 - `-Plan` 只展示计划，不执行检查、不配置 SDK、不创建报告；`-BaseRef` 指定已知基线，默认 origin/main，引用缺失或非祖先会明确失败。`-Force` 只强制本次选定范围重新执行，不扩大范围。
-- 已知相关用例通过 -TestClass 指定，显式选择优先。Basic可从变动的普通JVM测试文件推导package/class；README及译文变动选择两类文档校验；共享夹具、删除或无法识别的测试结构仍回退完整JVM。只有所选用例通过时，不称为完整回归。
-- -Mode Full 显式运行全部JVM与SQLite校验；只有明确诊断需要时才加 -Release / -CompileAndroidTests。本地不默认R8打正式包。
+- 明确诊断时通过-TestClass指定本地JVM用例；不会自动附带工具全套或设备编译。Basic可推荐相关类，但推荐不触发测试；共享或未知输入的推荐为空，由CI权威验证。
+- -Mode Full是主动诊断入口，显式运行工具、全部JVM与SQLite校验；只有明确诊断需要时才加 -Release / -CompileAndroidTests。本地不默认R8打正式包。
 - 工具回归的缓存单独绑定Python、OS以及实际Git/PowerShell可执行文件，不因JDK/SDK准备或纯应用版本号变化失效；真实工具源码、工作流和入口规则变化仍失效。缓存、临时文件和日志在项目内。凭据扫描读取索引，修改必须审阅、暂存后才能对实际提交版本检查；提交前hook再次扫描。
 - Gradle输入按任务分开：生产源码/构建配置、JVM测试（含直接读取的根README与docs/readme/译文）、integration/androidTest各自进入相关摘要；README与JVM测试变化不使无关APK/生产编译失效。每个任务独立执行或复用，完整任务多次Gradle调用由同一daemon和Gradle增量缓存承接；这是为了让未变化任务保留独立有效证据。计划展示步骤、输入及复用限制，本身不声称命中缓存。执行开始和结束仍审计全部Git可见源码漂移。
 - 本地证据在 `.local-notes/verification/`：包含输入/环境摘要、测试范围和日志校验。新失败或中断阻断旧成功；日志损坏不复用；编译class目录、测试XML、APK和SQLite生成SQL/Room输出必须存在且摘要匹配，清理/改写输出会重跑生产步骤；测试失败/中断仍阻断同输入下较早的完整测试成功。签名、上传、下载归档不要求重新测试。
@@ -24,9 +26,9 @@
 
 ## 唯一CI工作流
 
-- Develop push / main PR 自动 mode=check：全量JVM、工具回归、SQLite校验；不编译设备测试包或正式包。
-- 手动 mode=device/release：共用 `tools/verification.py` policy3，唯一平台声明由实际Gradle minSdk生成。旧min28保留API35/36；当前min36以API36为常规门禁，首次最低版本迁移运行API36全套；API37在具体兼容变化或专项要求时补测，未来min37则要求API37。无基线、未知或共享运行时/构建输入变化回退声明平台全套；通知专项覆盖声明平台，拍题专项取声明中的最高API，经审查独立测试类覆盖声明平台。通知组显式包含下载仓库、通知服务、独立更新页的恢复/已安装旧记录/未来旧记录，以及UiSmoke通知入口；共享FakeTransfers变化覆盖所有消费者。文档、纯JVM测试及普通工具变化不要求设备测试，runner/策略变化仍回退全套。
-- 平台声明区分运行API37与SDK镜像标识37.0，CI明确要求 `system-images;android-37.0;google_apis;x86_64`（API35/36沿用整数标识），分配4096MiB内存；按声明安装准确镜像，缺失失败，不降级。SDK系统镜像按OS/API/target/ABI缓存，不缓存AVD用户数据或测试证据；移除额外的sdkmanager --list，固定build-tools 36在启动前安装，emulator runner锁定经审计的SHA，避免浮动tag变化。设备安装前从两个实际APK读取minSdk并拒绝低于要求的模拟器。门禁验证平台/ABI、源码、run/attempt、候选与测试APK、逐项测试及计划重算；policy1历史证据仍按35/36解释，policy2的min36证据仍按36/37解释，未知policy拒绝。
+- Develop push / main PR 自动 mode=check：执行JVM、工具回归、SQLite；仅androidTest/integration变化或缺少可用基线时编译设备测试代码，不打设备APK、不启动模拟器。push使用before、PR使用base SHA规划实际差异，首次全零SHA按无基线处理。
+- 手动 mode=device/release：共用 `tools/verification.py` policy4，唯一平台声明由实际Gradle minSdk生成。旧min28保留API35/36；当前min36以API36为常规门禁，首次最低版本迁移运行API36全套；API37在具体兼容变化或专项要求时补测，未来min37则要求API37。无基线、未知或共享运行时/构建输入变化回退声明平台全套；通知专项覆盖声明平台，拍题专项取声明中的最高API，经审查独立测试类覆盖声明平台。通知组显式包含下载仓库、通知服务、独立更新页的恢复/已安装旧记录/未来旧记录，以及UiSmoke通知入口；共享FakeTransfers变化覆盖所有消费者。文档、纯JVM测试及流程/runner/策略变化由工具或JVM验证，不自动触发设备；受审查的文案、主题、形状、框选坐标计算及纯解析/日期模块也交JVM，源码不得引入Android平台API。权限、后台、存储、导航等真实Android边界、未知运行路径、SDK迁移或无法核验基线仍选择相关设备或回退全套。
+- 平台声明区分运行API37与SDK镜像标识37.0，CI明确要求 `system-images;android-37.0;google_apis;x86_64`（API35/36沿用整数标识），分配4096MiB内存；按声明安装准确镜像，缺失失败，不降级。SDK系统镜像按OS/API/target/ABI缓存，不缓存AVD用户数据或测试证据；移除额外的sdkmanager --list，固定build-tools 36在启动前安装，emulator runner锁定经审计的SHA，避免浮动tag变化。设备安装前从两个实际APK读取minSdk并拒绝低于要求的模拟器。门禁验证平台/ABI、源码、run/attempt、候选与测试APK、逐项测试及计划重算；policy1历史证据仍按35/36解释，policy2的min36证据仍按36/37解释，policy3仍按其原范围重算，未知policy拒绝。
 - 正式 mode=release 仍执行一次全量JVM、SQLite及工具检查，加一次R8候选编译和计划要求的设备测试。`base_sha` 由release.start解析上一已发布构件来源：精确Release APK/兼容清单摘要和大小、签名包payload/构建时间与CI候选、成功main发布CI及其验证证据必须同时匹配。旧同版本替换可从匹配releaseId/版本/签名APK摘要的本机已归档状态找source/run，但仍重新验证全部公开构件和CI证据，不相信说明正文或target_commitish。证据过期或缺失保守回退不可变tag（覆盖较大差异）；tag不是祖先则留空走全套。纯版本字段变化可排除出设备风险，其他构建脚本变化不排除。CI不读取本机凭据或签名Secrets。
 - main push / tag不重复触发CI。正式候选只允许main，可提供expected_sha防止触发时源码漂移。发布准备提交使用[skip ci]避免Develop重复检查。
 - 候选包附件仍仅允许*-candidate.apk与release-manifest.json；schema2 增加计划摘要。设备完成后单独生成 `verification-evidence`，绑定run/attempt、源码、计划、候选及两个测试APK摘要、API和逐项测试结果；候选生成时不能提前声明设备通过。不含本机路径或凭据。

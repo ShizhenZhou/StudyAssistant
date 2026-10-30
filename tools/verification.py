@@ -11,9 +11,16 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-POLICY = 3
+POLICY = 4
 MAIN = "app/src/main/java/com/zsz/studyassistant/"
 ANDROID = "app/src/androidTest/"
+
+# Reviewed presentation/pure calculation modules. Adding Android/system behavior here
+# requires removing the exemption; tool regression checks that platform dependencies stay absent.
+JVM_ONLY_PATHS = {MAIN + name for name in (
+    "ui/L10nTables.kt", "ui/ThemeColors.kt", "ui/SmoothShape.kt", "ui/CropMath.kt",
+    "data/GradeVerdict.kt", "data/BuildIdentity.kt", "data/CalendarDates.kt"
+)}
 
 
 def digest(value):
@@ -61,7 +68,7 @@ def task_inputs(tasks):
 
 
 def platform_constraints(min_sdk, policy=POLICY):
-    if policy not in (2, 3):
+    if policy not in (2, 3, 4):
         raise ValueError("Unknown verification policy")
     if not isinstance(min_sdk, int) or min_sdk < 1 or min_sdk > 37:
         raise ValueError("Unsupported actual minSdk")
@@ -80,7 +87,7 @@ def validate_plan(plan):
     policy = plan.get("policy")
     if policy == 1:
         constraints = platform_constraints(28)  # Archived policy 1 always used API35/36.
-    elif policy in (2, POLICY):
+    elif policy in (2, 3, POLICY):
         constraints = plan.get("platformConstraints", {})
         if constraints != platform_constraints(constraints.get("minSdk"), policy):
             raise ValueError("Invalid platform constraints")
@@ -90,7 +97,7 @@ def validate_plan(plan):
     allowed = [r["api"] for r in constraints["platforms"]]
     if len(set(apis)) != len(apis) or any(api not in allowed for api in apis):
         raise ValueError("Plan API constraints mismatch")
-    if policy in (2, POLICY):
+    if policy in (2, 3, POLICY):
         inventory = plan.get("inventory")
         if not inventory or inventory != sorted(set(inventory)):
             raise ValueError("Missing exact test inventory")
@@ -155,9 +162,11 @@ def device_plan(changed, inventory, baseline_known=True, min_sdk=28, platform_mi
             continue
         if path in (MAIN + "ui/L10n.kt", MAIN + "ui/Changelog.kt"):
             continue
-        if path.startswith("tools/") or path.startswith(".githooks/") or path == ".gitignore":
-            # Workflow/runner/policy changes must exercise the device contract on the next release.
-            if path in ("tools/run-android-integration.py", "tools/run-android-tests.ps1", "tools/verification.py", "tools/ci-verification.py"):
+        if policy >= 4 and path in JVM_ONLY_PATHS:
+            continue
+        if path.startswith("tools/") or path.startswith(".githooks/") or path == ".gitignore" or (policy >= 4 and path.startswith(".github/")):
+            # Legacy plans required devices for runner/policy changes; policy4 validates tools in CI.
+            if policy <= 3 and path in ("tools/run-android-integration.py", "tools/run-android-tests.ps1", "tools/verification.py", "tools/ci-verification.py"):
                 full = True
             continue
         if path in {MAIN + "data/" + n + ".kt" for n in ("UpdateDownloadMonitor", "UpdateDownloadNotifications", "UpdateDownloads")}:
@@ -322,7 +331,7 @@ def validate_device_evidence(plan, artifact, reports, run_id, attempt):
             raise ValueError("Invalid evidence attempt")
         if report.get("success") is not True or report.get("skipped") != [] or report.get("tests") != item["tests"] or report.get("passed") != item["tests"]:
             raise ValueError("Incomplete device coverage")
-        if plan.get("policy") in (2, POLICY):
+        if plan.get("policy") in (2, 3, POLICY):
             minimum = plan["platformConstraints"]["minSdk"]
             if report.get("targetMinSdk") != minimum or type(report.get("testMinSdk")) is not int or not 1 <= report["testMinSdk"] <= report["api"]:
                 raise ValueError("Device APK minimum SDK differs from plan")
@@ -336,10 +345,10 @@ def validate_ci_evidence(report, manifest, run_id, attempt):
     if report.get("schema") != 1 or report.get("success") is not True or report.get("runId") != run_id or not 1 <= report.get("attempt", 0) <= attempt:
         raise ValueError("Invalid CI verification report")
     plan, build = report["plan"], report["build"]
-    if plan.get("schema") != 1 or plan.get("policy") not in (1, 2, POLICY) or plan.get("commit") != manifest["commit"]:
+    if plan.get("schema") != 1 or plan.get("policy") not in (1, 2, 3, POLICY) or plan.get("commit") != manifest["commit"]:
         raise ValueError("Verification plan/source mismatch")
     constraints = validate_plan(plan)
-    if plan["policy"] in (2, POLICY) and "minSdk" in manifest and manifest["minSdk"] != constraints["minSdk"]:
+    if plan["policy"] in (2, 3, POLICY) and "minSdk" in manifest and manifest["minSdk"] != constraints["minSdk"]:
         raise ValueError("Candidate minimum SDK differs from plan")
     if digest(plan) != manifest.get("planSha256") or build.get("planSha256") != digest(plan):
         raise ValueError("Verification plan was changed")

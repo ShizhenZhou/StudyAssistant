@@ -86,17 +86,17 @@ class LocalChecksTest(unittest.TestCase):
             (store.folder / first["log"]).write_text("changed")
             self.assertFalse(run_step(root, store, "tool", cmd, "inputs")["reused"])
 
-    def test_basic_test_only_selects_real_test_compilation(self):
+    def test_basic_never_duplicates_ci_tests_or_compilation(self):
         from unittest.mock import patch
         import local_checks as local
-        for files, tasks in [(["app/src/androidTest/java/p/OneTest.kt", "README.md", "tools/example.py"], ["testDebugUnitTest", "compileIntegrationAndroidTestKotlin"]),
-                             (["app/src/integration/java/p/Host.kt", "docs/development.md"], ["compileIntegrationAndroidTestKotlin"]),
-                             (["app/src/test/java/p/OneTest.kt"], ["testDebugUnitTest"]),
-                             (["README.md"], ["testDebugUnitTest"])]:
+        for files in (["app/src/androidTest/java/p/OneTest.kt", "README.md", "tools/example.py"],
+                      ["app/src/integration/java/p/Host.kt"], ["app/src/main/Main.kt"],
+                      ["app/src/test/java/p/OneTest.kt"], ["README.md"]):
             with patch.object(local, "changed_files", return_value=("a"*40, files)), patch.object(local, "git", return_value="b"*40):
                 plan = local.plan_checks(Path("synthetic"))
-                self.assertEqual(plan["tasks"], tasks)
-                self.assertIn("does not assert a cache hit", plan["reuse"])
+            self.assertEqual(plan["tasks"], [])
+            self.assertEqual(plan["steps"], ["diff", "diff-staged", "credentials"])
+            self.assertEqual(plan["testOwner"], "ci")
 
     def test_basic_scopes_changed_jvm_classes_and_keeps_unknown_helpers_full(self):
         from unittest.mock import patch
@@ -110,11 +110,24 @@ class LocalChecksTest(unittest.TestCase):
             def plan(paths, selectors=()):
                 with patch.object(local, "changed_files", return_value=("a"*40, paths)), patch.object(local, "git", return_value="b"*40):
                     return local.plan_checks(root, selectors=selectors)
-            self.assertEqual(plan([name])["selectors"], ["p.ChangedTest"])
-            self.assertEqual(plan([name], ["p.Explicit"])["selectors"], ["p.Explicit"])
-            self.assertEqual(plan([name, "app/src/test/java/p/SharedFixture.kt"])["selectors"], [])
-            path.unlink()
+            self.assertEqual(plan([name])["recommendedSelectors"], ["p.ChangedTest"])
             self.assertEqual(plan([name])["selectors"], [])
+            self.assertEqual(plan([name], ["p.Explicit"])["selectors"], ["p.Explicit"])
+            self.assertIsNone(plan([name, "app/src/test/java/p/SharedFixture.kt"])["recommendedSelectors"])
+            path.unlink()
+            self.assertIsNone(plan([name])["recommendedSelectors"])
+
+    def test_explicit_local_diagnostics_do_not_expand_to_other_ci_suites(self):
+        from unittest.mock import patch
+        import local_checks as local
+        with patch.object(local,"changed_files",return_value=("a"*40,["app/src/androidTest/p/DeviceTest.kt"])),patch.object(local,"git",return_value="b"*40):
+            plan=local.plan_checks(Path("synthetic"),selectors=["p.OnlyThisTest"])
+            self.assertEqual(plan["tasks"],["testDebugUnitTest"])
+            self.assertNotIn("tool-tests",plan["steps"])
+            self.assertEqual(plan["testOwner"],"local-diagnostic")
+            full=local.plan_checks(Path("synthetic"),mode="Full")
+            self.assertIn("tool-tests",full["steps"])
+            self.assertTrue(full["sqlite"])
 
     def test_tool_identity_is_independent_of_gradle_environment_and_version_fields(self):
         from unittest.mock import patch

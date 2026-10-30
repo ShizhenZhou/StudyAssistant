@@ -32,10 +32,7 @@ class ProjectEntryTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
         plan = json.loads(result.stdout)
         expected = ["testDebugUnitTest"]
-        # HEAD still includes uncommitted changes. The real entry must retain the
-        # device-test compile obligation while selecting a JVM test explicitly.
-        if any(path.startswith(("app/src/androidTest/", "app/src/integration/")) for path in plan["changedFiles"]):
-            expected.append("compileIntegrationAndroidTestKotlin")
+        # Explicit local diagnostics run only their requested JVM selection.
         self.assertEqual(plan["tasks"], expected)
         self.assertEqual(plan["selectors"], ["synthetic.DoesNotExist"])
 
