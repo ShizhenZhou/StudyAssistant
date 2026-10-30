@@ -106,7 +106,7 @@ internal class BackupStagedMerge(
             while(rows.moveToNext()) {
                 check(); val id=rows.getString(0); if(!isNew(id)) continue
                 val mapped=definition("tags",rows.getLong(1))
-                target.execSQL("INSERT OR IGNORE INTO question_tags(questionId,tagId) VALUES(?,?)",arrayOf(id,mapped))
+                target.execSQL("INSERT OR IGNORE INTO question_tags(questionId,tagId) VALUES(?,?)",arrayOf<Any>(id,mapped))
             }
         }
         source.rawQuery("SELECT questionId,intervalStep,nextReviewAt,lastReviewedAt,reviewCount FROM review ORDER BY __row",null).use { rows ->

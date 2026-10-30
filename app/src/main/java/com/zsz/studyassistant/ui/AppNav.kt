@@ -52,6 +52,11 @@ object AppNav {
     const val SETTINGS = "settings"
 
     val rootTabs = listOf(HOME, STATS, SETTINGS)
+    fun adjacentRootTab(route: String?, next: Boolean): String? {
+        val index = rootTabs.indexOf(route)
+        if (index < 0) return null
+        return rootTabs.getOrNull(index + if (next) 1 else -1)
+    }
     fun rootTab(route: String?): String = when (route) {
         SETTINGS -> SETTINGS
         STATS -> STATS

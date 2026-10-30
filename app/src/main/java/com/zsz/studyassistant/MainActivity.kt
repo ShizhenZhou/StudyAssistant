@@ -58,6 +58,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.zsz.studyassistant.ui.rootTabSwipe
 import com.zsz.studyassistant.ui.AppNav
 import com.zsz.studyassistant.ui.CameraScreen
 import com.zsz.studyassistant.ui.CropScreen
@@ -345,7 +346,12 @@ class MainActivity : ComponentActivity() {
                     Column(Modifier.fillMaxSize()) {
                         // The sibling NavigationBar already owns the bottom system inset.
                         // Pass that ownership to child Scaffolds, keeping top/side insets intact.
-                        Box(Modifier.weight(1f).then(if (showBottomBar)
+                        Box(Modifier.weight(1f).rootTabSwipe(
+                            route = current,
+                            enabled = !navBlocking.value && current in AppNav.rootTabs &&
+                                (current != AppNav.SETTINGS || settingsAtRoot),
+                            onSelect = selectTab
+                        ).then(if (showBottomBar)
                             Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                         else Modifier)) {
                             NavHost(
