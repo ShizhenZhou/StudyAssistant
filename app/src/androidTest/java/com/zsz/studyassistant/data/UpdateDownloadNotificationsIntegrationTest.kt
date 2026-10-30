@@ -265,7 +265,7 @@ class UpdateDownloadNotificationsIntegrationTest {
                 assertEquals(0, settled.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
                 assertFalse(settled.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE))
                 assertNotNull(settled.contentIntent)
-                assertEquals("Ordinary notice has no automatic expiry", 0L, settled.timeoutAfter)
+                // Android may add its own retention TTL to the posted copy; the app request is checked below.
                 kotlinx.coroutines.delay(1500)
                 assertTrue(manager.activeNotifications.any { it.id == UpdateDownloadNotifications.TERMINAL_ID })
                 // A new request removes the preceding ordinary completion notice.
@@ -292,6 +292,7 @@ class UpdateDownloadNotificationsIntegrationTest {
             assertTrue(note.actions.isNullOrEmpty())
             assertNull(NotificationCompat.Style.extractStyleFromNotification(note))
             assertNotNull(note.contentIntent)
+            assertEquals("App must not request automatic expiry for ordinary notices", 0L, note.timeoutAfter)
         }
     }
     @Test fun pendingNotificationNeverInventsProgressOrOffersUnboundCancellation() {
