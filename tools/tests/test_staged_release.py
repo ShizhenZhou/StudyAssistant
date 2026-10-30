@@ -113,6 +113,20 @@ class StagedReleaseTest(unittest.TestCase):
         bad = copy.deepcopy(self.pre); bad["build"]["jvm"]["skipped"] = 1
         with self.assertRaises(ValueError): v.validate_pre_main_evidence(bad, 42, 1, self.commit)
 
+    def test_reused_github_jobs_keep_original_execution_identity_but_real_reruns_do_not(self):
+        jobs = [dict(row, run_id=42, head_sha=self.commit, runner_id=100, runner_name="runner",
+                     started_at="2026-10-30T00:00:00Z", steps=[dict(number=1, name="test", status="completed",
+                         conclusion="success", started_at="2026-10-30T00:00:00Z", completed_at=row["completed_at"])])
+                for row in self.jobs]
+        clones = [dict(jobs[0], id=4, run_attempt=2), dict(jobs[2], id=5, run_attempt=2)]
+        self.assertEqual(v.pre_main_gate(jobs + clones, self.pre), v.pre_main_gate(jobs, self.pre))
+        for field, value in [("started_at", "2026-10-30T00:00:01Z"), ("head_sha", "d" * 40),
+                             ("run_id", 43), ("steps", [dict(name="another execution")])]:
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                v.pre_main_gate(jobs + [dict(clones[0], **{field: value})], self.pre)
+        with self.assertRaises(ValueError):
+            v.pre_main_gate(jobs + clones + [dict(clones[0], id=6, conclusion="failure")], self.pre)
+
     def test_start_dispatches_one_staged_run_and_never_moves_main(self):
         requests, pushes, calls = [], [], []
         class GitHub:

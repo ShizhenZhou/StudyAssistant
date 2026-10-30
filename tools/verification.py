@@ -373,6 +373,16 @@ def promotion_description(commit, gate_id):
     return f"main={commit}; gate={gate_id}"
 
 
+def original_job_execution(job, jobs):
+    """GitHub clones successful jobs into a later attempt without executing them again."""
+    fields = ("name", "run_id", "head_sha", "started_at", "completed_at", "steps", "runner_id", "runner_name")
+    if job.get("conclusion") != "success" or not job.get("steps") or any(job.get(key) is None for key in fields):
+        return job
+    matches = [row for row in jobs if row.get("conclusion") == "success" and row["id"] <= job["id"] and
+               all(row.get(key) == job[key] for key in fields)]
+    return min(matches, key=lambda row: row["id"]) if matches else job
+
+
 def pre_main_gate(jobs, report):
     latest = {}
     for job in jobs:
@@ -382,6 +392,9 @@ def pre_main_gate(jobs, report):
     required.update(f"Android emulator tests (API {row['api']})" for row in report["plan"]["devices"])
     if any(name not in latest or latest[name].get("conclusion") != "success" for name in required):
         raise ValueError("Pre-main test jobs have not all succeeded")
+    # Only exact immutable execution matches may resolve a copied record to its original attempt.
+    # A newer failure still blocks above; fresh reruns retain their own times/steps and identity.
+    latest = {name: original_job_execution(job, jobs) for name, job in latest.items()}
     gate = latest["Pre-main verification gate"]
     if gate.get("run_attempt") != report["attempt"] or not gate.get("completed_at"):
         raise ValueError("Pre-main gate attempt differs from its evidence")
