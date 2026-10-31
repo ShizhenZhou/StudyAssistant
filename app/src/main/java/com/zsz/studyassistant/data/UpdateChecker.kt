@@ -84,7 +84,10 @@ object UpdateChecker {
         /** Transient diagnosis only; downloaded records retain their existing schema. */
         val compatibilityIssue: String? = null,
         val channel: Channel = Channel.STABLE
-    )
+    ) {
+        /** Display the published suffix; keep numeric normalization for compatibility/comparison only. */
+        val displayVersion: String get() = tagName.removePrefix("v").removePrefix("V").ifBlank { version }
+    }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 

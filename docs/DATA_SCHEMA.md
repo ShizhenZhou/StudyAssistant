@@ -273,9 +273,12 @@ data class ChatItem(
     val role: String,        // "user" | "assistant" | "question"
     val content: String,
     val images: List<String>? = null,  // base64 编码的追问附图（1~3 张）
-    val thinking: String? = null       // v0.6.0 新增：该轮 AI 的思考过程（思考流）；旧 JSON 无此键 → null
+    val thinking: String? = null,      // v0.6.0 新增：该轮 AI 的思考过程（思考流）；旧 JSON 无此键 → null
+    val quote: QuotedFollowUp? = null  // v0.6.9_beta：含 text（引用全文）和 question（追问正文）
 )
 ```
+
+> **v0.6.9_beta 引用展示**：新增可选 `quote` 对象，供提问气泡分框显示引用与正文；`content` 仍保存完整引用和问题，API 与旧客户端沿用原读取方式。旧消息缺字段时为 `null`，保留原文显示；保存、草稿和备份均保留该对象。DB v10 / Bak v4 不变，无表结构迁移，也不重写已有记录。
 
 > **v0.6.0 变更（思考流）**：`ChatItem` 新增可空字段 `thinking`（默认 `null`）。
 > **不涉及 Room 表结构**（仍存在 `questions.conversationJson` 这个 TEXT 列里），

@@ -57,7 +57,12 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** 聊天界面显示的一条消息（可序列化，用于保存对话会话） */
 @Serializable
-data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null, val thinking: String? = null)
+data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null,
+                    val thinking: String? = null, val quote: QuotedFollowUp? = null)
+
+/** Optional presentation metadata. content still contains the complete legacy/API text. */
+@Serializable
+data class QuotedFollowUp(val text: String, val question: String)
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     val sharedImages = com.zsz.studyassistant.data.SharedImageInbox(app, viewModelScope)
@@ -1476,10 +1481,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun addItem(role: String, content: String, images: List<String>? = null, thinking: String? = null) {
+    private fun addItem(role: String, content: String, images: List<String>? = null, thinking: String? = null,
+                        quote: QuotedFollowUp? = null) {
         // 助手消息默认带上本轮思考（这样所有调用方都不用改，避免"正文一出思考就没了"）
         val th = thinking ?: if (role == "assistant") thinkingText?.takeIf { it.isNotBlank() } else null
-        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th)
+        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote)
     }
 
     private fun resetSession() {
@@ -2380,7 +2386,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
             strings["solve.quoteTitle"] + ":\n" + quote + "\n\n" + strings["solve.quoteQuestion"] + ":\n" + text
         } ?: text
-        addItem("user", content, encoded)
+        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text) })
         val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）

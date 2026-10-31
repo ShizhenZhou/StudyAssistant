@@ -13,7 +13,8 @@
     --k:1;
     --fg:#111;
     --bubble-ai:#E9E9E9;  --bubble-ai-border:#ddd;
-    --bubble-user:#D8F2D8; --bubble-user-border:#bfe6bf;
+    --bubble-user:#DFEAF2; --bubble-user-border:#CAD9E5;
+    --quote-bg:#E4E5E7; --quote-fg:#30343A; --quote-mark:#7D858C;
     --msg-border:#ddd;
     --think-fg:#8f8f8f; --think-body-fg:#9a9a9a; --think-body-border:#cfcfcf;
     --pick-border:#9E9E9E;
@@ -21,7 +22,8 @@
   body.dark{
     --fg:#E6E6E6;
     --bubble-ai:#2B2B30;  --bubble-ai-border:#3C3C43;
-    --bubble-user:#1E3A24; --bubble-user-border:#2F5A38;
+    --bubble-user:#263846; --bubble-user-border:#3B5264;
+    --quote-bg:#373A40; --quote-fg:#E6E8EB; --quote-mark:#9CA4AE;
     --msg-border:#3C3C43;
     --think-fg:#A6A6A6; --think-body-fg:#B6B6B6; --think-body-border:#4A4A52;
     --pick-border:#8A8A8A;
@@ -32,6 +34,12 @@
   .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:calc(15px * var(--k));line-height:1.6;}
   .bubble.assistant{background:var(--bubble-ai);color:var(--fg);align-self:flex-start;border:1px solid var(--bubble-ai-border);}
   .bubble.user{background:var(--bubble-user);color:var(--fg);align-self:flex-end;border:1px solid var(--bubble-user-border);}
+  .quoted-text{position:relative;background:var(--quote-bg);color:var(--quote-fg);
+    border-radius:8px;padding:24px 20px 22px;margin:2px 0 10px;overflow-wrap:anywhere;}
+  .quoted-text::before,.quoted-text::after{position:absolute;color:var(--quote-mark);
+    font-family:Georgia,serif;font-size:36px;line-height:1;pointer-events:none;user-select:none;}
+  .quoted-text::before{content:"\201C";left:6px;top:2px;}
+  .quoted-text::after{content:"\201D";right:6px;bottom:-6px;}
   .bubble hr{border:0;border-top:1px solid var(--pick-border);margin:16px 0;}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}
@@ -217,7 +225,7 @@ var messageSources = [];
 function elementOf(node){ return node && (node.nodeType === 1 ? node : node.parentElement); }
 function textScope(node){
   var el = elementOf(node);
-  return el && el.closest ? el.closest('.message-text, .thinkbody') : null;
+  return el && el.closest ? el.closest('.message-text, .thinkbody, .quoted-text') : null;
 }
 function containsPoint(rect, x, y, verticalSlack){
   var slack = verticalSlack || 0;
@@ -404,7 +412,7 @@ function msgKey(m){
   var imgs = (m.images && m.images.length) ? m.images.length : 0;
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
-  return m.role + '|' + (m.content||'') + '|' + imgs + '|' + firstLen
+  return m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + firstLen
        + '|' + ((m.thinking||'').length) + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
 }
 function bubbleHtml(m, idx){
@@ -438,6 +446,9 @@ function bubbleHtml(m, idx){
   }
   // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
   var body = (text && text.length) ? '<div class="message-text">'+renderMath(text)+'</div>' : '';
+  if(m.role === 'user' && m.quotedText){
+    body = '<div class="quoted-text">'+renderMath(m.quotedText)+'</div>' + body;
+  }
   // ★ 思考流：显示在**该气泡的顶端**（浅灰小字、可折叠）
   //   展开态由 JS 自管（window.thinkUserOpen / thinkUserClosed），不用 <details>：
   //   流式重建会把节点换掉，原生折叠既可能丢 click、又可能丢 ontoggle。

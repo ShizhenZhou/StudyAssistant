@@ -351,7 +351,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         }
                         val beta = rel.channel == UpdateChecker.Channel.BETA
                         val channelKey = if (beta) "update.channel.beta" else "update.channel.stable"
-                        Text(s[channelKey] + " v" + rel.version, fontWeight = FontWeight.SemiBold)
+                        Text(s[channelKey] + " v" + rel.displayVersion, fontWeight = FontWeight.SemiBold)
                         if (beta) Text(s["update.betaWarning"], style = MaterialTheme.typography.bodySmall, color = BADGE_RED)
                         if (UpdateChecker.normalizeVersion(rel.version) == UpdateChecker.normalizeVersion(installed)) {
                             Text(s.format("update.sameVersion", "name" to rel.assetName), style = MaterialTheme.typography.bodySmall)
@@ -373,7 +373,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         }
                         Spacer(Modifier.height(12.dp))
                         val skipped = remember(skipRevision, rel) { UpdateChecker.isSkipped(context, rel) }
-                        if (skipped) Text(s.format("update.skipped", "v" to rel.version), style = MaterialTheme.typography.bodySmall)
+                        if (skipped) Text(s.format("update.skipped", "v" to rel.displayVersion), style = MaterialTheme.typography.bodySmall)
                         AppOutlinedButton(onClick = {
                             if (skipped) UpdateChecker.clearSkippedVersion(context, rel.channel)
                             else UpdateChecker.skipVersion(context, rel.version, rel.channel)

@@ -30,6 +30,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -447,9 +448,9 @@ class MainActivity : ComponentActivity() {
                                             Text("⚙️")
                                             if (UpdateBadgeState.availableVersion != null) {
                                                 UpdateBadgeDot(
-                                                    modifier = Modifier.align(Alignment.TopEnd),
-                                                    size = 15.dp,
-                                                    fontSize = 10.sp
+                                                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp),
+                                                    size = 12.dp,
+                                                    fontSize = 8.sp
                                                 )
                                             }
                                         }

@@ -233,7 +233,8 @@ fun SolveScreen(
             val hideAiText = sessionMode == SessionMode.REVIEW && imgs.isNotEmpty()
             ChatMsg(
                 role = if (c.role == "assistant") "assistant" else "user",
-                content = if (hideAiText) "" else c.content,
+                content = if (hideAiText) "" else c.quote?.question ?: c.content,
+                quotedText = if (hideAiText) null else c.quote?.text,
                 images = imgs,
                 thinking = if (vm.thinkingEnabled) c.thinking else null,
                 // 思考块显示在对应气泡顶端；**快速模式（未开启思考）不渲染**

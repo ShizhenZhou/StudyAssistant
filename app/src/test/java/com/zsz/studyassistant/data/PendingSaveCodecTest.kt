@@ -4,6 +4,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PendingSaveCodecTest {
+    @Test fun quotedConversationRetainsFullContentAcrossSaveAndRestore() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val quote = com.zsz.studyassistant.QuotedFollowUp("Formula: \\(x^2\\)", "Why?")
+        val message = com.zsz.studyassistant.ChatItem(2, "user", quote.text + "\n\n" + quote.question, quote = quote)
+        val encoded = json.encodeToString(com.zsz.studyassistant.ChatItem.serializer(), message)
+        val entry = PendingSave(SaveTarget.NOTEBOOK, payload.copy(conversationJson = "[$encoded]"), PendingSaveCodec.fingerprint(payload))
+        val restored = PendingSaveCodec.decode(PendingSaveCodec.encode(entry))
+        assertEquals(entry.payload.conversationJson, restored.payload.conversationJson)
+        assertEquals(message, json.decodeFromString(com.zsz.studyassistant.ChatItem.serializer(), encoded))
+        val legacy = """{"id":2,"role":"user","content":"old follow-up"}"""
+        assertNull(json.decodeFromString(com.zsz.studyassistant.ChatItem.serializer(), legacy).quote)
+        // Older clients ignore quote metadata and continue reading the complete content.
+        val legacyView = json.parseToJsonElement(encoded) as kotlinx.serialization.json.JsonObject
+        assertEquals(quote.text + "\n\n" + quote.question,
+            (legacyView["content"] as kotlinx.serialization.json.JsonPrimitive).content)
+    }
     private val payload = SavePayload(QuestionIdentity.create(1234), 1234, "question", "answer", "[]")
     @Test fun roundTripRetainsAnswerIdentityAndBase() {
         val entry = PendingSave(SaveTarget.NOTEBOOK, payload, PendingSaveCodec.fingerprint(payload.copy(answer = "old")))
