@@ -3,6 +3,17 @@ package com.zsz.studyassistant.ui
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 
+/** Both dimensions are bounded: a narrow, very tall image must not decode at full resolution. */
+internal fun decodeBoundedBitmap(bytes: ByteArray, maxDimension: Int): Bitmap? = try {
+    require(maxDimension > 0)
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    require(bounds.outWidth > 0 && bounds.outHeight > 0)
+    var sample = 1
+    while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) sample *= 2
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+} catch (_: Exception) { null }
+
 /**
  * 按目标宽度降采样解码，避免列表加载全尺寸大图（降低内存占用、提升流畅度）。
  */

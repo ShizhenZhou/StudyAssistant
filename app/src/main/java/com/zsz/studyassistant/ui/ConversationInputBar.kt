@@ -1,6 +1,5 @@
 package com.zsz.studyassistant.ui
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,6 +31,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,17 +89,21 @@ fun ConversationInputBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 images.forEach { img ->
-                    val bmp = remember(img) {
-                        try { BitmapFactory.decodeByteArray(img, 0, img.size) } catch (e: Exception) { null }
-                    }
-                    if (bmp != null) {
+                    key(img) {
+                        val bmp by produceState<android.graphics.Bitmap?>(null, img) {
+                            this.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                decodeBoundedBitmap(img, 256)
+                            }
+                        }
                         Box(Modifier.size(60.dp)) {
-                            Image(
-                                bitmap = bmp.asImageBitmap(),
-                                contentDescription = imageDesc,
-                                modifier = Modifier.size(60.dp),
-                                contentScale = ContentScale.Crop
-                            )
+                            bmp?.let { preview ->
+                                Image(
+                                    bitmap = preview.asImageBitmap(),
+                                    contentDescription = imageDesc,
+                                    modifier = Modifier.size(60.dp),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                             Box(
                                 Modifier
                                     .align(Alignment.TopEnd)

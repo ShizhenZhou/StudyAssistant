@@ -1,7 +1,6 @@
 package com.zsz.studyassistant.ui
 
 import android.annotation.SuppressLint
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
@@ -31,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -334,11 +334,14 @@ fun ConversationWebView(
 /** 全屏图片查看：双指缩放（1~6 倍）+ 拖动；✕ 或返回键关闭 */
 @Composable
 private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
-    val bitmap = remember(b64) {
-        runCatching {
-            val bytes = Base64.decode(b64, Base64.NO_WRAP)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        }.getOrNull()
+    var imageLoading by remember(b64) { mutableStateOf(true) }
+    val bitmap by produceState<android.graphics.Bitmap?>(null, b64) {
+        value = null
+        try {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { decodeBoundedBitmap(Base64.decode(b64, Base64.NO_WRAP), 4096) }.getOrNull()
+            }
+        } finally { imageLoading = false }
     }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -357,9 +360,10 @@ private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
                 },
             contentAlignment = Alignment.Center
         ) {
-            if (bitmap != null) {
+            val preview = bitmap
+            if (preview != null) {
                 Image(
-                    bitmap = bitmap.asImageBitmap(),
+                    bitmap = preview.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
@@ -373,7 +377,7 @@ private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
                     contentScale = ContentScale.Fit
                 )
             } else {
-                Text("⚠️", color = androidx.compose.ui.graphics.Color.White, fontSize = 32.sp)
+                Text(if (imageLoading) "…" else "⚠️", color = androidx.compose.ui.graphics.Color.White, fontSize = 32.sp)
             }
             Text(
                 "✕",

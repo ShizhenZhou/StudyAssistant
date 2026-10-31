@@ -32,6 +32,14 @@ class PendingSaveCodecTest {
         val duplicates = com.zsz.studyassistant.withStableMessageKeys(listOf(source, source.copy(id = 2)))
         assertEquals(2, duplicates.map { it.messageKey }.distinct().size)
         assertTrue(duplicates.none { it.messageKey == source.messageKey })
+        // A hidden duplicate question shifts display indices; deletion must still target the selected key.
+        val stored = com.zsz.studyassistant.withStableMessageKeys(listOf(
+            legacySource.copy(id = 0, role = "question", content = "q"),
+            legacySource.copy(id = 1, role = "question", content = "q"), source, message))
+        val displayed = listOf(null, stored[0].messageKey, stored[2].messageKey, stored[3].messageKey)
+        assertEquals(listOf(null, 0, 2, 3), com.zsz.studyassistant.messageIndicesForKeys(stored, displayed))
+        assertEquals(listOf(null, 0, 2, null), com.zsz.studyassistant.messageIndicesForKeys(stored.dropLast(1), displayed))
+        assertEquals(listOf(null), com.zsz.studyassistant.messageIndicesForKeys(listOf(source, source), listOf(source.messageKey)))
     }
     private val payload = SavePayload(QuestionIdentity.create(1234), 1234, "question", "answer", "[]")
     @Test fun roundTripRetainsAnswerIdentityAndBase() {

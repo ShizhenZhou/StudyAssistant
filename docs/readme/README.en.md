@@ -56,14 +56,6 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - ⬆️ Show complete beta version names, reduce the update badge size and improve bottom spacing on the update page.
 - 📌 `versionCode` **92**。
 
-### v0.6.9_beta
-
-- 💬 Ask quoted follow-ups from selected text, with more forgiving line-gap touch targets and a prioritized follow-up action; long-press blank areas to select messages.
-- 🎨 Add grey quote previews and pale-blue question bubbles, with full quoted text and formulas in a nested grey box after sending; improve update-page bottom spacing.
-- ⬆️ Show the complete beta version name and reduce the settings update badge size.
-- 🧪 This is an optional beta release; features may be unstable.
-- 📌 `versionCode` **91**。
-
 ### v0.6.8.10
 
 - ↔️ Swipe across blank areas to switch between Learning, Statistics and Settings.

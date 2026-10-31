@@ -29,7 +29,18 @@ internal fun uriToTempFile(context: Context, uri: Uri, prefix: String = "pick"):
         input.use {
             file = File.createTempFile(prefix, ".jpg", context.cacheDir)
             val target = checkNotNull(file)
-            target.outputStream().use { output -> input.copyTo(output) }
+            target.outputStream().use { output ->
+                val buffer = ByteArray(32 * 1024)
+                var total = 0L
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    // Match shared-image intake/capture checkpoints; never fill storage from an unbounded provider.
+                    require(total <= 32L * 1024 * 1024) { "Image exceeds safe import size" }
+                    output.write(buffer, 0, count)
+                }
+            }
             check(target.length() > 0)
         }
         file

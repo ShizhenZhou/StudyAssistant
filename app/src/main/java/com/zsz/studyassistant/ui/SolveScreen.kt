@@ -68,6 +68,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,6 +95,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import com.zsz.studyassistant.ChatItem
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
@@ -125,6 +129,8 @@ fun SolveScreen(
     var quotedSelection by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf<QuoteSelection?>(null) }
     var quoteFocusSignal by remember { mutableIntStateOf(0) }
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
+    var pickingImages by remember { mutableStateOf(false) }
+    val imageScope = rememberCoroutineScope()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
     // 深色 + 字号：对话区（C14）用（导出 B7 已于 v0.6.4 取消）
@@ -148,9 +154,19 @@ fun SolveScreen(
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(3)
     ) { uris ->
-        if (uris.isNotEmpty()) {
-            val newOnes = uris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
-            selectedImages = (selectedImages + newOnes).take(3)
+        if (uris.isNotEmpty() && !pickingImages) {
+            val session = vm.chatItems.firstOrNull()?.messageKey
+            val remaining = (3 - selectedImages.size).coerceAtLeast(0)
+            pickingImages = true
+            imageScope.launch {
+                try {
+                    val picked = withContext(Dispatchers.IO) { urisToCompressedBytes(context, uris.take(remaining)) }
+                    if (session == vm.chatItems.firstOrNull()?.messageKey) {
+                        if (picked == null) feedback.show(s["camera.errRead"])
+                        else selectedImages = (selectedImages + picked).take(3)
+                    }
+                } finally { pickingImages = false }
+            }
         }
     }
 
@@ -209,7 +225,8 @@ fun SolveScreen(
     // ★★ 同一个坑第二次踩：thinkingText / thinkingDone / thinkingEnabled 只在 remember 块**内部**被读，
     //    块外的 key 不变时 remember 直接返回**缓存列表** → 思考增长期间 messages 根本不重算 →
     //    WebView 收到的 JSON 一模一样 → 表现成「思考不流式输出（最后一次性蹦出来）」。必须进 key。
-    val messages = remember(vm.chatItems, vm.questionImages, vm.questionFromPhoto, sessionMode == SessionMode.REVIEW, answerRevealed, vm.streamingText, vm.streamInterrupted, vm.thinkingText, vm.thinkingDone, vm.thinkingEnabled) {
+    // Stable bubbles retain their lazy source hashes while only the streaming tail changes.
+    val mappedMessages = remember(vm.chatItems, vm.questionImages, sessionMode == SessionMode.REVIEW, answerRevealed, vm.thinkingEnabled) {
         var items = if (sessionMode == SessionMode.REVIEW && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         // ★ 兜底去重：题干项按内容去重（旧数据/不同入口可能塞进重复题干，表现为"题目出现两遍"）
         run {
@@ -221,7 +238,7 @@ fun SolveScreen(
         if (items.none { it.role == "question" } && vm.questionImages.isNotEmpty()) {
             items = listOf(com.zsz.studyassistant.ChatItem(-1L, "question", "", vm.questionImages)) + items
         }
-        val mapped = items.map { c ->
+        items.map { c ->
             val imgs = if (c.role == "question") {
                 // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
                 vm.questionImages.ifEmpty { c.images ?: emptyList() }
@@ -242,6 +259,9 @@ fun SolveScreen(
                 // 思考块显示在对应气泡顶端；**快速模式（未开启思考）不渲染**
             )
         }
+    }
+    val messages = remember(mappedMessages, vm.streamingText, vm.streamInterrupted, vm.thinkingText, vm.thinkingDone, vm.thinkingEnabled, s) {
+        val mapped = mappedMessages
         // 流式：把已生成的部分作为一条「正在生成」的助手气泡实时渲染（末尾光标提示未完成）
         val live = vm.streamingText
         when {
@@ -267,15 +287,21 @@ fun SolveScreen(
     //   删除也覆盖不到。这里给它一个"虚拟下标"（= 渲染列表的最后一项），并入可选范围；
     //   删除动作对应 vm.discardInterrupted()（丢弃中断态，而不是往 chatItems 里塞一条）。
     val virtualTailIndex = if (vm.streamInterrupted && messages.isNotEmpty()) messages.lastIndex else -1
+    // Rendering may hide duplicate legacy questions or prepend a photo placeholder.
+    // Resolve back through stable keys before editing; a rendered position is not a storage index.
+    val sourceIndices = remember(vm.chatItems, mappedMessages) {
+        com.zsz.studyassistant.messageIndicesForKeys(vm.chatItems, mappedMessages.map { it.messageKey })
+    }
     fun isSelectableIndexOf(idx: Int): Boolean =
-        idx in vm.chatItems.indices || (virtualTailIndex >= 0 && idx == virtualTailIndex)
+        sourceIndices.getOrNull(idx) != null || (virtualTailIndex >= 0 && idx == virtualTailIndex)
 
     // 多选时禁止删除：题干（第一条 question）与 AI 的第一条回复（答案 / 批改结果）
     // 批改模式下「我的手写作答」也在第一条 question 气泡里，因此一并受保护
-    val lockedIndices = remember(vm.chatItems) {
+    val lockedIndices = remember(vm.chatItems, sourceIndices) {
+        val protected = setOf(vm.chatItems.indexOfFirst { it.role == "question" },
+            vm.chatItems.indexOfFirst { it.role == "assistant" })
         buildSet {
-            vm.chatItems.indexOfFirst { it.role == "question" }.takeIf { it >= 0 }?.let { add(it) }
-            vm.chatItems.indexOfFirst { it.role == "assistant" }.takeIf { it >= 0 }?.let { add(it) }
+            sourceIndices.forEachIndexed { visible, source -> if (source == null || source in protected) add(visible) }
         }
     }
 
@@ -287,8 +313,7 @@ fun SolveScreen(
                         // 多选态：左侧「全选 / 取消全选」+ 已选条数（删除/完成仍在右侧）
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // 可选集合 = chatItems 里未被锁定的 + （若有）中止后的虚拟尾气泡
-                            val selectable = (vm.chatItems.indices.filter { it !in lockedIndices } +
-                                listOfNotNull(virtualTailIndex.takeIf { it >= 0 }))
+                            val selectable = messages.indices.filter { isSelectableIndexOf(it) && it !in lockedIndices }
                             val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
                             TextButton(
                                 onClick = {
@@ -543,7 +568,7 @@ fun SolveScreen(
                     TextButton(onClick = {
                         // 虚拟尾气泡（中止后的「思考中/已中断」那条）走"丢弃中断态"，它不在 chatItems 里
                         if (virtualTailIndex >= 0 && virtualTailIndex in selectedIndices) vm.discardInterrupted()
-                        vm.deleteMessages(selectedIndices.filter { it in vm.chatItems.indices && it !in lockedIndices })
+                        vm.deleteMessages(selectedIndices.filter { it !in lockedIndices }.mapNotNull { sourceIndices.getOrNull(it) })
                         showEditDelete = false
                         editMode = false
                         selectedIndices = emptySet()
@@ -741,7 +766,7 @@ fun SolveScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            TextButton(onClick = { imagePicker.launch(imagePickRequest(maxItems = 3)) }) {
+                            TextButton(enabled = !pickingImages, onClick = { imagePicker.launch(imagePickRequest(maxItems = 3)) }) {
                                 Text(s["ask.addImage"])
                             }
                             Button(
@@ -750,7 +775,7 @@ fun SolveScreen(
                                     followUp = ""
                                     selectedImages = emptyList()
                                 },
-                                enabled = followUp.isNotBlank() || selectedImages.isNotEmpty(),
+                                enabled = !pickingImages && (followUp.isNotBlank() || selectedImages.isNotEmpty()),
                                 modifier = Modifier.height(52.dp)
                             ) { Text(s["solve.send"]) }
                         }
@@ -949,7 +974,7 @@ fun SolveScreen(
                             quotedSelection = null
                         }
                     },
-                    busy = vm.busy || vm.dataBusy,
+                    busy = vm.busy || vm.dataBusy || pickingImages,
                     hint = s["solve.followUpHint"],
                     sendLabel = s["solve.send"],
                     imageDesc = s["solve.imageDesc"],

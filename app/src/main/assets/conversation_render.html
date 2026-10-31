@@ -242,6 +242,16 @@ function hitsMessageText(x, y, bubble){
   // Extend line hit targets vertically across normal leading, without extending
   // into bubble padding or treating blank space after a short line as text.
   var verticalSlack = Math.max(4, parseFloat(getComputedStyle(bubble).fontSize) * 0.3 || 4);
+  // Fractions, radicals and boxed padding are element-only KaTeX layout. Chromium
+  // can return a non-text caret there, so classify the visible formula before probing text.
+  // Use actual inline bases, not the full-width display wrapper (its sides are blank).
+  var bases = bubble.querySelectorAll('.math-source .katex-html > .katex-base, .math-source .katex-html > .katex-tag');
+  for(var base of bases){
+    var scope = textScope(base), display = base.closest('.katex-display');
+    if(!scope || !containsPoint(scope.getBoundingClientRect(),x,y) ||
+        (display && !containsPoint(display.getBoundingClientRect(),x,y))) continue;
+    for(var rect of base.getClientRects()) if(containsPoint(rect,x,y,verticalSlack)) return true;
+  }
   var probes = [y, y - verticalSlack, y + verticalSlack];
   for(var probe=0;probe<probes.length;probe++){
     // At a line break Chromium may return an element boundary instead of a text
@@ -250,11 +260,6 @@ function hitsMessageText(x, y, bubble){
     if(!caret || caret.startContainer.nodeType !== 3 || !bubble.contains(caret.startContainer)) continue;
     var node = caret.startContainer, scope = textScope(node);
     if(!scope || !containsPoint(scope.getBoundingClientRect(), x, y)) continue;
-    var formula = elementOf(node).closest('.math-source');
-    if(formula){
-      var ink = formula.querySelector('.katex-html') || formula;
-      if(containsPoint(ink.getBoundingClientRect(), x, y, verticalSlack)) return true;
-    }
     for(var offset = Math.max(0, caret.startOffset - 1); offset < Math.min(node.length, caret.startOffset + 1); offset++){
       var character = document.createRange();
       character.setStart(node, offset); character.setEnd(node, offset + 1);
@@ -312,7 +317,10 @@ window.dshSelectedText = function(){
 };
 document.addEventListener('selectionchange', function(){
   var selected = window.getSelection();
-  if(selected && !selected.isCollapsed) window.dshNoFollow();
+  if(selected && !selected.isCollapsed){
+    window.dshNoFollow();
+    if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+  }
 });
 // Long-press only the non-text part of a bubble to enter message multi-select.
 var lpTimer = null, lpMoved = false, lpIdx = -1, lpT0 = 0;
@@ -338,7 +346,8 @@ document.addEventListener('touchstart', function(e){
     if(Date.now() - lpT0 > 800) return;
     if(!lpMoved && !isNaN(lpIdx)){
       // 已在多选态：长按不再有任何作用（多选内只允许单次点击选择），避免歧义与误操作
-      if(selectionMode) return;
+      var selected = window.getSelection();
+      if(selectionMode || (selected && !selected.isCollapsed)) return;
       try{ if(window.Android && Android.longPressMessage){ Android.longPressMessage(lpIdx); } }catch(err){}
     }
   }, 450);

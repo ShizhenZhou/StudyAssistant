@@ -78,6 +78,13 @@ internal fun withStableMessageKeys(items: List<ChatItem>): List<ChatItem> {
     }
 }
 
+/** A filtered display order must never be used directly to delete persisted messages. */
+internal fun messageIndicesForKeys(items: List<ChatItem>, keys: List<String?>): List<Int?> {
+    val unique = items.withIndex().filter { !it.value.messageKey.isNullOrBlank() }
+        .groupBy { it.value.messageKey }.mapValues { (_, entries) -> entries.singleOrNull()?.index }
+    return keys.map { key -> key?.let(unique::get) }
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     val sharedImages = com.zsz.studyassistant.data.SharedImageInbox(app, viewModelScope)
 

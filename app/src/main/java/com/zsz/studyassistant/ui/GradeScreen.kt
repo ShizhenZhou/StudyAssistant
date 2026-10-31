@@ -41,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,12 +60,16 @@ import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** 批改题目：拍照（单张=题目；两张=题目+手写答案）→ AI 批改正误/错误步骤/针对性讲解 */
 @Composable
 fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
     val context = LocalContext.current
     val s = LocalStrings.current
+    val imageScope = rememberCoroutineScope()
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -169,27 +174,34 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
 
         // 系统相册（开启**有序选择**）：一次选两张 → 第 1 张=题目、第 2 张=我的作答 → 直接批改；
         // 只选一张 → 先当题目（等作答），可再点图库补选作答
+        fun importGallery(uris: List<android.net.Uri>) {
+            if (uris.isEmpty() || captureInFlight) return
+            captureInFlight = true
+            imageScope.launch {
+                try {
+                    val picked = withContext(Dispatchers.IO) { urisToCompressedBytes(context, uris.take(2)) }
+                    if (!screenActive.get()) return@launch
+                    when {
+                        picked == null -> vm.showError(s["camera.errRead"])
+                        picked.size >= 2 -> {
+                            vm.startGrade(picked[0], picked[1])
+                            AppNav.openSolve(nav, AppNav.Origin.GRADE)
+                            awaitingAnswer = false
+                        }
+                        picked.size == 1 -> processImage(picked[0])
+                    }
+                } finally { captureInFlight = false }
+            }
+        }
         val gallerySingle = rememberLauncherForActivityResult(
             ActivityResultContracts.PickVisualMedia()
         ) { uri ->
-            if (uri != null) uriToCompressedBytes(context, uri)?.let { processImage(it) }
+            if (uri != null) importGallery(listOf(uri))
         }
         val galleryMulti = rememberLauncherForActivityResult(
             ActivityResultContracts.PickMultipleVisualMedia(2)
         ) { uris ->
-            val picked = urisToCompressedBytes(context, uris.take(2))
-            if (picked == null) {
-                vm.showError(s["camera.errRead"])
-                return@rememberLauncherForActivityResult
-            }
-            when {
-                picked.size >= 2 -> {
-                    vm.startGrade(picked[0], picked[1])
-                    AppNav.openSolve(nav, AppNav.Origin.GRADE)
-                    awaitingAnswer = false
-                }
-                picked.size == 1 -> processImage(picked[0])
-            }
+            importGallery(uris)
         }
 
         Text(
@@ -232,13 +244,18 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
                         ContextCompat.getMainExecutor(context),
                         object : ImageCapture.OnImageSavedCallback {
                             override fun onImageSaved(o: ImageCapture.OutputFileResults) {
-                                captureInFlight = false
-                                try {
-                                    if (screenActive.get()) processImage(StudyAssistant.compressImage(file))
-                                } catch (e: Exception) {
-                                    if (screenActive.get()) vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
-                                } finally {
-                                    file.delete()
+                                // Enter cleanup even if this page's scope was just cancelled.
+                                imageScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                    try {
+                                        val bytes = withContext(Dispatchers.IO) { StudyAssistant.compressImage(file) }
+                                        if (screenActive.get()) processImage(bytes)
+                                    } catch (e: CancellationException) { throw e }
+                                    catch (e: Exception) {
+                                        if (screenActive.get()) vm.showError(s.format("camera.errShot", "msg" to (e.message ?: "")))
+                                    } finally {
+                                        file.delete()
+                                        captureInFlight = false
+                                    }
                                 }
                             }
                             override fun onError(e: ImageCaptureException) {

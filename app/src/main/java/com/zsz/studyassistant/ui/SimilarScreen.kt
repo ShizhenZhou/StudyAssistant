@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** 练同类题：AI 出一道同类题，先只显示题目，可互动；顶部「查看答案」再显示答案 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,15 +68,28 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     }
     // 追问附图（与解题页一致，最多 3 张）
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
+    var pickingImages by remember { mutableStateOf(false) }
+    val imageScope = rememberCoroutineScope()
+    val feedback = LocalAppFeedback.current
     val categories by vm.categories.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
     // 系统相册（有序选择）→ 追加附图
     val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(3)
     ) { uris ->
-        if (uris.isNotEmpty()) {
-            val newOnes = uris.take(3).mapNotNull { uriToCompressedBytes(context, it) }
-            selectedImages = (selectedImages + newOnes).take(3)
+        if (uris.isNotEmpty() && !pickingImages) {
+            val question = vm.similarQuestion
+            val remaining = (3 - selectedImages.size).coerceAtLeast(0)
+            pickingImages = true
+            imageScope.launch {
+                try {
+                    val picked = withContext(Dispatchers.IO) { urisToCompressedBytes(context, uris.take(remaining)) }
+                    if (question == vm.similarQuestion) {
+                        if (picked == null) feedback.show(s["camera.errRead"])
+                        else selectedImages = (selectedImages + picked).take(3)
+                    }
+                } finally { pickingImages = false }
+            }
         }
     }
     var scrollTopTick by remember { mutableIntStateOf(0) }
@@ -314,7 +331,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         input = ""
                         selectedImages = emptyList()
                     },
-                    busy = vm.similarBusy,
+                    busy = vm.similarBusy || pickingImages,
                     hint = s["similar.hint"],
                     sendLabel = s["solve.send"],
                     imageDesc = s["solve.imageDesc"],
