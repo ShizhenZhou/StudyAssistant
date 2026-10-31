@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.9_beta
+· 💬 解题气泡支持长按选文并引用追问；长按空白区域进入消息多选。
+· 🎨 新增灰色单行引用预览，支持查看完整内容和移除引用。
+· 🧪 本版本为可选测试版，功能可能不稳定。
+
 v0.6.8.10
 · ↔️ 主页空白区域支持左右滑动切换学习、统计和设置。
 · 📚 返回列表保留搜索、筛选与位置，优化缩略图加载和列表过渡。
@@ -549,6 +554,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.9_beta
+· 💬 Select text in solution bubbles to ask a quoted follow-up; long-press blank areas to select messages.
+· 🎨 Add a grey, single-line quote preview with full-text viewing and removal.
+· 🧪 This is an optional beta release; features may be unstable.
+
 v0.6.8.10
 · ↔️ Swipe across blank areas to switch between Learning, Statistics and Settings.
 · 📚 Keep search, filters and position when returning to lists; improve thumbnail loading and list transitions.
@@ -1093,6 +1103,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.9_beta
+· 💬 解答の文字を長押しして選択・引用質問。吹き出しの余白を長押しするとメッセージを複数選択できます。
+· 🎨 グレーの1行引用プレビューを追加。全文の表示と引用の削除に対応。
+· 🧪 任意のベータ版です。機能が不安定な場合があります。
+
 v0.6.8.10
 · ↔️ ホーム画面の空白部分を左右にスワイプして、学習・統計・設定を切り替えられます。
 · 📚 一覧に戻る際の検索・絞り込み・位置を保持し、サムネイル読み込みと一覧のアニメーションを改善しました。
@@ -1637,6 +1652,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.9_beta
+· 💬 풀이 말풍선의 글자를 길게 눌러 선택하고 인용 질문을 보낼 수 있습니다. 빈 영역을 길게 누르면 메시지 다중 선택으로 전환됩니다.
+· 🎨 회색 한 줄 인용 미리보기를 추가하고 전문 보기와 인용 삭제를 지원합니다.
+· 🧪 선택적 베타 버전이며 기능이 불안정할 수 있습니다.
+
 v0.6.8.10
 · ↔️ 홈 화면의 빈 영역을 좌우로 밀어 학습·통계·설정을 전환할 수 있습니다.
 · 📚 목록으로 돌아올 때 검색·필터·위치를 유지하고 썸네일 로딩과 목록 전환을 개선했습니다.

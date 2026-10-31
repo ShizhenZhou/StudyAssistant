@@ -6,7 +6,7 @@ import re
 import zipfile
 
 PACKAGE = "com.zsz.studyassistant"
-VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}")
+VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}(?:_beta)?")
 SIGNATURE_ENTRY = re.compile(r"META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC))", re.IGNORECASE)
 
 def sha256(path):

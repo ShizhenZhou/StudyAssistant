@@ -54,7 +54,9 @@ def published_identity(published):
 def update_manifest(apk, identity, candidate):
     if any(identity.get(key) != candidate.get(key) for key in ("package", "version", "versionCode", "minSdk", "targetSdk")):
         raise ReleaseError("Signed APK identity differs from the CI manifest.")
-    return dict(schema=1, version=identity["version"], versionCode=identity["versionCode"],
+    # Existing clients compare the normalized numeric release version; the APK
+    # identity retains its suffix and GitHub prerelease/channel carries the channel.
+    return dict(schema=1, version=identity["version"].removesuffix("_beta"), versionCode=identity["versionCode"],
                 minSdk=identity["minSdk"], apkName=apk.name, apkSha256=sha256(apk), apkSize=apk.stat().st_size)
 
 def release_body(notes, metadata):
@@ -433,12 +435,14 @@ class Release:
         # Merge/review happens before this command; it never starts tests or merges branches.
         if self.git("status", "--porcelain").stdout.strip():
             raise ReleaseError("Commit/review local changes first.")
-        if self.git("branch", "--show-current").stdout.decode().strip() != "main":
-            raise ReleaseError("Complete scoped validation and merge main before requesting a release build.")
+        branch = self.git("branch", "--show-current").stdout.decode().strip()
+        if branch != "main" and not (branch == "Develop" and channel == "beta"):
+            raise ReleaseError("Stable releases require main; explicit beta releases may use Develop.")
         commit = self.git("rev-parse", "HEAD").stdout.decode().strip()
-        if self.remote("main") != commit:
-            raise ReleaseError("Push the reviewed main commit before requesting its build.")
+        if self.remote(branch) != commit:
+            raise ReleaseError("Push the reviewed source branch before requesting its build.")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
+        if version.endswith("_beta") and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
         source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
         if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
             raise ReleaseError("Requested version differs from source.")
@@ -461,11 +465,12 @@ class Release:
         message = self.git("log", "-1", "--format=%s").stdout.decode("utf-8").strip()
         if not re.match(r"^(feat|fix|build|ci|docs|test|refactor|chore|perf|revert)(?:\([^)]+\))?!?: .+", message):
             raise ReleaseError("Use a Conventional Commit title for the reviewed main commit.")
-        self.state.update(channel=channel, dispatchBranch="main", dispatchAttempted=True,
+        self.state.update(channel=channel, dispatchBranch=branch, dispatchAttempted=True,
                           requestedAt=datetime.now(timezone.utc).isoformat())
         self.save()  # Never blindly dispatch again after an ambiguous network response.
-        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":"main", "inputs":{
-            "expected_sha":commit, "run_description":run_description(version, message)}})
+        inputs = {"expected_sha":commit, "run_description":run_description(version, message)}
+        if branch == "Develop": inputs["release_channel"] = "beta"
+        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":branch, "inputs":inputs})
         return self.status()
     def status(self):
         if not self.state.get("runId") and self.state.get("dispatchAttempted"):
@@ -504,9 +509,9 @@ class Release:
             self.path,self.state=path,state
         return self.status()
 
-    def assert_source(self, commit):
-        if self.remote("main") != commit:
-            raise ReleaseError("main changed since CI. Do not publish a different source.")
+    def assert_source(self, commit, branch="main"):
+        if self.remote(branch) != commit:
+            raise ReleaseError("Source branch changed since CI. Do not publish a different source.")
         if self.git("rev-parse", "HEAD").stdout.decode().strip() != commit or self.git("status", "--porcelain").stdout.strip():
             raise ReleaseError("Local source must be clean and match the verified CI commit.")
 
@@ -567,7 +572,7 @@ class Release:
             page += 1
         modern = any(j["name"] == "Verification gate" for j in jobs)
         commit = run["head_sha"]
-        self.assert_source(commit)
+        self.assert_source(commit, run["head_branch"])
         artifacts = self.github.api(f"actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
         found = [a for a in artifacts if a["name"] == "release-candidate" and not a["expired"]]
         if len(found) != 1: raise ReleaseError("Expected one unexpired candidate artifact.")
@@ -601,10 +606,12 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","fullVerification") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
-            if run.get("head_branch") != "main" or run.get("path", "").split("@")[0] != ".github/workflows/" + WORKFLOW:
-                raise ReleaseError("Candidate must come from the reviewed main build workflow")
+            branch = run.get("head_branch")
+            if (branch != "main" and not (branch == "Develop" and self.state.get("channel") == "beta" and
+                    self.state.get("dispatchBranch") == "Develop")) or run.get("path", "").split("@")[0] != ".github/workflows/" + WORKFLOW:
+                raise ReleaseError("Candidate requires main or an explicitly requested Develop beta build")
             latest = required_jobs(jobs, [])
             if latest.get("build", {}).get("conclusion") != "success":
                 raise ReleaseError("Release build did not succeed")
@@ -672,7 +679,7 @@ class Release:
         # Persist exact metadata before any durable replacement ownership marker.
         files = {signed.name: signed}
         # Previously published legacy releases retain their single-APK layout.
-        if tuple(map(int, version.split("."))) > (0, 6, 7, 8):
+        if tuple(map(int, version.removesuffix("_beta").split("."))) > (0, 6, 7, 8):
             metadata = self.signed_identity(signed, manifest)
             update_path = signed.parent / "update-manifest.json"
             # Preserve byte-for-byte legacy metadata when resuming an existing state.

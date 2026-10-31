@@ -36,6 +36,8 @@ Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时
 
 Beta可从开发分支本地按需构建一次：`./gradlew.bat assembleRelease --console=plain`，再用现有`tools/sign-release.ps1 -InApk app/build/outputs/apk/release/app-release-unsigned.apk`签名。这只生成可交付测试包，不自动发GitHub Release、不安装手机。版本号/versionCode、渠道与分发方式按当次安排：覆盖安装要原证书，正式后继versionCode不得低于已交付Beta；公开测试版须明确标prerelease且不得latest。公开Beta发布若需离开main的独立路径，应当次明确安排，不能悄悄合并实验分支。
 
+用户明确要求从 Develop 公开 Beta 时，在已推送的干净 Develop 执行 `./tools/release.ps1 start --version 0.6.9_beta --channel beta`，随后按同一 run 执行 status/publish。只构建一次，保留候选身份与签名校验，不合并 main；Release 必须 prerelease 且不设 latest。`_beta` 保留在 APK/标签中，兼容清单使用数值版本和 beta 渠道，以兼容现有更新客户端。本次 0.6.9_beta 按用户要求沿用 versionCode 91；正式后继版本使用更高 code。
+
 用户允许后使用指定设备的有线/无线ADB；配对/连接参数由用户实际设备提供。不自动选择USB手机。定位只取相关日志、进程/通知状态；不清数据、不卸载、不导出真实题库、Key或全量日志。手机反馈是该包该设备的证据，不夸大到全部机型。Beta之后修改相关代码，需要相关补验；纯打包签名不重跑行为测试。
 
 ## 可选模拟器诊断
@@ -61,13 +63,13 @@ git push origin main
 ./tools/release.ps1 publish --run RUN_ID
 ```
 
-也可快进到已有规范提交。start只接受已推送的干净main，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job；Develop 可在用户要求时构建一次 development-build，成功后规范合并 main，合并不自动重跑。正式发布候选仍只能由 main 生成：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
+也可快进到已有规范提交。正式版 start 只接受已推送的干净 main；显式 `--channel beta` 也接受已推送的干净 Develop，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job；Develop 可在用户要求时构建一次 development-build，成功后规范合并 main，合并不自动重跑。正式发布候选仍只能由 main 生成：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
 
 schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时间、SHA、签名后保持的代码资源摘要与预期证书，不含JVM/设备通过结论。旧schema1/2仅保留历史读取兼容；不要求为新版本下载旧测试证据，不对新流程回退全量。
 
 ## 签名与发布底线
 
-只使用原自有证书/lineage；CI不读取签名材料。候选必须非debuggable且未签名，运行成功、main与本地源码吻合；签名后重新核对身份、原证书及代码资源摘要。发布保留不可变tag、正式/beta渠道与最低系统要求、versionCode、更新清单、最终公开附件真实下载SHA和history_apk归档。普通发版start→status→publish，verify只是按需诊断，不固定多执行一次。签名、发布、归档不触发测试。
+只使用原自有证书/lineage；CI不读取签名材料。候选必须非debuggable且未签名，运行成功、对应发布分支与本地源码吻合；签名后重新核对身份、原证书及代码资源摘要。发布保留不可变tag、正式/beta渠道与最低系统要求、versionCode、更新清单、最终公开附件真实下载SHA和history_apk归档。普通发版start→status→publish，verify只是按需诊断，不固定多执行一次。签名、发布、归档不触发测试。
 
 同版本替换仍须用户明确安排，使用start --replace与replace --run，保留原标签；不默认替换既有Release。历史精确来源检查仅用于此类替换和历史恢复，不作为每次新版本前置。
 

@@ -1,5 +1,5 @@
 name: build
-run-name: "${{ github.ref_name == 'main' && 'release' || 'build' }}: ${{ inputs.run_description || github.ref_name }}"
+run-name: "${{ (github.ref_name == 'main' || inputs.release_channel == 'beta') && 'release' || 'build' }}: ${{ inputs.run_description || github.ref_name }}"
 # Validation is local and scoped. Push/PR/tag do not start duplicate builds.
 on:
   workflow_dispatch:
@@ -12,6 +12,14 @@ on:
         description: Version and concise purpose
         required: true
         type: string
+      release_channel:
+        description: Explicit beta publication from Develop (otherwise build only)
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - beta
 permissions:
   contents: read
 concurrency:
@@ -40,10 +48,12 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease --console=plain
       - name: Record APK identity and hashes
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta'
+        env:
+          RELEASE_CHANNEL: ${{ inputs.release_channel }}
         run: python3 -B tools/ci-release.py
       - uses: actions/upload-artifact@v7.0.2
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta'
         with:
           name: release-candidate
           path: |
@@ -52,7 +62,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Upload development build
-        if: github.ref == 'refs/heads/Develop'
+        if: github.ref == 'refs/heads/Develop' && inputs.release_channel != 'beta'
         uses: actions/upload-artifact@v7.0.2
         with:
           name: development-build

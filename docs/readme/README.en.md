@@ -43,6 +43,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9_beta
+
+- 💬 Select text in solution bubbles to ask a quoted follow-up; long-press blank areas to select messages.
+- 🎨 Add a grey, single-line quote preview with full-text viewing and removal.
+- 🧪 This is an optional beta release; features may be unstable.
+- 📌 `versionCode` **91**。
+
 ### v0.6.8.10
 
 - ↔️ Swipe across blank areas to switch between Learning, Statistics and Settings.

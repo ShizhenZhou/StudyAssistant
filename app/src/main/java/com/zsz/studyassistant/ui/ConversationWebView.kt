@@ -75,6 +75,8 @@ fun ConversationWebView(
     onContinue: () -> Unit = {},
     /** 长按某条消息气泡时回调（参数为界面消息下标）→ 用于进入多选界面 */
     onLongPressMessage: (Int) -> Unit = {},
+    /** Available only where a follow-up composer can receive a selection. */
+    onQuoteText: ((String) -> Unit)? = null,
     /** 是否处于多选态：气泡右上角显示选择圆圈，选中的显示红框 */
     selectionMode: Boolean = false,
     /** 多选态下已选中的消息下标 */
@@ -109,6 +111,7 @@ fun ConversationWebView(
     // 因此所有回调都必须通过 rememberUpdatedState 取最新值。
     val currentOnContinue by rememberUpdatedState(onContinue)
     val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
+    val currentOnQuote by rememberUpdatedState(onQuoteText)
     val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
     val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
     val currentOnScrollableChange by rememberUpdatedState(onScrollableChange)
@@ -177,6 +180,15 @@ fun ConversationWebView(
                 ResetOnFocusWebView(ctx).apply {
                     webRef = this
                     val bridgeView = this
+                    quoteLabel = s["solve.quoteAction"]
+                    selectionHint = s["solve.quoteSelectionHint"]
+                    quoteEnabled = onQuoteText != null && !selectionMode
+                    onQuote = { idx, text, source ->
+                        // A menu callback must not quote a replaced message or a released WebView.
+                        if (webRef === bridgeView && currentMessages.getOrNull(idx)?.content == source) {
+                            currentOnQuote?.invoke(text)
+                        }
+                    }
                     configureConversationWebView(this)
                     setBackgroundColor(Color.TRANSPARENT)
                     isVerticalScrollBarEnabled = true
@@ -252,6 +264,9 @@ fun ConversationWebView(
                 }
             },
             update = { v ->
+                v.quoteLabel = s["solve.quoteAction"]
+                v.selectionHint = s["solve.quoteSelectionHint"]
+                v.quoteEnabled = onQuoteText != null && !selectionMode
                 // 内容未变化时跳过重渲染，减少 WebView 开销（多选状态也进 key：圆圈/红框要即时刷新；
                 // 思考块文案（界面语言）与展开/折叠偏好同样进 key：切语言 / 点折叠要立刻生效）
                 if (loaded) {
@@ -266,6 +281,8 @@ fun ConversationWebView(
                 }
             },
             onRelease = { view ->
+                view.quoteEnabled = false
+                view.onQuote = { _, _, _ -> }
                 webRef = null
                 loaded = false
                 lastJson = null
@@ -358,7 +375,7 @@ private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
  *   ② 网页里 450ms 的长按定时器也悬着，恢复后一触发就派发 longPressMessage。
  *   这里在窗口重新聚焦时补一个 ACTION_CANCEL 并通知网页复位（`window.dshResetGestures()`），两头一起清干净。
  */
-private class ResetOnFocusWebView(context: android.content.Context) : WebView(context) {
+private class ResetOnFocusWebView(context: android.content.Context) : ConversationTextSelection(context) {
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)

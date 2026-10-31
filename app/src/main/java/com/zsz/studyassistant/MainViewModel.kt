@@ -2369,17 +2369,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */
-    fun sendFollowUp(text: String, images: List<ByteArray> = emptyList()) {
-        if(streamInterrupted) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]; return }
-        if (text.isBlank() && images.isEmpty()) return
+    fun sendFollowUp(text: String, images: List<ByteArray> = emptyList(), quotedText: String? = null): Boolean {
+        if (busy || dataBusy) return false
+        if(streamInterrupted) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]; return false }
+        if (text.isBlank() && images.isEmpty()) return false
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
-        addItem("user", text, encoded)
+        // Store the complete quote in the existing message body, so retries, history,
+        // notebook saves and backups all retain the same context without a format change.
+        val content = quotedText?.takeIf { it.isNotBlank() }?.let { quote ->
+            val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
+            strings["solve.quoteTitle"] + ":\n" + quote + "\n\n" + strings["solve.quoteQuestion"] + ":\n" + text
+        } ?: text
+        addItem("user", content, encoded)
         val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
             addItem("assistant", StudyAssistant.stripMetaLines(reply))
             updateSolveSession()
         }, repeat = { retryFollowUp(encoded) })
+        return true
     }
 
     /** 当前会话的来源标签（camera/ask/text/grade）——更新已有记录时沿用，避免来回改来源 */

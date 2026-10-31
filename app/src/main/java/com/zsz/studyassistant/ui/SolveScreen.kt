@@ -122,6 +122,8 @@ fun SolveScreen(
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
     var followUp by remember { mutableStateOf("") }
+    var quotedText by remember(vm.chatItems.firstOrNull()?.id) { mutableStateOf<String?>(null) }
+    var quoteFocusSignal by remember { mutableIntStateOf(0) }
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
@@ -757,6 +759,10 @@ fun SolveScreen(
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
+                        onQuoteText = if (sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { text ->
+                            quotedText = text
+                            quoteFocusSignal++
+                        } else null,
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择，JS 侧已拦截，这里再兜一层）
                         // 受保护的消息（题干 / AI 首条回复）：从普通态长按进入多选时**不选中它**（显示灰色虚线圈）
                         onLongPressMessage = { idx ->
@@ -934,14 +940,19 @@ fun SolveScreen(
                     onRemoveImage = { selectedImages = selectedImages - it },
                     onPickImages = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
                     onSend = {
-                        vm.sendFollowUp(followUp.trim(), selectedImages)
-                        followUp = ""
-                        selectedImages = emptyList()
+                        if (vm.sendFollowUp(followUp.trim(), selectedImages, quotedText)) {
+                            followUp = ""
+                            selectedImages = emptyList()
+                            quotedText = null
+                        }
                     },
-                    busy = vm.busy,
+                    busy = vm.busy || vm.dataBusy,
                     hint = s["solve.followUpHint"],
                     sendLabel = s["solve.send"],
-                    imageDesc = s["solve.imageDesc"]
+                    imageDesc = s["solve.imageDesc"],
+                    quotedText = quotedText,
+                    onRemoveQuote = { quotedText = null },
+                    quoteFocusSignal = quoteFocusSignal
                 )
             }
         }

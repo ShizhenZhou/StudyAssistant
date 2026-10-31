@@ -9,7 +9,9 @@ from release_common import apk_identity, apk_payload, sha256, validate_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 def main():
-    if os.environ.get("CI") != "true" or os.environ.get("GITHUB_REF") != "refs/heads/main":
+    ref = os.environ.get("GITHUB_REF")
+    if os.environ.get("CI") != "true" or not (ref == "refs/heads/main" or
+            (ref == "refs/heads/Develop" and os.environ.get("RELEASE_CHANNEL") == "beta")):
         raise RuntimeError("Candidate creation is a CI-only operation")
     source = ROOT / "app/build/outputs/apk/release/app-release-unsigned.apk"
     tools = Path(os.environ["ANDROID_HOME"]) / "build-tools/36.0.0"

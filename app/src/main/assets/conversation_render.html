@@ -123,7 +123,7 @@ function renderOne(raw){
   // ⚠️ display 模式**不要**再套一层 <div class="katex-display">：KaTeX 的输出本身就是
   //    <span class="katex-display">（2026-10-21 实测确认）。套两层会让"横向滚动 + 竖向裁剪"
   //    的样式同时作用两遍、margin 叠成双份，也更容易把分式的上下沿裁掉。
-  try{ return katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false,trust:false,maxExpand:1000,maxSize:20}); }catch(e){ return esc(raw); }
+  try{ return '<span class="math-source" data-tex="'+esc(raw)+'">'+katex.renderToString(tex,{throwOnError:false,displayMode:display,strict:false,trust:false,maxExpand:1000,maxSize:20})+'</span>'; }catch(e){ return esc(raw); }
 }
 function renderMath(text){
   var tok=tokenize(text||''), body=mdToHtml(esc(tok.text));
@@ -212,11 +212,95 @@ function reportPos(){
     try{ if(window.Android && Android.onAtTop){ Android.onAtTop(atTop); } }catch(e){}
   }
 }
-// 长按消息气泡 → 进入原生多选（编辑）界面
+// Native text selection and app message selection have separate hit targets.
+var messageSources = [];
+function elementOf(node){ return node && (node.nodeType === 1 ? node : node.parentElement); }
+function textScope(node){
+  var el = elementOf(node);
+  return el && el.closest ? el.closest('.message-text, .thinkbody') : null;
+}
+function containsPoint(rect, x, y){
+  return rect.width > 0 && rect.height > 0 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+function hitsMessageText(x, y, bubble){
+  // caretRangeFromPoint finds the nearest caret even in blank padding. Check the
+  // neighbouring character rectangles as well, so blank space stays a multi-select target.
+  var caret = document.caretRangeFromPoint(x, y);
+  if(!caret || caret.startContainer.nodeType !== 3 || !bubble.contains(caret.startContainer)) return false;
+  var node = caret.startContainer, scope = textScope(node);
+  if(!scope) return false;
+  var formula = elementOf(node).closest('.math-source');
+  if(formula){
+    var ink = formula.querySelector('.katex-html') || formula;
+    if(containsPoint(ink.getBoundingClientRect(), x, y)) return true;
+  }
+  for(var offset = Math.max(0, caret.startOffset - 1); offset < Math.min(node.length, caret.startOffset + 1); offset++){
+    var character = document.createRange();
+    character.setStart(node, offset); character.setEnd(node, offset + 1);
+    var rects = character.getClientRects();
+    for(var i=0;i<rects.length;i++) if(containsPoint(rects[i], x, y)) return true;
+  }
+  return false;
+}
+function selectionInMessage(){
+  var selection = window.getSelection();
+  if(selectionMode || !selection || !selection.rangeCount || selection.isCollapsed) return null;
+  var range = selection.getRangeAt(0).cloneRange();
+  var start = textScope(range.startContainer), end = textScope(range.endContainer);
+  if(!start || start !== end) return null;
+  var bubble = start.closest('.bubble');
+  if(!bubble) return null;
+  return {range:range, scope:start, bubble:bubble};
+}
+window.dshSelectMessageText = function(){
+  var selected = selectionInMessage();
+  if(!selected) return false;
+  var range = document.createRange(); range.selectNodeContents(selected.scope);
+  var selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  return true;
+};
+window.dshSelectedText = function(){
+  var selected = selectionInMessage();
+  if(!selected) return null;
+  var range = selected.range;
+  // Treat a selected formula as a unit. Preserve its original LaTeX rather than
+  // copying KaTeX's duplicated accessibility/visual DOM or half a fraction.
+  var startMath = elementOf(range.startContainer).closest('.math-source');
+  var endMath = elementOf(range.endContainer).closest('.math-source');
+  if(startMath) range.setStartBefore(startMath);
+  if(endMath) range.setEndAfter(endMath);
+  function plain(node){
+    if(node.nodeType === 3) return node.nodeValue;
+    if(node.nodeType === 1){
+      if(node.matches('.math-source')) return node.getAttribute('data-tex') || '';
+      if(node.matches('.continue,.thinkhead,.thinkfold,.pick,img,summary')) return '';
+      if(node.tagName === 'BR') return '\n';
+    }
+    var value = '';
+    for(var child=node.firstChild;child;child=child.nextSibling) value += plain(child);
+    return node.nodeType === 1 && /^(DIV|P|LI|H[1-6]|PRE|BLOCKQUOTE)$/.test(node.tagName) ? '\n'+value+'\n' : value;
+  }
+  var text = plain(range.cloneContents()).replace(/\n{3,}/g,'\n\n').trim();
+  var idx = parseInt(selected.bubble.getAttribute('data-idx'),10);
+  var source = messageSources[idx];
+  if(!text || !source) return null;
+  return {idx:idx, text:text, source:source.content || ''};
+};
+document.addEventListener('selectionchange', function(){
+  var selected = window.getSelection();
+  if(selected && !selected.isCollapsed) window.dshNoFollow();
+});
+// Long-press only the non-text part of a bubble to enter message multi-select.
 var lpTimer = null, lpMoved = false, lpIdx = -1, lpT0 = 0;
 document.addEventListener('touchstart', function(e){
   var el = e.target, bubble = (el && el.closest) ? el.closest('.bubble') : null;
-  if(!bubble) return;
+  if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
+  if(!bubble || selectionMode || e.touches.length !== 1) return;
+  if(el.closest('.thinkhead,.thinkfold,.continue,summary,.pick')) return;
+  var point = e.touches[0];
+  if(hitsMessageText(point.clientX, point.clientY, bubble)) return;
+  var selectedText = window.getSelection();
+  if(selectedText && !selectedText.isCollapsed) return;
   lpIdx = parseInt(bubble.getAttribute('data-idx'));
   lpMoved = false;
   lpT0 = Date.now();
@@ -231,7 +315,6 @@ document.addEventListener('touchstart', function(e){
     if(!lpMoved && !isNaN(lpIdx)){
       // 已在多选态：长按不再有任何作用（多选内只允许单次点击选择），避免歧义与误操作
       if(selectionMode) return;
-      setSelModeClass(true);   // 立刻关闭长按选文字，避免闪出选择手柄/复制菜单
       try{ if(window.Android && Android.longPressMessage){ Android.longPressMessage(lpIdx); } }catch(err){}
     }
   }, 450);
@@ -346,7 +429,7 @@ function bubbleHtml(m, idx){
     if(cj > ci){ contLabel = text.substring(ci + 11, cj); text = text.substring(0, ci); }
   }
   // 内容为空（例如只有原图的题目气泡）时不渲染正文，避免多出一个空行
-  var body = (text && text.length) ? renderMath(text) : '';
+  var body = (text && text.length) ? '<div class="message-text">'+renderMath(text)+'</div>' : '';
   // ★ 思考流：显示在**该气泡的顶端**（浅灰小字、可折叠）
   //   展开态由 JS 自管（window.thinkUserOpen / thinkUserClosed），不用 <details>：
   //   流式重建会把节点换掉，原生折叠既可能丢 click、又可能丢 ontoggle。
@@ -395,7 +478,7 @@ var lockedSet = {};   // 受保护、不可选中的下标（题干 / AI 首条�
 /** 开/关「多选态」样式（顺带禁用长按选文字） */
 function setSelModeClass(on){
   try{
-    if(on){ document.body.classList.add('selmode'); }
+    if(on){ document.body.classList.add('selmode'); window.getSelection().removeAllRanges(); }
     else { document.body.classList.remove('selmode'); }
   }catch(e){}
 }
@@ -547,6 +630,7 @@ document.addEventListener('click', function(e){
 // scale（可选）：界面字号档位（C14），1 = 标准；只缩放文字
 // thinkPref（可选）：思考区展开/折叠的**全局记忆** —— 'open' / 'closed' / 'auto'（原生存在 SharedPreferences 里）
 function renderMessages(arr, sel, labels, dark, scale, thinkPref){
+  messageSources = arr;
   if(dark !== undefined) document.body.classList.toggle('dark', !!dark);
   if(scale !== undefined && scale !== null) document.documentElement.style.setProperty('--k', String(scale));
   // 全局展开/折叠偏好变化 → 清掉增量渲染缓存，强制整段按新状态重建（否则已渲染的气泡不会变）
