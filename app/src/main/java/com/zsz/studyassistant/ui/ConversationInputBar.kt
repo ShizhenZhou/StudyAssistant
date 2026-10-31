@@ -4,9 +4,6 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,6 +41,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -179,7 +178,14 @@ private fun QuotedTextPreview(text: String, onRemove: () -> Unit) {
     if (expanded) AlertDialog(
         onDismissRequest = { expanded = false },
         title = { Text(s["solve.quoteTitle"]) },
-        text = { SelectionContainer { Text(text, modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) } },
+        text = {
+            ConversationWebView(
+                messages = remember(text) { listOf(ChatMsg(role = "assistant", content = text)) },
+                modifier = Modifier.fillMaxWidth().height(320.dp),
+                dark = dark,
+                fontScale = LocalDensity.current.fontScale
+            )
+        },
         confirmButton = { TextButton(onClick = { expanded = false }) { Text(s["common.ok"]) } }
     )
 }

@@ -219,26 +219,34 @@ function textScope(node){
   var el = elementOf(node);
   return el && el.closest ? el.closest('.message-text, .thinkbody') : null;
 }
-function containsPoint(rect, x, y){
-  return rect.width > 0 && rect.height > 0 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+function containsPoint(rect, x, y, verticalSlack){
+  var slack = verticalSlack || 0;
+  return rect.width > 0 && rect.height > 0 && x >= rect.left && x <= rect.right &&
+    y >= rect.top - slack && y <= rect.bottom + slack;
 }
 function hitsMessageText(x, y, bubble){
-  // caretRangeFromPoint finds the nearest caret even in blank padding. Check the
-  // neighbouring character rectangles as well, so blank space stays a multi-select target.
-  var caret = document.caretRangeFromPoint(x, y);
-  if(!caret || caret.startContainer.nodeType !== 3 || !bubble.contains(caret.startContainer)) return false;
-  var node = caret.startContainer, scope = textScope(node);
-  if(!scope) return false;
-  var formula = elementOf(node).closest('.math-source');
-  if(formula){
-    var ink = formula.querySelector('.katex-html') || formula;
-    if(containsPoint(ink.getBoundingClientRect(), x, y)) return true;
-  }
-  for(var offset = Math.max(0, caret.startOffset - 1); offset < Math.min(node.length, caret.startOffset + 1); offset++){
-    var character = document.createRange();
-    character.setStart(node, offset); character.setEnd(node, offset + 1);
-    var rects = character.getClientRects();
-    for(var i=0;i<rects.length;i++) if(containsPoint(rects[i], x, y)) return true;
+  // Extend line hit targets vertically across normal leading, without extending
+  // into bubble padding or treating blank space after a short line as text.
+  var verticalSlack = Math.max(4, parseFloat(getComputedStyle(bubble).fontSize) * 0.3 || 4);
+  var probes = [y, y - verticalSlack, y + verticalSlack];
+  for(var probe=0;probe<probes.length;probe++){
+    // At a line break Chromium may return an element boundary instead of a text
+    // caret. Probe just above/below as well, then compare against the original point.
+    var caret = document.caretRangeFromPoint(x, probes[probe]);
+    if(!caret || caret.startContainer.nodeType !== 3 || !bubble.contains(caret.startContainer)) continue;
+    var node = caret.startContainer, scope = textScope(node);
+    if(!scope || !containsPoint(scope.getBoundingClientRect(), x, y)) continue;
+    var formula = elementOf(node).closest('.math-source');
+    if(formula){
+      var ink = formula.querySelector('.katex-html') || formula;
+      if(containsPoint(ink.getBoundingClientRect(), x, y, verticalSlack)) return true;
+    }
+    for(var offset = Math.max(0, caret.startOffset - 1); offset < Math.min(node.length, caret.startOffset + 1); offset++){
+      var character = document.createRange();
+      character.setStart(node, offset); character.setEnd(node, offset + 1);
+      var rects = character.getClientRects();
+      for(var i=0;i<rects.length;i++) if(containsPoint(rects[i], x, y, verticalSlack)) return true;
+    }
   }
   return false;
 }

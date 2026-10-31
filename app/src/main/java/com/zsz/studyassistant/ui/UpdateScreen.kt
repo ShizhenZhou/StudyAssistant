@@ -463,6 +463,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     Text(s["about.changelog"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     Text(changelogAnnotated(changelogText(LocalUiLang.current)), style = MaterialTheme.typography.bodySmall)
+    Spacer(Modifier.height(24.dp))
 }
 
 /** 跳系统「安装未知应用」授权页 */

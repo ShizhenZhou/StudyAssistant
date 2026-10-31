@@ -30,8 +30,10 @@ internal open class ConversationTextSelection(context: Context) : WebView(contex
 
     private inner class SelectionCallback(val delegate: ActionMode.Callback) : ActionMode.Callback2() {
         private fun updateMenu(menu: Menu) {
-            val item = menu.findItem(QUOTE_ID) ?: menu.add(Menu.NONE, QUOTE_ID, 1, quoteLabel).apply {
-                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            val item = menu.findItem(QUOTE_ID) ?: menu.add(Menu.NONE, QUOTE_ID, 0, quoteLabel).apply {
+                // Floating toolbars prioritize required actions over optional/overflow items.
+                // Keep system actions intact; OEM assist actions may still take the first slot.
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS or MenuItem.SHOW_AS_ACTION_WITH_TEXT)
             }
             item.title = quoteLabel
             item.isVisible = quoteEnabled
