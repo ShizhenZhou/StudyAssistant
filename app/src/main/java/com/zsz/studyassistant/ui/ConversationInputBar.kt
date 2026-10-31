@@ -159,7 +159,7 @@ private fun QuotedTextPreview(text: String, onRemove: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         shape = RoundedCornerShape(8.dp),
-        color = if (dark) Color(0xFF303034) else Color(0xFFE8E8E8)
+        color = if (dark) Color(0xFF244158) else Color(0xFFCFE2F2)
     ) {
         Box {
             // Large grey opening quote at the top-left; the text starts close beside it.

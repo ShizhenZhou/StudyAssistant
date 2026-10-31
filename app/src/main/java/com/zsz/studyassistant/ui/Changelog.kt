@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.9
+· 💬 解题气泡支持选文引用追问与公式显示，长按空白区域进入多选。
+· 🎨 输入栏引用预览使用浅蓝底色，发送后的灰色引用框完整显示文字与公式；保留原有提问气泡配色。
+· ⬆️ 完整显示测试版版本号，缩小更新徽标并优化更新页底部留白。
+
 v0.6.9_beta
 · 💬 解题气泡支持选文引用追问，改善行间隙判定并优先显示追问入口；长按空白区域进入多选。
 · 🎨 新增灰色引用预览与浅蓝提问气泡，发送后在灰色内框完整显示引用和公式；优化更新页底部留白。
@@ -555,6 +560,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.9
+· 💬 Select text in solution bubbles for quoted follow-ups with formula rendering; long-press blank areas to select messages.
+· 🎨 Use a pale-blue quote preview above the input and a grey box with full text and formulas after sending; retain the original question bubble colors.
+· ⬆️ Show complete beta version names, reduce the update badge size and improve bottom spacing on the update page.
+
 v0.6.9_beta
 · 💬 Ask quoted follow-ups from selected text, with more forgiving line-gap touch targets and a prioritized follow-up action; long-press blank areas to select messages.
 · 🎨 Add grey quote previews and pale-blue question bubbles, with full quoted text and formulas in a nested grey box after sending; improve update-page bottom spacing.
@@ -1105,6 +1115,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.9
+· 💬 解答バブル内のテキストを選択して引用質問ができ、数式表示にも対応。空白部分の長押しでメッセージを複数選択。
+· 🎨 入力欄の引用プレビューは淡い青色に。送信後はグレーの枠内に引用全文と数式を表示し、質問バブルは従来の配色を維持。
+· ⬆️ ベータ版のバージョン名を省略せず表示し、更新バッジの縮小と更新ページ下部の余白を調整。
+
 v0.6.9_beta
 · 💬 選択した文字を引用して質問できます。行間の長押し判定と質問メニューの優先表示を改善。余白の長押しで複数選択できます。
 · 🎨 グレーの引用プレビューと淡い青の質問バブルを追加。送信後はグレーの内枠に引用全文と数式を表示し、更新ページ下部の余白も調整。
@@ -1655,6 +1670,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.9
+· 💬 풀이 말풍선의 글자를 선택해 인용 질문을 할 수 있으며 수식 표시를 지원합니다. 빈 영역을 길게 누르면 메시지를 다중 선택합니다.
+· 🎨 입력창 위 인용 미리보기를 연한 파란색으로 표시합니다. 전송 후에는 회색 상자에 인용문과 수식을 모두 표시하며, 질문 말풍선의 기존 색상은 유지합니다.
+· ⬆️ 베타 버전 이름을 전체 표시하고 업데이트 배지 크기와 업데이트 페이지 하단 여백을 개선합니다.
+
 v0.6.9_beta
 · 💬 선택한 글자를 인용해 질문할 수 있습니다. 줄 사이 터치 판정과 질문 메뉴의 표시 우선순위를 개선하고, 빈 영역을 길게 누르면 다중 선택으로 전환됩니다.
 · 🎨 회색 인용 미리보기와 연한 파란색 질문 말풍선을 추가합니다. 전송 후 회색 내부 상자에 인용문과 수식을 모두 표시하고 업데이트 페이지 하단 여백을 개선합니다.

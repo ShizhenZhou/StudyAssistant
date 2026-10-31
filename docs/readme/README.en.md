@@ -43,6 +43,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9
+
+- 💬 Select text in solution bubbles for quoted follow-ups with formula rendering; long-press blank areas to select messages.
+- 🎨 Use a pale-blue quote preview above the input and a grey box with full text and formulas after sending; retain the original question bubble colors.
+- ⬆️ Show complete beta version names, reduce the update badge size and improve bottom spacing on the update page.
+- 📌 `versionCode` **92**。
+
 ### v0.6.9_beta
 
 - 💬 Ask quoted follow-ups from selected text, with more forgiving line-gap touch targets and a prioritized follow-up action; long-press blank areas to select messages.
