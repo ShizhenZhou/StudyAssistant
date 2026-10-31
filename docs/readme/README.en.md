@@ -43,6 +43,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9.1
+
+- 💬 Tap a quote in a follow-up to jump to its source with a fading highlight; touch scrolling interrupts the jump.
+- 🎨 Join highlight areas across text and formula gaps while keeping unquoted text clear; improve legacy quote lookup and changed-source notices.
+- 📌 `versionCode` **93**.
+
 ### v0.6.9
 
 - 💬 Select text in solution bubbles for quoted follow-ups with formula rendering; long-press blank areas to select messages.

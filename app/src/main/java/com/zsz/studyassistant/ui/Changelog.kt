@@ -5,6 +5,10 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.9.1
+· 💬 点击追问中的引用框可跳回原文，高亮片段后自动淡出，滑动可打断跳转。
+· 🎨 引用高亮连续填平文字与公式间隙，首尾按选区收边；完善旧引用定位与原文变更提示。
+
 v0.6.9
 · 💬 解题气泡支持选文引用追问与公式显示，长按空白区域进入多选。
 · 🎨 输入栏引用预览使用浅蓝底色，发送后的灰色引用框完整显示文字与公式；保留原有提问气泡配色。
@@ -560,6 +564,10 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.9.1
+· 💬 Tap a quote in a follow-up to jump to its source with a fading highlight; touch scrolling interrupts the jump.
+· 🎨 Join highlight areas across text and formula gaps while keeping unquoted text clear; improve legacy quote lookup and changed-source notices.
+
 v0.6.9
 · 💬 Select text in solution bubbles for quoted follow-ups with formula rendering; long-press blank areas to select messages.
 · 🎨 Use a pale-blue quote preview above the input and a grey box with full text and formulas after sending; retain the original question bubble colors.
@@ -1115,6 +1123,10 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.9.1
+· 💬 追加質問の引用枠をタップすると引用元へ移動し、該当部分を一時的に強調表示。スクロールで移動を中断できます。
+· 🎨 文字と数式の隙間をつなげて強調し、引用範囲外の文字は覆わないよう調整。旧引用の検索と引用元変更時の案内も改善。
+
 v0.6.9
 · 💬 解答バブル内のテキストを選択して引用質問ができ、数式表示にも対応。空白部分の長押しでメッセージを複数選択。
 · 🎨 入力欄の引用プレビューは淡い青色に。送信後はグレーの枠内に引用全文と数式を表示し、質問バブルは従来の配色を維持。
@@ -1670,6 +1682,10 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.9.1
+· 💬 후속 질문의 인용 상자를 누르면 원문으로 이동해 잠시 강조 표시합니다. 스크롤로 이동을 중단할 수 있습니다.
+· 🎨 글자와 수식 사이의 강조 표시를 이어 주고 인용하지 않은 내용은 덮지 않습니다. 이전 인용 찾기와 원문 변경 안내도 개선합니다.
+
 v0.6.9
 · 💬 풀이 말풍선의 글자를 선택해 인용 질문을 할 수 있으며 수식 표시를 지원합니다. 빈 영역을 길게 누르면 메시지를 다중 선택합니다.
 · 🎨 입력창 위 인용 미리보기를 연한 파란색으로 표시합니다. 전송 후에는 회색 상자에 인용문과 수식을 모두 표시하며, 질문 말풍선의 기존 색상은 유지합니다.
