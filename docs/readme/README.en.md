@@ -43,6 +43,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9.2
+
+- 💬 Fix accidental message multi-selection when long-pressing fractions and boxed formulas.
+- 🛡️ Fix selection mapping in older conversations to prevent deleting the wrong messages.
+- ⚡ Improve image loading, compression and previews, and reduce repeated work when refreshing long conversations.
+- 📌 `versionCode` **94**.
+
 ### v0.6.9.1
 
 - 💬 Tap a quote in a follow-up to jump to its source with a fading highlight; touch scrolling interrupts the jump.

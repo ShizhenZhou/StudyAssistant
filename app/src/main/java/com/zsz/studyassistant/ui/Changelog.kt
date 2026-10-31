@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.9.2
+· 💬 修正分式、带框公式长按时误触气泡多选的问题。
+· 🛡️ 修正旧会话多选错位，避免删除非选中的消息。
+· ⚡ 优化图片读取、压缩和预览，减少长对话刷新时的重复计算。
+
 v0.6.9.1
 · 💬 点击追问中的引用框可跳回原文，高亮片段后自动淡出，滑动可打断跳转。
 · 🎨 引用高亮连续填平文字与公式间隙，首尾按选区收边；完善旧引用定位与原文变更提示。
@@ -558,6 +563,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.9.2
+· 💬 Fix accidental message multi-selection when long-pressing fractions and boxed formulas.
+· 🛡️ Fix selection mapping in older conversations to prevent deleting the wrong messages.
+· ⚡ Improve image loading, compression and previews, and reduce repeated work when refreshing long conversations.
+
 v0.6.9.1
 · 💬 Tap a quote in a follow-up to jump to its source with a fading highlight; touch scrolling interrupts the jump.
 · 🎨 Join highlight areas across text and formula gaps while keeping unquoted text clear; improve legacy quote lookup and changed-source notices.
@@ -1111,6 +1121,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.9.2
+· 💬 分数や枠付き数式を長押しした際、誤ってメッセージの複数選択が始まる問題を修正。
+· 🛡️ 古い会話の選択位置のずれを修正し、選択していないメッセージの削除を防止。
+· ⚡ 画像の読み込み・圧縮・プレビューを改善し、長い会話の更新時に繰り返す処理を削減。
+
 v0.6.9.1
 · 💬 追加質問の引用枠をタップすると引用元へ移動し、該当部分を一時的に強調表示。スクロールで移動を中断できます。
 · 🎨 文字と数式の隙間をつなげて強調し、引用範囲外の文字は覆わないよう調整。旧引用の検索と引用元変更時の案内も改善。
@@ -1664,6 +1679,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.9.2
+· 💬 분수 및 상자로 둘러싼 수식을 길게 누를 때 메시지 다중 선택이 잘못 실행되는 문제를 수정했습니다.
+· 🛡️ 이전 대화의 선택 위치 오류를 수정하여 선택하지 않은 메시지가 삭제되는 문제를 방지했습니다.
+· ⚡ 이미지 읽기·압축·미리보기를 개선하고 긴 대화 갱신 시 반복 연산을 줄였습니다.
+
 v0.6.9.1
 · 💬 후속 질문의 인용 상자를 누르면 원문으로 이동해 잠시 강조 표시합니다. 스크롤로 이동을 중단할 수 있습니다.
 · 🎨 글자와 수식 사이의 강조 표시를 이어 주고 인용하지 않은 내용은 덮지 않습니다. 이전 인용 찾기와 원문 변경 안내도 개선합니다.
