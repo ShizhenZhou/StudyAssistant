@@ -2389,7 +2389,7 @@ private val B10_ZH = mapOf(
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
         "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
-        "· 🤖 流式解答、附图追问、继续生成与同类题练习，支持公式显示。\n" +
+        "· 🤖 流式解答、附图与选文引用追问、继续生成与同类题练习，支持公式显示。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
         "· 📚 错题本支持分类、标签、排序和批量管理。\n" +
         "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
@@ -2450,7 +2450,7 @@ private val B10_EN = mapOf(
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
         "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
-        "· 🤖 Stream answers, ask image follow-ups, continue generation and practise similar questions, with formula rendering.\n" +
+        "· 🤖 Stream answers, ask follow-ups with images or selected-text quotes, continue generation and practise similar questions, with formula rendering.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
         "· 📚 Organize notebook entries with categories, tags, sorting and batch actions.\n" +
         "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
@@ -2511,7 +2511,7 @@ private val B10_JA = mapOf(
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
         "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
-        "· 🤖 逐次解答、画像付き追加質問、生成の継続、類似問題の練習と数式表示に対応。\n" +
+        "· 🤖 逐次解答、画像付き・選択テキストの引用質問、生成の継続、類似問題の練習と数式表示に対応。\n" +
         "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
         "· 📚 間違いノートを分類・タグ・並べ替え・一括操作で管理。\n" +
         "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
@@ -2572,7 +2572,7 @@ private val B10_KO = mapOf(
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
         "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
-        "· 🤖 스트리밍 답변, 이미지 후속 질문, 이어서 생성, 유사 문제 연습과 수식 표시를 지원합니다.\n" +
+        "· 🤖 스트리밍 답변, 이미지·선택한 글자 인용 질문, 이어서 생성, 유사 문제 연습과 수식 표시를 지원합니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
         "· 📚 분류, 태그, 정렬과 일괄 작업으로 오답노트를 관리합니다.\n" +
         "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +

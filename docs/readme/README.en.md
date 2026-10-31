@@ -14,7 +14,7 @@ Developed by zsz with assistance from DeepSeek and GPT. Download published build
 ## Features
 
 - 📷 Ask with photos or text and images, crop images and grade handwritten work.
-- 🤖 Stream answers, ask image follow-ups, continue generation and practise similar questions, with formula rendering.
+- 🤖 Stream answers, ask follow-ups with images or selected-text quotes, continue generation and practise similar questions, with formula rendering.
 - 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.
 - 📚 Organize notebook entries with categories, tags, sorting and batch actions.
 - 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.
