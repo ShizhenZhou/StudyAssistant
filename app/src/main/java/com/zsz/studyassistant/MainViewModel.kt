@@ -58,11 +58,25 @@ import kotlinx.serialization.json.JsonPrimitive
 /** 聊天界面显示的一条消息（可序列化，用于保存对话会话） */
 @Serializable
 data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null,
-                    val thinking: String? = null, val quote: QuotedFollowUp? = null)
+                    val thinking: String? = null, val quote: QuotedFollowUp? = null,
+                    val messageKey: String? = null)
 
 /** Optional presentation metadata. content still contains the complete legacy/API text. */
 @Serializable
-data class QuotedFollowUp(val text: String, val question: String)
+data class QuotedFollowUp(val text: String, val question: String, val anchor: QuoteAnchor? = null)
+
+@Serializable
+data class QuoteAnchor(val messageKey: String, val scope: String, val start: Int, val end: Int,
+                       val sourceHash: String)
+
+/** Legacy numeric IDs can be reused after deletion. Quote links use independent persistent keys. */
+internal fun withStableMessageKeys(items: List<ChatItem>): List<ChatItem> {
+    val counts = items.mapNotNull { it.messageKey }.groupingBy { it }.eachCount()
+    return items.map { item ->
+        if (!item.messageKey.isNullOrBlank() && counts[item.messageKey] == 1) item
+        else item.copy(messageKey = java.util.UUID.randomUUID().toString())
+    }
+}
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     val sharedImages = com.zsz.studyassistant.data.SharedImageInbox(app, viewModelScope)
@@ -389,8 +403,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- 对话流状态 ----
     var imageBytes by mutableStateOf<ByteArray?>(null)
-    var chatItems by mutableStateOf<List<ChatItem>>(emptyList())
-        private set
+    private var sessionItems by mutableStateOf<List<ChatItem>>(emptyList())
+    var chatItems: List<ChatItem>
+        get() = sessionItems
+        private set(value) { sessionItems = withStableMessageKeys(value) }
     var busy by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
         private set
@@ -2375,7 +2391,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */
-    fun sendFollowUp(text: String, images: List<ByteArray> = emptyList(), quotedText: String? = null): Boolean {
+    fun sendFollowUp(text: String, images: List<ByteArray> = emptyList(), quotedText: String? = null,
+                     quoteAnchor: QuoteAnchor? = null): Boolean {
         if (busy || dataBusy) return false
         if(streamInterrupted) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]; return false }
         if (text.isBlank() && images.isEmpty()) return false
@@ -2386,7 +2403,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
             strings["solve.quoteTitle"] + ":\n" + quote + "\n\n" + strings["solve.quoteQuestion"] + ":\n" + text
         } ?: text
-        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text) })
+        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text, quoteAnchor) })
         val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）

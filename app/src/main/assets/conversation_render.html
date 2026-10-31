@@ -40,6 +40,9 @@
     font-family:Georgia,serif;font-size:36px;line-height:1;pointer-events:none;user-select:none;}
   .quoted-text::before{content:"\201C";left:6px;top:2px;}
   .quoted-text::after{content:"\201D";right:6px;bottom:-6px;}
+  .quote-jump-highlight{position:absolute;pointer-events:none;user-select:none;background:rgba(92,162,220,.25);border-radius:4px;z-index:2;transition:opacity 250ms ease;}
+  body.dark .quote-jump-highlight{background:rgba(120,184,235,.28);}
+  .quote-jump-highlight.fading{opacity:0;}
   .bubble hr{border:0;border-top:1px solid var(--pick-border);margin:16px 0;}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}
@@ -158,6 +161,7 @@ function bottomY(){ return Math.max(0, document.body.scrollHeight - window.inner
 var scrollTopAnim = null;
 /** 供原生「↑ 回到顶部」按钮调用：快速向上滚动（缓出动画，约 0.25~0.6s），并暂停跟随 */
 window.dshScrollToTop = function(){
+  if(window.dshClearQuoteJump) window.dshClearQuoteJump();
   following = false; touching = false; userForcedFollow = false;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
   var startY = window.scrollY || 0;
@@ -175,6 +179,7 @@ window.dshScrollToTop = function(){
 };
 /** 供原生「↓ 到底部」按钮调用：快速向下滚动（同样的缓出节奏） */
 window.dshScrollToBottom = function(){
+  if(window.dshClearQuoteJump) window.dshClearQuoteJump();
   following = true;
   userForcedFollow = true;   // 显式要求跟随：思考结束的自动跳转要给这条让路（见 renderMessages）
   var max = bottomY(), startY = window.scrollY || 0;
@@ -196,6 +201,7 @@ var lastAtTop = null;
 var lastScrollable = null;   // 是否可滚动（内容超过一屏）
 /** 立刻回到顶部（换题/换会话时用，不做动画） */
 window.dshScrollReset = function(){
+  if(window.dshClearQuoteJump) window.dshClearQuoteJump();
   following = false; touching = false; userForcedFollow = false;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
   try{ window.scrollTo(0, 0); }catch(e){}
@@ -300,7 +306,9 @@ window.dshSelectedText = function(){
   var idx = parseInt(selected.bubble.getAttribute('data-idx'),10);
   var source = messageSources[idx];
   if(!text || !source) return null;
-  return {idx:idx, text:text, source:source.content || ''};
+  var scope = window.dshQuoteScope(selected.scope), offsets = window.dshQuoteRange(selected.scope,range);
+  return {idx:idx, text:text, source:source.content || '', scope:scope, start:offsets.start, end:offsets.end,
+    sourceHash:(source.hashes || {})[scope] || ''};
 };
 document.addEventListener('selectionchange', function(){
   var selected = window.getSelection();
@@ -412,7 +420,7 @@ function msgKey(m){
   var imgs = (m.images && m.images.length) ? m.images.length : 0;
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
-  return m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + firstLen
+  return (m.messageKey||'') + '|' + JSON.stringify(m.quoteAnchor||null) + '|' + m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + firstLen
        + '|' + ((m.thinking||'').length) + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
 }
 function bubbleHtml(m, idx){
@@ -571,6 +579,7 @@ function applyThinkOpen(idx, open){
     if(fold) box.insertBefore(body, fold); else box.appendChild(body);   // fold 恒存在，插在它前面
   } else if(!open && body){
     box.removeChild(body);
+    if(window.dshQuoteAfterRender) window.dshQuoteAfterRender();
   }
   // 底端蓝色行两种状态都保留，只换文案
   var L = TL();
@@ -580,6 +589,9 @@ function applyThinkOpen(idx, open){
 }
 /** 当前某个气泡的思考块是不是展开的 */
 function thinkOpenNow(idx){
+  // A quote jump can temporarily reveal one block while the global preference stays closed.
+  var box = document.querySelector('.think[data-box="' + idx + '"]');
+  if(box) return !!box.querySelector('.thinkbody');
   if(window.thinkForced === 'open') return true;
   if(window.thinkForced === 'closed') return false;
   return !!window.thinkUserOpen[idx] && !window.thinkUserClosed[idx];
@@ -690,6 +702,7 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
   renderedKeys = keys;
   // 新的一轮提问（末尾不是助手消息）→ 贴到底部并恢复跟随；**首次渲染不跳**（打开旧会话要停在顶部）
   if(lastCount > 0 && arr.length > lastCount && arr.length && arr[arr.length-1].role !== 'assistant'){
+    if(window.dshClearQuoteJump) window.dshClearQuoteJump();
     following = true;
     setTimeout(function(){ try{ window.scrollTo(0, bottomY()); }catch(e){} }, 30);
   }
@@ -701,6 +714,7 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
     var jIdx = pendingJumpIdx; pendingJumpIdx = null;
     if(!userForcedFollow) setTimeout(function(){
       try{
+        if(window.dshQuoteJumpActive && window.dshQuoteJumpActive()) return;
         var el = out.querySelector('.bubble[data-idx="'+jIdx+'"]');
         if(!el) return;
         // 思考块折叠状态下没有 .thinkbody（或高度为 0）→ 回退成"滚到气泡顶部"，
@@ -717,6 +731,8 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
     }, 40);
   }
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
+  if(window.dshQuoteAfterRender) window.dshQuoteAfterRender();
 }
 </script>
+<script src="quote_navigation.js"></script>
 </body></html>

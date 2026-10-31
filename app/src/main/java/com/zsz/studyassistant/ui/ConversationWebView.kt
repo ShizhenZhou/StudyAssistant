@@ -47,7 +47,21 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
-data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null)
+data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null, val messageKey: String? = null, val quoteAnchor: com.zsz.studyassistant.QuoteAnchor? = null) {
+    internal fun sourceText(scope: String): String? = when (scope) {
+        "body" -> content
+        "thinking" -> thinking
+        "quote" -> quotedText
+        else -> null
+    }
+    private val hashes by lazy(LazyThreadSafetyMode.NONE) {
+        listOf("body", "thinking", "quote").associateWith { scope ->
+            sourceText(scope)?.let { text -> java.security.MessageDigest.getInstance("SHA-256")
+                .digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) } }
+        }
+    }
+    internal fun sourceHash(scope: String): String? = hashes[scope]
+}
 
 /**
  * 对话正文 WebView：占满给定区域，内部上下滚动，滚动条常驻、手势不被父级拦截。
@@ -76,7 +90,7 @@ fun ConversationWebView(
     /** 长按某条消息气泡时回调（参数为界面消息下标）→ 用于进入多选界面 */
     onLongPressMessage: (Int) -> Unit = {},
     /** Available only where a follow-up composer can receive a selection. */
-    onQuoteText: ((String) -> Unit)? = null,
+    onQuoteText: ((QuoteSelection) -> Unit)? = null,
     /** 是否处于多选态：气泡右上角显示选择圆圈，选中的显示红框 */
     selectionMode: Boolean = false,
     /** 多选态下已选中的消息下标 */
@@ -133,6 +147,7 @@ fun ConversationWebView(
     // 思考块的文案按当前界面语言注入 WebView（繁體由 Strings 内部 s2t 自动转换）
     // ⚠️ 必须进「去重 key」：否则切换界面语言时 JSON 没变 → 不重渲染 → 思考块文案还是旧语言
     val s = LocalStrings.current
+    val currentQuoteMissing by rememberUpdatedState(s["solve.quoteUnavailable"])
     fun thinkLabelsJson(): String {
         fun esc(t: String) = t
             .replace("\\", "\\\\").replace("\"", "\\\"")
@@ -183,10 +198,19 @@ fun ConversationWebView(
                     quoteLabel = s["solve.quoteAction"]
                     selectionHint = s["solve.quoteSelectionHint"]
                     quoteEnabled = onQuoteText != null && !selectionMode
-                    onQuote = { idx, text, source ->
+                    onQuote = { idx, text, source, selected ->
                         // A menu callback must not quote a replaced message or a released WebView.
-                        if (webRef === bridgeView && currentMessages.getOrNull(idx)?.content == source) {
-                            currentOnQuote?.invoke(text)
+                        val message = currentMessages.getOrNull(idx)
+                        val scope = selected.optString("scope")
+                        val hash = selected.optString("sourceHash")
+                        if (webRef === bridgeView && message != null && message.content == source &&
+                            message.sourceHash(scope) == hash) {
+                            val start = selected.optInt("start", -1)
+                            val end = selected.optInt("end", -1)
+                            val anchor = message.messageKey?.takeIf { start >= 0 && end > start }?.let {
+                                com.zsz.studyassistant.QuoteAnchor(it, scope, start, end, hash)
+                            }
+                            currentOnQuote?.invoke(QuoteSelection(text, anchor))
                         }
                     }
                     configureConversationWebView(this)
@@ -203,6 +227,14 @@ fun ConversationWebView(
                     }
                     // 网页里的图片点击 → 交给 Kotlin 打开全屏查看（JS 线程回调，切回主线程改状态）
                     addJavascriptInterface(object {
+                        @JavascriptInterface
+                        fun quoteUnavailable() {
+                            bridgeHandler.post {
+                                if (webRef === bridgeView) android.widget.Toast.makeText(
+                                    bridgeView.context, currentQuoteMissing, android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
                         @JavascriptInterface
                         fun openImage(b64: String) {
                             bridgeHandler.post { if (webRef === bridgeView) zoomImage = b64 }
@@ -282,7 +314,7 @@ fun ConversationWebView(
             },
             onRelease = { view ->
                 view.quoteEnabled = false
-                view.onQuote = { _, _, _ -> }
+                view.onQuote = { _, _, _, _ -> }
                 webRef = null
                 loaded = false
                 lastJson = null
@@ -396,7 +428,15 @@ internal fun buildMessagesJson(messages: List<ChatMsg>): String = JSONArray().ap
     messages.forEach { m ->
         put(JSONObject().put("role", m.role).put("content", m.content).put("images", JSONArray(m.images))
             .put("thinking", m.thinking ?: JSONObject.NULL).put("thinkingOpen", m.thinkingOpen)
-            .put("thinkingDone", m.thinkingDone).put("quotedText", m.quotedText ?: JSONObject.NULL))
+            .put("thinkingDone", m.thinkingDone).put("quotedText", m.quotedText ?: JSONObject.NULL)
+            .put("messageKey", m.messageKey ?: JSONObject.NULL)
+            .put("hashes", JSONObject().apply {
+                listOf("body", "thinking", "quote").forEach { scope -> put(scope, m.sourceHash(scope) ?: JSONObject.NULL) }
+            })
+            .put("quoteAnchor", m.quoteAnchor?.let { anchor -> JSONObject()
+                .put("messageKey", anchor.messageKey).put("scope", anchor.scope)
+                .put("start", anchor.start).put("end", anchor.end).put("sourceHash", anchor.sourceHash)
+            } ?: JSONObject.NULL))
     }
 }.toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
@@ -418,7 +458,7 @@ internal fun configureConversationWebView(view: WebView) {
 }
 
 internal open class ConversationAssetClient : WebViewClient() {
-    private val assets = Regex("file:///android_asset/(conversation_render\\.html|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
+    private val assets = Regex("file:///android_asset/(conversation_render\\.html|quote_navigation\\.js|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
     private fun resource(url: String): WebResourceResponse? = if (assets.matches(url)) null else
         WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(), java.io.ByteArrayInputStream(byteArrayOf()))
 

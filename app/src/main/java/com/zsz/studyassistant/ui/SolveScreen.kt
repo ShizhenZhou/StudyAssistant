@@ -122,7 +122,7 @@ fun SolveScreen(
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
     var followUp by remember { mutableStateOf("") }
-    var quotedText by remember(vm.chatItems.firstOrNull()?.id) { mutableStateOf<String?>(null) }
+    var quotedSelection by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf<QuoteSelection?>(null) }
     var quoteFocusSignal by remember { mutableIntStateOf(0) }
     var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -235,6 +235,8 @@ fun SolveScreen(
                 role = if (c.role == "assistant") "assistant" else "user",
                 content = if (hideAiText) "" else c.quote?.question ?: c.content,
                 quotedText = if (hideAiText) null else c.quote?.text,
+                messageKey = c.messageKey,
+                quoteAnchor = if (hideAiText) null else c.quote?.anchor,
                 images = imgs,
                 thinking = if (vm.thinkingEnabled) c.thinking else null,
                 // 思考块显示在对应气泡顶端；**快速模式（未开启思考）不渲染**
@@ -760,8 +762,8 @@ fun SolveScreen(
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
-                        onQuoteText = if (sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { text ->
-                            quotedText = text
+                        onQuoteText = if (sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { selection ->
+                            quotedSelection = selection
                             quoteFocusSignal++
                         } else null,
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择，JS 侧已拦截，这里再兜一层）
@@ -941,18 +943,18 @@ fun SolveScreen(
                     onRemoveImage = { selectedImages = selectedImages - it },
                     onPickImages = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
                     onSend = {
-                        if (vm.sendFollowUp(followUp.trim(), selectedImages, quotedText)) {
+                        if (vm.sendFollowUp(followUp.trim(), selectedImages, quotedSelection?.text, quotedSelection?.anchor)) {
                             followUp = ""
                             selectedImages = emptyList()
-                            quotedText = null
+                            quotedSelection = null
                         }
                     },
                     busy = vm.busy || vm.dataBusy,
                     hint = s["solve.followUpHint"],
                     sendLabel = s["solve.send"],
                     imageDesc = s["solve.imageDesc"],
-                    quotedText = quotedText,
-                    onRemoveQuote = { quotedText = null },
+                    quotedText = quotedSelection?.text,
+                    onRemoveQuote = { quotedSelection = null },
                     quoteFocusSignal = quoteFocusSignal
                 )
             }

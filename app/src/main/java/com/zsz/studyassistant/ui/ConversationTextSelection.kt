@@ -12,12 +12,14 @@ import android.webkit.WebView
 import android.widget.Toast
 import org.json.JSONObject
 
+data class QuoteSelection(val text: String, val anchor: com.zsz.studyassistant.QuoteAnchor? = null)
+
 /** Keep Chromium's selection handles and standard actions; add one app-owned action. */
 internal open class ConversationTextSelection(context: Context) : WebView(context) {
     var quoteLabel: String = ""
     var selectionHint: String = ""
     var quoteEnabled: Boolean = false
-    var onQuote: (Int, String, String) -> Unit = { _, _, _ -> }
+    var onQuote: (Int, String, String, JSONObject) -> Unit = { _, _, _, _ -> }
 
     override fun startActionMode(callback: ActionMode.Callback): ActionMode? =
         super.startActionMode(wrap(callback))
@@ -70,7 +72,7 @@ internal open class ConversationTextSelection(context: Context) : WebView(contex
                 val text = selected?.optString("text").orEmpty()
                 if (text.isNotBlank()) {
                     if (quoting) {
-                        if (quoteEnabled) onQuote(selected!!.optInt("idx", -1), text, selected.optString("source"))
+                        if (quoteEnabled) onQuote(selected!!.optInt("idx", -1), text, selected.optString("source"), selected)
                     } else {
                         context.getSystemService(ClipboardManager::class.java)
                             .setPrimaryClip(ClipData.newPlainText(null, text))

@@ -6,7 +6,10 @@ import org.junit.Test
 class PendingSaveCodecTest {
     @Test fun quotedConversationRetainsFullContentAcrossSaveAndRestore() {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-        val quote = com.zsz.studyassistant.QuotedFollowUp("Formula: \\(x^2\\)", "Why?")
+        val legacySource = com.zsz.studyassistant.ChatItem(1, "assistant", "Formula: \\(x^2\\)")
+        val source = com.zsz.studyassistant.withStableMessageKeys(listOf(legacySource)).single()
+        val anchor = com.zsz.studyassistant.QuoteAnchor(source.messageKey!!, "body", 9, 16, "a".repeat(64))
+        val quote = com.zsz.studyassistant.QuotedFollowUp("Formula: \\(x^2\\)", "Why?", anchor)
         val message = com.zsz.studyassistant.ChatItem(2, "user", quote.text + "\n\n" + quote.question, quote = quote)
         val encoded = json.encodeToString(com.zsz.studyassistant.ChatItem.serializer(), message)
         val entry = PendingSave(SaveTarget.NOTEBOOK, payload.copy(conversationJson = "[$encoded]"), PendingSaveCodec.fingerprint(payload))
@@ -19,6 +22,16 @@ class PendingSaveCodecTest {
         val legacyView = json.parseToJsonElement(encoded) as kotlinx.serialization.json.JsonObject
         assertEquals(quote.text + "\n\n" + quote.question,
             (legacyView["content"] as kotlinx.serialization.json.JsonPrimitive).content)
+        assertEquals(source, com.zsz.studyassistant.withStableMessageKeys(listOf(source)).single())
+        val restoredSource = json.decodeFromString(com.zsz.studyassistant.ChatItem.serializer(),
+            json.encodeToString(com.zsz.studyassistant.ChatItem.serializer(), source))
+        assertEquals(anchor.messageKey, restoredSource.messageKey)
+        // Reused numeric IDs and imported duplicate keys must never redirect an old quote to a new message.
+        val afterDelete = com.zsz.studyassistant.withStableMessageKeys(listOf(legacySource)).single()
+        assertNotEquals(source.messageKey, afterDelete.messageKey)
+        val duplicates = com.zsz.studyassistant.withStableMessageKeys(listOf(source, source.copy(id = 2)))
+        assertEquals(2, duplicates.map { it.messageKey }.distinct().size)
+        assertTrue(duplicates.none { it.messageKey == source.messageKey })
     }
     private val payload = SavePayload(QuestionIdentity.create(1234), 1234, "question", "answer", "[]")
     @Test fun roundTripRetainsAnswerIdentityAndBase() {
