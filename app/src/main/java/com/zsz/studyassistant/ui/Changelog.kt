@@ -6,8 +6,8 @@ package com.zsz.studyassistant.ui
  */
 internal val CHANGELOG_ZH: String = """
 v0.6.9_beta
-· 💬 解题气泡支持长按选文并引用追问；长按空白区域进入消息多选。
-· 🎨 新增灰色单行引用预览，支持查看完整内容和移除引用。
+· 💬 解题气泡支持选文引用追问，改善行间隙判定并优先显示追问入口；长按空白区域进入多选。
+· 🎨 新增灰色单行引用预览，展开后支持公式渲染，并优化更新页底部留白。
 · 🧪 本版本为可选测试版，功能可能不稳定。
 
 v0.6.8.10
@@ -555,8 +555,8 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.6.9_beta
-· 💬 Select text in solution bubbles to ask a quoted follow-up; long-press blank areas to select messages.
-· 🎨 Add a grey, single-line quote preview with full-text viewing and removal.
+· 💬 Ask quoted follow-ups from selected text, with more forgiving line-gap touch targets and a prioritized follow-up action; long-press blank areas to select messages.
+· 🎨 Add a grey, single-line quote preview with formula rendering when expanded, and more bottom spacing on the update page.
 · 🧪 This is an optional beta release; features may be unstable.
 
 v0.6.8.10
@@ -1104,8 +1104,8 @@ v0.1 (project start)
 
 internal val CHANGELOG_JA: String = """
 v0.6.9_beta
-· 💬 解答の文字を長押しして選択・引用質問。吹き出しの余白を長押しするとメッセージを複数選択できます。
-· 🎨 グレーの1行引用プレビューを追加。全文の表示と引用の削除に対応。
+· 💬 選択した文字を引用して質問できます。行間の長押し判定と質問メニューの優先表示を改善。余白の長押しで複数選択できます。
+· 🎨 グレーの1行引用プレビューを追加。展開時の数式表示に対応し、更新ページ下部の余白も調整。
 · 🧪 任意のベータ版です。機能が不安定な場合があります。
 
 v0.6.8.10
@@ -1653,8 +1653,8 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.6.9_beta
-· 💬 풀이 말풍선의 글자를 길게 눌러 선택하고 인용 질문을 보낼 수 있습니다. 빈 영역을 길게 누르면 메시지 다중 선택으로 전환됩니다.
-· 🎨 회색 한 줄 인용 미리보기를 추가하고 전문 보기와 인용 삭제를 지원합니다.
+· 💬 선택한 글자를 인용해 질문할 수 있습니다. 줄 사이 터치 판정과 질문 메뉴의 표시 우선순위를 개선하고, 빈 영역을 길게 누르면 다중 선택으로 전환됩니다.
+· 🎨 회색 한 줄 인용 미리보기를 추가하고 펼쳤을 때 수식 렌더링을 지원하며, 업데이트 페이지 하단 여백을 개선합니다.
 · 🧪 선택적 베타 버전이며 기능이 불안정할 수 있습니다.
 
 v0.6.8.10

@@ -36,7 +36,7 @@ Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时
 
 Beta可从开发分支本地按需构建一次：`./gradlew.bat assembleRelease --console=plain`，再用现有`tools/sign-release.ps1 -InApk app/build/outputs/apk/release/app-release-unsigned.apk`签名。这只生成可交付测试包，不自动发GitHub Release、不安装手机。版本号/versionCode、渠道与分发方式按当次安排：覆盖安装要原证书，正式后继versionCode不得低于已交付Beta；公开测试版须明确标prerelease且不得latest。公开Beta发布若需离开main的独立路径，应当次明确安排，不能悄悄合并实验分支。
 
-用户明确要求从 Develop 公开 Beta 时，在已推送的干净 Develop 执行 `./tools/release.ps1 start --version 0.6.9_beta --channel beta`，随后按同一 run 执行 status/publish。只构建一次，保留候选身份与签名校验，不合并 main；Release 必须 prerelease 且不设 latest。`_beta` 保留在 APK/标签中，兼容清单使用数值版本和 beta 渠道，以兼容现有更新客户端。本次 0.6.9_beta 按用户要求沿用 versionCode 91；正式后继版本使用更高 code。
+用户明确要求从 Develop 公开 Beta 时，在已推送的干净 Develop 执行 `./tools/release.ps1 start --version 0.6.9_beta --channel beta`，随后按同一 run 执行 status/publish。只构建一次，保留候选身份与签名校验，不合并 main；Release 必须 prerelease 且不设 latest。`_beta` 保留在 APK/标签中，兼容清单使用数值版本和 beta 渠道，以兼容现有更新客户端。本次 0.6.9_beta 按用户要求沿用 versionCode 91；正式后继版本使用更高 code。 用户明确要求同版本替换 Beta 时，使用 `start --version 0.6.9_beta --channel beta --replace` → `status --version 0.6.9_beta --run RUN` → `replace --run RUN`；保持原标签及 prerelease 属性，仍核对旧附件来源和新附件下载完整性，不修改 main/latest。
 
 用户允许后使用指定设备的有线/无线ADB；配对/连接参数由用户实际设备提供。不自动选择USB手机。定位只取相关日志、进程/通知状态；不清数据、不卸载、不导出真实题库、Key或全量日志。手机反馈是该包该设备的证据，不夸大到全部机型。Beta之后修改相关代码，需要相关补验；纯打包签名不重跑行为测试。
 

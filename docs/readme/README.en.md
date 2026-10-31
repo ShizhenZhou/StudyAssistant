@@ -45,8 +45,8 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ### v0.6.9_beta
 
-- 💬 Select text in solution bubbles to ask a quoted follow-up; long-press blank areas to select messages.
-- 🎨 Add a grey, single-line quote preview with full-text viewing and removal.
+- 💬 Ask quoted follow-ups from selected text, with more forgiving line-gap touch targets and a prioritized follow-up action; long-press blank areas to select messages.
+- 🎨 Add a grey, single-line quote preview with formula rendering when expanded, and more bottom spacing on the update page.
 - 🧪 This is an optional beta release; features may be unstable.
 - 📌 `versionCode` **91**。
 

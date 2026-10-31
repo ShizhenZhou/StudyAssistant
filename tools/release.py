@@ -240,7 +240,9 @@ class Release:
             return a is not None and b is not None and all(a.get(k)==b.get(k) for k in ("id","name","digest","size"))
         def refresh():
             current = self.github.api(f"releases/{release['id']}")
-            if current.get("id") != state["releaseId"] or current.get("draft") or current.get("prerelease") or current.get("tag_name") != "v"+self.state["version"]:
+            if (current.get("id") != state["releaseId"] or current.get("draft") or
+                bool(current.get("prerelease")) != (self.state.get("channel", "stable") == "beta") or
+                current.get("tag_name") != "v"+self.state["version"]):
                 raise ReleaseError("Replacement release identity changed")
             assets = current["assets"]
             names = [a["name"] for a in assets]
@@ -320,8 +322,9 @@ class Release:
             tag = self.github.api("commits/" + published["tag_name"])["sha"]
             return tag if not self.git("merge-base", "--is-ancestor", tag, "HEAD", check=False).returncode else None
 
-    def proven_published_source(self, published, frozen=None, capture=None):
-        if published.get('draft') or published.get('prerelease'):raise ReleaseError('Original baseline must be a public release')
+    def proven_published_source(self, published, frozen=None, capture=None, allow_beta=False):
+        is_beta = bool(published.get('prerelease'))
+        if published.get('draft') or (is_beta and not allow_beta):raise ReleaseError('Original baseline must be an authorized public release')
         assets = published["assets"]
         metadata_assets = [a for a in assets if a["name"] == "update-manifest.json"]
         if len(metadata_assets) != 1: raise ReleaseError("No published source metadata")
@@ -347,7 +350,9 @@ class Release:
         if metadata_assets[0]["size"] > 65536: raise ReleaseError("Oversized public metadata")
         metadata = json.loads(asset_bytes(metadata_assets[0]))
         apk_assets = [a for a in assets if a["name"] == metadata["apkName"]]
-        if len(apk_assets) != 1 or metadata.get("schema") != 1 or published["tag_name"] != "v" + metadata["version"]:
+        if (len(apk_assets) != 1 or metadata.get("schema") != 1 or
+            published["tag_name"].removeprefix("v").removesuffix("_beta") != metadata["version"] or
+            (is_beta and metadata.get("channel") != "beta")):
             raise ReleaseError("Published APK identity mismatch")
         apk = asset_bytes(apk_assets[0])
         apk_sha = hashlib.sha256(apk).hexdigest()
@@ -384,7 +389,9 @@ class Release:
         with tempfile.TemporaryDirectory(dir=folder) as tmp:
             manifest, _ = extract_candidate(artifact("release-candidate"), Path(tmp) / "candidate")
             if (manifest["schema"] not in (2, 3) or manifest["commit"] != commit or
-                any(metadata.get(k) != manifest.get(k) for k in ("version", "versionCode", "minSdk")) or
+                published["tag_name"] != "v" + manifest["version"] or
+                metadata["version"] != manifest["version"].removesuffix("_beta") or
+                any(metadata.get(k) != manifest.get(k) for k in ("versionCode", "minSdk")) or
                 apk_payload(io.BytesIO(apk)) != (manifest["payloadSha256"], manifest["buildUtc"])):
                 raise ReleaseError("Published APK does not match CI payload/source")
             if manifest["schema"] == 2:  # Read-only compatibility for archived releases.
@@ -392,7 +399,7 @@ class Release:
                 validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
                 self.validate_run_promotion(run, evidence)
             else:
-                if run.get("head_branch") != "main" or required_jobs(self.run_jobs(run_id), []).get("build", {}).get("conclusion") != "success":
+                if (run.get("head_branch") != "main" and not (is_beta and run.get("head_branch") == "Develop")) or required_jobs(self.run_jobs(run_id), []).get("build", {}).get("conclusion") != "success":
                     raise ReleaseError("Published build did not succeed")
         if self.git("merge-base", "--is-ancestor", commit, "HEAD", check=False).returncode:
             raise ReleaseError("Published source is not an ancestor")
@@ -457,10 +464,10 @@ class Release:
         tag = self.github.api("git/ref/tags/v" + version, missing=True)
         if tag and not replacement: raise ReleaseError("Tag exists; replacement must be explicitly requested.")
         if replacement:
-            if not tag or channel != "stable": raise ReleaseError("Replacement requires an existing stable tag")
+            if not tag: raise ReleaseError("Replacement requires an existing immutable tag")
             previous = self.github.api("releases/tags/v" + version, missing=True)
-            if not previous or previous.get("draft") or previous.get("prerelease"):
-                raise ReleaseError("Replacement requires an existing public stable release")
+            if not previous or previous.get("draft") or bool(previous.get("prerelease")) != (channel == "beta"):
+                raise ReleaseError("Replacement requires an existing public release in the same channel")
             self.state["replacementRequested"] = True
         message = self.git("log", "-1", "--format=%s").stdout.decode("utf-8").strip()
         if not re.match(r"^(feat|fix|build|ci|docs|test|refactor|chore|perf|revert)(?:\([^)]+\))?!?: .+", message):
@@ -675,7 +682,6 @@ class Release:
         legacy_notes = self.state.get("notesSha256") == hashlib.sha256(body.encode()).hexdigest()
         channel = self.state.get("channel", "stable")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
-        if replacement and channel == "beta": raise ReleaseError("Beta replacement requires a new prerelease version")
         # Persist exact metadata before any durable replacement ownership marker.
         files = {signed.name: signed}
         # Previously published legacy releases retain their single-APK layout.
@@ -703,7 +709,8 @@ class Release:
         if (self.state.get("replacement") or self.state.get("replacementRequested")) and not replacement:
             raise ReleaseError("Resume this explicit replacement with replace --run")
         if replacement:
-            if manifest["schema"] not in (2, 3) or len(found)!=1 or found[0].get("draft") or found[0].get("prerelease"):
+            if (manifest["schema"] not in (2, 3) or len(found)!=1 or found[0].get("draft") or
+                bool(found[0].get("prerelease")) != (channel == "beta")):
                 raise ReleaseError("Replacement requires an existing public release and verified modern CI")
             remote_tag = self.github.api("git/ref/tags/"+tag, missing=True)
             if not remote_tag: raise ReleaseError("Replacement requires the existing immutable tag")
@@ -712,7 +719,7 @@ class Release:
                 raise ReleaseError("Replacement source does not descend from the immutable tag")
             if not self.state.get("replacement"):
                 # Validate exact old APK/CI provenance before retaining its immutable snapshot.
-                if not self.proven_published_source(found[0]): raise ReleaseError("Original release provenance is unavailable")
+                if not self.proven_published_source(found[0], allow_beta=channel == "beta"): raise ReleaseError("Original release provenance is unavailable")
                 old_assets=found[0]["assets"]
                 if len(old_assets)!=2 or sum(a["name"]=="update-manifest.json" for a in old_assets)!=1 or sum(a["name"].endswith(".apk") for a in old_assets)!=1:
                     raise ReleaseError("Unexpected original release layout")
