@@ -5,6 +5,11 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.9.3
+· ↔️ 主页左右滑动跟随手指，松手切换或回弹。
+· ✅ 优化多选数量提示与选中反馈，保持操作栏稳定。
+· 💬 长按菜单改为“引用”，跳转原文后可一键返回追问位置；暗黑模式引用框改用柔和蓝色。
+
 v0.6.9.2
 · 💬 修正分式、带框公式长按时误触气泡多选的问题。
 · 🛡️ 修正旧会话多选错位，避免删除非选中的消息。
@@ -563,6 +568,11 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.9.3
+· ↔️ Home tabs follow your finger and settle or spring back on release.
+· ✅ Clearer selection counts and selection feedback with stable batch actions.
+· 💬 Rename the text action to “Quote”, add one-tap return from the source to the follow-up, and use muted blue quote boxes in dark mode.
+
 v0.6.9.2
 · 💬 Fix accidental message multi-selection when long-pressing fractions and boxed formulas.
 · 🛡️ Fix selection mapping in older conversations to prevent deleting the wrong messages.
@@ -1121,6 +1131,11 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.9.3
+· ↔️ ホーム画面が指の動きに追従し、指を離すと切り替えまたは元の位置に戻ります。
+· ✅ 複数選択の件数と選択時の表示を改善し、操作欄の位置を安定させました。
+· 💬 長押しメニューを「引用」に変更。引用元から質問の位置へワンタップで戻れます。ダークモードの引用枠を落ち着いた青色にしました。
+
 v0.6.9.2
 · 💬 分数や枠付き数式を長押しした際、誤ってメッセージの複数選択が始まる問題を修正。
 · 🛡️ 古い会話の選択位置のずれを修正し、選択していないメッセージの削除を防止。
@@ -1679,6 +1694,11 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.9.3
+· ↔️ 홈 화면이 손가락을 따라 움직이며 손을 떼면 전환되거나 원래 위치로 돌아갑니다.
+· ✅ 선택 개수와 선택 피드백을 개선하고 일괄 작업 버튼의 위치를 유지합니다.
+· 💬 길게 누르기 메뉴를 “인용”으로 변경했습니다. 원문에서 추가 질문 위치로 바로 돌아갈 수 있으며 다크 모드 인용 상자에 차분한 파란색을 적용했습니다.
+
 v0.6.9.2
 · 💬 분수 및 상자로 둘러싼 수식을 길게 누를 때 메시지 다중 선택이 잘못 실행되는 문제를 수정했습니다.
 · 🛡️ 이전 대화의 선택 위치 오류를 수정하여 선택하지 않은 메시지가 삭제되는 문제를 방지했습니다.

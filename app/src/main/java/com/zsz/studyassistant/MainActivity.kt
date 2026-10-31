@@ -59,7 +59,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.zsz.studyassistant.ui.rootTabSwipe
+import com.zsz.studyassistant.ui.RootTabSwipeHost
 import com.zsz.studyassistant.ui.AppNav
 import com.zsz.studyassistant.ui.CameraScreen
 import com.zsz.studyassistant.ui.CropScreen
@@ -243,6 +243,14 @@ class MainActivity : ComponentActivity() {
                             AppNav.switchTab(nav, AppNav.SETTINGS)
                         }
                     }
+                    val homeScroll = androidx.compose.foundation.rememberScrollState()
+                    val statsScroll = androidx.compose.foundation.rememberScrollState()
+                    val settingsScroll = androidx.compose.foundation.rememberScrollState()
+                    var swipeTransition by remember { mutableStateOf<Pair<String?, String>?>(null) }
+                    LaunchedEffect(current) {
+                        // Keep the completed gesture transition stable while its destination is active.
+                        if (swipeTransition?.second != current) swipeTransition = null
+                    }
                     val showBottomBar = AppNav.showsBottomBar(current)
                     var settingsAtRoot by remember { mutableStateOf(true) }
                     var settingsRootRequest by remember { mutableStateOf(0) }
@@ -348,83 +356,93 @@ class MainActivity : ComponentActivity() {
                     Column(Modifier.fillMaxSize()) {
                         // The sibling NavigationBar already owns the bottom system inset.
                         // Pass that ownership to child Scaffolds, keeping top/side insets intact.
-                        Box(Modifier.weight(1f).rootTabSwipe(
+                        RootTabSwipeHost(
                             route = current,
                             enabled = !navBlocking.value && current in AppNav.rootTabs &&
                                 (current != AppNav.SETTINGS || settingsAtRoot),
-                            onSelect = selectTab
-                        ).then(if (showBottomBar)
-                            Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
-                        else Modifier)) {
-                            NavHost(
-                                nav,
-                                startDestination = AppNav.HOME,
-                                enterTransition = { com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route) },
-                                exitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route) },
-                                popEnterTransition = { com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true) },
-                                popExitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true) },
-                                // Predictive Back has separate defaults since Navigation 2.10.
-                                predictivePopEnterTransition = { _ -> com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true) },
-                                predictivePopExitTransition = { _ -> com.zsz.studyassistant.ui.pagePredictiveExitTransition(initialState.destination.route, targetState.destination.route) }
-                            ) {
-                                // ⚠️ 路由常量与"谁能进谁、返回去哪"全部集中在 ui/AppNav.kt（页面树），这里只做绑定
-                                composable(AppNav.HOME) { HomeScreen(nav, viewModel) }
-                                composable(AppNav.CAMERA) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CameraScreen(nav, viewModel) } }
-                                composable(AppNav.CROP) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CropScreen(nav, viewModel) } }
-                                composable(AppNav.GRADE) { GradeScreen(nav, viewModel) }
-                                // 解题页带上来路（home / camera / grade / history / notebook / review）
-                                composable(AppNav.SOLVE_PATTERN) { entry ->
-                                    SolveScreen(
-                                        nav,
-                                        viewModel,
-                                        AppNav.Origin.of(entry.arguments?.getString("origin"))
-                                    )
-                                }
-                                composable(AppNav.HISTORY) { SolveHistoryScreen(nav, viewModel) }
-                                composable(AppNav.NOTEBOOK) { NotebookScreen(nav, viewModel) }
-                                composable(AppNav.REVIEW) { ReviewScreen(nav, viewModel) }
-                                composable(AppNav.SIMILAR) { SimilarScreen(nav, viewModel) }
-                                composable(AppNav.STATS) { StatsScreen(viewModel) }
-                                composable(AppNav.SETTINGS) {
-                                    SettingsTab(viewModel, settingsRootRequest) { settingsAtRoot = it }
+                            modifier = Modifier.weight(1f).then(if (showBottomBar)
+                                Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                                else Modifier),
+                            onSelect = { target -> swipeTransition = current to target; selectTab(target) },
+                            preview = { target ->
+                                when (target) {
+                                    AppNav.HOME -> HomeScreen(nav, viewModel, homeScroll, preview = true)
+                                    AppNav.STATS -> StatsScreen(viewModel, statsScroll)
+                                    AppNav.SETTINGS -> com.zsz.studyassistant.ui.SettingsMain(settingsScroll) { }
                                 }
                             }
+                        ) { swipeModifier ->
+                            Box(swipeModifier.fillMaxSize()) {
+                                NavHost(
+                                    nav,
+                                    startDestination = AppNav.HOME,
+                                    enterTransition = { if (swipeTransition == (initialState.destination.route to targetState.destination.route)) androidx.compose.animation.EnterTransition.None else com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route) },
+                                    exitTransition = { if (swipeTransition == (initialState.destination.route to targetState.destination.route)) androidx.compose.animation.ExitTransition.None else com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route) },
+                                    popEnterTransition = { com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true) },
+                                    popExitTransition = { com.zsz.studyassistant.ui.pageExitTransition(initialState.destination.route, targetState.destination.route, pop = true) },
+                                    // Predictive Back has separate defaults since Navigation 2.10.
+                                    predictivePopEnterTransition = { _ -> com.zsz.studyassistant.ui.pageEnterTransition(initialState.destination.route, targetState.destination.route, pop = true) },
+                                    predictivePopExitTransition = { _ -> com.zsz.studyassistant.ui.pagePredictiveExitTransition(initialState.destination.route, targetState.destination.route) }
+                                ) {
+                                    // ⚠️ 路由常量与"谁能进谁、返回去哪"全部集中在 ui/AppNav.kt（页面树），这里只做绑定
+                                    composable(AppNav.HOME) { HomeScreen(nav, viewModel, homeScroll) }
+                                    composable(AppNav.CAMERA) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CameraScreen(nav, viewModel) } }
+                                    composable(AppNav.CROP) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CropScreen(nav, viewModel) } }
+                                    composable(AppNav.GRADE) { GradeScreen(nav, viewModel) }
+                                    // 解题页带上来路（home / camera / grade / history / notebook / review）
+                                    composable(AppNav.SOLVE_PATTERN) { entry ->
+                                        SolveScreen(
+                                            nav,
+                                            viewModel,
+                                            AppNav.Origin.of(entry.arguments?.getString("origin"))
+                                        )
+                                    }
+                                    composable(AppNav.HISTORY) { SolveHistoryScreen(nav, viewModel) }
+                                    composable(AppNav.NOTEBOOK) { NotebookScreen(nav, viewModel) }
+                                    composable(AppNav.REVIEW) { ReviewScreen(nav, viewModel) }
+                                    composable(AppNav.SIMILAR) { SimilarScreen(nav, viewModel) }
+                                    composable(AppNav.STATS) { StatsScreen(viewModel, statsScroll) }
+                                    composable(AppNav.SETTINGS) {
+                                        SettingsTab(viewModel, settingsRootRequest, settingsScroll) { settingsAtRoot = it }
+                                    }
+                                }
 
-                            // ★ 切换页面后短时吞掉内容区触摸（对所有目的地生效）：
-                            //   过渡动画期间「正在退出的页面」仍在组合中并参与命中测试，而新页面在很多位置
-                            //   没有可点击节点，触摸会穿透到下面那张旧页面 → 曾出现「点了设置又误触拍照搜题」。
-                            //   用 navBlocking（状态 + 协程定时解锁）兜住这段窗口；底部导航栏在 NavHost 之外，不受影响。
-                            if (navBlocking.value) {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                    event.changes.forEach { it.consume() }
+                                // ★ 切换页面后短时吞掉内容区触摸（对所有目的地生效）：
+                                //   过渡动画期间「正在退出的页面」仍在组合中并参与命中测试，而新页面在很多位置
+                                //   没有可点击节点，触摸会穿透到下面那张旧页面 → 曾出现「点了设置又误触拍照搜题」。
+                                //   用 navBlocking（状态 + 协程定时解锁）兜住这段窗口；底部导航栏在 NavHost 之外，不受影响。
+                                if (navBlocking.value) {
+                                    Box(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .pointerInput(Unit) {
+                                                awaitPointerEventScope {
+                                                    while (true) {
+                                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                        event.changes.forEach { it.consume() }
+                                                    }
                                                 }
                                             }
-                                        }
-                                )
-                            }
+                                    )
+                                }
 
-                            androidx.compose.runtime.LaunchedEffect(viewModel.draftSolveRequested) {
-                                if (viewModel.draftSolveRequested) {
-                                    AppNav.openSolve(nav, AppNav.Origin.of(viewModel.draftReturnOrigin))
-                                    viewModel.consumeDraftNavigation()
+                                androidx.compose.runtime.LaunchedEffect(viewModel.draftSolveRequested) {
+                                    if (viewModel.draftSolveRequested) {
+                                        AppNav.openSolve(nav, AppNav.Origin.of(viewModel.draftReturnOrigin))
+                                        viewModel.consumeDraftNavigation()
+                                    }
+                                }
+                                // 从通知点进来 → 直接打开复习页
+                                androidx.compose.runtime.LaunchedEffect(viewModel.reviewOpenRequested) {
+                                    if (viewModel.reviewOpenRequested) {
+                                        viewModel.saveSessionOnExit()
+                                        viewModel.stopActiveGeneration()
+                                        AppNav.openReview(nav)
+                                        viewModel.consumeReviewNavigation()
+                                    }
                                 }
                             }
-                            // 从通知点进来 → 直接打开复习页
-                            androidx.compose.runtime.LaunchedEffect(viewModel.reviewOpenRequested) {
-                                if (viewModel.reviewOpenRequested) {
-                                    viewModel.saveSessionOnExit()
-                                    viewModel.stopActiveGeneration()
-                                    AppNav.openReview(nav)
-                                    viewModel.consumeReviewNavigation()
-                                }
-                            }
-                        }
+                        } // RootTabSwipeHost
                         if (showBottomBar) {
                             NavigationBar {
                                 NavigationBarItem(

@@ -105,24 +105,9 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
             TopAppBar(
                 title = {
                     if (selectionMode) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val allSelected = sessions.isNotEmpty() && selectedIds.size == sessions.size
-                            TextButton(
-                                onClick = { selectedIds = if (allSelected) emptySet() else sessions.map { it.id }.toSet() },
-                                contentPadding = PaddingValues(horizontal = 4.dp)
-                            ) {
-                                Text(
-                                    if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"],
-                                    fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false
-                                )
-                            }
-                            Text(
-                                s.format("solve.selectedCount", "n" to "${selectedIds.size}"),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                        val allSelected = sessions.isNotEmpty() && selectedIds.size == sessions.size
+                        SelectionSummary(selectedIds.size, allSelected, "solve.selectedCount") {
+                            selectedIds = if (allSelected) emptySet() else sessions.map { it.id }.toSet()
                         }
                     } else {
                         // 标题与计数按中心线对齐；计数使用正文行高，避免继承大标题行高而显得偏上。
@@ -163,6 +148,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                         val compact = PaddingValues(horizontal = 4.dp)
                         TextButton(
                             onClick = { showDeleteConfirm = true },
+                            enabled = selectedIds.isNotEmpty(),
                             contentPadding = compact
                         ) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
                         TextButton(
@@ -276,13 +262,13 @@ private fun SolveHistoryItem(
     val s = LocalStrings.current
     // Match conversation_render.html's selected bubble and .pick colours/borders.
     val selectionRed = Color(0xFFF44336)
-    val pickBorder = if (darkTheme) Color(0xFF8A8A8A) else Color(0xFF9E9E9E)
+    val selectionBorder by androidx.compose.animation.animateColorAsState(if (selectionMode && selected) selectionRed else Color.Transparent, tween(140))
     val shape = RoundedCornerShape(12.dp)
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .then(if (selectionMode && selected) Modifier.border(2.dp, selectionRed, shape) else Modifier)
+            .border(2.dp, selectionBorder, shape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = shape
     ) {
@@ -310,17 +296,8 @@ private fun SolveHistoryItem(
                 }
             }
             if (selectionMode) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 8.dp, end = 8.dp)
-                        .size(22.dp)
-                        .background(if (selected) selectionRed else Color.Transparent, CircleShape)
-                        .border(2.dp, if (selected) selectionRed else pickBorder, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (selected) Text("✓", color = Color.White, fontSize = 13.sp)
-                }
+                SelectionMark(selected, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp),
+                    idleBorder = if (darkTheme) Color(0xFF8A8A8A) else Color(0xFF9E9E9E))
             }
         }
     }

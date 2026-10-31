@@ -96,7 +96,35 @@
     }
     return result;
   }
-  var highlight=null, jumpFrame=null, holdTimer=null, fadeTimer=null;
+  var highlight=null, jumpFrame=null, holdTimer=null, fadeTimer=null, returnPoint=null;
+  function setReturn(point){
+    returnPoint=point;
+    try{ if(window.Android && Android.quoteReturnAvailable) Android.quoteReturnAvailable(!!point); }catch(e){}
+  }
+  function returnBubble(){
+    if(!returnPoint) return null;
+    var matches=[];
+    for(var i=0;i<messageSources.length;i++) if(messageSources[i].messageKey===returnPoint.key) matches.push(i);
+    return matches.length===1 ? bubbleAt(matches[0]) : null;
+  }
+  window.dshClearQuoteReturn=function(){setReturn(null);};
+  window.dshReturnToQuote=function(){
+    var bubble=returnBubble(), point=returnPoint;
+    if(!bubble){setReturn(null);unavailable();return;}
+    clear(); window.dshNoFollow();
+    var start=window.scrollY, began=performance.now();
+    function step(now){
+      bubble=returnBubble();
+      if(!bubble){clear();setReturn(null);return;}
+      var destination=Math.max(0,Math.min(bottomY(),window.scrollY+bubble.getBoundingClientRect().top-point.offset));
+      var progress=Math.min(1,(now-began)/300), eased=1-Math.pow(1-progress,3);
+      window.scrollTo(0,start+(destination-start)*eased);
+      if(progress<1) jumpFrame=requestAnimationFrame(step);
+      else {jumpFrame=null;setReturn(null);}
+    }
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) began-=300;
+    jumpFrame=requestAnimationFrame(step);
+  };
   function clear(){
     if(jumpFrame!==null) cancelAnimationFrame(jumpFrame);
     clearTimeout(holdTimer); clearTimeout(fadeTimer);
@@ -104,7 +132,7 @@
     highlight=null; jumpFrame=null; holdTimer=null; fadeTimer=null;
   }
   window.dshClearQuoteJump=clear;
-  window.dshQuoteJumpActive=function(){return highlight!==null;};
+  window.dshQuoteJumpActive=function(){return highlight!==null || jumpFrame!==null;};
   function place(){
     if(!highlight || !highlight.scope.isConnected){ clear(); return null; }
     var range=highlight.range, rects=Array.from(range.getClientRects()).filter(function(r){return r.width>0 && r.height>0;});
@@ -147,6 +175,9 @@
   function jump(idx){
     var target=resolve(idx);
     if(!target){ unavailable(); return; }
+    var origin=bubbleAt(idx), key=messageSources[idx].messageKey;
+    // Capture before opening hidden reasoning, which can shift the follow-up far below the viewport.
+    var originPoint=origin && key ? {key:key,offset:origin.getBoundingClientRect().top} : null;
     clear(); window.dshNoFollow();
     if(target.scope==='thinking'){
       window.thinkUserOpen[target.idx]=1; delete window.thinkUserClosed[target.idx];
@@ -156,6 +187,7 @@
     if(!scope || !bubble){ unavailable(); return; }
     var map=textMap(scope), first=map.points[target.start], last=map.points[target.end-1];
     if(!first || !last){ unavailable(); return; }
+    setReturn(originPoint);
     var range=document.createRange(); range.setStart(first.a[0],first.a[1]); range.setEnd(last.b[0],last.b[1]);
     var layer=document.createElement('div'); layer.className='quote-jump-highlight'; layer.setAttribute('aria-hidden','true');
     bubble.appendChild(layer); highlight={layer:layer,scope:scope,bubble:bubble,range:range};
@@ -196,5 +228,8 @@
   document.addEventListener('scroll',function(){if(highlight) place();},true);
   window.addEventListener('resize',function(){if(highlight) place();});
   document.addEventListener('visibilitychange',function(){if(document.hidden) clear();});
-  window.dshQuoteAfterRender=function(){if(selectionMode || (highlight && !highlight.scope.isConnected)) clear();};
+  window.dshQuoteAfterRender=function(){
+    if(selectionMode || (highlight && !highlight.scope.isConnected)) clear();
+    if(returnPoint && !returnBubble()) setReturn(null);
+  };
 })();

@@ -47,7 +47,7 @@ import com.zsz.studyassistant.MainViewModel
  * 今日 / 本周已复习、连续天数、待复习、掌握度分布、科目分布、近 7 天新增。
  */
 @Composable
-fun StatsScreen(vm: MainViewModel) {
+fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollState = rememberScrollState()) {
     val s = LocalStrings.current
     val st by vm.stats.collectAsStateWithLifecycle()
 
@@ -56,7 +56,7 @@ fun StatsScreen(vm: MainViewModel) {
         Modifier
             .readablePage()
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scroll)
             .padding(16.dp)
     ) {
         Text(s["stats.title"], style = MaterialTheme.typography.headlineSmall)

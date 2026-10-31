@@ -148,22 +148,10 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
             TopAppBar(
                 title = {
                     if (editMode) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val selectable = messages.indices.filter { it !in lockedIndices }
-                            val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
-                            TextButton(
-                                onClick = { selectedIndices = if (allSelected) emptySet() else messages.indices.filter { it !in lockedIndices }.toSet() },
-                                contentPadding = PaddingValues(horizontal = 6.dp)
-                            ) {
-                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = BTN_LABEL)
-                            }
-                            Text(
-                                s.format("solve.selectedCount", "n" to "${selectedIndices.size}"),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                        val selectable = messages.indices.filter { it !in lockedIndices }
+                        val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
+                        SelectionSummary(selectedIndices.size, allSelected, "solve.selectedCount") {
+                            selectedIndices = if (allSelected) emptySet() else selectable.toSet()
                         }
                     } else {
                         Text(s["similar.title"], fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis)

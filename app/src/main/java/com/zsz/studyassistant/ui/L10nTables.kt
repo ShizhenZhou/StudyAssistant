@@ -1117,8 +1117,9 @@ private val B2_ZH = mapOf(
     "solve.imageDesc" to "附图",
     "solve.followUpHint" to "继续追问（可带图）…",
     "solve.send" to "发送",
-    "solve.quoteAction" to "追问",
-    "solve.quoteSelectionHint" to "请在同一段正文内选择要追问的文字。",
+    "solve.quoteAction" to "引用",
+    "solve.returnToFollowUp" to "返回追问位置",
+    "solve.quoteSelectionHint" to "请在同一段正文内选择要引用的文字。",
     "solve.quoteUnavailable" to "原文已变更、不存在或无法唯一定位。",
     "solve.quoteTitle" to "引用内容",
     "solve.quoteRemove" to "移除引用",
@@ -1174,8 +1175,9 @@ private val B2_EN = mapOf(
     "solve.imageDesc" to "Attached image",
     "solve.followUpHint" to "Ask a follow-up (image optional)…",
     "solve.send" to "Send",
-    "solve.quoteAction" to "Ask about this",
-    "solve.quoteSelectionHint" to "Select the text to ask about within one message body.",
+    "solve.quoteAction" to "Quote",
+    "solve.returnToFollowUp" to "Return to follow-up",
+    "solve.quoteSelectionHint" to "Select the text to quote within one message body.",
     "solve.quoteUnavailable" to "The source has changed, is missing, or cannot be uniquely located.",
     "solve.quoteTitle" to "Quoted text",
     "solve.quoteRemove" to "Remove quote",
@@ -1231,8 +1233,9 @@ private val B2_JA = mapOf(
     "solve.imageDesc" to "添付画像",
     "solve.followUpHint" to "追加質問（画像も可）…",
     "solve.send" to "送信",
-    "solve.quoteAction" to "この部分について質問",
-    "solve.quoteSelectionHint" to "同じ本文内で質問したい文字を選択してください。",
+    "solve.quoteAction" to "引用",
+    "solve.returnToFollowUp" to "質問の位置に戻る",
+    "solve.quoteSelectionHint" to "同じ本文内で引用する文字を選択してください。",
     "solve.quoteUnavailable" to "引用元が変更・削除されたか、一意に特定できません。",
     "solve.quoteTitle" to "引用内容",
     "solve.quoteRemove" to "引用を削除",
@@ -1288,8 +1291,9 @@ private val B2_KO = mapOf(
     "solve.imageDesc" to "첨부 이미지",
     "solve.followUpHint" to "추가 질문 (이미지 가능)…",
     "solve.send" to "전송",
-    "solve.quoteAction" to "이 내용 질문하기",
-    "solve.quoteSelectionHint" to "하나의 메시지 본문 안에서 질문할 텍스트를 선택하세요.",
+    "solve.quoteAction" to "인용",
+    "solve.returnToFollowUp" to "추가 질문 위치로 돌아가기",
+    "solve.quoteSelectionHint" to "하나의 메시지 본문 안에서 인용할 텍스트를 선택하세요.",
     "solve.quoteUnavailable" to "원문이 변경되었거나 없으며, 또는 하나로 특정할 수 없습니다.",
     "solve.quoteTitle" to "인용 내용",
     "solve.quoteRemove" to "인용 삭제",
@@ -2393,7 +2397,7 @@ private val B10_ZH = mapOf(
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
         "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
-        "· 🤖 流式解答、附图与选文引用追问、继续生成与同类题练习，支持公式显示。\n" +
+        "· 🤖 流式解答、附图追问与同类题练习；选文“引用”可追问、查看原文并返回，支持公式显示。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
         "· 📚 错题本支持分类、标签、排序和批量管理。\n" +
         "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
@@ -2454,7 +2458,7 @@ private val B10_EN = mapOf(
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
         "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
-        "· 🤖 Stream answers, ask follow-ups with images or selected-text quotes, continue generation and practise similar questions, with formula rendering.\n" +
+        "· 🤖 Stream answers, ask with images and practise similar questions. Select “Quote” to ask about text, visit its source and return, with formula rendering.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
         "· 📚 Organize notebook entries with categories, tags, sorting and batch actions.\n" +
         "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
@@ -2515,7 +2519,7 @@ private val B10_JA = mapOf(
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
         "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
-        "· 🤖 逐次解答、画像付き・選択テキストの引用質問、生成の継続、類似問題の練習と数式表示に対応。\n" +
+        "· 🤖 逐次解答、画像付き質問、類似問題の練習。選文の「引用」で質問し、引用元と質問の位置を往復できます。数式表示に対応。\n" +
         "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
         "· 📚 間違いノートを分類・タグ・並べ替え・一括操作で管理。\n" +
         "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
@@ -2576,7 +2580,7 @@ private val B10_KO = mapOf(
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
         "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
-        "· 🤖 스트리밍 답변, 이미지·선택한 글자 인용 질문, 이어서 생성, 유사 문제 연습과 수식 표시를 지원합니다.\n" +
+        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 선택한 글자를 “인용”하여 질문하고 원문과 질문 위치를 오갈 수 있으며 수식을 표시합니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
         "· 📚 분류, 태그, 정렬과 일괄 작업으로 오답노트를 관리합니다.\n" +
         "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +

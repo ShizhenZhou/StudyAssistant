@@ -23,7 +23,7 @@
     --fg:#E6E6E6;
     --bubble-ai:#2B2B30;  --bubble-ai-border:#3C3C43;
     --bubble-user:#1E3A24; --bubble-user-border:#2F5A38;
-    --quote-bg:#373A40; --quote-fg:#E6E8EB; --quote-mark:#9CA4AE;
+    --quote-bg:#2B3C4A; --quote-fg:#E0E8EF; --quote-mark:#9EAFBE;
     --msg-border:#3C3C43;
     --think-fg:#A6A6A6; --think-body-fg:#B6B6B6; --think-body-border:#4A4A52;
     --pick-border:#8A8A8A;
@@ -61,6 +61,9 @@
         text-align:center;background:transparent;}
   .bubble.selmode .pick{display:block;}
   .bubble.selected .pick{background:#F44336;border-color:#F44336;}
+  .bubble{transition:box-shadow 140ms ease;}
+  .pick{transition:background-color 140ms ease,border-color 140ms ease;}
+  @media(prefers-reduced-motion:reduce){.bubble,.pick{transition:none;}}
   .bubble.selected{box-shadow:inset 0 0 0 2px #F44336;}
   /* 受保护的消息（题干 / AI 首条回复）：圆圈灰掉、不可点 */
   .bubble.selmode.locked .pick{border-color:#6E6E6E;opacity:.45;background:transparent;border-style:dashed;}
@@ -201,6 +204,7 @@ var lastAtTop = null;
 var lastScrollable = null;   // 是否可滚动（内容超过一屏）
 /** 立刻回到顶部（换题/换会话时用，不做动画） */
 window.dshScrollReset = function(){
+  if(window.dshClearQuoteReturn) window.dshClearQuoteReturn();
   if(window.dshClearQuoteJump) window.dshClearQuoteJump();
   following = false; touching = false; userForcedFollow = false;
   if(scrollTopAnim){ cancelAnimationFrame(scrollTopAnim); scrollTopAnim = null; }
@@ -695,10 +699,10 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
     window.thinkText = {}; window.thinkDone = {};
     pendingJumpIdx = null;
   }
-  // 选择态变化时必须全量重建（否则已渲染的气泡不会更新圆圈/红框）
+  // 选择态只更新已有节点的圆圈/红框，避免重建公式并丢失临时展开状态。
   var selKey = (selectionMode ? '1' : '0') + ':' + Object.keys(selectedSet).sort().join(',')
              + '|' + Object.keys(lockedSet).sort().join(',');
-  if(selKey !== renderedSelKey){ renderedKeys = []; renderedSelKey = selKey; }
+  renderedSelKey = selKey; // Selection changes only update classes, preserving formula DOM and scroll.
   // 找出与上次渲染相同的前缀长度 k：前 k 条完全不动
   var k = 0;
   var keys = [];
@@ -709,9 +713,19 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
   // 只重建从 k 开始的部分（流式时通常只有最后一条）
   for(var i=k;i<arr.length;i++){ out.insertAdjacentHTML('beforeend', bubbleHtml(arr[i], i)); }
   renderedKeys = keys;
+  Array.from(out.children).forEach(function(bubble,idx){
+    var locked=!!lockedSet[idx], selected=!locked && !!selectedSet[idx];
+    bubble.classList.toggle('selmode',selectionMode);
+    bubble.classList.toggle('locked',locked);
+    bubble.classList.toggle('selected',selectionMode && selected);
+    var pick=bubble.querySelector('.pick');
+    if(selectionMode && !pick){pick=document.createElement('div');pick.className='pick';bubble.appendChild(pick);}
+    if(pick) pick.textContent=selected ? '✓' : '';
+  });
   // 新的一轮提问（末尾不是助手消息）→ 贴到底部并恢复跟随；**首次渲染不跳**（打开旧会话要停在顶部）
   if(lastCount > 0 && arr.length > lastCount && arr.length && arr[arr.length-1].role !== 'assistant'){
     if(window.dshClearQuoteJump) window.dshClearQuoteJump();
+    if(window.dshClearQuoteReturn) window.dshClearQuoteReturn();
     following = true;
     setTimeout(function(){ try{ window.scrollTo(0, bottomY()); }catch(e){} }, 30);
   }

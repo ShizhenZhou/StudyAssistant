@@ -58,21 +58,23 @@ private fun HomeButtonLabel(label: String, fontSize: TextUnit, shiftHalfCharLeft
 }
 
 @Composable
-fun HomeScreen(nav: NavHostController, vm: MainViewModel) {
+fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compose.foundation.ScrollState = rememberScrollState(), preview: Boolean = false) {
     val context = LocalContext.current
     val s = LocalStrings.current
     var keyOk by remember { mutableStateOf(vm.hasApiKey()) }
     var showDialog by remember { mutableStateOf(false) }
     // 首次打开且未配 Key → 自动弹填 Key 对话框
-    LaunchedEffect(keyOk) { if (!keyOk) showDialog = true }
-    BackupSetupPrompt(vm, ready = keyOk && !showDialog)
+    if (!preview) {
+        LaunchedEffect(keyOk) { if (!keyOk) showDialog = true }
+        BackupSetupPrompt(vm, ready = keyOk && !showDialog)
+    }
 
     Box(Modifier.fillMaxSize().rootPageBackground().statusBarsPadding()) {
         Column(
             modifier = Modifier
                 .readablePage(560.dp)
                 // ★ 兜底：2×2 后高度已减半，但大字号 + 极小屏（或分屏）下仍可能超高 → 允许滚动，绝不裁掉入口
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center

@@ -77,6 +77,8 @@ fun ConversationWebView(
     scrollTopSignal: Int = 0,
     /** 每次自增 = 请求「滚动到底部」（在顶部时按钮变为 ↓） */
     scrollBottomSignal: Int = 0,
+    returnQuoteSignal: Int = 0,
+    onQuoteReturnAvailable: (Boolean) -> Unit = {},
     /** 每次自增 = 立刻重置到顶部（换题/换会话时用，无动画） */
     resetScrollSignal: Int = 0,
     /** 每次自增 = 只关闭「自动跟随」，**不改变滚动位置**（展开答案时保持画面不动） */
@@ -126,6 +128,7 @@ fun ConversationWebView(
     val currentOnContinue by rememberUpdatedState(onContinue)
     val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
     val currentOnQuote by rememberUpdatedState(onQuoteText)
+    val currentOnQuoteReturn by rememberUpdatedState(onQuoteReturnAvailable)
     val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
     val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
     val currentOnScrollableChange by rememberUpdatedState(onScrollableChange)
@@ -173,6 +176,10 @@ fun ConversationWebView(
         if (scrollBottomSignal > 0) {
             webRef?.evaluateJavascript("window.dshScrollToBottom && window.dshScrollToBottom();", null)
         }
+    }
+
+    LaunchedEffect(returnQuoteSignal) {
+        if (returnQuoteSignal > 0) webRef?.evaluateJavascript("window.dshReturnToQuote && window.dshReturnToQuote();", null)
     }
 
     // 换题/换会话：立刻回到顶部（无动画）
@@ -227,6 +234,11 @@ fun ConversationWebView(
                     }
                     // 网页里的图片点击 → 交给 Kotlin 打开全屏查看（JS 线程回调，切回主线程改状态）
                     addJavascriptInterface(object {
+                        @JavascriptInterface
+                        fun quoteReturnAvailable(available: Boolean) {
+                            bridgeHandler.post { if (webRef === bridgeView) currentOnQuoteReturn(available) }
+                        }
+
                         @JavascriptInterface
                         fun quoteUnavailable() {
                             bridgeHandler.post {
@@ -313,6 +325,7 @@ fun ConversationWebView(
                 }
             },
             onRelease = { view ->
+                if (webRef === view) currentOnQuoteReturn(false)
                 view.quoteEnabled = false
                 view.onQuote = { _, _, _, _ -> }
                 webRef = null

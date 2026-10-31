@@ -105,7 +105,7 @@ import com.zsz.studyassistant.data.UpdateChecker
 /** 设置：主页面为入口列表，点进去到二级页面进行具体设置 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, onRootStateChanged: (Boolean) -> Unit = {}) {
+fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: androidx.compose.foundation.ScrollState = rememberScrollState(), onRootStateChanged: (Boolean) -> Unit = {}) {
     val settingsNav = androidx.navigation.compose.rememberNavController()
     val entry by settingsNav.currentBackStackEntryAsState()
     val page = entry?.destination?.route ?: AppNav.SettingsPages.MAIN
@@ -259,7 +259,7 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, onRootStateChan
                         AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { returnToParent() }) { TagMergePage(vm) }
                         AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { returnToParent() }) { UpdatePage() }
                         AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { returnToParent() }) { AboutPage() }
-                        else -> SettingsMain { AppNav.SettingsPages.open(settingsNav, it) }
+                        else -> SettingsMain(rootScroll) { AppNav.SettingsPages.open(settingsNav, it) }
                     }
                 }
             }
@@ -397,11 +397,11 @@ private fun SettingsSubPage(
 
 /** 设置主页面：入口列表 */
 @Composable
-private fun SettingsMain(onOpen: (String) -> Unit) {
+internal fun SettingsMain(scroll: androidx.compose.foundation.ScrollState = rememberScrollState(), onOpen: (String) -> Unit) {
     val s = LocalStrings.current
     Box(Modifier.fillMaxSize().rootPageBackground()) {
     Column(
-        Modifier.readablePage().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
+        Modifier.readablePage().statusBarsPadding().padding(16.dp).verticalScroll(scroll)
     ) {
         Text(s["settings.title"], style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(12.dp))

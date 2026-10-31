@@ -1,5 +1,8 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import android.graphics.BitmapFactory
@@ -180,6 +183,8 @@ fun SolveScreen(
     // 一键回到顶部 / 滚到底部：每次自增向 WebView 发一次信号
     var scrollTopTick by remember { mutableIntStateOf(0) }
     var scrollBottomTick by remember { mutableIntStateOf(0) }
+    var returnQuoteTick by remember { mutableIntStateOf(0) }
+    var quoteReturnAvailable by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf(false) }
     // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
     var atTop by remember { mutableStateOf(true) }
     // 「看解答」不动画面、「收起解答」回顶
@@ -311,25 +316,10 @@ fun SolveScreen(
                 title = {
                     if (editMode) {
                         // 多选态：左侧「全选 / 取消全选」+ 已选条数（删除/完成仍在右侧）
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // 可选集合 = chatItems 里未被锁定的 + （若有）中止后的虚拟尾气泡
-                            val selectable = messages.indices.filter { isSelectableIndexOf(it) && it !in lockedIndices }
-                            val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
-                            TextButton(
-                                onClick = {
-                                    selectedIndices = if (allSelected) emptySet() else selectable.toSet()
-                                },
-                                contentPadding = PaddingValues(horizontal = 6.dp)
-                            ) {
-                                Text(if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"], fontSize = BTN_LABEL_SOLVE)
-                            }
-                            Text(
-                                s.format("solve.selectedCount", "n" to "${selectedIndices.size}"),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                        val selectable = messages.indices.filter { isSelectableIndexOf(it) && it !in lockedIndices }
+                        val allSelected = selectable.isNotEmpty() && selectedIndices.size == selectable.size
+                        SelectionSummary(selectedIndices.size, allSelected, "solve.selectedCount") {
+                            selectedIndices = if (allSelected) emptySet() else selectable.toSet()
                         }
                     } else if (sessionMode == SessionMode.GRADE) {
                         // 批改模式：全屏复用解题界面，标题「批改」
@@ -819,6 +809,8 @@ fun SolveScreen(
                             }
                         },
                         scrollBottomSignal = scrollBottomTick,
+                        returnQuoteSignal = returnQuoteTick,
+                        onQuoteReturnAvailable = { quoteReturnAvailable = it },
                         resetScrollSignal = resetScrollTick,
                         noFollowSignal = noFollowTick,
                         onAtTopChange = { atTop = it },
@@ -838,23 +830,30 @@ fun SolveScreen(
                         }
                     )
                     // 快速跳转按钮：仅在**内容超过一屏**时出现；在顶部显示 ↓（一按滚到最底），否则 ↑（一按回到顶部）
-                    if (!editMode && scrollable) {
-                        Surface(
-                            onClick = { if (atTop) scrollBottomTick++ else scrollTopTick++ },
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
-                            shadowElevation = 3.dp,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(end = 12.dp, bottom = 12.dp)
-                                .size(44.dp)
+                    if (!editMode && (scrollable || quoteReturnAvailable)) {
+                        Column(
+                            Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(
-                                    if (atTop) "↓" else "↑",
-                                    fontSize = 19.sp,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
+                            if (quoteReturnAvailable) Surface(
+                                onClick = { returnQuoteTick++ }, shape = CircleShape,
+                                color = (if (darkTheme) Color(0xFF34465E) else Color(0xFFDCE6F8)).copy(alpha = .92f),
+                                contentColor = if (darkTheme) Color(0xFFDCE6F8) else Color(0xFF22354C),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.size(44.dp).semantics { contentDescription = s["solve.returnToFollowUp"] }
+                            ) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("↵", fontSize = 23.sp) }
+                            }
+                            if (scrollable) Surface(
+                                onClick = { if (atTop) scrollBottomTick++ else scrollTopTick++ },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .92f),
+                                shadowElevation = 3.dp, modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text(if (atTop) "↓" else "↑", fontSize = 19.sp,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
                             }
                         }
                     }

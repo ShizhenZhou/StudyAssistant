@@ -196,26 +196,9 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                     if (selectionMode) {
                         // 多选：小字号（与解题页会话多选一致）——左侧「全选/取消全选」+ 已选条数
                         // 全部不换行，避免被右侧按钮挤成两行
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val allSelected = filtered.isNotEmpty() && selectedIds.size == filtered.size
-                            TextButton(
-                                onClick = { selectedIds = if (allSelected) emptySet() else filtered.map { it.id }.toSet() },
-                                contentPadding = PaddingValues(horizontal = 4.dp)
-                            ) {
-                                Text(
-                                    if (allSelected) s["solve.deselectAll"] else s["solve.selectAll"],
-                                    fontSize = BTN_LABEL,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                            Text(
-                                s.format("notebook.selectedCount", "n" to "${selectedIds.size}"),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                        val allSelected = filtered.isNotEmpty() && selectedIds.size == filtered.size
+                        SelectionSummary(selectedIds.size, allSelected, "notebook.selectedCount") {
+                            selectedIds = if (allSelected) emptySet() else filtered.map { it.id }.toSet()
                         }
                     } else {
                         // 页标题：只写「错题本」（题数已挪到「按标签搜索」那一行右侧 → 「当前列表共 N 题」）
@@ -251,8 +234,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         selectionMode -> {
                             // 三个按钮紧凑摆放（缩小左右内边距），给标题让出空间
                             val compact = PaddingValues(horizontal = 4.dp)
-                            TextButton(onClick = { showBatchCategory = true }, contentPadding = compact) { Text(s["notebook.category"], maxLines = 1, softWrap = false) }
-                            TextButton(onClick = { showBatchDelete = true }, contentPadding = compact) { Text(s["solve.delete"], maxLines = 1, softWrap = false) }
+                            TextButton(onClick = { showBatchCategory = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { Text(s["notebook.category"], maxLines = 1, softWrap = false) }
+                            TextButton(onClick = { showBatchDelete = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { Text(s["solve.delete"], maxLines = 1, softWrap = false) }
                             TextButton(onClick = { exitSelection() }, contentPadding = compact) { Text(s["solve.done"], maxLines = 1, softWrap = false) }
                         }
                         else -> {
@@ -493,6 +476,7 @@ private fun NotebookItem(
     onLongClick: () -> Unit
 ) {
     val s = LocalStrings.current
+    val selectionBorder by androidx.compose.animation.animateColorAsState(if (selected) Color(0xFF4CAF50) else Color.Transparent, tween(140))
     Card(
         modifier = modifier
             .animateContentSize(tween(140))
@@ -500,7 +484,7 @@ private fun NotebookItem(
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(12.dp),
-        border = if (selected) BorderStroke(2.dp, Color(0xFF4CAF50)) else null
+        border = BorderStroke(2.dp, selectionBorder)
     ) {
         Box {
             Column(Modifier.padding(8.dp)) {
@@ -553,16 +537,7 @@ private fun NotebookItem(
             }
             // 多选：右上角勾选框
             if (selectionMode) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(22.dp)
-                        .background(if (selected) Color(0xFF4CAF50) else Color(0x88000000), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (selected) Text("✓", color = Color.White, fontSize = 14.sp)
-                }
+                SelectionMark(selected, Modifier.align(Alignment.TopEnd).padding(6.dp), Color(0xFF4CAF50), idleFill = Color(0x88000000))
             }
         }
     }
