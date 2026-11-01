@@ -43,6 +43,14 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9.4
+
+- ↔️ Fixed the Learning page flashing during home-tab swipes.
+- 🏷 Stricter same-concept checks for tag merging, including groups of multiple synonyms; related, dual and opposite concepts stay separate.
+- ✅ Simplified multi-selection controls, kept selected counts fully visible and aligned category/delete actions to the right.
+- 💬 Quoted source text now flashes orange-yellow twice and stays highlighted until scrolling or tapping elsewhere; enlarged and centered the return arrow.
+- 📌 `versionCode` **96**.
+
 ### v0.6.9.3
 
 - ↔️ Home tabs follow your finger and settle or spring back on release.

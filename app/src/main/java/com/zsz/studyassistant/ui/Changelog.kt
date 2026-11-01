@@ -5,6 +5,12 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.9.4
+· ↔️ 修正主页滑动切换时闪现学习页的问题。
+· 🏷 标签整理加强同一概念核验，支持多个同义标签成组，避免混合相近、对偶或相反概念。
+· ✅ 精简多选操作栏，完整显示已选数量，分类与删除靠右排列。
+· 💬 引用原文改用橙黄色高亮，闪烁两次后保持，滑动或点击别处清除；放大并居中返回箭头。
+
 v0.6.9.3
 · ↔️ 主页左右滑动跟随手指，松手切换或回弹。
 · ✅ 优化多选数量提示与选中反馈，保持操作栏稳定。
@@ -568,6 +574,12 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.9.4
+· ↔️ Fixed the Learning page flashing during home-tab swipes.
+· 🏷 Stricter same-concept checks for tag merging, including groups of multiple synonyms; related, dual and opposite concepts stay separate.
+· ✅ Simplified multi-selection controls, kept selected counts fully visible and aligned category/delete actions to the right.
+· 💬 Quoted source text now flashes orange-yellow twice and stays highlighted until scrolling or tapping elsewhere; enlarged and centered the return arrow.
+
 v0.6.9.3
 · ↔️ Home tabs follow your finger and settle or spring back on release.
 · ✅ Clearer selection counts and selection feedback with stable batch actions.
@@ -1131,6 +1143,12 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.9.4
+· ↔️ ホームのスワイプ切替時に学習ページが一瞬表示される問題を修正。
+· 🏷 タグ整理で同一概念の確認を強化し、複数の同義タグをグループ化。類似・双対・反対概念の混在を抑制。
+· ✅ 複数選択の操作バーを簡素化し、選択数を省略せず表示。分類と削除を右寄せに。
+· 💬 引用元を橙黄色で2回点滅後、スクロールまたは他の場所のタップまで強調表示。戻る矢印を拡大して中央に配置。
+
 v0.6.9.3
 · ↔️ ホーム画面が指の動きに追従し、指を離すと切り替えまたは元の位置に戻ります。
 · ✅ 複数選択の件数と選択時の表示を改善し、操作欄の位置を安定させました。
@@ -1694,6 +1712,12 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.9.4
+· ↔️ 홈 화면을 스와이프할 때 학습 페이지가 순간적으로 나타나는 문제를 수정했습니다.
+· 🏷 태그 정리의 동일 개념 검증을 강화하고 여러 동의어를 한 그룹으로 지원하며, 유사·쌍대·반대 개념의 혼합을 줄였습니다.
+· ✅ 다중 선택 도구 모음을 간소화하고 선택 개수를 온전히 표시하며 분류와 삭제를 오른쪽에 배치했습니다.
+· 💬 인용 원문을 주황빛 노란색으로 두 번 깜박인 뒤 스크롤하거나 다른 곳을 누를 때까지 강조합니다. 돌아가기 화살표를 키우고 가운데 정렬했습니다.
+
 v0.6.9.3
 · ↔️ 홈 화면이 손가락을 따라 움직이며 손을 떼면 전환되거나 원래 위치로 돌아갑니다.
 · ✅ 선택 개수와 선택 피드백을 개선하고 일괄 작업 버튼의 위치를 유지합니다.
