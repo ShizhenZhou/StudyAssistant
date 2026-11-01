@@ -134,7 +134,7 @@ fun ConversationWebView(
     val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
     val currentOnScrollableChange by rememberUpdatedState(onScrollableChange)
     var loaded by remember { mutableStateOf(false) }
-    var lastJson by remember { mutableStateOf<String?>(null) }
+    val payload = remember { ConversationPayload() }
     var zoomImage by remember { mutableStateOf<String?>(null) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
     val bridgeHandler = remember { Handler(Looper.getMainLooper()) }
@@ -302,11 +302,9 @@ fun ConversationWebView(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             if (view !== webRef || url != CONVERSATION_ASSET_URL) return
                             loaded = true
-                            val json = buildMessagesJson(currentMessages)
-                            val sel = selectionJson()
-                            val labels = thinkLabelsJson()
-                            lastJson = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale + "|" + currentThinkPref
-                            view?.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale, \"$currentThinkPref\");", null)
+                            payload.reset()
+                            payload.javascript(currentMessages, selectionJson(), thinkLabelsJson(),
+                                currentDark, currentScale, currentThinkPref)?.let { view?.evaluateJavascript(it, null) }
                         }
                     }
                     loadUrl(CONVERSATION_ASSET_URL)
@@ -316,17 +314,9 @@ fun ConversationWebView(
                 v.quoteLabel = s["solve.quoteAction"]
                 v.selectionHint = s["solve.quoteSelectionHint"]
                 v.quoteEnabled = onQuoteText != null && !selectionMode
-                // 内容未变化时跳过重渲染，减少 WebView 开销（多选状态也进 key：圆圈/红框要即时刷新；
-                // 思考块文案（界面语言）与展开/折叠偏好同样进 key：切语言 / 点折叠要立刻生效）
                 if (loaded) {
-                    val json = buildMessagesJson(currentMessages)
-                    val sel = selectionJson()
-                    val labels = thinkLabelsJson()
-                    val key = json + "|" + sel + "|" + labels + "|" + currentDark + "|" + currentScale + "|" + currentThinkPref
-                    if (key != lastJson) {
-                        lastJson = key
-                        v.evaluateJavascript("renderMessages($json, $sel, $labels, $currentDark, $currentScale, \"$currentThinkPref\");", null)
-                    }
+                    payload.javascript(currentMessages, selectionJson(), thinkLabelsJson(),
+                        currentDark, currentScale, currentThinkPref)?.let { v.evaluateJavascript(it, null) }
                 }
             },
             onRelease = { view ->
@@ -335,7 +325,7 @@ fun ConversationWebView(
                 view.onQuote = { _, _, _, _ -> }
                 webRef = null
                 loaded = false
-                lastJson = null
+                payload.reset()
                 bridgeHandler.removeCallbacksAndMessages(null)
                 view.removeJavascriptInterface("Android")
                 view.setOnTouchListener(null)
@@ -346,6 +336,24 @@ fun ConversationWebView(
         )
 
         zoomImage?.let { b64 -> ImageZoomView(b64) { zoomImage = null } }
+    }
+}
+
+/** Keep immutable prefix messages on the JS side; no repeated Base64 serialization while streaming. */
+internal class ConversationPayload {
+    private var previous: List<ChatMsg> = emptyList()
+    private var options: String? = null
+    fun reset() { previous = emptyList(); options = null }
+    fun javascript(messages: List<ChatMsg>, selection: String, labels: String,
+                   dark: Boolean, scale: Float, thinkPref: String): String? {
+        var prefix = 0
+        while (prefix < previous.size && prefix < messages.size && previous[prefix] == messages[prefix]) prefix++
+        val args = "$selection, $labels, $dark, $scale, ${JSONObject.quote(thinkPref)}"
+        if (prefix == previous.size && prefix == messages.size && options == args) return null
+        val tail = buildMessagesJson(messages.drop(prefix))
+        previous = messages.toList()
+        options = args
+        return "patchMessages($prefix, $tail, $args);"
     }
 }
 

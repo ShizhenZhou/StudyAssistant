@@ -11,6 +11,16 @@ import org.junit.Test
  * 在真机上很难逐条复现（要真的对着亮屏/暗处拍）。这里用合成 Y 平面把边界钉死。
  */
 class AutoExposureTest {
+    @Test fun bufferSamplingPreservesPositionAndSkipsPadding() {
+        val bytes = byteArrayOf(99, 0, 99, -1, 99, 99, 99, 0, 99, -1)
+        val buffer = java.nio.ByteBuffer.wrap(bytes).apply { position(1) }
+        val result = lumaStats(buffer, 2, 2, 6, 2, step=1)
+        assertEquals(127.5, result.mean, 0.001)
+        assertEquals(0.5, result.clipRatio, 0.001)
+        assertEquals(1, buffer.position())
+        val compact = byteArrayOf(0, -1, 0, -1)
+        assertEquals(lumaStats(compact, 2, 2, 2, step=1), lumaStats(java.nio.ByteBuffer.wrap(compact), 2, 2, 2, 1, step=1))
+    }
 
     /** 造一个纯色 Y 平面（rowStride = width） */
     private fun plane(value: Int, w: Int, h: Int): ByteArray =

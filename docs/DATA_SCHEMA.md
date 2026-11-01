@@ -63,6 +63,8 @@
 
 ## 1. Room 数据库 `study_assistant.db`
 
+- 手写重做的会话 JSON 可选字段 `ChatItem.gradePart`：`question` 标识原题文字与全部题图，`answer` 标识独立手写作答消息。缺失时沿用历史批改读取方式；新方式不会把作答图当作题目主图，初始作答受删除保护。仍使用原 `conversationJson` 字段，DB v10 / Bak v4 不变；旧客户端忽略可选字段，备份保留字段。没有迁移或改写历史记录。
+
 - 当前 **schema version = 10**（`AppDatabase.SCHEMA_VERSION`），自 App v0.6.6.3 起；v0.6.6.5 保持 v10，v0.6.6.2 使用 DB v9。
 - Room 库版本与数据格式版本独立：构建使用 Room 2.8.5 / KSP；库或代码生成器更新不自动提升 DB/Bak 版本。现有实体、索引与迁移链保持不变时继续使用 DB v10 / Bak v4。
 - 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10`，全部用 `Migration` + `addMigrations(...)`。

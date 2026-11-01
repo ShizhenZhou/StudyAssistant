@@ -583,14 +583,13 @@ private fun analyzeLuma(proxy: ImageProxy, out: AtomicReference<FrameLuma>) {
     try {
         val plane = proxy.planes.firstOrNull() ?: return
         val buf = plane.buffer
-        val bytes = ByteArray(buf.remaining())
-        buf.get(bytes)
         out.set(
             lumaStats(
-                y = bytes,
+                y = buf,
                 width = proxy.width,
                 height = proxy.height,
                 rowStride = plane.rowStride,
+                pixelStride = plane.pixelStride,
                 step = 8
             )
         )

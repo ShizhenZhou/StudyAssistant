@@ -399,10 +399,10 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                 when {
                                     // 四角优先（★ 2026-10-13 补外侧边界：原来只有"内侧"判定，
                                     //   在图片上方黑区甚至屏幕顶端按下也会被判成 TL/TR → 上边被拖到图片顶）
-                                    d2 != Rect.Zero && pos.x in (r.left - CORNER)..(r.left + CORNER) && pos.y <= r.top + CORNER -> "TL"
-                                    d2 != Rect.Zero && pos.x in (r.right - CORNER)..(r.right + CORNER) && pos.y <= r.top + CORNER -> "TR"
-                                    d2 != Rect.Zero && pos.x in (r.left - CORNER)..(r.left + CORNER) && pos.y >= r.bottom - CORNER -> "BL"
-                                    d2 != Rect.Zero && pos.x in (r.right - CORNER)..(r.right + CORNER) && pos.y >= r.bottom - CORNER -> "BR"
+                                    d2 != Rect.Zero && pos.x in (r.left - CORNER)..(r.left + CORNER) && pos.y in (r.top - CORNER)..(r.top + CORNER) -> "TL"
+                                    d2 != Rect.Zero && pos.x in (r.right - CORNER)..(r.right + CORNER) && pos.y in (r.top - CORNER)..(r.top + CORNER) -> "TR"
+                                    d2 != Rect.Zero && pos.x in (r.left - CORNER)..(r.left + CORNER) && pos.y in (r.bottom - CORNER)..(r.bottom + CORNER) -> "BL"
+                                    d2 != Rect.Zero && pos.x in (r.right - CORNER)..(r.right + CORNER) && pos.y in (r.bottom - CORNER)..(r.bottom + CORNER) -> "BR"
                                     d2 != Rect.Zero && pos.y >= r.top - EDGE && pos.y <= r.top + EDGE &&
                                         pos.x >= r.left - EDGE && pos.x <= r.right + EDGE -> "TOP"
                                     d2 != Rect.Zero && pos.y >= r.bottom - EDGE && pos.y <= r.bottom + EDGE &&

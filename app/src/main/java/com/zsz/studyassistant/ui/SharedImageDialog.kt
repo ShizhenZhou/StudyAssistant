@@ -18,8 +18,9 @@ internal fun SharedImageDialog(vm: MainViewModel, nav: NavHostController) {
         vm.startNewQuestion() // Captures existing conversation before replacing its UI state.
         vm.clearCaptureCaches()
         val files = inbox.take()
-        vm.startCropFlow(files.map { it.absolutePath }, grade, files.size)
-        AppNav.openSharedCrop(nav)
+        AppNav.openSharedCrop(nav) {
+            vm.startCropFlow(files.map { it.absolutePath }, grade, files.size)
+        }
     }
     if (inbox.loading || inbox.files.isNotEmpty()) {
         AlertDialog(

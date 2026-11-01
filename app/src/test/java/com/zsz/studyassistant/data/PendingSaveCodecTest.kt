@@ -4,6 +4,38 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PendingSaveCodecTest {
+    @Test fun unsavedDraftCannotOverwriteLaterNotebookEdits() {
+        val base = listOf(com.zsz.studyassistant.ChatItem(0, "question", "q"),
+            com.zsz.studyassistant.ChatItem(1, "assistant", "a"))
+        val draft = ConversationDraft(payload.id, 1234, java.util.UUID.randomUUID().toString(),
+            "model", "followup", "ask", "q", false, true, false, true, null,
+            emptyList(), base, emptyList())
+        val encoded = kotlinx.serialization.json.Json.encodeToString(
+            kotlinx.serialization.builtins.ListSerializer(com.zsz.studyassistant.ChatItem.serializer()), base)
+        val row = Question(id=payload.id, createdAt=1234, text="q", answer="a", conversationJson=encoded)
+        assertTrue(ConversationDraftCodec.matchesNotebook(draft, row))
+        assertFalse(ConversationDraftCodec.matchesNotebook(draft, row.copy(answer="edited")))
+        assertFalse(ConversationDraftCodec.matchesNotebook(draft, row.copy(conversationJson="[]")))
+        assertFalse(ConversationDraftCodec.matchesNotebook(draft, row.copy(deleted=true)))
+        assertTrue(ConversationDraftCodec.matchesNotebook(draft.copy(base=emptyList(), completedChats=base), row))
+    }
+    @Test fun gradingRolesSurviveRestoreAndProtectOnlyOriginalAnswer() {
+        val original = com.zsz.studyassistant.ChatItem(0, "question", "conditions", listOf("one", "two", "three"), gradePart="question")
+        val answer = com.zsz.studyassistant.ChatItem(1, "user", "answer", listOf("handwriting"), gradePart="answer")
+        val result = com.zsz.studyassistant.ChatItem(2, "assistant", "grade")
+        val follow = com.zsz.studyassistant.ChatItem(3, "user", "followup", listOf("new-image"))
+        val serializer = kotlinx.serialization.builtins.ListSerializer(com.zsz.studyassistant.ChatItem.serializer())
+        val items = listOf(original, answer, result, follow)
+        val restored = kotlinx.serialization.json.Json.decodeFromString(serializer,
+            kotlinx.serialization.json.Json.encodeToString(serializer, items))
+        assertEquals(items, restored)
+        assertEquals(setOf(0, 1, 2), com.zsz.studyassistant.protectedMessageIndices(restored))
+        assertEquals(listOf("one", "two", "three"), questionImageBase64(
+            kotlinx.serialization.json.Json.encodeToString(serializer, restored)))
+        val old = kotlinx.serialization.json.Json.decodeFromString(com.zsz.studyassistant.ChatItem.serializer(),
+            """{"id":0,"role":"question","content":"legacy"}""")
+        assertNull(old.gradePart)
+    }
     @Test fun quotedConversationRetainsFullContentAcrossSaveAndRestore() {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         val legacySource = com.zsz.studyassistant.ChatItem(1, "assistant", "Formula: \\(x^2\\)")

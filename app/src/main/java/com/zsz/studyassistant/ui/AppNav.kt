@@ -85,7 +85,11 @@ object AppNav {
     fun solve(origin: Origin): String = "$SOLVE/${origin.key}"
 
     /** 分享图片复用框选流程，主页保持为返回栈根节点。 */
-    fun openSharedCrop(nav: NavHostController) {
+    fun openSharedCrop(nav: NavHostController, prepare: () -> Unit) {
+        // HOME's destination listener clears capture caches. Create the root before
+        // accepting the shared files, never after the new crop queue has been made.
+        switchTab(nav, HOME)
+        prepare()
         nav.navigate(CROP) { popUpTo(HOME); launchSingleTop = true }
     }
 

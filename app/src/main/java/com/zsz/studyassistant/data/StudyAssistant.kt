@@ -439,17 +439,22 @@ object StudyAssistant {
         answerBytes: ByteArray,
         lang: AiLang = AiLang.DEFAULT,
         categories: List<String> = emptyList(),
-        tags: List<String> = emptyList()
+        tags: List<String> = emptyList(),
+        questionImages: List<String> = emptyList()
     ): DeepSeekMessage {
         val parts = buildJsonArray {
             addJsonObject {
                 put("type", "text")
                 put(
                     "text",
-                    "题目：$questionText\n\n图片中是学生的手写作答。\n" +
+                    "题目：$questionText\n\n前 ${questionImages.size} 张为题目附图，最后一张为学生的手写作答；请结合全部题干与附图批改。\n" +
                         gradePrompt(answerBytes, lang, categories, tags)
                 )
             }
+            questionImages.forEach { image -> addJsonObject {
+                put("type", "image_url")
+                putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$image") }
+            } }
             addJsonObject {
                 put("type", "image_url")
                 putJsonObject("image_url") { put("url", "data:image/jpeg;base64," + Base64.encodeToString(answerBytes, Base64.NO_WRAP)) }
@@ -511,7 +516,7 @@ object StudyAssistant {
      * 只按行首标记剔整行 / 剔行首圈码，不做 `.*$` 式截断，因此对追问/口语化回答也安全。
      */
     fun stripMetaLines(output: String, sectionMark: String? = null): String {
-        val kept = output.replace(Regex("<思考>[\\s\\S]*?</思考>"), "")
+        val kept = ThinkingOutput.split(output).body
             .lines()
             .filterNot { META_LINE.containsMatchIn(it) || Regex("^\\s*<review_verdict>[^<]*</review_verdict>\\s*$").matches(it) }
             .joinToString("\n")
@@ -533,7 +538,7 @@ object StudyAssistant {
     /** 从视觉模型输出中分离「题目」「解答」与推测的「分类」 */
     fun parseVisionOutput(output: String): SolveResult {
         // 路线 A：若正文里混进了 <思考> 块，先剥掉（避免污染题目/解答）
-        val output = output.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim()
+        val output = ThinkingOutput.split(output).body.trim()
         val question = extractQuestionSection(output)
         // 容错：模型可能写成"科目/类别/分类名/所属科目"等
         val category = Regex("(?:分类|科目|类别|分类名|所属科目)[:：]\\s*(.+)").find(output)?.groupValues?.get(1)?.trim()

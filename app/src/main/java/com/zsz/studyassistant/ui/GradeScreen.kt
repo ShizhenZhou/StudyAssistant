@@ -158,8 +158,9 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
         val redo = vm.redoMode
         val processImage: (ByteArray) -> Unit = { bytes ->
             if (redo) {
-                vm.submitRedoAnswer(bytes)
-                AppNav.openSolve(nav, AppNav.Origin.GRADE)
+                vm.submitRedoAnswer(bytes,
+                    onReady = { AppNav.openSolve(nav, AppNav.Origin.GRADE) },
+                    onFailure = { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() })
             } else if (doubleMode && questionBytes == null) {
                 questionBytes = bytes
                 awaitingAnswer = true

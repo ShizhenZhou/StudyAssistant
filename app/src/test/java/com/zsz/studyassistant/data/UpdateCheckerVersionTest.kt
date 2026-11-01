@@ -12,6 +12,15 @@ import org.junit.Test
  * 只能靠装机试。这里把 `isNewer` 的分段数值语义、以及 Release 说明的清洗固定下来。
  */
 class UpdateCheckerVersionTest {
+    @Test fun betaBuildOrderingKeepsPublishedSuffix() {
+        fun release(stamp: String) = UpdateChecker.ReleaseInfo("v0.6.9_beta", "0.6.9", "",
+            "StudyAssistant-0.6.9_beta-$stamp.apk", "", null, 1, channel=UpdateChecker.Channel.BETA)
+        val old = release("20261031051459")
+        val newer = release("20261031053820")
+        assertTrue(UpdateChecker.compareReleases(newer, old) > 0)
+        assertFalse(BuildIdentity.isReplacement(BuildIdentity.assetTime(newer.assetName, newer.displayVersion),
+            BuildIdentity.assetTime(old.assetName, old.displayVersion), "new", "old"))
+    }
 
     @Test
     fun `normalizeVersion 去掉 v 前缀与 _beta 这类后缀`() {

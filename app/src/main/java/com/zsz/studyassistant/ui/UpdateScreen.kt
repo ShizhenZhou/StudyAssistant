@@ -179,7 +179,13 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                     val task = downloads.snapshot()
                     if (observingDownload && generation == operationGeneration) {
                         if (task == null) {
-                            if (phase == Phase.RESTORING) phase = Phase.IDLE
+                            if (phase == Phase.RESTORING || displayedTaskToken != null) {
+                                phase = if (latest != null) Phase.FOUND else Phase.IDLE
+                                displayedTaskToken = null
+                                progress = -1
+                                verifiedSha = null
+                                message = latest?.let(::compatibilityMessage)
+                            }
                         } else {
                             // Upgrading can turn a legacy installed task into FAILED because its
                             // record predates compatibility metadata. Retire obsolete tasks in any phase.

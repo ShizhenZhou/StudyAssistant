@@ -65,7 +65,7 @@ object UpdateChecker {
             return a.versionCode.compareTo(b.versionCode)
         if (isNewer(a.version, b.version)) return 1
         if (isNewer(b.version, a.version)) return -1
-        return BuildIdentity.assetTime(a.assetName, a.version).compareTo(BuildIdentity.assetTime(b.assetName, b.version))
+        return BuildIdentity.assetTime(a.assetName, a.displayVersion).compareTo(BuildIdentity.assetTime(b.assetName, b.displayVersion))
     }
 
     /** 一个可下载的新版本 */
@@ -270,7 +270,7 @@ object UpdateChecker {
     } catch (_: Exception) { 0L }
 
     fun sameVersionNewBuild(context: Context, rel: ReleaseInfo): Boolean = BuildIdentity.isReplacement(
-        installedBuildTime(context), BuildIdentity.assetTime(rel.assetName, rel.version),
+        installedBuildTime(context), BuildIdentity.assetTime(rel.assetName, rel.displayVersion),
         installedApkSha256(context), rel.assetSha256
     )
 
@@ -364,7 +364,7 @@ object UpdateChecker {
         val assets = root["assets"]!!.jsonArray.mapNotNull { it as? JsonObject }
         val apks = assets.filter { it["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk") == true }
         val asset = apks.filter { it["name"]!!.jsonPrimitive.content.startsWith("StudyAssistant-") }
-            .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, version) }
+            .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, tag.trim().removePrefix("v").removePrefix("V")) }
             ?: apks.firstOrNull() ?: return null
         val name = asset["name"]!!.jsonPrimitive.content
         val url = asset["browser_download_url"]!!.jsonPrimitive.content

@@ -59,7 +59,13 @@ import kotlinx.serialization.json.JsonPrimitive
 @Serializable
 data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null,
                     val thinking: String? = null, val quote: QuotedFollowUp? = null,
-                    val messageKey: String? = null)
+                    val messageKey: String? = null, val gradePart: String? = null)
+
+internal fun protectedMessageIndices(items: List<ChatItem>): Set<Int> = buildSet {
+    add(items.indexOfFirst { it.role == "question" })
+    add(items.indexOfFirst { it.role == "assistant" })
+    items.forEachIndexed { index, item -> if (item.gradePart == "answer") add(index) }
+}
 
 /** Optional presentation metadata. content still contains the complete legacy/API text. */
 @Serializable
@@ -560,13 +566,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val value=draftWriteMutex.withLock { withContext(Dispatchers.IO) { checkNotNull(conversationDrafts.read(id)) } }
                 val row=solveSessionWriteMutex.withLock { dao.heavyOnce(id) }
-                if (value.grade && value.notebookId==null && row!=null) {
+                if (value.notebookId==null && row!=null) {
                     check(!row.deleted && id !in deletionState.value.questionIds)
-                    fun matches(chats: List<ChatItem>, text: String): Boolean =
-                        row.text==text && row.answer==chats.lastOrNull { it.role=="assistant" }?.content.orEmpty() &&
-                            row.conversationJson==json.encodeToString(chats)
-                    val completedMatches=value.completedChats?.let { matches(it,value.completedQuestion ?: value.question) } == true
-                    check(matches(value.base,value.question) || completedMatches) { "Draft conflict" }
+                    check(com.zsz.studyassistant.data.ConversationDraftCodec.matchesNotebook(value, row)) { "Draft conflict" }
                 }
                 if(value.notebookId!=null) {
                     check(row!=null && !row.deleted && id !in deletionState.value.questionIds)
@@ -1505,10 +1507,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun addItem(role: String, content: String, images: List<String>? = null, thinking: String? = null,
-                        quote: QuotedFollowUp? = null) {
+                        quote: QuotedFollowUp? = null, gradePart: String? = null) {
         // 助手消息默认带上本轮思考（这样所有调用方都不用改，避免"正文一出思考就没了"）
         val th = thinking ?: if (role == "assistant") thinkingText?.takeIf { it.isNotBlank() } else null
-        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote)
+        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote, gradePart = gradePart)
     }
 
     private fun resetSession() {
@@ -1663,39 +1665,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val thinkOn = com.zsz.studyassistant.data.CapturePrefs.solveModel(app) != "flash"
                     StudyAssistant.chatStream(model, messages, onDelta = { delta ->
                         sb.append(delta)
-                        // ★ 路线 A 分流：<思考>…</思考> 进思考流，其余进正文
-                        // 先把各种可能的写法统一成 <思考>…</思考>：
-                        //   全角〈思考〉、HTML 转义 &lt;思考&gt;、<thinking>、DeepSeek 有时写 "思考："
-                        val full = sb.toString()
-                            .replace("〈思考〉", "<思考>").replace("〈/思考〉", "</思考>")
-                            .replace("&lt;思考&gt;", "<思考>").replace("&lt;/思考&gt;", "</思考>")
-                            .replace("<thinking>", "<思考>").replace("</thinking>", "</思考>")
-                            .replace("【思考】", "<思考>").replace("【/思考】", "</思考>")
-                        val ts = full.indexOf("<思考>")
-                        val te = full.indexOf("</思考>")
-                        var bodyText = full
-                        // 兜底②：模型没写标记但用了"思考：…解答："这类纯文本写法时，也能分流
-                        var thinkingStart = if (ts >= 0) ts + "<思考>".length else -1
-                        var thinkingEnd = te
-                        var bodyStart = if (te >= 0) te + "</思考>".length else -1
-                        if (ts < 0) {
-                            val m = Regex("(?:^|\\n)\\s*(?:思考|分析|思路)[:：]").find(full)
-                            val mEnd = Regex("\\n\\s*(?:解答|答案|题目)[:：]").find(full)
-                            if (m != null && mEnd != null && mEnd.range.first > m.range.last) {
-                                thinkingStart = m.range.last + 1
-                                thinkingEnd = mEnd.range.first
-                                // Keep the answer/question label; it belongs to the normal output parser.
-                                bodyStart = mEnd.range.first
-                            }
-                        }
-                        if (thinkingStart >= 0) {
-                            val think = if (thinkingEnd >= thinkingStart) full.substring(thinkingStart, thinkingEnd) else full.substring(thinkingStart)
+                        val parsed = com.zsz.studyassistant.data.ThinkingOutput.split(sb.toString())
+                        val bodyText = parsed.body
+                        parsed.thinking?.let { think ->
                             val nowT = System.currentTimeMillis()
                             if (nowT - lastThinkEmit >= 120) {
                                 lastThinkEmit = nowT
                                 withContext(Dispatchers.Main) { if (mySeq == callSeq) thinkingText = think }
                             }
-                            bodyText = if (thinkingEnd >= thinkingStart) full.substring(bodyStart) else ""
                         }
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -1722,16 +1699,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (mySeq != callSeq) return@launch
                 // The last reasoning delta may arrive within the UI throttle window.
                 // Flush it before onDone snapshots thinkingText into the saved message.
-                if (thinkSb.isNotEmpty()) thinkingText = thinkSb.toString()
+                val parsedReply = com.zsz.studyassistant.data.ThinkingOutput.split(reply)
+                thinkingText = thinkSb.toString().takeIf { it.isNotEmpty() } ?: parsedReply.thinking ?: thinkingText
                 thinkingDone = true
                 recordUsage(app, owner.usage)
                 // ⚠️ 这里原先有一段「把 thinkingText 挂到 indexOfLast{assistant}」的代码，已删除：
                 //   调用点在 onDone 之前，此刻 chatItems 里最后一条助手消息是**上一轮的** →
                 //   追问时会把上一轮答案的思考块覆盖成本轮思考。
                 //   本轮思考由 addItem() 的默认值自动挂到**新建的那条**助手消息上（见 addItem）。
-                onDone(prefix + reply.replace(Regex("<思考>[\\s\\S]*?</思考>"), "").trim())
+                onDone(prefix + parsedReply.body.trim())
                 if(mySeq==callSeq) {
-                    val completed=activeDraft?.copy(raw=prefix+reply,thinking=thinkingText,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
+                    val completed=activeDraft?.copy(raw=prefix+parsedReply.body,thinking=thinkingText,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
                     activeDraft=completed
                     completed?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
                     withContext(kotlinx.coroutines.NonCancellable) { persistCompletedConversation() }
@@ -1752,12 +1730,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // 用户中止时协程已被取消（关闭响应体导致的 IOException 也走这里）：
                 // 统一按「中断」处理——**甚至一个字都没生成时也保留气泡**（界面显示「思考中…」+ 蓝色「继续生成」）
                 val aborted = e is CancellationException || !currentCoroutineContext().isActive
-                val partial = prefix + sb
+                val parsedPartial = com.zsz.studyassistant.data.ThinkingOutput.split(sb.toString())
+                val partial = prefix + parsedPartial.body
                 // 有内容 → 保留；零输出但属于「用户主动中止」→ 也保留（气泡不消失）；零输出且是失败 → 走错误分支
                 keepPartial = partial.isNotBlank() || aborted || e is com.zsz.studyassistant.data.StreamIncompleteException
                 // 已被新请求取代的旧请求：不改界面状态（否则会把新请求的「思考中…」/内容冲掉）
                 if (mySeq == callSeq) {
-                    if (thinkSb.isNotEmpty()) thinkingText = thinkSb.toString()
+                    thinkingText = thinkSb.toString().takeIf { it.isNotEmpty() } ?: parsedPartial.thinking ?: thinkingText
                     activeDraft=activeDraft?.copy(raw=partial,thinking=thinkingText)
                     activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
                     withContext(kotlinx.coroutines.NonCancellable) { refreshDrafts() }
@@ -2540,7 +2519,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         dao.linkExistingSession(qid)
                         Triple(qid, cid, finalIds)
                     }
-                } }
+                }.also { if (it != null) deletedNotebookIds.remove(stableId) } }
                 if (binding === sessionRecordBinding) {
                     val reused = reusedQuestion
                     if (reused != null) {
@@ -2550,7 +2529,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     savedQuestionId = saved?.first
                     savedToNotebook = saved != null
-                    if (saved != null) { isDeleted = false; deletedNotebookIds.remove(stableId) }
+                    if (saved != null) isDeleted = false
                     currentQuestionCategoryId = saved?.second
                     currentQuestionTags = saved?.third.orEmpty()
                     if (saved != null) {
@@ -2851,7 +2830,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var redoQuestionText: String = ""
-    private var redoQuestionImage: ByteArray? = null
+    private var redoQuestionImages: List<String> = emptyList()
+    private var redoSubmitting = false
 
     /** 本次批改是否属于"重做"（一次性）：批改结束时据此自动更新掌握度 */
     private var pendingRedoFor: QuestionId? = null
@@ -2861,17 +2841,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val q = currentReviewQuestion ?: return
         redoQuestionId = q.id
         redoQuestionText = q.text
-        redoQuestionImage = q.imageBytes
+        redoQuestionImages = questionImages.toList()
         redoMessage = null
         redoMode = true
     }
 
     /** 提交手写作答照片 → 走批改链路（批改结束会自动更新掌握度） */
-    fun submitRedoAnswer(answerBytes: ByteArray) {
+    fun submitRedoAnswer(answerBytes: ByteArray, onReady: () -> Unit, onFailure: (String) -> Unit) {
+        if (redoSubmitting) return
         val qid = redoQuestionId ?: return
-        val img = redoQuestionImage
-        if (img != null) startGrade(img, answerBytes, redoFor = qid)
-        else startGradeText(redoQuestionText, answerBytes, redoFor = qid)
+        val binding = sessionRecordBinding
+        val text = redoQuestionText
+        val fallback = redoQuestionImages
+        redoSubmitting = true
+        viewModelScope.launch {
+            try {
+                val keys = withContext(Dispatchers.IO) {
+                    val stored = dao.imagesForQuestion(qid).sortedBy { it.position }
+                        .map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
+                    mergeImageKeys(stored.firstOrNull(), stored.drop(1) + fallback)
+                }
+                if (binding !== sessionRecordBinding || redoQuestionId != qid || !redoMode) return@launch
+                startGradeText(text, answerBytes, redoFor = qid, questionImageKeys = keys)
+                onReady()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                if (binding === sessionRecordBinding && redoMode) onFailure(friendlyError(e,
+                    com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"]))
+            } finally { redoSubmitting = false }
+        }
     }
 
     /** 批改结束（重做）→ 按结论映射档位、写回复习计划，并给界面一句提示 */
@@ -3283,7 +3281,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 删除追问消息（按 chatItems 索引）。删除后构建消息仅基于剩余，AI 接续对话 */
     fun deleteMessages(indices: List<Int>) {
         if (indices.isEmpty()) return
-        val toRemove = indices.toSet()
+        val toRemove = indices.toSet() - protectedMessageIndices(chatItems)
         chatItems = chatItems.filterIndexed { i, _ -> i !in toRemove }
     }
 
@@ -3415,19 +3413,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 批改（**纯文字题干** + 手写作答图）：B6 重做时，复习的题可能本来就没有原图。
      * 与 [startGrade] 的区别只有首轮消息的构造方式（文字题干 + 作答图）。
      */
-    fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: QuestionId? = null) {
+    fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: QuestionId? = null,
+                       questionImageKeys: List<String> = emptyList()) {
         prepareSession(grade = true)
         gradeMode = true
         pendingRedoFor = redoFor
         gradeTextQuestion = questionText
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
-        directImages = listOf(answerBytes)
+        directImages = questionImageKeys.map { Base64.decode(it, Base64.NO_WRAP) }
         questionFromPhoto = false
         this.questionText = questionText
         val encoded = listOf(Base64.encodeToString(answerBytes, Base64.NO_WRAP))
-        questionImages = encoded
-        // 气泡：题干文字 + 我的作答图（与批改页的"题目 + 作答"语义一致）
-        addItem("question", questionText + "\n" + str["grade.label.answer"], encoded)
+        // Keep original question images separate from the student's answer. Each message
+        // stays within the existing image limit, including a legacy three-image question.
+        questionImages = questionImageKeys
+        addItem("question", questionText, questionImageKeys, gradePart = "question")
+        addItem("user", str["grade.label.answer"], encoded, gradePart = "answer")
         recordSolveSession("grade", create = true)
         gradeTextCall(questionText)
     }
@@ -3436,11 +3437,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var gradeTextQuestion: String? = null
 
     private fun restoreGradeContext(grading: Boolean) {
-        gradeMode = grading
-        val firstQuestion = chatItems.firstOrNull { it.role == "question" }?.content
+        val firstQuestion = chatItems.firstOrNull { it.role == "question" }
+        gradeMode = grading || firstQuestion?.gradePart == "question"
         // Text-question grading stores the answer-image label after the original question.
         gradeTextQuestion = questionText.takeIf {
-            grading && it.isNotBlank() && firstQuestion?.startsWith(it + "\n") == true
+            gradeMode && (firstQuestion?.gradePart == "question" ||
+                (it.isNotBlank() && firstQuestion?.content?.startsWith(it + "\n") == true))
         }
     }
 
@@ -3479,10 +3481,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 文字题干版批改请求（B6 重做：题目没有原图） */
     private fun gradeTextCall(qText: String) {
-        val ans = directImages.firstOrNull() ?: return
+        val separateAnswer = chatItems.firstOrNull()?.gradePart == "question"
+        val answerKey = chatItems.firstOrNull { it.gradePart == "answer" && it.role == "user" }
+            ?.images?.singleOrNull()
+        if (separateAnswer && answerKey == null) {
+            error = com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"]
+            return // Never substitute a question image for a missing student answer.
+        }
+        val questionKeys = if (separateAnswer) chatItems.first().images.orEmpty() else emptyList()
+        val ans = if (separateAnswer) Base64.decode(answerKey!!, Base64.NO_WRAP)
+            else directImages.firstOrNull() ?: return
         val msgs = listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
-            StudyAssistant.gradeTextUserMessage(qText, ans, aiLang, categoryNames, tagNames)
+            StudyAssistant.gradeTextUserMessage(qText, ans, aiLang, categoryNames, tagNames, questionKeys)
         )
         busyIsGrade = true
         streamCall(

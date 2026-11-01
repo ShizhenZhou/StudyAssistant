@@ -20,6 +20,15 @@ data class ConversationDraft(val id: QuestionId, val createdAt: Long, val genera
 data class DraftSummary(val id: QuestionId, val title: String, val createdAt: Long)
 object ConversationDraftCodec {
     private val json = Json { encodeDefaults=true; ignoreUnknownKeys=true }
+    private val conversationJson = Json { ignoreUnknownKeys=true }
+    /** A draft created before notebook save may attach only to its unchanged base/completed copy. */
+    internal fun matchesNotebook(value: ConversationDraft, row: Question): Boolean {
+        fun matches(chats: List<ChatItem>, text: String) = row.text == text &&
+            row.answer == chats.lastOrNull { it.role == "assistant" }?.content.orEmpty() &&
+            row.conversationJson == conversationJson.encodeToString(chats)
+        return !row.deleted && (matches(value.base, value.question) ||
+            value.completedChats?.let { matches(it, value.completedQuestion ?: value.question) } == true)
+    }
     fun encode(value: ConversationDraft): String { validate(value); return json.encodeToString(value) }
     fun decode(text: String): ConversationDraft = json.decodeFromString<ConversationDraft>(text).also(::validate)
     private fun validate(value: ConversationDraft) {

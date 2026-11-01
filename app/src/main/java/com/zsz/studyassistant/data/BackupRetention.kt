@@ -24,7 +24,8 @@ object BackupRetention {
     data class FolderSummary(val manual: Int = 0, val automatic: Int = 0, val latestAt: Long = 0,
         val backupDays: kotlin.collections.Set<String> = emptySet())
     private data class Set(val id: String, val at: Long, val parts: List<VerifiedDocument>, val name: String, val automatic: Boolean = true)
-    private data class Probe(val header: BackupArchive.PartInfo, val document: VerifiedDocument)
+    private data class Probe(val header: BackupArchive.PartInfo, val document: VerifiedDocument, val fixed: File?)
+    private const val PROBE_CACHE_BYTES = 128L * 1024 * 1024
     private fun prefs(c: Context) = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
     internal fun uri(tree: Uri, id: String): Uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
     internal fun list(context: Context, tree: Uri): List<Document> {
@@ -141,10 +142,12 @@ object BackupRetention {
         val work = File(root, UUID.randomUUID().toString()).apply { if (!mkdir()) throw IOException("retention workspace") }
         try {
             val groups = linkedMapOf<String, MutableList<Probe>>()
+            var cachedBytes = 0L
             for (document in listed) {
                 check()
                 if (document.id in handled || !(if (includeManual) summaryCandidate(document.name) else candidate(document.name)) || byId[document.id]?.size != 1) continue
                 val probeDir = File(work, UUID.randomUUID().toString()).apply { if (!mkdir()) throw IOException("retention probe") }
+                var retained = false
                 try {
                     val fixed = File(probeDir, "input")
                     val verified = copy(context, tree, document, fixed, check, storageCheck)
@@ -152,20 +155,27 @@ object BackupRetention {
                     if (zip) {
                         val header = formatOrNull { BackupArchive.inspectPart(fixed, check) } ?: continue
                         // Known sets never acquire extra unrecorded documents under a reused set UUID.
-                        if (header.setId !in eligible) groups.getOrPut(header.setId) { mutableListOf() }.add(Probe(header, verified))
+                        if (header.setId !in eligible) {
+                            // Reuse the exact private snapshot when bounded disk budget allows it.
+                            // Larger folders retain the old bounded-memory re-read path.
+                            retained = verified.length <= PROBE_CACHE_BYTES - cachedBytes
+                            if (retained) cachedBytes += verified.length
+                            groups.getOrPut(header.setId) { mutableListOf() }.add(Probe(header, verified, fixed.takeIf { retained }))
+                        }
                     } else {
                         // The progressive legacy reader enforces Bak3 and validates all records/resources, without merge.
                         val prepared = formatOrNull { BackupRepository(context).prepareImportFiles(listOf(fixed), File(probeDir, "validated"), check) } ?: continue
                         if (prepared.snapshotAt > 0) eligible["legacy:${document.id}"] = Set("legacy:${document.id}", prepared.snapshotAt,
                             listOf(verified), document.name, automatic = !includeManual || automaticName(document.name))
                     }
-                } finally { probeDir.deleteRecursively() }
+                } finally { if (!retained) probeDir.deleteRecursively() }
             }
             for ((id, probes) in groups) {
                 check()
                 val groupDir = File(work, UUID.randomUUID().toString()).apply { if (!mkdir()) throw IOException("retention set") }
                 try {
                     val parts = probes.mapIndexed { i, probe ->
+                        if (probe.fixed != null) return@mapIndexed probe.fixed
                         val document = byId[probe.document.id]?.singleOrNull() ?: throw IOException("missing part")
                         val fixed = File(groupDir, "part-$i.sab")
                         val actual = copy(context, tree, document, fixed, check, storageCheck)
@@ -179,7 +189,10 @@ object BackupRetention {
                     val automatic = !includeManual || probes.all { automaticName(it.document.name) }
                     eligible[id] = Set(id, prepared.snapshotAt, probes.map { it.document },
                         BackupNames.fileName(prepared.snapshotAt, automatic), automatic)
-                } finally { groupDir.deleteRecursively() }
+                } finally {
+                    groupDir.deleteRecursively()
+                    probes.forEach { it.fixed?.parentFile?.deleteRecursively() }
+                }
             }
             return eligible.values.toList()
         } finally { work.deleteRecursively() }

@@ -13,6 +13,19 @@ import org.junit.Test
  * 而以前只能装到手机上拍一道题看气泡才知道有没有改坏。现在改完跑 `gradlew test` 几秒出结果。
  */
 class VisionOutputParserTest {
+    @Test fun thinkingAliasesStaySeparatedAtCompletionAndInterruption() {
+        for ((open, close) in listOf("<思考>" to "</思考>", "<thinking>" to "</thinking>",
+            "〈思考〉" to "〈/思考〉", "【思考】" to "【/思考】", "&lt;思考&gt;" to "&lt;/思考&gt;")) {
+            val raw = open + "reason" + close + "解答：answer"
+            assertEquals("reason", ThinkingOutput.split(raw).thinking)
+            assertEquals("answer", StudyAssistant.parseVisionOutput(raw).answer)
+            assertEquals("answer", StudyAssistant.stripMetaLines(open + "reason" + close + "answer"))
+            assertEquals("", ThinkingOutput.split(open + "unfinished").body)
+        }
+        assertEquals("beforeafter", ThinkingOutput.split("before<thinking>x</thinking>after").body)
+        assertEquals("\n解答：answer", ThinkingOutput.split("思考：reason\n解答：answer").body)
+        assertEquals("ordinary answer", ThinkingOutput.split("ordinary answer").body)
+    }
     @Test fun multilineQuestionPreservesEverySubquestion() {
         val out="题目：计算下列各题\n（1）1+1\n（2）2+2\n分类：数学\n知识点：加法\n解答：见下"
         assertEquals("计算下列各题\n（1）1+1\n（2）2+2",StudyAssistant.parseVisionOutput(out).question)

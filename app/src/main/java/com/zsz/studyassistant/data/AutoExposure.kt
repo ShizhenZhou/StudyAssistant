@@ -58,8 +58,21 @@ fun lumaStats(
     rowStride: Int,
     step: Int = 8,
     clipThreshold: Int = LUMA_CLIP_THRESHOLD
-): FrameLuma {
+): FrameLuma = sampleLuma(y.size, width, height, rowStride, 1, step, clipThreshold) { y[it].toInt() and 0xFF }
+
+/** Read only sampled pixels without allocating/copying an entire camera frame. Position is unchanged. */
+fun lumaStats(y: java.nio.ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int,
+              step: Int = 8, clipThreshold: Int = LUMA_CLIP_THRESHOLD): FrameLuma {
+    val start = y.position()
+    return sampleLuma(y.remaining(), width, height, rowStride, pixelStride, step, clipThreshold) {
+        y.get(start + it).toInt() and 0xFF
+    }
+}
+
+private inline fun sampleLuma(size: Int, width: Int, height: Int, rowStride: Int, pixelStride: Int,
+                              step: Int, clipThreshold: Int, read: (Int) -> Int): FrameLuma {
     if (width <= 0 || height <= 0 || step <= 0) return FrameLuma(0.0, 0.0)
+    require(pixelStride > 0)
     val stride = if (rowStride > 0) rowStride else width
     var sum = 0L
     var count = 0L
@@ -69,9 +82,9 @@ fun lumaStats(
         val base = row * stride
         var col = 0
         while (col < width) {
-            val idx = base + col
-            if (idx < y.size) {
-                val v = y[idx].toInt() and 0xFF
+            val idx = base + col * pixelStride
+            if (idx in 0 until size) {
+                val v = read(idx)
                 sum += v
                 if (v >= clipThreshold) clipped++
                 count++

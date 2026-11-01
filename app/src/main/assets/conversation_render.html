@@ -45,6 +45,8 @@
   @keyframes quote-blink{0%,100%{opacity:1;}50%{opacity:.12;}}
   .quote-jump-highlight.blink-twice{animation:quote-blink 420ms ease-in-out 2;}
   @media(prefers-reduced-motion:reduce){.quote-jump-highlight.blink-twice{animation:none;}}
+  .bubble{overflow-wrap:anywhere;}
+  .bubble pre{max-width:100%;overflow-x:auto;white-space:pre;overflow-wrap:normal;}
   .bubble hr{border:0;border-top:1px solid var(--pick-border);margin:16px 0;}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}
@@ -82,11 +84,11 @@
      <details> 的原生折叠既依赖"按下/抬起落在同一节点"、又依赖 ontoggle 落库，
      两者在重建中都不可靠 → 改为 JS 自管展开态 + document 级事件委托 */
   .think{margin-bottom:6px}
-  .thinkhead{cursor:pointer;font-size:12px;color:var(--think-fg);opacity:.9;padding:3px 0;
+  .thinkhead{cursor:pointer;font-size:calc(12px * var(--k));color:var(--think-fg);opacity:.9;padding:3px 0;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-  .thinkbody{font-size:12px;line-height:1.5;color:var(--think-body-fg);white-space:pre-wrap;border-left:2px solid var(--think-body-border);padding:4px 0 4px 8px;margin-top:4px}
+  .thinkbody{font-size:calc(12px * var(--k));line-height:1.5;color:var(--think-body-fg);white-space:pre-wrap;border-left:2px solid var(--think-body-border);padding:4px 0 4px 8px;margin-top:4px}
   /* 思考块底端的蓝色「折叠思考区」：思考很长时不必再滚回顶部去收起（蓝色与「继续生成」一致） */
-  .thinkfold{color:#2196F3;font-size:12px;font-weight:600;padding:6px 0 2px 8px;cursor:pointer;
+  .thinkfold{color:#2196F3;font-size:calc(12px * var(--k));font-weight:600;padding:6px 0 2px 8px;cursor:pointer;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 </style>
 </head>
@@ -117,7 +119,7 @@ function mdToHtml(s){
   }
   for(var i=0;i<lines.length;i++){
     var line=lines[i];
-    if(/^\s*```/.test(line)){ if(!pre){pre=true;preBuf=[];} else {pre=false;out+='<pre>'+esc(preBuf.join('\n'))+'</pre>';} continue; }
+    if(/^\s*```/.test(line)){ if(!pre){pre=true;preBuf=[];} else {pre=false;out+='<pre>'+preBuf.join('\n')+'</pre>';} continue; }
     if(pre){preBuf.push(line);continue;}
     var t=inline(line);
     var h=t.match(/^(#{1,4})\s+(\S.*)$/); if(h){closeList();var n=h[1].length;out+='<h'+n+'>'+h[2]+'</h'+n+'>';continue;}
@@ -126,7 +128,7 @@ function mdToHtml(s){
     if(/^\s*\d+\.\s+/.test(t)){ if(!ol){closeList();out+='<ol>';ol=true;} const number=t.match(/^\s*(\d+)\.\s+/)[1]; out+='<li value="'+number+'">'+t.replace(/^\s*\d+\.\s+/,'')+'</li>';continue; }
     out+=t+'<br>';
   }
-  if(pre){out+='<pre>'+esc(preBuf.join('\n'))+'</pre>';}
+  if(pre){out+='<pre>'+preBuf.join('\n')+'</pre>';}
   closeList(); return out;
 }
 function renderOne(raw){
@@ -213,6 +215,7 @@ window.dshScrollReset = function(){
   try{ window.scrollTo(0, 0); }catch(e){}
   lastAtTop = null;   // 下一帧重新上报，保证按钮状态正确
   lastScrollable = null;
+  requestFollowTick();
 };
 /** 只关闭「自动跟随」，不改变滚动位置（例如展开答案时希望画面保持不动） */
 window.dshNoFollow = function(){
@@ -385,7 +388,12 @@ window.addEventListener('blur', function(){ if(window.dshResetGestures) window.d
 document.addEventListener('visibilitychange', function(){
   if(document.hidden && window.dshResetGestures) window.dshResetGestures();
 });
+var followFrame = null;
+function requestFollowTick(){
+  if(followFrame === null && !document.hidden) followFrame = requestAnimationFrame(followTick);
+}
 function followTick(ts){
+  followFrame = null;
   var max = bottomY();
   var dtms = 16;   // 首帧兜底，避免 NaN
   // 估算内容增长速度（指数平滑，抑制突发抖动）
@@ -395,7 +403,7 @@ function followTick(ts){
     growthV = growthV * 0.85 + Math.max(0, inst) * 0.15;
   }
   lastMax = max; lastTs = ts;
-  if(following && !touching){
+  if(following && !touching && !scrollTopAnim){
     var cur = window.scrollY, gap = max - cur;
     if(gap > 0.5){
       var step = growthV * (dtms/1000) + gap * 0.08;   // 前馈跟上生成速度 + 比例项追平差距
@@ -404,9 +412,17 @@ function followTick(ts){
     }
   }
   reportPos();
-  requestAnimationFrame(followTick);
+  if(following && !touching && !scrollTopAnim && max - window.scrollY > 0.5) requestFollowTick();
+  else { lastTs = 0; growthV = 0; }
 }
-requestAnimationFrame(followTick);
+window.addEventListener('scroll', requestFollowTick, {passive:true});
+window.addEventListener('resize', requestFollowTick, {passive:true});
+new ResizeObserver(requestFollowTick).observe(document.getElementById('out'));
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden && followFrame !== null){cancelAnimationFrame(followFrame);followFrame=null;lastTs=0;}
+  else requestFollowTick();
+});
+requestFollowTick();
 document.addEventListener('touchstart', function(){ touching = true; }, {passive:true});
 document.addEventListener('touchend', function(){
   setTimeout(function(){
@@ -414,6 +430,7 @@ document.addEventListener('touchend', function(){
     following = (window.scrollY + window.innerHeight) >= (document.body.scrollHeight - 48);
     // 用户自己滑离了底部 → 撤销"显式跟随"（下次思考结束的自动跳转又可以生效）
     if(!following) userForcedFollow = false;
+    requestFollowTick();
   }, 250);
 }, {passive:true});
 
@@ -595,6 +612,7 @@ function applyThinkOpen(idx, open){
   } else if(!open && body){
     box.removeChild(body);
     if(window.dshQuoteAfterRender) window.dshQuoteAfterRender();
+  requestFollowTick();
   }
   // 底端蓝色行两种状态都保留，只换文案
   var L = TL();
@@ -675,6 +693,11 @@ document.addEventListener('click', function(e){
 // dark（可选）：是否深色主题，由原生注入 → 给 body 加 .dark，CSS 变量随之切换（见文件顶部变量表）
 // scale（可选）：界面字号档位（C14），1 = 标准；只缩放文字
 // thinkPref（可选）：思考区展开/折叠的**全局记忆** —— 'open' / 'closed' / 'auto'（原生存在 SharedPreferences 里）
+function patchMessages(prefix, tail, sel, labels, dark, scale, thinkPref){
+  // Native owns the full list. It sends the unchanged prefix length plus replacement tail.
+  renderedKeys = renderedKeys.slice(0, prefix);
+  renderMessages(messageSources.slice(0, prefix).concat(tail), sel, labels, dark, scale, thinkPref);
+}
 function renderMessages(arr, sel, labels, dark, scale, thinkPref){
   messageSources = arr;
   if(dark !== undefined) document.body.classList.toggle('dark', !!dark);
@@ -757,6 +780,7 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
   }
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
   if(window.dshQuoteAfterRender) window.dshQuoteAfterRender();
+  requestFollowTick();
 }
 </script>
 <script src="quote_navigation.js"></script>

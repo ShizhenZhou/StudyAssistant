@@ -312,10 +312,9 @@ fun SolveScreen(
         sourceIndices.getOrNull(idx) != null || (virtualTailIndex >= 0 && idx == virtualTailIndex)
 
     // 多选时禁止删除：题干（第一条 question）与 AI 的第一条回复（答案 / 批改结果）
-    // 批改模式下「我的手写作答」也在第一条 question 气泡里，因此一并受保护
+    // Legacy grading embeds the answer in question; redo stores a protected, explicitly marked answer.
     val lockedIndices = remember(vm.chatItems, sourceIndices) {
-        val protected = setOf(vm.chatItems.indexOfFirst { it.role == "question" },
-            vm.chatItems.indexOfFirst { it.role == "assistant" })
+        val protected = com.zsz.studyassistant.protectedMessageIndices(vm.chatItems)
         buildSet {
             sourceIndices.forEachIndexed { visible, source -> if (source == null || source in protected) add(visible) }
         }
