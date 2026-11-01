@@ -5,6 +5,13 @@ package com.zsz.studyassistant.ui
  * 支持 4 种语言；繁體中文由简体经 s2t() 自动转换（见 L10n.kt 的映射表）。
  */
 internal val CHANGELOG_ZH: String = """
+v0.6.9.5
+· 💾 修正草稿恢复、错题重新保存与多图重做批改的边界问题，保留完整题目和作答。
+· 💬 改进思考内容与代码示例显示，兼容旧引用定位，减少长对话刷新开销。
+· 📷 修正分享图片后的返回路径与框选边角判定，优化相机和图片预览效率。
+· ⬆️ 改进更新检查响应、测试版构建识别和下载取消状态同步。
+· 📦 优化备份扫描，减少重复读取。
+
 v0.6.9.4
 · 🔔 新增默认开启的“更新通知”，允许时每6小时检查正式版，同一构建不重复提醒。
 · ↔️ 修正主页滑动切换时闪现学习页的问题。
@@ -575,6 +582,13 @@ v0.1（项目建立）
 """.trimIndent()
 
 internal val CHANGELOG_EN: String = """
+v0.6.9.5
+· 💾 Fixed edge cases in draft recovery, notebook resaving and multi-image retry grading, preserving the full question and answer.
+· 💬 Improved reasoning and code display, retained navigation for older quotes and reduced long-conversation refresh overhead.
+· 📷 Fixed back navigation after image sharing and crop-corner hit detection; improved camera and image preview efficiency.
+· ⬆️ Improved update-check responsiveness, beta build identification and download cancellation state updates.
+· 📦 Reduced repeated reads when scanning backups.
+
 v0.6.9.4
 · 🔔 Added update notifications, enabled by default: check stable releases every 6 hours when allowed, without repeating alerts for the same build.
 · ↔️ Fixed the Learning page flashing during home-tab swipes.
@@ -1145,6 +1159,13 @@ v0.1 (project start)
 """.trimIndent()
 
 internal val CHANGELOG_JA: String = """
+v0.6.9.5
+· 💾 下書きの復元、間違いノートへの再保存、複数画像での再解答・採点を修正し、問題と解答を保持。
+· 💬 思考内容とコードの表示、旧引用への移動を改善し、長い会話の更新負荷を軽減。
+· 📷 画像共有後の戻る動作と切り抜きの角判定を修正し、カメラと画像プレビューを効率化。
+· ⬆️ 更新確認の応答性、テスト版ビルドの識別、ダウンロード中止後の状態表示を改善。
+· 📦 バックアップのスキャンで重複読み込みを削減。
+
 v0.6.9.4
 · 🔔 初期設定で有効な更新通知を追加。許可されている場合は6時間ごとに正式版を確認し、同じビルドは繰り返し通知しません。
 · ↔️ ホームのスワイプ切替時に学習ページが一瞬表示される問題を修正。
@@ -1715,6 +1736,13 @@ v0.1（プロジェクト開始）
 """.trimIndent()
 
 internal val CHANGELOG_KO: String = """
+v0.6.9.5
+· 💾 초안 복원, 오답 노트 재저장, 여러 이미지로 다시 풀고 채점할 때의 오류를 수정하여 문제와 답안을 온전히 보존합니다.
+· 💬 사고 과정과 코드 표시, 이전 인용 위치 이동을 개선하고 긴 대화의 갱신 부담을 줄였습니다.
+· 📷 이미지 공유 후 뒤로 가기와 자르기 모서리 판정을 수정하고 카메라 및 이미지 미리보기 효율을 개선했습니다.
+· ⬆️ 업데이트 확인 응답성, 테스트 빌드 식별, 다운로드 취소 상태 반영을 개선했습니다.
+· 📦 백업 검색 시 중복 읽기를 줄였습니다.
+
 v0.6.9.4
 · 🔔 기본으로 켜진 업데이트 알림을 추가했습니다. 허용되는 경우 6시간마다 정식 버전을 확인하며 같은 빌드는 반복 알림하지 않습니다.
 · ↔️ 홈 화면을 스와이프할 때 학습 페이지가 순간적으로 나타나는 문제를 수정했습니다.

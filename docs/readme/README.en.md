@@ -43,6 +43,15 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9.5
+
+- 💾 Fixed edge cases in draft recovery, notebook resaving and multi-image retry grading, preserving the full question and answer.
+- 💬 Improved reasoning and code display, retained navigation for older quotes and reduced long-conversation refresh overhead.
+- 📷 Fixed back navigation after image sharing and crop-corner hit detection; improved camera and image preview efficiency.
+- ⬆️ Improved update-check responsiveness, beta build identification and download cancellation state updates.
+- 📦 Reduced repeated reads when scanning backups.
+- 📌 `versionCode` **97**.
+
 ### v0.6.9.4
 
 - 🔔 Added update notifications, enabled by default: check stable releases every 6 hours when allowed, without repeating alerts for the same build.
