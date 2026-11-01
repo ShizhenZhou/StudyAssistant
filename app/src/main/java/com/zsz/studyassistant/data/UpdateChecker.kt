@@ -269,10 +269,14 @@ object UpdateChecker {
         context.assets.open("build-time-utc.txt").bufferedReader(Charsets.UTF_8).use { BuildIdentity.parseStamp(it.readText().trim()) }
     } catch (_: Exception) { 0L }
 
-    fun sameVersionNewBuild(context: Context, rel: ReleaseInfo): Boolean = BuildIdentity.isReplacement(
-        installedBuildTime(context), BuildIdentity.assetTime(rel.assetName, rel.displayVersion),
-        installedApkSha256(context), rel.assetSha256
-    )
+    fun sameVersionNewBuild(context: Context, rel: ReleaseInfo): Boolean {
+        val installedAt = installedBuildTime(context)
+        val publishedAt = BuildIdentity.assetTime(rel.assetName, rel.displayVersion)
+        if (installedAt > 0 && publishedAt > 0 && publishedAt < installedAt) return false
+        // No remote digest means hashing the local file cannot resolve anything.
+        return BuildIdentity.isReplacement(installedAt, publishedAt,
+            rel.assetSha256?.let { installedApkSha256(context) }, rel.assetSha256)
+    }
 
     /** 是否有更新：**版本更高**，或**同一版本但发布物是更晚的新构建** */
     fun hasUpdate(context: Context, rel: ReleaseInfo): Boolean {

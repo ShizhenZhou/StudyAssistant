@@ -105,7 +105,10 @@ suspend fun silentUpdateCheck(context: Context) {
     val releases = UpdateChecker.fetchAvailable() ?: return     // 失败：静默
     UpdateChecker.markChecked(context)
     // 版本更高，或同一版本但发布物是更晚的新构建（替换过同名附件）→ 都算有更新
-    UpdateBadgeState.set(releases.notification(context)?.version)
+    val version = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        releases.notification(context)?.version
+    }
+    UpdateBadgeState.set(version)
 }
 
 /** 页面阶段 */
@@ -252,16 +255,24 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                 message = s["update.netError"]
                 return@launch
             }
+            // Same-version comparison may hash the installed APK. Keep disk/package
+            // reads off the UI thread, and reject a result superseded while suspended.
+            val eligible = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                releases.updates { UpdateChecker.hasUpdate(context, it) }
+            }
+            if (generation != operationGeneration) return@launch
             // 成功查到（含"已是最新"）才记「上次检查时间」；失败不记
             UpdateChecker.markChecked(context)
             lastCheck = UpdateChecker.lastCheckAt(context)
-            offers = releases.updates { UpdateChecker.hasUpdate(context, it) }
+            offers = eligible
             val rel = offers.firstOrNull()
             latest = rel
             // ① 版本更高 或 ② 同一版本但发布物是更晚的新构建（替换过同名附件）
             if (rel != null) {
                 // 被跳过的版本不再顶红点（页面上仍显示，可手动下载/取消跳过）
-                UpdateBadgeState.set(releases.notification(context)?.version)
+                // Eligibility was already checked above; prefer stable for the badge.
+                UpdateBadgeState.set(eligible.sortedBy { it.channel == UpdateChecker.Channel.BETA }
+                    .firstOrNull { UpdateChecker.compatibilityError(it) == null && !UpdateChecker.isSkipped(context, it) }?.version)
                 message = compatibilityMessage(rel)
                 phase = Phase.FOUND
             } else {

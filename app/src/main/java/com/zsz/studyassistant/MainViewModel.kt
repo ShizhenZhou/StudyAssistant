@@ -618,9 +618,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if(draftCanBeCleared(value)) finishDraftCleanup(value)
                 } else {
                     if (legacyGrade) recordSolveSession("grade", create=true)
-                    streamingText=value.raw; thinkingText=value.thinking; streamInterrupted=true
-                    contModel=value.model; contPrefix=value.raw
-                    contMessages=continuationMessages(value.messages,value.raw)
+                    // Older drafts may contain raw inline reasoning markers. Apply the
+                    // same split as live/interrupted output before display and continuation.
+                    val partial = com.zsz.studyassistant.data.ThinkingOutput.split(value.raw)
+                    streamingText=partial.body; thinkingText=value.thinking ?: partial.thinking; streamInterrupted=true
+                    activeDraft=activeDraft?.copy(raw=partial.body, thinking=thinkingText)
+                    contModel=value.model; contPrefix=partial.body
+                    contMessages=continuationMessages(value.messages,partial.body)
                     contDraftAction=value.action
                     contOnDone={ output -> applyRecoveredReply(value.action,output) }
                 }

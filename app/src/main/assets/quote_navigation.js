@@ -78,8 +78,15 @@
       var scope=scopeAt(matches[0],anchor.scope,true);
       if(!scope) return null;
       var map=textMap(scope), start=anchor.start, end=anchor.end;
-      if(!Number.isInteger(start) || !Number.isInteger(end) || start<0 || end<=start || end>map.text.length ||
-          normalized(map.text.slice(start,end))!==needle) return null;
+      if(!Number.isInteger(start) || !Number.isInteger(end) || start<0 || end<=start) return null;
+      if(end>map.text.length || normalized(map.text.slice(start,end))!==needle){
+        // Renderer fixes can shift visible offsets without changing source text.
+        // Identity/hash/scope are already verified: relocate only one exact occurrence
+        // in that same scope, never another message or an edited source.
+        start=map.text.indexOf(needle);
+        if(start<0 || map.text.indexOf(needle,start+1)>=0) return null;
+        end=start+needle.length;
+      }
       return {idx:matches[0],scope:anchor.scope,start:start,end:end};
     }
     // Legacy quotes carry no source: accept one occurrence across earlier visible message scopes only.

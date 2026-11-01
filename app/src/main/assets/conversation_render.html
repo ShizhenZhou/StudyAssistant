@@ -100,7 +100,7 @@ function tokenize(t){
   // Input may contain our private-use marker literally; reserve a collision-free token per render.
   var marker=PH;
   while(t.indexOf(marker)>=0) marker+=marker;
-  var re=/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\begin\{[a-zA-Z*]+\}[\s\S]*?\\end\{[a-zA-Z*]+\}|\$[^$\n]+\$/g;
+  var re=/^[ \t]*```[^\n]*(?:\n|$)[\s\S]*?(?:^[ \t]*```[^\n]*(?=\n|$)|$(?![\s\S]))|`[^`\n]+`|\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\begin\{[a-zA-Z*]+\}[\s\S]*?\\end\{[a-zA-Z*]+\}|\$[^$\n]+\$/gm;
   var store=[],last=0,m,out='';
   while((m=re.exec(t))!==null){ if(m.index>last) out+=t.slice(last,m.index); store.push(m[0]); out+=marker+(store.length-1)+marker; last=m.index+m[0].length; }
   if(last<t.length) out+=t.slice(last);
@@ -132,6 +132,14 @@ function mdToHtml(s){
   closeList(); return out;
 }
 function renderOne(raw){
+  // Protect literal code before formula/Markdown processing, including unfinished
+  // streamed fences. Escaping happens only here for these isolated code tokens.
+  if(/^[ \t]*```/.test(raw)){
+    var lines=raw.split('\n');lines.shift();
+    if(lines.length && /^[ \t]*```/.test(lines[lines.length-1])) lines.pop();
+    return '<pre>'+esc(lines.join('\n'))+'</pre>';
+  }
+  if(raw[0]==='`') return '<code>'+esc(raw.slice(1,-1))+'</code>';
   var tex=raw,display=false;
   if(/^\$\$/.test(raw)){tex=raw.slice(2,-2);display=true;}
   else if(/^\\\[/.test(raw)){tex=raw.slice(2,-2);display=true;}
