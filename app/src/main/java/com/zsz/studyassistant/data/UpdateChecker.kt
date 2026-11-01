@@ -217,6 +217,12 @@ object UpdateChecker {
             .callTimeout(15, TimeUnit.SECONDS).build()
     }
 
+    // Bound the entire metadata response, including servers that keep trickling bytes.
+    // APK downloads keep their existing streaming timeouts on the base client.
+    private val metadataClient: OkHttpClient by lazy {
+        client.newBuilder().callTimeout(30, TimeUnit.SECONDS).build()
+    }
+
     /** 当前已安装版本（PackageManager 读，避免与构建号不一致） */
     fun installedVersion(context: Context): String = try {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
@@ -387,7 +393,7 @@ object UpdateChecker {
     private fun releaseDocument(url: String): JsonElement? = try {
         val request = Request.Builder().url(url).header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28").build()
-        client.newCall(request).execute().use { response ->
+        metadataClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             val body = response.body ?: return null
             val source = body.source()

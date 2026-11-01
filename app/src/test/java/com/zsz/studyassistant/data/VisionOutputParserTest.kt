@@ -13,6 +13,24 @@ import org.junit.Test
  * 而以前只能装到手机上拍一道题看气泡才知道有没有改坏。现在改完跑 `gradlew test` 几秒出结果。
  */
 class VisionOutputParserTest {
+    @Test fun reasoningMarkersInsideCodeStayLiteral() {
+        val snippets = listOf("Use `<thinking>literal</thinking>` here.",
+            "```xml\n<thinking>literal</thinking>\n```\nanswer",
+            "```xml\n<thinking>unfinished",
+            "```text\n思考：literal\n解答：literal\n```",
+            "Keep `〈思考〉` and `&lt;思考&gt;` unchanged.",
+            "\uE001 `【思考】` \uE001")
+        for (text in snippets) {
+            assertEquals(text, ThinkingOutput.split(text).body)
+            assertEquals(null, ThinkingOutput.split(text).thinking)
+        }
+        val literal = "`<thinking>example</thinking>`"
+        val result = ThinkingOutput.split("<thinking>reason $literal</thinking>answer $literal")
+        assertEquals("reason $literal", result.thinking)
+        assertEquals("answer $literal", result.body)
+        // Closed reasoning and literal code still leave metadata stripping to the normal parser.
+        assertEquals("answer $literal", StudyAssistant.stripMetaLines("<thinking>reason</thinking>answer $literal"))
+    }
     @Test fun thinkingAliasesStaySeparatedAtCompletionAndInterruption() {
         for ((open, close) in listOf("<思考>" to "</思考>", "<thinking>" to "</thinking>",
             "〈思考〉" to "〈/思考〉", "【思考】" to "【/思考】", "&lt;思考&gt;" to "&lt;/思考&gt;")) {
