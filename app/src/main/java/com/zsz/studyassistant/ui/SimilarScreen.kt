@@ -171,7 +171,6 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     val smallPad = PaddingValues(horizontal = 4.dp)
                     if (editMode) {
                         TextButton(onClick = { showDeleteConfirm = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL) }
                     } else {
                         // 生成中：⏸ 中止生成；空闲：🔄 重新生成（清空会话并重出一道题）
                         val questionShown = vm.similarQuestion != null || vm.similarStreamingText != null

@@ -1,5 +1,13 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
+
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 
@@ -184,6 +192,9 @@ fun SolveScreen(
     var scrollTopTick by remember { mutableIntStateOf(0) }
     var scrollBottomTick by remember { mutableIntStateOf(0) }
     var returnQuoteTick by remember { mutableIntStateOf(0) }
+    var clearQuoteHighlightTick by remember { mutableIntStateOf(0) }
+    var conversationBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var screenOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var quoteReturnAvailable by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf(false) }
     // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
     var atTop by remember { mutableStateOf(true) }
@@ -311,6 +322,24 @@ fun SolveScreen(
     }
 
     Scaffold(
+        modifier = Modifier.onGloballyPositioned { screenOrigin = it.positionInRoot() }.pointerInput(Unit) {
+            // Observe, never consume: composer and toolbar taps dismiss the HTML highlight too.
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+                if (!conversationBounds.contains(down.position + screenOrigin)) {
+                    var moved = false
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Final)
+                        val change = event.changes.singleOrNull { it.id == down.id } ?: break
+                        if (event.changes.size != 1 || (change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                        if (!change.pressed) {
+                            if (!moved) clearQuoteHighlightTick++
+                            break
+                        }
+                    }
+                }
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -381,7 +410,6 @@ fun SolveScreen(
                         TextButton(onClick = { vm.startSimilar(); nav.navigate(AppNav.SIMILAR) }, contentPadding = smallPad) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
                         TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE) }
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = smallPad) { Text(s["solve.done"], fontSize = BTN_LABEL_SOLVE) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
                         //   右侧 = [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
@@ -810,6 +838,7 @@ fun SolveScreen(
                         },
                         scrollBottomSignal = scrollBottomTick,
                         returnQuoteSignal = returnQuoteTick,
+                        clearQuoteHighlightSignal = clearQuoteHighlightTick,
                         onQuoteReturnAvailable = { quoteReturnAvailable = it },
                         resetScrollSignal = resetScrollTick,
                         noFollowSignal = noFollowTick,
@@ -817,7 +846,8 @@ fun SolveScreen(
                         onScrollableChange = { scrollable = it },
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 4.dp),
+                            .padding(horizontal = 4.dp)
+                            .onGloballyPositioned { conversationBounds = it.boundsInRoot() },
                         // 深色主题：气泡/正文/思考块配色由网页内 CSS 变量切换
                         dark = darkTheme,
                         // C14 字号档位：网页内文字同步缩放
@@ -842,7 +872,23 @@ fun SolveScreen(
                                 shadowElevation = 3.dp,
                                 modifier = Modifier.size(44.dp).semantics { contentDescription = s["solve.returnToFollowUp"] }
                             ) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("↵", fontSize = 23.sp) }
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    val arrowColor = androidx.compose.material3.LocalContentColor.current
+                                    androidx.compose.foundation.Canvas(Modifier.size(28.dp)) {
+                                        val unit = size.width / 24f
+                                        val path = androidx.compose.ui.graphics.Path().apply {
+                                            moveTo(20f * unit, 4f * unit)
+                                            lineTo(20f * unit, 14f * unit)
+                                            lineTo(4f * unit, 14f * unit)
+                                            moveTo(10f * unit, 8f * unit)
+                                            lineTo(4f * unit, 14f * unit)
+                                            lineTo(10f * unit, 20f * unit)
+                                        }
+                                        drawPath(path, arrowColor, style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                            join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                                    }
+                                }
                             }
                             if (scrollable) Surface(
                                 onClick = { if (atTop) scrollBottomTick++ else scrollTopTick++ },

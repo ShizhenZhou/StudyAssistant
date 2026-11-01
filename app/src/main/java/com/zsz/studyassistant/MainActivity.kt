@@ -363,7 +363,12 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f).then(if (showBottomBar)
                                 Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                                 else Modifier),
-                            onSelect = { target -> swipeTransition = current to target; selectTab(target) },
+                            onSelect = { target ->
+                                // A swipe starts only on a ready root; commit once, with no asynchronous root-return step.
+                                tabSwitchJob?.cancel()
+                                swipeTransition = current to target
+                                AppNav.switchTab(nav, target)
+                            },
                             preview = { target ->
                                 when (target) {
                                     AppNav.HOME -> HomeScreen(nav, viewModel, homeScroll, preview = true)

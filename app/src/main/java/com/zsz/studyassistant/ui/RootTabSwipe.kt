@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.*
@@ -28,9 +29,11 @@ internal fun RootTabSwipeHost(
     preview: @Composable (String) -> Unit,
     content: @Composable (Modifier) -> Unit
 ) {
-    var offset by remember(route) { mutableFloatStateOf(0f) }
+    var offset by remember { mutableFloatStateOf(0f) }
+    var dragOrigin by remember { mutableStateOf<String?>(null) }
+    var handoffTarget by remember { mutableStateOf<String?>(null) }
     var width by remember { mutableIntStateOf(0) }
-    var settling by remember(route) { mutableStateOf(false) }
+    var settling by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
     val select by rememberUpdatedState(onSelect)
@@ -39,18 +42,32 @@ internal fun RootTabSwipeHost(
     val insets = WindowInsets.systemGestures
     val leftEdge = maxOf(insets.getLeft(density, direction), with(density) { 24.dp.roundToPx() })
     val rightEdge = maxOf(insets.getRight(density, direction), with(density) { 24.dp.roundToPx() })
-    DisposableEffect(route, enabled) {
-        onDispose { job?.cancel(); offset = 0f; settling = false }
+    DisposableEffect(Unit) { onDispose { job?.cancel() } }
+    LaunchedEffect(route, enabled, handoffTarget) {
+        val target = handoffTarget
+        if (target != null) {
+            // Navigation's touch guard disables input before its new content is ready.
+            // Keep the destination preview covering the host throughout that handoff.
+            if ((route == target && enabled) || (route != null && route != dragOrigin && route != target)) {
+                job?.cancel(); offset = 0f; settling = false
+                handoffTarget = null; dragOrigin = null
+            }
+        } else if (!enabled || (dragOrigin != null && route != dragOrigin)) {
+            job?.cancel(); offset = 0f; settling = false; dragOrigin = null
+        }
     }
     fun finish(commit: Boolean) {
-        val target = AppNav.adjacentRootTab(route, next = offset < 0f)
+        val target = AppNav.adjacentRootTab(dragOrigin, next = offset < 0f)
         val end = if (commit && target != null) (if (offset < 0f) -width else width).toFloat() else 0f
         settling = true
         job?.cancel()
         job = scope.launch {
             try {
                 animate(offset, end, animationSpec = tween(180)) { value, _ -> offset = value }
-                if (end != 0f && target != null) select(target)
+                if (end != 0f && target != null) {
+                    handoffTarget = target
+                    select(target)
+                }
             } finally { if (end == 0f) settling = false }
         }
     }
@@ -76,6 +93,7 @@ internal fun RootTabSwipeHost(
                         if (abs(delta.x) > viewConfiguration.touchSlop && abs(delta.x) > abs(delta.y) * 1.5f) {
                             if (AppNav.adjacentRootTab(route, next = delta.x < 0f) == null) break
                             dragging = true
+                            dragOrigin = route
                         }
                     }
                     if (dragging) {
@@ -95,21 +113,26 @@ internal fun RootTabSwipeHost(
                     }
                 }
             } finally {
-                if (dragging && !released) finish(false)
+                if (dragging && !released && handoffTarget == null) finish(false)
             }
         }
     }
     Box(modifier.clipToBounds().onSizeChanged { width = it.width }.then(input)) {
-        val neighbour = if (offset != 0f) AppNav.adjacentRootTab(route, next = offset < 0f) else null
+        val neighbour = handoffTarget ?: if (offset != 0f) AppNav.adjacentRootTab(dragOrigin, next = offset < 0f) else null
         if (neighbour != null) Box(Modifier.fillMaxSize()
-            .graphicsLayer { translationX = offset + if (offset < 0f) width else -width }
+            .zIndex(if (handoffTarget != null) 1f else 0f)
+            .graphicsLayer { translationX = if (handoffTarget != null) 0f else offset + if (offset < 0f) width else -width }
             .clearAndSetSemantics { }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
                 }
             }) { preview(neighbour) }
-        content(Modifier.graphicsLayer { translationX = offset })
+        content(Modifier.graphicsLayer {
+            // Root backgrounds are translucent: an overlay alone still exposes the outgoing page.
+            alpha = if (handoffTarget != null) 0f else 1f
+            translationX = if (handoffTarget != null || route != dragOrigin) 0f else offset
+        })
         if (settling) Box(Modifier.fillMaxSize().pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }

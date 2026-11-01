@@ -236,7 +236,6 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             val compact = PaddingValues(horizontal = 4.dp)
                             TextButton(onClick = { showBatchCategory = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { Text(s["notebook.category"], maxLines = 1, softWrap = false) }
                             TextButton(onClick = { showBatchDelete = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { Text(s["solve.delete"], maxLines = 1, softWrap = false) }
-                            TextButton(onClick = { exitSelection() }, contentPadding = compact) { Text(s["solve.done"], maxLines = 1, softWrap = false) }
                         }
                         else -> {
                             // 🔍 搜索：点开才出现搜索框，再点别处关闭

@@ -19,7 +19,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -34,13 +33,32 @@ internal fun SelectionSummary(count: Int, allSelected: Boolean, countKey: String
             measurer.measure(s["solve.deselectAll"], style).size.width).toDp() + 8.dp
     }
     val color by animateColorAsState(if (count > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, tween(140))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onToggleAll, modifier = Modifier.widthIn(min = width), contentPadding = PaddingValues(horizontal = 4.dp)) {
-            Text(s[if (allSelected) "solve.deselectAll" else "solve.selectAll"], style = style, maxLines = 1, softWrap = false)
+    val countText = s.format(countKey, "n" to "$count")
+    val countStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    val countWidth = with(LocalDensity.current) { measurer.measure(countText, countStyle).size.width.toDp() }
+    BoxWithConstraints {
+        val toggle: @Composable () -> Unit = {
+            TextButton(onClick = onToggleAll, modifier = Modifier.widthIn(min = width), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                Text(s[if (allSelected) "solve.deselectAll" else "solve.selectAll"], style = style, maxLines = 1, softWrap = false)
+            }
         }
-        Text(s.format(countKey, "n" to "$count"), fontSize = 12.sp, fontWeight = FontWeight.Medium,
-            color = color, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false).semantics { liveRegion = LiveRegionMode.Polite })
+        val total: @Composable () -> Unit = {
+            Text(countText, style = countStyle, color = color, maxLines = 1, softWrap = false,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        }
+        if (maxWidth >= maxOf(width, 64.dp) + countWidth + 4.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                toggle(); total()
+            }
+        } else {
+            // Large fonts and long translations use two lines instead of hiding the count.
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalMinimumInteractiveComponentSize provides 0.dp) {
+                    Box(Modifier.height(28.dp)) { toggle() }
+                }
+                total()
+            }
+        }
     }
 }
 

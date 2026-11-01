@@ -141,6 +141,11 @@
 
 > `questions.categoryId` 为外键语义引用 `categories.id`；`GET`DB 删除分类时用 `DELETE FROM categories WHERE id=:id`。
 
+### 标签 AI 同概念审查（2026-11-01）
+
+标签分析的响应新增 `commonConcept`、逐标签 `members`（id/relation）和 `distinctions`；仅接纳所有成员明确为 `same_concept` 且无差异的候选，缺失审查字段或包含相关、对偶、相反、上下位、不确定判断时不采纳。一组允许两个以上标签，不限制为一对。此处校验模型的显式判断与完整性，不是本地语义证明，仍须用户预览确认。
+这些字段仅用于一次 AI 响应解析；结果转换为原 `TagMergeGroup`，共同定义与理由合并显示在既有 reason 字段。DB v10 / Bak v4、整理草稿 v1、撤销辅助库均不变。旧草稿保留，不会自动重新判断；需要新规则时应重新分析。请求仍只发送标签编号、名称、关联题数，不新增远程调用或发送题目内容。
+
 ### 1.2.1 表 `tags`（v6 新增）
 
 | 列名 | 类型 | 默认 | 含义 |

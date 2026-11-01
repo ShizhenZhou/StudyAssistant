@@ -40,9 +40,11 @@
     font-family:Georgia,serif;font-size:36px;line-height:1;pointer-events:none;user-select:none;}
   .quoted-text::before{content:"\201C";left:6px;top:2px;}
   .quoted-text::after{content:"\201D";right:6px;bottom:-6px;}
-  .quote-jump-highlight{position:absolute;pointer-events:none;user-select:none;background:rgba(92,162,220,.25);border-radius:4px;z-index:2;transition:opacity 250ms ease;}
-  body.dark .quote-jump-highlight{background:rgba(120,184,235,.28);}
-  .quote-jump-highlight.fading{opacity:0;}
+  .quote-jump-highlight{position:absolute;pointer-events:none;user-select:none;background:rgba(255,183,55,.34);border-radius:4px;z-index:2;}
+  body.dark .quote-jump-highlight{background:rgba(255,177,48,.32);}
+  @keyframes quote-blink{0%,100%{opacity:1;}50%{opacity:.12;}}
+  .quote-jump-highlight.blink-twice{animation:quote-blink 420ms ease-in-out 2;}
+  @media(prefers-reduced-motion:reduce){.quote-jump-highlight.blink-twice{animation:none;}}
   .bubble hr{border:0;border-top:1px solid var(--pick-border);margin:16px 0;}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}

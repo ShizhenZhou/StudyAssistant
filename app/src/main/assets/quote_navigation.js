@@ -96,7 +96,7 @@
     }
     return result;
   }
-  var highlight=null, jumpFrame=null, holdTimer=null, fadeTimer=null, returnPoint=null;
+  var highlight=null, jumpFrame=null, returnPoint=null;
   function setReturn(point){
     returnPoint=point;
     try{ if(window.Android && Android.quoteReturnAvailable) Android.quoteReturnAvailable(!!point); }catch(e){}
@@ -127,9 +127,8 @@
   };
   function clear(){
     if(jumpFrame!==null) cancelAnimationFrame(jumpFrame);
-    clearTimeout(holdTimer); clearTimeout(fadeTimer);
     if(highlight) highlight.layer.remove();
-    highlight=null; jumpFrame=null; holdTimer=null; fadeTimer=null;
+    highlight=null; jumpFrame=null;
   }
   window.dshClearQuoteJump=clear;
   window.dshQuoteJumpActive=function(){return highlight!==null || jumpFrame!==null;};
@@ -166,10 +165,7 @@
   }
   function settle(){
     jumpFrame=null;
-    holdTimer=setTimeout(function(){
-      if(highlight) highlight.layer.classList.add('fading');
-      fadeTimer=setTimeout(clear,250);
-    },2000);
+    if(highlight) highlight.layer.classList.add('blink-twice');
   }
   function unavailable(){ try{ if(window.Android && Android.quoteUnavailable) Android.quoteUnavailable(); }catch(e){} }
   function jump(idx){
@@ -203,31 +199,34 @@
     jumpFrame=requestAnimationFrame(step);
   }
   // A short tap is navigation; selection, dragging, and message multi-select keep their existing behavior.
-  var tap=null, suppressClickUntil=0;
+  var tap=null, scrollTouch=null, suppressClickUntil=0;
   document.addEventListener('touchstart',function(e){
-    if(jumpFrame!==null) clear();
+    scrollTouch=e.touches.length===1 ? {y:e.touches[0].clientY} : null;
     var el=elementOf(e.target), quote=el && el.closest('.quoted-text');
     tap=quote && e.touches.length===1 ? {quote:quote,x:e.touches[0].clientX,y:e.touches[0].clientY,time:performance.now(),moved:false} : null;
   },{passive:true});
   document.addEventListener('touchmove',function(e){
+    if(scrollTouch && e.touches.length===1 && Math.abs(e.touches[0].clientY-scrollTouch.y)>8){clear();scrollTouch=null;}
     if(tap && (e.touches.length!==1 || Math.hypot(e.touches[0].clientX-tap.x,e.touches[0].clientY-tap.y)>8)) tap.moved=true;
   },{passive:true});
   document.addEventListener('touchend',function(){
     if(tap && (tap.moved || performance.now()-tap.time>400)) suppressClickUntil=performance.now()+800;
-    tap=null;
+    tap=null;scrollTouch=null;
   },{passive:true});
-  document.addEventListener('touchcancel',function(){tap=null;suppressClickUntil=performance.now()+800;},{passive:true});
+  document.addEventListener('touchcancel',function(){tap=null;scrollTouch=null;suppressClickUntil=performance.now()+800;},{passive:true});
   document.addEventListener('click',function(e){
     var el=elementOf(e.target), quote=el && el.closest('.quoted-text');
-    if(!quote || selectionMode) return;
+    if(!quote){clear();return;}
+    if(selectionMode) return;
     var selection=window.getSelection();
     if(performance.now()<suppressClickUntil || (selection && !selection.isCollapsed)) return;
     e.stopPropagation();
     jump(Number(quote.closest('.bubble').getAttribute('data-idx')));
   },true);
+  document.addEventListener('wheel',function(e){if(e.deltaY) clear();},{passive:true});
+  document.addEventListener('keydown',function(e){if(['ArrowUp','ArrowDown','PageUp','PageDown','Home','End'].includes(e.key)) clear();});
   document.addEventListener('scroll',function(){if(highlight) place();},true);
   window.addEventListener('resize',function(){if(highlight) place();});
-  document.addEventListener('visibilitychange',function(){if(document.hidden) clear();});
   window.dshQuoteAfterRender=function(){
     if(selectionMode || (highlight && !highlight.scope.isConnected)) clear();
     if(returnPoint && !returnBubble()) setReturn(null);

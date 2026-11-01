@@ -78,6 +78,7 @@ fun ConversationWebView(
     /** 每次自增 = 请求「滚动到底部」（在顶部时按钮变为 ↓） */
     scrollBottomSignal: Int = 0,
     returnQuoteSignal: Int = 0,
+    clearQuoteHighlightSignal: Int = 0,
     onQuoteReturnAvailable: (Boolean) -> Unit = {},
     /** 每次自增 = 立刻重置到顶部（换题/换会话时用，无动画） */
     resetScrollSignal: Int = 0,
@@ -176,6 +177,10 @@ fun ConversationWebView(
         if (scrollBottomSignal > 0) {
             webRef?.evaluateJavascript("window.dshScrollToBottom && window.dshScrollToBottom();", null)
         }
+    }
+
+    LaunchedEffect(clearQuoteHighlightSignal) {
+        if (clearQuoteHighlightSignal > 0) webRef?.evaluateJavascript("window.dshClearQuoteJump && window.dshClearQuoteJump();", null)
     }
 
     LaunchedEffect(returnQuoteSignal) {

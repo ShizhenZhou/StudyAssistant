@@ -151,10 +151,6 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             enabled = selectedIds.isNotEmpty(),
                             contentPadding = compact
                         ) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
-                        TextButton(
-                            onClick = { exitSelection() },
-                            contentPadding = compact
-                        ) { Text(s["solve.done"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
                     }
                 }
             )
