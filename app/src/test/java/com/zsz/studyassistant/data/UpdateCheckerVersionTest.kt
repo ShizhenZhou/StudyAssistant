@@ -68,4 +68,16 @@ class UpdateCheckerVersionTest {
         assertEquals("", UpdateChecker.prettyReleaseNotes(""))
         assertEquals("", UpdateChecker.prettyReleaseNotes("   \n\n  \n"))
     }
+    @Test
+    fun stableNotificationDeduplicatesBuildsAndHonorsEligibility() {
+        val stable = UpdateChecker.ReleaseInfo("v0.6.9.4", "0.6.9.4", "", "build1.apk",
+            "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.9.4/build1.apk", "a".repeat(64), 100)
+        val key = UpdateNotifications.candidateKey(stable, eligible = true, lastNotified = null)
+        assertTrue(key != null)
+        assertEquals(null, UpdateNotifications.candidateKey(stable, true, key))
+        assertEquals(null, UpdateNotifications.candidateKey(stable, false, null)) // skipped, installed or incompatible
+        assertEquals(null, UpdateNotifications.candidateKey(stable.copy(channel = UpdateChecker.Channel.BETA), true, null))
+        assertTrue(UpdateNotifications.candidateKey(stable.copy(assetSha256 = "b".repeat(64)), true, key) != null)
+        assertTrue(UpdateNotifications.candidateKey(stable.copy(assetUrl = stable.assetUrl.replace("build1", "build2")), true, key) != null)
+    }
 }

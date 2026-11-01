@@ -42,6 +42,15 @@ internal object NotificationIntents {
         UpdateDownloadNotifications.acknowledgeCompletion(context, token)
     }
 
+    fun updateAvailable(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 1004,
+        Intent(context, MainActivity::class.java).apply {
+            action = "${context.packageName}.notification.UPDATE_AVAILABLE"
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(AppNav.OPEN_UPDATE_EXTRA, true)
+        }, FLAGS
+    )
+
     fun reviewReminder(context: Context): PendingIntent = PendingIntent.getActivity(
         context, REVIEW_REQUEST,
         Intent(context, MainActivity::class.java).apply {

@@ -1499,6 +1499,11 @@ private val B5_ZH = mapOf(
     "theme.option.light" to "浅色",
     "theme.option.dark" to "深色",
 
+    "notify.update.enable" to "更新通知",
+    "notify.update.hint" to "允许时每6小时检查正式版更新，同一构建只提醒一次；系统省电策略可能延后检查。",
+    "notify.update.allow" to "允许更新通知",
+    "notify.update.title" to "发现正式版 v{version}",
+    "notify.update.body" to "点击查看更新内容并选择下载。",
     "notify.enable" to "开启每日提醒",
     "notify.time" to "提醒时间",
     "notify.hint" to "到点会提醒：今天还有 xx 道错题要复习！本周末前还有 xx 道！",
@@ -1528,6 +1533,11 @@ private val B5_EN = mapOf(
     "theme.option.light" to "Light",
     "theme.option.dark" to "Dark",
 
+    "notify.update.enable" to "Update notifications",
+    "notify.update.hint" to "Check for stable updates every 6 hours when allowed. Each build is announced once; battery restrictions may delay checks.",
+    "notify.update.allow" to "Allow update notifications",
+    "notify.update.title" to "Stable update v{version} available",
+    "notify.update.body" to "Tap to view release notes and choose whether to download.",
     "notify.enable" to "Daily reminder",
     "notify.time" to "Reminder time",
     "notify.hint" to "You will be reminded: xx problems to review today, xx by the end of this week!",
@@ -1557,6 +1567,11 @@ private val B5_JA = mapOf(
     "theme.option.light" to "ライト",
     "theme.option.dark" to "ダーク",
 
+    "notify.update.enable" to "更新通知",
+    "notify.update.hint" to "許可されている場合は6時間ごとに正式版を確認し、同じビルドは1回だけ通知します。省電力設定により遅れる場合があります。",
+    "notify.update.allow" to "更新通知を許可",
+    "notify.update.title" to "正式版 v{version} が利用可能",
+    "notify.update.body" to "タップして更新内容を確認し、ダウンロードを選択できます。",
     "notify.enable" to "毎日のリマインダー",
     "notify.time" to "リマインダー時刻",
     "notify.hint" to "時間になると通知します：今日の復習は xx 問、今週末までに xx 問！",
@@ -1586,6 +1601,11 @@ private val B5_KO = mapOf(
     "theme.option.light" to "라이트",
     "theme.option.dark" to "다크",
 
+    "notify.update.enable" to "업데이트 알림",
+    "notify.update.hint" to "허용되는 경우 6시간마다 정식 업데이트를 확인하고 빌드당 한 번 알립니다. 절전 설정으로 확인이 지연될 수 있습니다.",
+    "notify.update.allow" to "업데이트 알림 허용",
+    "notify.update.title" to "정식 버전 v{version} 업데이트",
+    "notify.update.body" to "눌러 업데이트 내용을 확인하고 다운로드를 선택하세요.",
     "notify.enable" to "매일 알림",
     "notify.time" to "알림 시간",
     "notify.hint" to "알림: 오늘 복습할 오답 xx개, 이번 주말까지 xx개!",
@@ -2406,7 +2426,7 @@ private val B10_ZH = mapOf(
         "· 🌐 五种界面语言，可调整主题、壁纸背景和字号。\n" +
         "· 📦 手动备份、每日自动备份与恢复，支持大备份分卷。\n" +
         "· 💾 保存失败可重试，中断对话可恢复，删除操作支持撤销。\n" +
-        "· ⬆️ 应用内检查正式版和可选测试版，支持后台下载与安装前校验。\n" +
+        "· ⬆️ 应用内检查正式版和可选测试版，支持正式版更新提醒、后台下载与安装前校验。\n" +
         "· 📥 从其他应用分享 1～2 张图片，选择解题或批改并按顺序框选。\n" +
         "· 🔎 错题本搜索显示题干或答案的命中片段，并高亮关键词。"
         ),
@@ -2467,7 +2487,7 @@ private val B10_EN = mapOf(
         "· 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.\n" +
         "· 📦 Manual and daily automatic backups, restore, and split archives for large backups.\n" +
         "· 💾 Retry failed saves, recover interrupted conversations and undo deletions.\n" +
-        "· ⬆️ Check stable and optional beta updates, download in the background and verify before installation.\n" +
+        "· ⬆️ Check stable and optional beta updates, receive stable-release alerts, download in the background and verify before installation.\n" +
         "· 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.\n" +
         "· 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords."
         ),
@@ -2528,7 +2548,7 @@ private val B10_JA = mapOf(
         "· 🌐 5言語の画面表示、テーマ・壁紙背景・文字サイズの調整。\n" +
         "· 📦 手動・毎日の自動バックアップと復元。大きなバックアップは分割可能。\n" +
         "· 💾 保存失敗の再試行、中断した会話の復元、削除の取り消し。\n" +
-        "· ⬆️ 正式版と任意のテスト版の更新確認、バックグラウンドダウンロードとインストール前の検証。\n" +
+        "· ⬆️ 正式版と任意のテスト版の更新確認、正式版の更新通知、バックグラウンドダウンロードとインストール前の検証。\n" +
         "· 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取り。\n" +
         "· 🔎 ノート検索で問題文・解答の一致箇所とキーワードの強調を表示。"
         ),
@@ -2589,7 +2609,7 @@ private val B10_KO = mapOf(
         "· 🌐 5개 화면 언어, 테마·배경화면·글자 크기 조절.\n" +
         "· 📦 수동·매일 자동 백업과 복원, 대용량 백업 분할.\n" +
         "· 💾 저장 실패 재시도, 중단된 대화 복구와 삭제 실행 취소.\n" +
-        "· ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 백그라운드 다운로드와 설치 전 검증.\n" +
+        "· ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 정식판 업데이트 알림, 백그라운드 다운로드와 설치 전 검증.\n" +
         "· 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자릅니다.\n" +
         "· 🔎 오답노트 검색에서 문제·답변의 일치 구절과 강조된 키워드를 표시합니다."
         ),

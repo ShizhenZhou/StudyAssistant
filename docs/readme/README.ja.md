@@ -23,7 +23,7 @@ zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](htt
 - 🌐 5言語の画面表示、テーマ・壁紙背景・文字サイズの調整。
 - 📦 手動・毎日の自動バックアップと復元。大きなバックアップは分割可能。
 - 💾 保存失敗の再試行、中断した会話の復元、削除の取り消し。
-- ⬆️ 正式版と任意のテスト版の更新確認、バックグラウンドダウンロードとインストール前の検証。
+- ⬆️ 正式版と任意のテスト版の更新確認、正式版の更新通知、バックグラウンドダウンロードとインストール前の検証。
 - 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取り。
 - 🔎 ノート検索で問題文・解答の一致箇所とキーワードの強調を表示。
 
@@ -37,7 +37,7 @@ zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](htt
 
 ## 技術構成
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（単発バックアップ）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（バックアップと定期更新確認）· AlarmManager · Android Keystore。
 
 AGP **9.4.0**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
@@ -45,6 +45,7 @@ AGP **9.4.0**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 
 ### v0.6.9.4
 
+- 🔔 初期設定で有効な更新通知を追加。許可されている場合は6時間ごとに正式版を確認し、同じビルドは繰り返し通知しません。
 - ↔️ ホームのスワイプ切替時に学習ページが一瞬表示される問題を修正。
 - 🏷 タグ整理で同一概念の確認を強化し、複数の同義タグをグループ化。類似・双対・反対概念の混在を抑制。
 - ✅ 複数選択の操作バーを簡素化し、選択数を省略せず表示。分類と削除を右寄せに。

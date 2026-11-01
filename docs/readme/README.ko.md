@@ -23,7 +23,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [Gi
 - 🌐 5개 화면 언어, 테마·배경화면·글자 크기 조절.
 - 📦 수동·매일 자동 백업과 복원, 대용량 백업 분할.
 - 💾 저장 실패 재시도, 중단된 대화 복구와 삭제 실행 취소.
-- ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 백그라운드 다운로드와 설치 전 검증.
+- ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 정식판 업데이트 알림, 백그라운드 다운로드와 설치 전 검증.
 - 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자릅니다.
 - 🔎 오답노트 검색에서 문제·답변의 일치 구절과 강조된 키워드를 표시합니다.
 
@@ -37,7 +37,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다. 설치 파일은 [Gi
 
 ## 기술 구성
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**(DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**(일회성 백업) · AlarmManager · Android Keystore.
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**(DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**(백업 및 정기 업데이트 확인) · AlarmManager · Android Keystore.
 
 AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
@@ -45,6 +45,7 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ### v0.6.9.4
 
+- 🔔 기본으로 켜진 업데이트 알림을 추가했습니다. 허용되는 경우 6시간마다 정식 버전을 확인하며 같은 빌드는 반복 알림하지 않습니다.
 - ↔️ 홈 화면을 스와이프할 때 학습 페이지가 순간적으로 나타나는 문제를 수정했습니다.
 - 🏷 태그 정리의 동일 개념 검증을 강화하고 여러 동의어를 한 그룹으로 지원하며, 유사·쌍대·반대 개념의 혼합을 줄였습니다.
 - ✅ 다중 선택 도구 모음을 간소화하고 선택 개수를 온전히 표시하며 분류와 삭제를 오른쪽에 배치했습니다.

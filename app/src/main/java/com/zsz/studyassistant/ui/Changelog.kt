@@ -6,6 +6,7 @@ package com.zsz.studyassistant.ui
  */
 internal val CHANGELOG_ZH: String = """
 v0.6.9.4
+· 🔔 新增默认开启的“更新通知”，允许时每6小时检查正式版，同一构建不重复提醒。
 · ↔️ 修正主页滑动切换时闪现学习页的问题。
 · 🏷 标签整理加强同一概念核验，支持多个同义标签成组，避免混合相近、对偶或相反概念。
 · ✅ 精简多选操作栏，完整显示已选数量，分类与删除靠右排列。
@@ -575,6 +576,7 @@ v0.1（项目建立）
 
 internal val CHANGELOG_EN: String = """
 v0.6.9.4
+· 🔔 Added update notifications, enabled by default: check stable releases every 6 hours when allowed, without repeating alerts for the same build.
 · ↔️ Fixed the Learning page flashing during home-tab swipes.
 · 🏷 Stricter same-concept checks for tag merging, including groups of multiple synonyms; related, dual and opposite concepts stay separate.
 · ✅ Simplified multi-selection controls, kept selected counts fully visible and aligned category/delete actions to the right.
@@ -1144,6 +1146,7 @@ v0.1 (project start)
 
 internal val CHANGELOG_JA: String = """
 v0.6.9.4
+· 🔔 初期設定で有効な更新通知を追加。許可されている場合は6時間ごとに正式版を確認し、同じビルドは繰り返し通知しません。
 · ↔️ ホームのスワイプ切替時に学習ページが一瞬表示される問題を修正。
 · 🏷 タグ整理で同一概念の確認を強化し、複数の同義タグをグループ化。類似・双対・反対概念の混在を抑制。
 · ✅ 複数選択の操作バーを簡素化し、選択数を省略せず表示。分類と削除を右寄せに。
@@ -1713,6 +1716,7 @@ v0.1（プロジェクト開始）
 
 internal val CHANGELOG_KO: String = """
 v0.6.9.4
+· 🔔 기본으로 켜진 업데이트 알림을 추가했습니다. 허용되는 경우 6시간마다 정식 버전을 확인하며 같은 빌드는 반복 알림하지 않습니다.
 · ↔️ 홈 화면을 스와이프할 때 학습 페이지가 순간적으로 나타나는 문제를 수정했습니다.
 · 🏷 태그 정리의 동일 개념 검증을 강화하고 여러 동의어를 한 그룹으로 지원하며, 유사·쌍대·반대 개념의 혼합을 줄였습니다.
 · ✅ 다중 선택 도구 모음을 간소화하고 선택 개수를 온전히 표시하며 분류와 삭제를 오른쪽에 배치했습니다.

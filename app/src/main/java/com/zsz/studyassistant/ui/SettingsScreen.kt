@@ -1647,6 +1647,8 @@ private fun NotifyBackgroundSettings() {
     }
     Text(s["notify.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(20.dp))
+    UpdateNotificationSettings()
+    Spacer(Modifier.height(20.dp))
     // ── 后台运行（与提醒强相关：后台权限不到位就收不到提醒） ──
     val powerManager = context.getSystemService(android.os.PowerManager::class.java)
     val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
@@ -1698,6 +1700,62 @@ private fun NotifyBackgroundSettings() {
     }) { Text(s["background.oneTap"]) }
     }
 }
+/** Separate from review reminders and download-progress notifications. */
+@Composable
+private fun UpdateNotificationSettings() {
+    val context = LocalContext.current
+    val s = LocalStrings.current
+    val alerts = com.zsz.studyassistant.data.UpdateNotifications
+    val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+    var enabled by remember { mutableStateOf(alerts.isEnabled(context)) }
+    var allowed by remember { mutableStateOf(alerts.canNotify(context)) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        allowed = alerts.canNotify(context)
+    }
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) allowed = alerts.canNotify(context)
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    fun requestPermission() {
+        alerts.ensureChannel(context)
+        val activity = context as? android.app.Activity
+        val mayAsk = !prefs.getBoolean("update_notification_permission_asked", false) ||
+            (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                activity, Manifest.permission.POST_NOTIFICATIONS))
+        if (alerts.needsPermission(context) && mayAsk) {
+            prefs.edit().putBoolean("update_notification_permission_asked", true).apply()
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            val action = if (alerts.needsPermission(context) ||
+                !androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())
+                android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
+            else android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+            context.startActivity(Intent(action)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, alerts.CHANNEL_ID))
+        }
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(s["notify.update.enable"], modifier = Modifier.weight(1f))
+        Switch(checked = enabled, onCheckedChange = {
+            alerts.setEnabled(context, it)
+            enabled = it
+            allowed = alerts.canNotify(context)
+            if (it && !allowed) requestPermission()
+        })
+    }
+    Text(s["notify.update.hint"], style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline)
+    if (enabled && !allowed) {
+        TextButton(onClick = { requestPermission() }) { Text(s["notify.update.allow"]) }
+    }
+}
+
 /** 🔋 后台运行（保活引导） */
 @Composable
 private fun BackgroundSettings() {

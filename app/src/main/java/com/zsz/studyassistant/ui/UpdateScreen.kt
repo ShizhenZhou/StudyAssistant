@@ -136,6 +136,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var observingDownload by remember { mutableStateOf(true) }
     val installed = remember { UpdateChecker.installedVersion(context) }
+    LaunchedEffect(Unit) { com.zsz.studyassistant.data.UpdateNotifications.clear(context) }
     var phase by remember { mutableStateOf(Phase.RESTORING) }
     var operationGeneration by remember { mutableIntStateOf(0) }
     var downloadActionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }

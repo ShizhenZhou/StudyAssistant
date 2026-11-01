@@ -24,7 +24,7 @@
 - 🌐 五种界面语言，可调整主题、壁纸背景和字号。
 - 📦 手动备份、每日自动备份与恢复，支持大备份分卷。
 - 💾 保存失败可重试，中断对话可恢复，删除操作支持撤销。
-- ⬆️ 应用内检查正式版和可选测试版，支持后台下载与安装前校验。
+- ⬆️ 应用内检查正式版和可选测试版，支持正式版更新提醒、后台下载与安装前校验。
 - 📥 从其他应用分享 1～2 张图片，选择解题或批改并按顺序框选。
 - 🔎 错题本搜索显示题干或答案的命中片段，并高亮关键词。
 
@@ -38,7 +38,7 @@
 
 ## 技术栈
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（一次性备份任务）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（备份与定期更新检查）· AlarmManager · Android Keystore。
 
 构建使用 AGP **9.4.0**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
 
@@ -46,6 +46,7 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 
 ### v0.6.9.4
 
+- 🔔 新增默认开启的“更新通知”，允许时每6小时检查正式版，同一构建不重复提醒。
 - ↔️ 修正主页滑动切换时闪现学习页的问题。
 - 🏷 标签整理加强同一概念核验，支持多个同义标签成组，避免混合相近、对偶或相反概念。
 - ✅ 精简多选操作栏，完整显示已选数量，分类与删除靠右排列。

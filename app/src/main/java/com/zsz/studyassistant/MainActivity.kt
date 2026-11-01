@@ -134,6 +134,7 @@ class MainActivity : ComponentActivity() {
         viewModel.purgeDeletedData()
         // 启动即创建通知渠道（否则系统"通知管理"会显示"未发布任何通知"），并按需申请通知权限
         com.zsz.studyassistant.data.ReminderScheduler.ensureChannel(this)
+        com.zsz.studyassistant.data.UpdateNotifications.applySchedule(this)
         val backupPreferences = getSharedPreferences("settings", MODE_PRIVATE)
         val askBackupNotifications = com.zsz.studyassistant.data.AutoBackup.isEnabled(this) &&
             com.zsz.studyassistant.data.AutoBackup.treeUri(this) != null &&
