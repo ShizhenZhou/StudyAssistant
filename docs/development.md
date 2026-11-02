@@ -52,6 +52,8 @@ Beta可从开发分支本地按需构建一次：`./gradlew.bat assembleRelease 
 
 ## 合并与构建
 
+应用内版本记录位于 `app/src/main/assets/changelog/{zh,en,ja,ko}.txt`（UTF-8）。发版时在各文件顶部添加新版本块，并与旧记录留一行空行。繁体中文在读取简体记录时转换。
+
 本地必要验证/用户反馈完成后再合并main。提交含feat:/fix:/build:/ci:等前缀；合并冲突改变运行代码时只验证受影响部分。
 
 ```powershell

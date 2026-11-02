@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -33,6 +34,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -480,7 +482,13 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     // ── 更新历史（原来「关于」页里的全部更新内容）──
     Text(s["about.changelog"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
-    Text(changelogAnnotated(changelogText(LocalUiLang.current)), style = MaterialTheme.typography.bodySmall)
+    val lang = LocalUiLang.current
+    val history by produceState(AnnotatedString(""), lang, context.assets) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            changelogAnnotated(changelogText(lang, context.assets::open))
+        }
+    }
+    Text(history, style = MaterialTheme.typography.bodySmall)
     Spacer(Modifier.height(24.dp))
 }
 

@@ -1,6 +1,7 @@
 package com.zsz.studyassistant
 
 import android.app.Application
+import android.os.SystemClock
 import android.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -1654,47 +1655,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val app = getApplication<Application>()
             com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = StringBuilder()
-            var lastEmit = 0L
+            var nextBodyEmit = 0L
             var keepPartial = false
             streamingText = prefix
             // 思考流（推理模型才有）：每次新请求都清空
             thinkingText = null
             thinkingDone = false
             val thinkSb = StringBuilder()
-            var lastThinkEmit = 0L
+            var nextThinkEmit = 0L
             try {
                 if(template!=null) { writeDraft(template.copy(revision=++draftRevision),currentNotebookBaseline); refreshDrafts() }
-                var lastDraftWrite=0L
+                var nextDraftWrite = 0L
                 val reply = withContext(Dispatchers.IO) {
                     val thinkOn = com.zsz.studyassistant.data.CapturePrefs.solveModel(app) != "flash"
-                    StudyAssistant.chatStream(model, messages, onDelta = { delta ->
+                    StudyAssistant.chatStream(model, messages, onDelta = bodyDelta@{ delta ->
                         sb.append(delta)
+                        val now = SystemClock.elapsedRealtime()
+                        if (now < nextBodyEmit) return@bodyDelta
+                        nextBodyEmit = now + 180
                         val parsed = com.zsz.studyassistant.data.ThinkingOutput.split(sb.toString())
-                        val bodyText = parsed.body
-                        parsed.thinking?.let { think ->
-                            val nowT = System.currentTimeMillis()
-                            if (nowT - lastThinkEmit >= 120) {
-                                lastThinkEmit = nowT
-                                withContext(Dispatchers.Main) { if (mySeq == callSeq) thinkingText = think }
-                            }
-                        }
-                        val now = System.currentTimeMillis()
-                        if (now - lastEmit >= 180) {
-                            lastEmit = now
-                            val snapshot = prefix + bodyText
-                            withContext(Dispatchers.Main) {
-                                if(mySeq==callSeq) {
-                                    streamingText = snapshot
-                                    activeDraft=activeDraft?.copy(raw=snapshot,thinking=thinkingText)
-                                    if(now-lastDraftWrite>=1000) { lastDraftWrite=now; checkpointDraft(refresh=false) }
+                        val snapshot = prefix + parsed.body
+                        withContext(Dispatchers.Main) {
+                            if (mySeq == callSeq) {
+                                parsed.thinking?.let { thinkingText = it }
+                                streamingText = snapshot
+                                activeDraft = activeDraft?.copy(raw = snapshot, thinking = thinkingText)
+                                if (now >= nextDraftWrite) {
+                                    nextDraftWrite = now + 1000
+                                    checkpointDraft(refresh = false)
                                 }
                             }
                         }
                     }, thinkingEnabled = thinkOn, owner = owner, onReasoning = { r ->
                         thinkSb.append(r)
-                        val now = System.currentTimeMillis()
-                        if (now - lastThinkEmit >= 120) {
-                            lastThinkEmit = now
+                        val now = SystemClock.elapsedRealtime()
+                        if (now >= nextThinkEmit) {
+                            nextThinkEmit = now + 120
                             val snap = thinkSb.toString()
                             withContext(Dispatchers.Main) { if(mySeq == callSeq) thinkingText = snap }
                         }

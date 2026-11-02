@@ -9,19 +9,17 @@ import java.io.File
  *
  * > 每个新版本的更新内容，与**上一个版本的更新记录**之间必须有一行空行。
  *
- * 为什么老出问题：新版本是**往 `CHANGELOG_*` 的 `"""` 后面 prepend** 的，
+ * 在各语言的 UTF-8 资源顶部添加版本时，
  * 新块的最后一行正好顶着上一条 `v0.x.y` 标题 → 界面上两个版本粘在一起。
  * 所以这里把规则钉成用例：**任何版本标题行，上面一行必须是空行**（第一个版本除外）。
  */
 class ChangelogFormatTest {
 
-    private val tables: List<Pair<String, String>> = listOf(
-        "ZH" to CHANGELOG_ZH,
-        "ZH_TW" to s2t(CHANGELOG_ZH),
-        "EN" to CHANGELOG_EN,
-        "JA" to CHANGELOG_JA,
-        "KO" to CHANGELOG_KO
-    )
+    private val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
+        .first { File(it, "settings.gradle.kts").isFile }
+    private val tables = listOf(UiLang.ZH_CN, UiLang.ZH_TW, UiLang.EN, UiLang.JA, UiLang.KO).map { lang ->
+        lang.name to changelogText(lang) { path -> File(root, "app/src/main/assets/$path").inputStream() }
+    }
 
     /** 版本标题行：`v0.6.6.1` / `v0.6.6` / `v0.4.7.5（临时版本）` … */
     private val heading = Regex("^v\\d")
@@ -76,8 +74,6 @@ class ChangelogFormatTest {
 
     @Test
     fun android16RequirementUsesOneSharedBoundaryInReadmeAndApp() {
-        val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-            .first { File(it, "settings.gradle.kts").isFile }
         val notices = listOf(
             "README.md" to "以上版本仅支持Android 16+",
             "docs/readme/README.zh-TW.md" to "以上版本僅支持Android 16+",
@@ -107,12 +103,9 @@ class ChangelogFormatTest {
 
     @Test
     fun `四语言都能取到更新内容`() {
-        val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-            .first { File(it, "settings.gradle.kts").isFile }
         val version = Regex("val appVersionName = \"([^\"]+)\"")
             .find(File(root, "app/build.gradle.kts").readText())!!.groupValues[1]
-        for (lang in listOf(UiLang.ZH_CN, UiLang.ZH_TW, UiLang.EN, UiLang.JA, UiLang.KO)) {
-            val text = changelogText(lang)
+        for ((lang, text) in tables) {
             assertTrue("$lang 的更新内容为空", text.trim().isNotEmpty())
             assertTrue("$lang 少了当前版本 v$version", text.lineSequence().first { it.isNotBlank() } == "v$version")
         }
