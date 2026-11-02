@@ -14,6 +14,7 @@ import com.zsz.studyassistant.data.AiLangStore
 import com.zsz.studyassistant.data.AppDatabase
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.DeepSeekMessage
+import com.zsz.studyassistant.data.gradingInput
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.QuestionId
@@ -2853,16 +2854,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val binding = sessionRecordBinding
         val text = redoQuestionText
         val fallback = redoQuestionImages
+        val items = chatItems
+        val wasGrading = gradeMode
         redoSubmitting = true
         viewModelScope.launch {
             try {
-                val keys = withContext(Dispatchers.IO) {
+                val originals = withContext(Dispatchers.IO) {
                     val stored = dao.imagesForQuestion(qid).sortedBy { it.position }
                         .map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
-                    mergeImageKeys(stored.firstOrNull(), stored.drop(1) + fallback)
+                    val keys = mergeImageKeys(stored.firstOrNull(), stored.drop(1) + fallback)
+                    // Notebook entries can outlive their history, but use the saved source if available.
+                    val grading = wasGrading || dao.sessionLightOnce(qid)?.source == "grade"
+                    gradingInput(grading, text, items, keys)?.questionImages ?: keys
                 }
                 if (binding !== sessionRecordBinding || redoQuestionId != qid || !redoMode) return@launch
-                startGradeText(text, answerBytes, redoFor = qid, questionImageKeys = keys)
+                startGradeText(text, answerBytes, redoFor = qid, questionImageKeys = originals)
                 onReady()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -3387,9 +3393,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?, redoFor: QuestionId? = null) {
         prepareSession(grade = true)
-        gradeMode = true
         pendingRedoFor = redoFor
-        gradeTextQuestion = null
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
         val imgs = buildList {
             add(questionBytes)
@@ -3410,15 +3414,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * 批改（**纯文字题干** + 手写作答图）：B6 重做时，复习的题可能本来就没有原图。
-     * 与 [startGrade] 的区别只有首轮消息的构造方式（文字题干 + 作答图）。
+     * 手写重做：原题文字、可选题图和本次作答分别保留。
      */
     fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: QuestionId? = null,
                        questionImageKeys: List<String> = emptyList()) {
         prepareSession(grade = true)
-        gradeMode = true
         pendingRedoFor = redoFor
-        gradeTextQuestion = questionText
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
         directImages = questionImageKeys.map { Base64.decode(it, Base64.NO_WRAP) }
         questionFromPhoto = false
@@ -3430,20 +3431,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         addItem("question", questionText, questionImageKeys, gradePart = "question")
         addItem("user", str["grade.label.answer"], encoded, gradePart = "answer")
         recordSolveSession("grade", create = true)
-        gradeTextCall(questionText)
+        gradeCall()
     }
 
-    /** 当前批改是否为"纯文字题干"（重新批改时据此选对构造方式） */
-    private var gradeTextQuestion: String? = null
-
     private fun restoreGradeContext(grading: Boolean) {
-        val firstQuestion = chatItems.firstOrNull { it.role == "question" }
-        gradeMode = grading || firstQuestion?.gradePart == "question"
-        // Text-question grading stores the answer-image label after the original question.
-        gradeTextQuestion = questionText.takeIf {
-            gradeMode && (firstQuestion?.gradePart == "question" ||
-                (it.isNotBlank() && firstQuestion?.content?.startsWith(it + "\n") == true))
-        }
+        gradeMode = gradingInput(grading, questionText, chatItems, questionImages) != null
     }
 
     /** 批改完成的公共收尾：解析分类/知识点 + 落一条助手消息 + 重做时给出待确认的掌握度建议 */
@@ -3465,11 +3457,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 批改请求（流式）；repeat 用于网络失败重试 */
     private fun gradeCall() {
-        val imgs = directImages
-        if (imgs.isEmpty()) return
+        val input = gradingInput(gradeMode, questionText, chatItems, questionImages) ?: return
+        if (!input.canGrade) {
+            error = com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"]
+            return
+        }
         val msgs = listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
-            StudyAssistant.gradeUserMessage(imgs[0], imgs.getOrNull(1), aiLang, categoryNames, tagNames)
+            StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames)
         )
         busyIsGrade = true
         streamCall(
@@ -3479,35 +3474,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    /** 文字题干版批改请求（B6 重做：题目没有原图） */
-    private fun gradeTextCall(qText: String) {
-        val separateAnswer = chatItems.firstOrNull()?.gradePart == "question"
-        val answerKey = chatItems.firstOrNull { it.gradePart == "answer" && it.role == "user" }
-            ?.images?.singleOrNull()
-        if (separateAnswer && answerKey == null) {
-            error = com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"]
-            return // Never substitute a question image for a missing student answer.
-        }
-        val questionKeys = if (separateAnswer) chatItems.first().images.orEmpty() else emptyList()
-        val ans = if (separateAnswer) Base64.decode(answerKey!!, Base64.NO_WRAP)
-            else directImages.firstOrNull() ?: return
-        val msgs = listOf(
-            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
-            StudyAssistant.gradeTextUserMessage(qText, ans, aiLang, categoryNames, tagNames, questionKeys)
-        )
-        busyIsGrade = true
-        streamCall(
-            StudyAssistant.MODEL_VISION, msgs, prefix = "",
-            onDone = { onGradeReply(it) },
-            repeat = { gradeTextCall(qText) }
-        )
-    }
-
     /** 重新批改（用当前会话的题目/作答图再跑一次） */
     fun regrade() {
         if (busy || streamInterrupted) return
-        val text = gradeTextQuestion
-        if (text != null) gradeTextCall(text) else gradeCall()
+        gradeCall()
     }
 
     /** 当前这次流式请求是否为「批改」（决定按钮显示「⏸ 中止批改」还是「⏸ 中止生成」） */

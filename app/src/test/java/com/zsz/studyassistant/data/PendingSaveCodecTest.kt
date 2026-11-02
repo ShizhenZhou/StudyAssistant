@@ -32,9 +32,26 @@ class PendingSaveCodecTest {
         assertEquals(setOf(0, 1, 2), com.zsz.studyassistant.protectedMessageIndices(restored))
         assertEquals(listOf("one", "two", "three"), questionImageBase64(
             kotlinx.serialization.json.Json.encodeToString(serializer, restored)))
+        val input = gradingInput(false, "conditions", restored, emptyList())!!
+        assertEquals(GradingInput("conditions", original.images!!, "handwriting"), input)
+        val parts = StudyAssistant.gradeUserMessage(input, AiLang.DEFAULT).content as kotlinx.serialization.json.JsonArray
+        val sentImages = parts.drop(1).map {
+            val image = (it as kotlinx.serialization.json.JsonObject)["image_url"] as kotlinx.serialization.json.JsonObject
+            (image.getValue("url") as kotlinx.serialization.json.JsonPrimitive).content.substringAfter("base64,")
+        }
+        assertEquals(listOf("one", "two", "three", "handwriting"), sentImages)
+        assertFalse(gradingInput(true, "conditions", listOf(original, follow), listOf("one"))!!.canGrade)
         val old = kotlinx.serialization.json.Json.decodeFromString(com.zsz.studyassistant.ChatItem.serializer(),
             """{"id":0,"role":"question","content":"legacy"}""")
         assertNull(old.gradePart)
+        val legacy = old.copy(content = "conditions\nMy answer", images = listOf("handwriting"))
+        assertEquals(GradingInput("conditions", emptyList(), "handwriting"),
+            gradingInput(true, "conditions", listOf(legacy, follow), emptyList()))
+        for (photos in listOf(listOf("photo"), listOf("photo", "answer"))) {
+            assertEquals(GradingInput(null, listOf("photo"), photos.getOrNull(1)),
+                gradingInput(true, "legacy", listOf(old, follow), photos))
+        }
+        assertNull(gradingInput(false, "legacy", listOf(old, follow), listOf("photo", "second question photo")))
     }
     @Test fun quotedConversationRetainsFullContentAcrossSaveAndRestore() {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }

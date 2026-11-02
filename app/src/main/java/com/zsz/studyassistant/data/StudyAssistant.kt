@@ -373,7 +373,7 @@ object StudyAssistant {
      *   现在统一：① 分类 / ② 知识点 / ③ 解答（正文里再写「结论：」「讲解：」），
      *   指令本身不再编号，避免被照抄。
      */
-    private fun gradePrompt(answerBytes: ByteArray?, lang: AiLang, categories: List<String> = emptyList(), tags: List<String> = emptyList()): String {
+    private fun gradePrompt(hasAnswer: Boolean, lang: AiLang, categories: List<String> = emptyList(), tags: List<String> = emptyList()): String {
         // 带手写作答（真批改）：不要求回显题干，直接 ① 分类 / ② 知识点 / ③ 解答
         val fmtWithAnswer =
             "① 分类：<所属科目>\n" +
@@ -385,7 +385,7 @@ object StudyAssistant {
             "② 分类：<所属科目>\n" +
             "③ 知识点：<知识点1、知识点2、知识点3>\n" +
             "④ 解答：<详细步骤与结论，可多行>"
-        return (if (answerBytes != null)
+        return (if (hasAnswer)
             "你是一名批改老师。图片中是{题目}和{学生的手写作答}。" +
                 "请判断作答是否正确；若不正确，指出错在哪一步、为什么错；并给出正确的解题过程与针对性讲解。用 LaTeX 写公式。"
         else
@@ -393,71 +393,31 @@ object StudyAssistant {
             // ★ 2026-10-13：原句「每行开头都必须带对应序号」与「解答可多行」自相矛盾（模型会给解答每一行都加序号，
             //   项目里的 stripLeakedSectionMarks 就是给这句擦屁股的），且去掉了文案里的 `**`。
             "\n按下面模板输出，每项只写一次、各占一行，开头带对应序号；只有「解答」可以多行：\n" +
-            (if (answerBytes != null) fmtWithAnswer else fmtNoAnswer) + "\n" +
+            (if (hasAnswer) fmtWithAnswer else fmtNoAnswer) + "\n" +
             "先单独输出一行 <review_verdict>correct|partial|incorrect|unknown</review_verdict>，只选一个英文值；这是机器评分建议，不随回答语言翻译。\n" +
             answerLayoutInstruction() + solveKnownHint(categories, tags) + "\n" +
             languageInstruction(lang)
     }
 
-    /**
-     * 批改的 user 消息（文字提示 + 题目图 + 可选作答图）。
-     * 批改页复用解题界面时用它构造首轮请求；追问走常规 buildMessages。
-     */
-    fun gradeUserMessage(
-        questionBytes: ByteArray,
-        answerBytes: ByteArray?,
-        lang: AiLang = AiLang.DEFAULT,
+    internal fun gradeUserMessage(
+        input: GradingInput,
+        lang: AiLang,
         categories: List<String> = emptyList(),
         tags: List<String> = emptyList()
     ): DeepSeekMessage {
+        val instructions = gradePrompt(input.answerImage != null, lang, categories, tags)
+        val prompt = if (input.questionText == null) instructions else
+            "题目：${input.questionText}\n\n前 ${input.questionImages.size} 张为题目附图，最后一张为学生的手写作答；请结合全部题干与附图批改。\n" + instructions
         val parts = buildJsonArray {
             addJsonObject {
                 put("type", "text")
-                put("text", gradePrompt(answerBytes, lang, categories, tags))
+                put("text", prompt)
             }
-            addJsonObject {
-                put("type", "image_url")
-                putJsonObject("image_url") { put("url", "data:image/jpeg;base64," + Base64.encodeToString(questionBytes, Base64.NO_WRAP)) }
-            }
-            if (answerBytes != null) {
+            for (image in input.questionImages + listOfNotNull(input.answerImage)) {
                 addJsonObject {
                     put("type", "image_url")
-                    putJsonObject("image_url") { put("url", "data:image/jpeg;base64," + Base64.encodeToString(answerBytes, Base64.NO_WRAP)) }
+                    putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$image") }
                 }
-            }
-        }
-        return DeepSeekMessage("user", parts)
-    }
-
-    /**
-     * 批改的 user 消息（**纯文字题干** + 手写作答图）。
-     * B6 重做模式用：复习的题可能没有原图（直接提问/图文提问存的题），
-     * 这时把题干当文字给出，图片只放"我的作答"。
-     */
-    fun gradeTextUserMessage(
-        questionText: String,
-        answerBytes: ByteArray,
-        lang: AiLang = AiLang.DEFAULT,
-        categories: List<String> = emptyList(),
-        tags: List<String> = emptyList(),
-        questionImages: List<String> = emptyList()
-    ): DeepSeekMessage {
-        val parts = buildJsonArray {
-            addJsonObject {
-                put("type", "text")
-                put(
-                    "text",
-                    "题目：$questionText\n\n前 ${questionImages.size} 张为题目附图，最后一张为学生的手写作答；请结合全部题干与附图批改。\n" +
-                        gradePrompt(answerBytes, lang, categories, tags)
-                )
-            }
-            questionImages.forEach { image -> addJsonObject {
-                put("type", "image_url")
-                putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$image") }
-            } }
-            addJsonObject {
-                put("type", "image_url")
-                putJsonObject("image_url") { put("url", "data:image/jpeg;base64," + Base64.encodeToString(answerBytes, Base64.NO_WRAP)) }
             }
         }
         return DeepSeekMessage("user", parts)
@@ -466,10 +426,12 @@ object StudyAssistant {
     /** 批改：单张(仅题目)或两张(题目+手写答案)，AI 判断正误、指出错误步骤、针对性讲解 */
     suspend fun gradeWithImages(questionBytes: ByteArray, answerBytes: ByteArray?, lang: AiLang = AiLang.DEFAULT): String {
         requireKey()
+        val input = GradingInput(null, listOf(Base64.encodeToString(questionBytes, Base64.NO_WRAP)),
+            answerBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) })
         val resp = ApiClient.deepSeek.chat(
             DeepSeekRequest(
                 model = MODEL_VISION,
-                messages = listOf(DeepSeekMessage("user", gradeUserMessage(questionBytes, answerBytes, lang).content)),
+                messages = listOf(gradeUserMessage(input, lang)),
                 maxTokens = 4096
             )
         )
