@@ -43,6 +43,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9.6
+
+- 💬 Long answers are parsed as the display refreshes, reducing repeated processing while streaming.
+- ✍️ Handwritten retries, recovery and regrading now identify the original question and answer consistently so previous answers stay separate from question images.
+- 🌐 The update page loads the version history for the selected language.
+- 📌 `versionCode` **98**.
+
 ### v0.6.9.5
 
 - 💾 Fixed edge cases in draft recovery, notebook resaving and multi-image retry grading, preserving the full question and answer.
