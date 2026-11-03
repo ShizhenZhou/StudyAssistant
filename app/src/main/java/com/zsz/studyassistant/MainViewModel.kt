@@ -1047,11 +1047,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val selections = mutableMapOf<String, com.zsz.studyassistant.ui.CropSelection>()
     internal fun cropSelection(path: String) = selections.getOrPut(path) { com.zsz.studyassistant.ui.CropSelection() }
 
+    /** Own detection in the capture flow, so replacing an Activity doesn't restart an AI request. */
+    internal fun startAutoCrop(path: String, bounds: androidx.compose.ui.geometry.Rect, useAi: Boolean, timeout: Long) {
+        val region = cropSelection(path)
+        if (region.touched || region.autoJob != null || currentCropPath != path) return
+        region.autoJob = viewModelScope.launch {
+            launch {
+                val box = withContext(Dispatchers.Default) {
+                    runCatching { com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(path) }.getOrNull()
+                }
+                region.suggest(box, ai = false, bounds)
+            }
+            if (useAi) {
+                val box = try {
+                    withContext(Dispatchers.IO) {
+                        StudyAssistant.detectQuestionBoxesAi(java.io.File(path).readBytes(), timeout)?.maxByOrNull { it.area }
+                    }
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { null }
+                region.suggest(box, ai = true, bounds)
+            }
+        }
+    }
+
+    private fun clearCropSelections() {
+        selections.values.forEach { it.autoJob?.cancel() }
+        selections.clear()
+    }
+
     fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
         val firstTime = System.currentTimeMillis()
         captureStartedAt = firstTime
         captureIdentity = if (!grade) QuestionIdentity.create(firstTime) to firstTime else null
-        selections.clear()
+        clearCropSelections()
         cropPaths = paths
         cropIndex = 0
         cropGrade = grade
@@ -1420,7 +1448,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryClearFailed"
             }
         }
-        selections.clear()
+        clearCropSelections()
         cropPaths = emptyList()
         cropIndex = 0
         cropGrade = false

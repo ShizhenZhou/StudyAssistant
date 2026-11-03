@@ -1,3 +1,9 @@
+v0.6.9.7
+· ✍️ Keep manual crops, unsent questions, quotes and attachments across window changes, and restore the active editor.
+· 📚 The notebook grid adapts to the window width, and solving and review pages limit reading width.
+· 🖼️ Grading and follow-ups reuse question images to reduce repeated decoding.
+· 🔔 Monochrome icons distinguish reminders, progress and warnings. Notifications support semantic colors on Android 17.
+
 v0.6.9.6
 · 💬 Long answers are parsed as the display refreshes, reducing repeated processing while streaming.
 · ✍️ Handwritten retries, recovery and regrading now identify the original question and answer consistently so previous answers stay separate from question images.

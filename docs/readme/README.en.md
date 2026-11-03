@@ -43,6 +43,14 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9.7
+
+- ✍️ Keep manual crops, unsent questions, quotes and attachments across window changes, and restore the active editor.
+- 📚 The notebook grid adapts to the window width, and solving and review pages limit reading width.
+- 🖼️ Grading and follow-ups reuse question images to reduce repeated decoding.
+- 🔔 Monochrome icons distinguish reminders, progress and warnings. Notifications support semantic colors on Android 17.
+- 📌 `versionCode` **99**.
+
 ### v0.6.9.6
 
 - 💬 Long answers are parsed as the display refreshes, reducing repeated processing while streaming.

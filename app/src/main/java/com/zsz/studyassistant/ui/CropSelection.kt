@@ -9,6 +9,18 @@ import androidx.compose.ui.geometry.Rect
 internal class CropSelection {
     var fraction by mutableStateOf<Rect?>(null)
     var touched by mutableStateOf(false)
+    var autoJob: kotlinx.coroutines.Job? = null
+    private var hasAiResult = false
+
+    /** AI has priority over the local suggestion, and a user's selection has priority over both. */
+    fun suggest(box: com.zsz.studyassistant.data.ImageAutoCrop.NormRect?, ai: Boolean, bounds: Rect) {
+        if (box == null || touched || hasAiResult || box.looksUnreliable() || box.touchesEdge()) return
+        hasAiResult = ai
+        val display = DisplayedCrop(this).apply { this.bounds = bounds }
+        val r = Rect(bounds.left + box.x * bounds.width, bounds.top + box.y * bounds.height,
+            bounds.left + (box.x + box.w) * bounds.width, bounds.top + (box.y + box.h) * bounds.height)
+        display.rect = normalizeSelRect(r, bounds)
+    }
 }
 
 internal class DisplayedCrop(private val source: CropSelection) {

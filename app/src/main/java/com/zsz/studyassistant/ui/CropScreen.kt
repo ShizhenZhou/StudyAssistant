@@ -117,10 +117,6 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     fun normalizeSel() { selection.rect = selection.rect?.let { normalizeSelRect(it, selection.bounds) } }
     // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
     // ★ 2026-10-13：现在**手指一按下就置位**（见手势层的 awaitFirstDown），堵住"按下→超过 touch slop"那段窗口。
-    // 是否已跑过一次自动识别（每次换图重来）
-    var autoTried by remember(path) { mutableStateOf(false) }
-    // AI 预框选每次换图只请求一次
-    var aiLaunched by remember(path) { mutableStateOf(false) }
     // 手动 AI 识别中
     var aiBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -215,47 +211,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         selection.rect = Rect(disp.center.x - w / 2, disp.center.y - h / 2,
                             disp.center.x + w / 2, disp.center.y + h / 2)
                     }
-                    // ── 预框选（总预算 0.5 秒）：本地算法与 AI **并行**跑 ──
-                    //   · 本地结果（约 100ms）先应用，页面立刻有框
-                    //   · AI 若在 500ms 内返回且合法 → 覆盖本地结果
-                    //   · 两者都不可靠 → 保持默认框
-                    //   · 「AI 切图」关掉时**不请求 AI**，只用本地算法
-                    val p = path ?: return@LaunchedEffect
-                    if (autoTried || region.touched) return@LaunchedEffect
-                    autoTried = true
-                    val bytes = runCatching {
-                        withContext(Dispatchers.IO) { java.io.File(p).readBytes() }
-                    }.getOrNull()
-                    // ★ AI 请求挂到 composable 作用域的 scope 上（**不在这里 await**）：
-                    //   本 effect 的键含 disp，而 disp 在页面布局稳定时会变 → effect 重启；
-                    //   若在 effect 内 await，请求会被取消，AI 预框选等于白等（曾长期拿不到结果）。
-                    if (aiCropOn && bytes != null && !aiLaunched) {
-                        aiLaunched = true
-                        scope.launch {
-                            val ai = runCatching {
-                                StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs)
-                            }.getOrNull()?.maxByOrNull { it.area }
-                                ?.takeIf { !it.looksUnreliable() }
-                                // ★ 2026-10-13：把作者当年写好的"贴边就丢弃"防线**接上**（原来零调用）——
-                                //   AI/本地给出的贴边框（y≈0 等）会让上边正好落在图片顶边，看起来就是"上边蹦到最上边"。
-                                ?.takeIf { !it.touchesEdge() }
-                            if (ai == null || region.touched) return@launch
-                            val d = selection.bounds
-                            if (d.width < 2f) return@launch
-                            selection.rect = normalizeSelRect(toDisp(ai, d), d)
-                        }
-                    }
-                    // ① 本地投影法：毫秒级，先出结果
-                    val local = runCatching {
-                        withContext(Dispatchers.Default) {
-                            com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p)
-                        }
-                    }.getOrNull()
-                    // ★ 同样接上 touchesEdge 防线（贴顶/贴边的"一页一题"框不要，回退默认框）
-                    val localOk = local?.takeIf { !it.looksUnreliable() }?.takeIf { !it.touchesEdge() }
-                    if (localOk != null && !region.touched) {
-                        selection.rect = normalizeSelRect(toDisp(localOk, disp), disp)
-                    }
+                    path?.let { vm.startAutoCrop(it, disp, aiCropOn, aiCropMs) }
                 }
 
                 // 自动框选提示的 3 秒淡出计时：提示本身已按用户要求移除（见下方底部按钮区），计时一并去掉
@@ -535,6 +491,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     TextButton(
                         enabled = !aiBusy,
                         onClick = {
+                            region.touched = true
                             aiBusy = true
                             scope.launch {
                                 val p2 = vm.currentCropPath

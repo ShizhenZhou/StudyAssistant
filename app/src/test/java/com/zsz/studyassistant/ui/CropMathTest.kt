@@ -17,6 +17,22 @@ import org.junit.Test
  */
 class CropMathTest {
     @Test
+    fun lateAutoResultsRespectAiAndManualSelections() {
+        val region = CropSelection()
+        val bounds = Rect(0f, 0f, 800f, 600f)
+        val ai = com.zsz.studyassistant.data.ImageAutoCrop.NormRect(.2f, .2f, .4f, .4f)
+        val local = ai.copy(x = .1f)
+        region.suggest(ai, ai = true, bounds)
+        val accepted = requireNotNull(region.fraction)
+        region.suggest(local, ai = false, bounds)
+        assertEquals(accepted, region.fraction)
+        region.touched = true
+        region.fraction = Rect(.3f, .3f, .7f, .7f)
+        region.suggest(ai, ai = true, bounds)
+        assertEquals(Rect(.3f, .3f, .7f, .7f), region.fraction)
+    }
+
+    @Test
     fun manualRegionKeepsImageCoordinatesAcrossRecreation() {
         val region = CropSelection()
         val before = DisplayedCrop(region)
