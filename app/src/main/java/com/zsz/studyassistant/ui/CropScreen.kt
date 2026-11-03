@@ -118,7 +118,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
     // ★ 2026-10-13：现在**手指一按下就置位**（见手势层的 awaitFirstDown），堵住"按下→超过 touch slop"那段窗口。
     // 手动 AI 识别中
-    var aiBusy by remember(path) { mutableStateOf(false) }
+    val aiBusy = region.status == "crop.aiBusy"
     val scope = rememberCoroutineScope()
     var submitting by remember { mutableStateOf(false) }
     var imageFailed by remember(path) { mutableStateOf(false) }
@@ -152,20 +152,6 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 afterSubmit()
             } finally { submitting = false }
         }
-    }
-
-    /** 归一化矩形 → 屏幕显示坐标（相对当前显示的图片区域） */
-    fun toDisp(n: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, d: Rect): Rect {
-        // 布局未就绪 / 缩放过程中 d 可能退化（宽或高接近 0）→ 直接返回，避免后续出现非法区间
-    if (d.width < 2f || d.height < 2f) return Rect(d.left, d.top, d.left + 1f, d.top + 1f)
-    val l = d.left + n.x * d.width
-        val t = d.top + n.y * d.height
-        val r = l + n.w * d.width
-        val b = t + n.h * d.height
-        return Rect(
-            safeCoerceRange(l, d.left, d.right - 8f), safeCoerceRange(t, d.top, d.bottom - 8f),
-            safeCoerceRange(r, d.left + 8f, d.right), safeCoerceRange(b, d.top + 8f, d.bottom)
-        )
     }
 
     // 缩放 / 平移（双指捏合调整图片大小；1x~4x）
@@ -211,7 +197,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         selection.rect = Rect(disp.center.x - w / 2, disp.center.y - h / 2,
                             disp.center.x + w / 2, disp.center.y + h / 2)
                     }
-                    path?.let { vm.startAutoCrop(it, disp, aiCropOn, aiCropMs) }
+                    path?.let { vm.detectCrop(it, disp, aiCropOn, aiCropMs) }
                 }
 
                 // 自动框选提示的 3 秒淡出计时：提示本身已按用户要求移除（见下方底部按钮区），计时一并去掉
@@ -427,6 +413,9 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 .navigationBarsPadding()
                 .padding(16.dp)
         ) {
+            if (aiCropOn) region.status?.let { key ->
+                Text(s[key], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             // 多张时提示当前是第几张
             if (vm.cropTotal > 1) {
                 Text(
@@ -485,37 +474,18 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
             if (imageFailed) Text(s["crop.noImage"], color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                // AI 自动框选：等待「AI 框选时限 + 1s」；AI 不行就用本地算法；都不行恢复默认框
+                // Manual detection uses the same deadline and retains the current selection on failure.
                 // ★ 「AI 切图」关掉时不显示这个按钮（它本质就是手动跑一次 AI），只留「返回」
                 if (aiCropOn) {
                     TextButton(
                         enabled = !aiBusy,
                         onClick = {
                             val p = path ?: return@TextButton
-                            val edit = region.touch()
-                            aiBusy = true
                             zoom = 1f
                             panX = 0f
                             panY = 0f
                             if (dispBase.width > 1f) selection.bounds = dispBase
-                            scope.launch {
-                                try {
-                                    val best = withContext(Dispatchers.IO) {
-                                        val ai = try {
-                                            StudyAssistant.detectQuestionBoxesAi(java.io.File(p).readBytes(), aiCropMs + 1000L)
-                                                ?.maxByOrNull { it.area }
-                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                        catch (_: Exception) { null }
-                                        ai ?: runCatching { com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p) }.getOrNull()
-                                            ?.takeUnless { it.looksUnreliable() }
-                                    }
-                                    if (vm.currentCropPath != p || !region.isLatestEdit(edit)) return@launch
-                                    val bounds = selection.bounds
-                                    selection.rect = if (best != null) normalizeSelRect(toDisp(best, bounds), bounds)
-                                        else Rect(bounds.left + bounds.width * .15f, bounds.top + bounds.height * .15f,
-                                            bounds.right - bounds.width * .15f, bounds.bottom - bounds.height * .15f)
-                                } finally { aiBusy = false }
-                            }
+                            vm.detectCrop(p, selection.bounds, true, aiCropMs, manual = true)
                         }
                     ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"]) }
                 }

@@ -43,6 +43,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.6.9.8_beta
+
+- ✂️ Slide past the 5-second stop to select ∞ and wait for AI cropping without a deadline.
+- 📷 Improved image preparation and crop selection. The crop page shows when AI applies a result, times out or fails, and respects manual edits.
+- 🛠️ Fixed edge cases in draft recovery, share cancellation, multi-selection and beta download notices.
+- 📌 `versionCode` **100**.
+
 ### v0.6.9.7
 
 - ✍️ Keep manual crops, unsent questions, quotes and attachments across window changes, and restore the active editor.

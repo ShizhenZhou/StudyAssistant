@@ -13,6 +13,8 @@ internal class CropSelection {
     private var editRevision = 0L
 
     fun touch(): Long {
+        cancelDetection()
+        status = null
         touched = true
         return ++editRevision
     }
@@ -20,12 +22,29 @@ internal class CropSelection {
     fun isLatestEdit(revision: Long) = editRevision == revision
 
     var autoJob: kotlinx.coroutines.Job? = null
+    var status by mutableStateOf<String?>(null)
     private var hasAiResult = false
+
+    fun cancelDetection() {
+        if (autoJob?.isActive == true) {
+            autoJob?.cancel()
+            autoJob = null
+            if (status == "crop.aiBusy") status = null
+        }
+    }
+
+    fun applyManual(box: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, bounds: Rect) {
+        setBox(box, bounds)
+    }
 
     /** AI has priority over the local suggestion, and a user's selection has priority over both. */
     fun suggest(box: com.zsz.studyassistant.data.ImageAutoCrop.NormRect?, ai: Boolean, bounds: Rect) {
         if (box == null || touched || hasAiResult || box.looksUnreliable() || box.touchesEdge()) return
         hasAiResult = ai
+        setBox(box, bounds)
+    }
+
+    private fun setBox(box: com.zsz.studyassistant.data.ImageAutoCrop.NormRect, bounds: Rect) {
         val display = DisplayedCrop(this).apply { this.bounds = bounds }
         val r = Rect(bounds.left + box.x * bounds.width, bounds.top + box.y * bounds.height,
             bounds.left + (box.x + box.w) * bounds.width, bounds.top + (box.y + box.h) * bounds.height)

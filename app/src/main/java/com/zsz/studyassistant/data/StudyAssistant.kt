@@ -7,6 +7,7 @@ import java.io.File
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
@@ -541,19 +542,23 @@ object StudyAssistant {
 
     private fun JsonElement.asText(): String = (this as? JsonPrimitive)?.content ?: toString()
 
-    /**
-     * 让视觉模型标出**题目区域**（相对坐标 0~1）。
-     * 超时（默认 2.6s）、解析失败或坐标不合法都返回 null —— 调用方据此回退到本地检测结果 / 默认框。
-     */
-    suspend fun detectQuestionBoxesAi(
-        imageBytes: ByteArray,
-        timeoutMs: Long = 500
-    ): List<ImageAutoCrop.NormRect>? {
-        requireKey()
-        val b64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+    internal data class CropAiResult(val status: String, val box: ImageAutoCrop.NormRect? = null)
+
+    /** Prepare an oriented JPEG; gallery formats and full-size camera files need not be valid API images. */
+    internal suspend fun detectCrop(path: String, timeoutMs: Long, manual: Boolean): CropAiResult {
+        return try {
+            if (KeyManager.getApiKey().isBlank()) return CropAiResult("crop.aiKey")
+            val jpeg = compressImage(File(path), maxDim = 1280)
+            val b64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
+            requestCrop(b64, timeoutMs, manual)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { CropAiResult("crop.aiError") }
+    }
+
+    private suspend fun requestCrop(b64: String, timeoutMs: Long, manual: Boolean): CropAiResult {
         val prompt = "你是图像分析助手。找出图中每一道题目的正文区域（包含题干文字与题图、包含选项；" +
             "不要包含页眉页脚、\"提交\"按钮、手写笔记或已作答内容）。" +
-            "只输出 JSON，不要任何解释：{\"boxes\":[{\"x\":0.05,\"y\":0.35,\"w\":0.9,\"h\":0.12}]}。" +
+            "只输出 json，不要任何解释：{\"boxes\":[{\"x\":0.05,\"y\":0.35,\"w\":0.9,\"h\":0.12}]}。" +
             "坐标是相对整张图的 0~1 比例值：x/y 为左上角，w/h 为宽高。"
         val parts = buildJsonArray {
             addJsonObject {
@@ -565,39 +570,35 @@ object StudyAssistant {
                 putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$b64") }
             }
         }
-        val resp = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
-            ApiClient.deepSeek.chat(
-                DeepSeekRequest(
-                    model = MODEL_VISION,
-                    messages = listOf(DeepSeekMessage("user", parts)),
-                    maxTokens = 300,
-                    temperature = 0.0
-                )
-            )
-        } ?: return null
+        val api = if (timeoutMs == CropWait.UNLIMITED) ApiClient.unlimitedCrop else ApiClient.deepSeek
+        val resp = CropWait.await(timeoutMs) {
+            api.chat(DeepSeekRequest(model = MODEL_VISION, messages = listOf(DeepSeekMessage("user", parts)),
+                maxTokens = 512, temperature = 0.0, thinking = ThinkingOption("disabled"),
+                responseFormat = DeepSeekResponseFormat("json_object")))
+        } ?: return CropAiResult("crop.aiTimeout")
         lastUsage = resp.usage
-        val txt = resp.choices.firstOrNull()?.message?.content?.asText() ?: return null
-        val s = txt.indexOf('{')
-        val e = txt.lastIndexOf('}')
-        if (s < 0 || e <= s) return null
-        return runCatching {
-            val root = Json.parseToJsonElement(txt.substring(s, e + 1)).jsonObject
-            val arr = root["boxes"]?.jsonArray ?: return null
-            arr.mapNotNull { el ->
-                val o = el.jsonObject
-                val x = o["x"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
-                val y = o["y"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
-                val w = o["w"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
-                val h = o["h"]?.jsonPrimitive?.floatOrNull ?: return@mapNotNull null
-                if (w <= 0.02f || h <= 0.02f) return@mapNotNull null
-                ImageAutoCrop.NormRect(
-                    x.coerceIn(0f, 0.99f),
-                    y.coerceIn(0f, 0.99f),
-                    w.coerceIn(0.03f, 1f),
-                    h.coerceIn(0.03f, 1f)
-                )
-            }
-        }.getOrNull()?.takeIf { it.isNotEmpty() }
+        val box = parseCropBox(resp.choices.firstOrNull()?.message?.content?.asText().orEmpty(), manual)
+        return if (box == null) CropAiResult("crop.aiNoBox") else CropAiResult("crop.aiApplied", box)
+    }
+
+    internal fun parseCropBox(text: String, manual: Boolean = false): ImageAutoCrop.NormRect? {
+        val start = text.indexOf('{')
+        val end = text.lastIndexOf('}')
+        if (start < 0 || end <= start) return null
+        val boxes = runCatching { Json.parseToJsonElement(text.substring(start, end + 1)).jsonObject["boxes"]?.jsonArray }
+            .getOrNull() ?: return null
+        val valid = boxes.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            fun coordinate(key: String) = (o[key] as? JsonPrimitive)?.floatOrNull?.takeIf { it.isFinite() && it in 0f..1f }
+            val x = coordinate("x") ?: return@mapNotNull null
+            val y = coordinate("y") ?: return@mapNotNull null
+            val w = coordinate("w") ?: return@mapNotNull null
+            val h = coordinate("h") ?: return@mapNotNull null
+            val box = ImageAutoCrop.NormRect(x, y, minOf(w, 1f - x), minOf(h, 1f - y))
+            box.takeIf { it.w > .02f && it.h > .02f }
+        }
+        return valid.filterNot { it.touchesEdge() || it.looksUnreliable() }.maxByOrNull { it.area }
+            ?: if (manual) valid.maxByOrNull { it.area } else null
     }
 
     /** 同类题结果：AI 出的题目 + 完整解答 */

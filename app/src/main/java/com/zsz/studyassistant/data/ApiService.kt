@@ -37,21 +37,22 @@ object ApiClient {
         chain.proceed(req)
     }
 
-    val deepSeek: DeepSeekService by lazy {
-        val client = OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            // 视觉模型带长推理 + 大图片上传，默认 10s 超时会导致 timeout，放宽到 3 分钟
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .callTimeout(180, TimeUnit.SECONDS)
-            .build()
-        Retrofit.Builder()
-            .baseUrl("https://api.deepseek.com/")
-            .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
-            .create(DeepSeekService::class.java)
+    private val client by lazy {
+        OkHttpClient.Builder().addInterceptor(authInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS).writeTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS).callTimeout(180, TimeUnit.SECONDS).build()
+    }
+
+    private fun service(client: OkHttpClient): DeepSeekService = Retrofit.Builder()
+        .baseUrl("https://api.deepseek.com/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build().create(DeepSeekService::class.java)
+
+    val deepSeek: DeepSeekService by lazy { service(client) }
+    // Only the explicitly unlimited crop request may wait indefinitely for a response.
+    val unlimitedCrop: DeepSeekService by lazy {
+        service(client.newBuilder().callTimeout(0, TimeUnit.SECONDS).readTimeout(0, TimeUnit.SECONDS).build())
     }
 
     /**

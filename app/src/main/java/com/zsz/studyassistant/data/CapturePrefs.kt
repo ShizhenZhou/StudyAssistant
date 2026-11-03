@@ -58,12 +58,12 @@ private const val KEY_THINK_EXPAND = "think_expand_pref"  // 思考区展开/折
     fun setThinkExpandPref(c: Context, v: String) =
         prefs(c).edit().putString(KEY_THINK_EXPAND, if (v == "open" || v == "closed") v else "auto").apply()
 
-    /** 「通用 → AI 框选时限」：AI 自动框选的等待上限，默认 500ms，范围 100~5000ms */
+    /** 「通用 → AI 框选时限」：AI 自动框选的等待上限，0 表示不限时；旧设置保留，未设置默认 5s */
     fun aiCropTimeoutMs(c: Context): Long =
-        prefs(c).getLong(KEY_AI_CROP_MS, 500L).coerceIn(100L, 5000L)
+        CropWait.normalize(prefs(c).getLong(KEY_AI_CROP_MS, 5000L))
 
     fun setAiCropTimeoutMs(c: Context, v: Long) =
-        prefs(c).edit().putLong(KEY_AI_CROP_MS, v.coerceIn(100L, 5000L)).apply()
+        prefs(c).edit().putLong(KEY_AI_CROP_MS, CropWait.normalize(v)).apply()
 
     /** 批改页：上次是否为「两张」模式 */
     fun gradeDouble(c: Context): Boolean = prefs(c).getBoolean(KEY_GRADE_DOUBLE, false)

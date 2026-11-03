@@ -15,8 +15,8 @@ plugins {
 // 版本号约定（2026-09-25 用户确定）：
 //   · `0.x.x`   —— 每次都要在 README「版本记录」+ App 内「更新内容」记一次
 //   · `0.x.x.x` —— 同系列小修补（patch），也要在 README + App 四语言「更新内容」记录
-//   · 正式后继版本递增 versionCode；0.6.9.7 使用 99，可覆盖此前正式版与 Beta。
-val appVersionName = "0.6.9.7"
+//   · 本次公开 Beta 使用 100；后继正式版继续递增。
+val appVersionName = "0.6.9.8_beta"
 
 // Generated only when build inputs change; one UTC identity is shared by embedded metadata and APK names.
 abstract class GenerateBuildStamp : DefaultTask() {
@@ -70,7 +70,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 36
         targetSdk = 37
-        versionCode = 99
+        versionCode = 100
         versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

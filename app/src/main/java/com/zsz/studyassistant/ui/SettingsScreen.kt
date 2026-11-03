@@ -63,7 +63,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
-import kotlin.math.pow
+import com.zsz.studyassistant.data.CropWait
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
 import kotlin.math.ln
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -506,15 +508,12 @@ private fun AiCropTimeoutSettings() {
         mutableFloatStateOf(com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx).toFloat())
     }
 
-    val minMs = 100f
-    val maxMs = 5000f
-    val ratio = maxMs / minMs
-    fun tToMs(t: Float): Float = minMs * ratio.pow(t)
-    fun msToT(m: Float): Float =
-        (ln((m / minMs).coerceAtLeast(1.0001f)) / ln(ratio)).coerceIn(0f, 1f)
-
-    fun fmt(v: Float): String =
-        if (v < 1000f) "${v.roundToInt()} ms" else String.format("%.2f s", v / 1000f)
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    fun fmt(v: Float): String = when {
+        v == CropWait.UNLIMITED.toFloat() -> "∞"
+        v < 1000f -> "${v.roundToInt()} ms"
+        else -> String.format("%.2f s", v / 1000f)
+    }
 
     val snapPoints = listOf(100f, 500f, 1000f, 3000f, 5000f)
 
@@ -539,14 +538,15 @@ private fun AiCropTimeoutSettings() {
             onMs = { v ->
                 var m = v
                 snapPoints.forEach { sp -> if (abs(m - sp) / sp < 0.08f) m = sp }
+                if (m == 0f && ms != 0f) haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                 ms = m
             },
             onCommit = {
                 com.zsz.studyassistant.data.CapturePrefs.setAiCropTimeoutMs(ctx, ms.toLong())
             },
-            fmt = ::fmt,
-            msToT = ::msToT,
-            tToMs = ::tToMs
+            display = fmt(ms),
+            msToT = { CropWait.position(it.toLong()) },
+            tToMs = { CropWait.fromPosition(it, ms.toLong()).toFloat() }
         )
     }
 }
@@ -607,14 +607,14 @@ private fun AiCropSlider(
     ms: Float,
     onMs: (Float) -> Unit,
     onCommit: () -> Unit,
-    fmt: (Float) -> String,
+    display: String,
     msToT: (Float) -> Float,
     tToMs: (Float) -> Float
 ) {
-    val tickVals = listOf(100f, 500f, 1000f, 3000f, 5000f)
+    val tickVals = listOf(100f, 500f, 1000f, 3000f, 5000f, 0f)
     // 刻度用紧凑写法：整秒不带小数（3.00 s → 3 s），否则末尾两个标签会挤在一起
     fun fmtTick(v: Float): String =
-        if (v < 1000f) "${v.roundToInt()} ms"
+        if (v == 0f) "∞" else if (v < 1000f) "${v.roundToInt()} ms"
         else {
             val sec = v / 1000f
             if (sec % 1f == 0f) "${sec.roundToInt()} s" else String.format("%.1f s", sec)
@@ -623,24 +623,29 @@ private fun AiCropSlider(
     val labelColor = MaterialTheme.colorScheme.outline
     val active = MaterialTheme.colorScheme.primary
     val inactive = MaterialTheme.colorScheme.surfaceVariant
-    var widthPx by remember { mutableFloatStateOf(1f) }
+
 
     Box(
         Modifier
             .fillMaxWidth()
             .height(64.dp)
+            .semantics {
+                stateDescription = display
+                progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(msToT(ms), 0f..1f)
+                setProgress { t -> onMs(tToMs(t)); onCommit(); true }
+            }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragEnd = { onCommit() }
                 ) { change, _ ->
-                    val t = (change.position.x / widthPx).coerceIn(0f, 1f)
+                    val t = (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
                     onMs(tToMs(t))
                     change.consume()
                 }
             }
             .pointerInput(Unit) {
                 detectTapGestures { pos ->
-                    val t = (pos.x / widthPx).coerceIn(0f, 1f)
+                    val t = (pos.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
                     onMs(tToMs(t))
                     onCommit()
                 }
@@ -648,7 +653,6 @@ private fun AiCropSlider(
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
-            widthPx = w
             val trackY = 18.dp.toPx()
             val trackH = 8.dp.toPx()
             val radius = androidx.compose.ui.geometry.CornerRadius(trackH / 2f)
@@ -667,6 +671,9 @@ private fun AiCropSlider(
                 size = Size((w * t).coerceAtLeast(trackH), trackH),
                 cornerRadius = radius
             )
+            // The thumb holds at 5 s while the finger crosses this detent toward infinity.
+            drawLine(active, Offset(w * CropWait.DETENT, trackY - 6.dp.toPx()),
+                Offset(w * CropWait.DETENT, trackY + 6.dp.toPx()), strokeWidth = 2.dp.toPx())
             // 滑块（细竖条，中心正好在 w*t）
             val thumbW = 4.dp.toPx()
             val thumbH = 26.dp.toPx()

@@ -1073,30 +1073,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     internal fun cropSelection(path: String) = selections.getOrPut(path) { com.zsz.studyassistant.ui.CropSelection() }
 
     /** Own detection in the capture flow, so replacing an Activity doesn't restart an AI request. */
-    internal fun startAutoCrop(path: String, bounds: androidx.compose.ui.geometry.Rect, useAi: Boolean, timeout: Long) {
+    internal fun detectCrop(path: String, bounds: androidx.compose.ui.geometry.Rect, useAi: Boolean, timeout: Long,
+                            manual: Boolean = false) {
+        if (currentCropPath != path) return
         val region = cropSelection(path)
-        if (region.touched || region.autoJob != null || currentCropPath != path) return
+        if (!manual && (region.touched || region.autoJob != null)) return
+        val edit = if (manual) region.touch() else null
         region.autoJob = viewModelScope.launch {
-            launch {
+            if (!manual) launch {
                 val box = withContext(Dispatchers.Default) {
                     runCatching { com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(path) }.getOrNull()
                 }
                 region.suggest(box, ai = false, bounds)
             }
             if (useAi) {
-                val box = try {
-                    withContext(Dispatchers.IO) {
-                        StudyAssistant.detectQuestionBoxesAi(java.io.File(path).readBytes(), timeout)?.maxByOrNull { it.area }
-                    }
-                } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { null }
-                region.suggest(box, ai = true, bounds)
+                region.status = "crop.aiBusy"
+                val result = withContext(Dispatchers.IO) { StudyAssistant.detectCrop(path, timeout, manual) }
+                if (currentCropPath != path || (edit != null && !region.isLatestEdit(edit))) return@launch
+                result.box?.let { box ->
+                    if (manual) region.applyManual(box, bounds) else region.suggest(box, ai = true, bounds)
+                }
+                region.status = result.status
             }
         }
     }
 
     private fun clearCropSelections() {
-        selections.values.forEach { it.autoJob?.cancel() }
+        selections.values.forEach { it.cancelDetection() }
         selections.clear()
     }
 
@@ -1127,6 +1130,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 提交当前这张的框选结果：还有下一张就前进；否则凑够张数就进入解题/批改，不够就回拍摄界面 */
     fun submitCropResult(bytes: ByteArray) {
+        selections[currentCropPath]?.cancelDetection()
         cropResults.add(bytes)
         if (cropIndex + 1 < cropPaths.size) {
             cropIndex += 1
@@ -1143,6 +1147,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (currentCropPath == null) return false
         // Commit the batch only after every input decoded; dropping one changes question/answer roles.
         val decoded = cropPaths.drop(cropIndex).map { decode(it)?.takeIf { bytes -> bytes.isNotEmpty() } ?: return false }
+        selections[currentCropPath]?.cancelDetection()
         cropResults.addAll(decoded)
         cropIndex = cropPaths.size
         if (cropResults.size < cropExpect) { cropNeedsMore = true; checkpointCaptureFlow() } else finishCropFlow()
@@ -1399,6 +1404,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 两张模式：从第 2 张返回第 1 张重新框（丢弃第 1 张已提交的结果，保持队列一致） */
     fun cropGoBackOne() {
         if (cropIndex <= 0) return
+        selections[currentCropPath]?.cancelDetection()
         if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
         cropIndex -= 1
         cropNeedsMore = false
