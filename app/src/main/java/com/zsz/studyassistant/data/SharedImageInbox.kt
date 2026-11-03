@@ -11,6 +11,10 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -23,6 +27,7 @@ class SharedImageInbox(private val context: Context, private val scope: Coroutin
     var errorKey by mutableStateOf<String?>(null)
         private set
     private var generation = 0
+    private var importJob: Job? = null
 
     fun receive(intent: Intent) {
         if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return
@@ -37,18 +42,21 @@ class SharedImageInbox(private val context: Context, private val scope: Coroutin
                 else (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
             }
             if (intent.type?.startsWith("image/") != true || uris.size !in 1..2 ||
-                uris.any { it.scheme != "content" || it.authority == "${context.packageName}.fileprovider" }) {
+                uris.any { it.scheme != "content" ||
+                    it.authority?.substringAfterLast('@') == "${context.packageName}.fileprovider" }) {
                 errorKey = "share.invalid"; return
             }
             loading = true
             errorKey = null
             val ticket = ++generation
-            scope.launch {
+            importJob = scope.launch {
                 val staged = mutableListOf<File>()
                 var accepted = false
                 try {
-                    withContext(Dispatchers.IO + NonCancellable) {
+                    val job = currentCoroutineContext()
+                    runInterruptible(Dispatchers.IO) {
                         for (uri in uris) {
+                            job.ensureActive()
                             val type = context.contentResolver.getType(uri)
                             require(type == null || type.startsWith("image/") || type == "application/octet-stream")
                             val file = File.createTempFile("shared_", ".img", context.cacheDir)
@@ -58,6 +66,7 @@ class SharedImageInbox(private val context: Context, private val scope: Coroutin
                                 val buffer = ByteArray(32 * 1024)
                                 var total = 0L
                                 while (true) {
+                                    job.ensureActive()
                                     val count = source.read(buffer)
                                     if (count < 0) break
                                     total += count
@@ -97,6 +106,8 @@ class SharedImageInbox(private val context: Context, private val scope: Coroutin
 
     fun discard() {
         generation++
+        importJob?.cancel()
+        importJob = null
         loading = false
         val old = take()
         // This scope is deliberately independent: ViewModel cancellation must not skip deletion.

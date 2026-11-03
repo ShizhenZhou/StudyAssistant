@@ -145,7 +145,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     }
     var page by remember { mutableStateOf("list") }   // list / manage（科目管理）
     var selectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
+    var requestedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
     var showBatchCategory by remember { mutableStateOf(false) }
     var showBatchDelete by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
@@ -162,7 +162,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
         if (page != "list") { page = "list"; searchOpen = false } else closeSearch()
     }
 
-    fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
+    fun exitSelection() { selectionMode = false; requestedIds = emptySet() }
 
     // 每题 → 其 tagId 列表；tagId → Tag
     val qTagIds = remember(questionTags) { questionTags.groupBy { it.questionId }.mapValues { e -> e.value.map { it.tagId } } }
@@ -188,6 +188,13 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
 
+    // A refreshed list must never apply a batch action to rows no longer on screen.
+    val selectedIds = remember(filtered, requestedIds) {
+        if (requestedIds.isEmpty()) emptySet() else filtered.mapNotNullTo(mutableSetOf()) { row ->
+            row.id.takeIf { it in requestedIds }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -198,7 +205,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         // 全部不换行，避免被右侧按钮挤成两行
                         val allSelected = filtered.isNotEmpty() && selectedIds.size == filtered.size
                         SelectionSummary(selectedIds.size, allSelected, "notebook.selectedCount") {
-                            selectedIds = if (allSelected) emptySet() else filtered.map { it.id }.toSet()
+                            requestedIds = if (allSelected) emptySet() else filtered.map { it.id }.toSet()
                         }
                     } else {
                         // 页标题：只写「错题本」（题数已挪到「按标签搜索」那一行右侧 → 「当前列表共 N 题」）
@@ -408,7 +415,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             selected = selectedIds.contains(q.id),
                             onClick = {
                                 if (selectionMode) {
-                                    selectedIds = if (selectedIds.contains(q.id)) selectedIds - q.id else selectedIds + q.id
+                                    requestedIds = if (selectedIds.contains(q.id)) selectedIds - q.id else selectedIds + q.id
                                 } else {
                                     vm.openNotebookQuestion(q.id) { AppNav.openSolve(nav, AppNav.Origin.NOTEBOOK) }
                                 }
@@ -417,7 +424,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                                 if (!selectionMode) {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     selectionMode = true
-                                    selectedIds = selectedIds + q.id
+                                    requestedIds = selectedIds + q.id
                                 }
                             }
                         )

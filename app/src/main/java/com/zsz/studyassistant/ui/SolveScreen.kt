@@ -166,9 +166,6 @@ fun SolveScreen(
     val categories by vm.categories.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
-    var editMode by remember { mutableStateOf(false) }
-    var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var showEditDelete by remember { mutableStateOf(false) }
     // 复习模式：默认先只给题目，自己回忆后再展开解答
     var answerRevealed by remember { mutableStateOf(false) }
     LaunchedEffect(vm.savedQuestionId) { answerRevealed = false }
@@ -315,6 +312,10 @@ fun SolveScreen(
     val sourceIndices = remember(vm.chatItems, mappedMessages) {
         com.zsz.studyassistant.messageIndicesForKeys(vm.chatItems, mappedMessages.map { it.messageKey })
     }
+    val visibleKeys = remember(mappedMessages) { mappedMessages.map { it.messageKey } }
+    var editMode by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf(false) }
+    var selectedIndices by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf<Set<Int>>(emptySet()) }
+    var showEditDelete by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf(false) }
     fun isSelectableIndexOf(idx: Int): Boolean =
         sourceIndices.getOrNull(idx) != null || (virtualTailIndex >= 0 && idx == virtualTailIndex)
 

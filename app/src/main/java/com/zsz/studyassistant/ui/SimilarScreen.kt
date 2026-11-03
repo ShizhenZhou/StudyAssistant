@@ -58,9 +58,6 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
     var input by remember { mutableStateOf("") }
     // 多选（长按进入）：与原消息界面就地操作
-    var editMode by remember { mutableStateOf(false) }
-    var selectedIndices by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
     // 思考区展开/折叠的全局记忆（与解题页共用同一份偏好，跨题目一致）
     var thinkPref by remember {
@@ -106,7 +103,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     val revealed = vm.similarRevealed
     // ⚠️ remember 的键必须包含「出题被中止」与「忙碌」状态，否则中止后不会重算 → 蓝色「继续生成」永远不出现
     val messages = remember(
-        vm.similarQuestion,
+        question, answer, s,
         vm.similarMessages,
         revealed,
         vm.similarStreamingText,
@@ -136,6 +133,9 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
 
+    var editMode by remember(question, vm.similarMessages, revealed, vm.similarBusy) { mutableStateOf(false) }
+    var selectedIndices by remember(question, vm.similarMessages, revealed, vm.similarBusy) { mutableStateOf<Set<Int>>(emptySet()) }
+    var showDeleteConfirm by remember(question, vm.similarMessages, revealed, vm.similarBusy) { mutableStateOf(false) }
     // 多选时禁止删除：AI 出的题目（第一条 assistant 消息）
     val lockedIndices = remember(messages) {
         buildSet {

@@ -26,7 +26,9 @@ class CropMathTest {
         val accepted = requireNotNull(region.fraction)
         region.suggest(local, ai = false, bounds)
         assertEquals(accepted, region.fraction)
-        region.touched = true
+        val pendingRequest = region.touch()
+        region.touch()
+        assertTrue(!region.isLatestEdit(pendingRequest))
         region.fraction = Rect(.3f, .3f, .7f, .7f)
         region.suggest(ai, ai = true, bounds)
         assertEquals(Rect(.3f, .3f, .7f, .7f), region.fraction)

@@ -9,6 +9,16 @@ import androidx.compose.ui.geometry.Rect
 internal class CropSelection {
     var fraction by mutableStateOf<Rect?>(null)
     var touched by mutableStateOf(false)
+        private set
+    private var editRevision = 0L
+
+    fun touch(): Long {
+        touched = true
+        return ++editRevision
+    }
+
+    fun isLatestEdit(revision: Long) = editRevision == revision
+
     var autoJob: kotlinx.coroutines.Job? = null
     private var hasAiResult = false
 

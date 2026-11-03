@@ -82,11 +82,11 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val sessions=storedSessions.filterNot { it.id in deletes.historyIds }
 
     var selectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
+    var requestedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var opening by remember { mutableStateOf(false) }   // 取重字段期间防重复点击
 
-    fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
+    fun exitSelection() { selectionMode = false; requestedIds = emptySet() }
 
     // 返回键：选择模式 → 先退出选择，而不是直接退页面
     BackHandler(enabled = selectionMode) { exitSelection() }
@@ -100,6 +100,13 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     }
     val groups = remember(sessions, todayStart) { groupSolveSessionsByDay(sessions, todayStart) }
 
+    // A refreshed list must never apply a batch action to rows no longer on screen.
+    val selectedIds = remember(sessions, requestedIds) {
+        if (requestedIds.isEmpty()) emptySet() else sessions.mapNotNullTo(mutableSetOf()) { row ->
+            row.id.takeIf { it in requestedIds }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -107,7 +114,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                     if (selectionMode) {
                         val allSelected = sessions.isNotEmpty() && selectedIds.size == sessions.size
                         SelectionSummary(selectedIds.size, allSelected, "solve.selectedCount") {
-                            selectedIds = if (allSelected) emptySet() else sessions.map { it.id }.toSet()
+                            requestedIds = if (allSelected) emptySet() else sessions.map { it.id }.toSet()
                         }
                     } else {
                         // 标题与计数按中心线对齐；计数使用正文行高，避免继承大标题行高而显得偏上。
@@ -189,7 +196,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                         selected = selectedIds.contains(rec.id),
                         onClick = {
                             if (selectionMode) {
-                                selectedIds = if (selectedIds.contains(rec.id)) selectedIds - rec.id else selectedIds + rec.id
+                                requestedIds = if (selectedIds.contains(rec.id)) selectedIds - rec.id else selectedIds + rec.id
                             } else if (!opening) {
                                 // ★ 续答链路：轻查询拿不到重字段 → 先按 id 取整条 → 载回 VM → 进解题页
                                 opening = true
@@ -211,7 +218,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             if (!selectionMode) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 selectionMode = true
-                                selectedIds = selectedIds + rec.id
+                                requestedIds = selectedIds + rec.id
                             }
                         }
                     )

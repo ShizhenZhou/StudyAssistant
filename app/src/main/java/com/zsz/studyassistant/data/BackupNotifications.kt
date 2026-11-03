@@ -33,7 +33,7 @@ object BackupNotifications {
     fun canNotify(context: Context): Boolean {
         if (needsPermission(context) || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
         val manager = context.getSystemService(NotificationManager::class.java) ?: return false
-        return manager.getNotificationChannel(CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
+        return manager.getNotificationChannel(CHANNEL_ID)?.importance?.let { it != NotificationManager.IMPORTANCE_NONE } == true
     }
 
     fun failure(context: Context) {

@@ -51,7 +51,7 @@ object BackupImporter {
         })
         var sessionCount = 0
         for (s in file.solveSessions) {
-            if (dao.solveSessionOnce(s.id) != null) continue
+            if (dao.sessionLightOnce(s.id) != null) continue
             val images = BackupValidation.images(s.images)
             dao.insertSolveSession(SolveSession(id=s.id, createdAt=s.createdAt, updatedAt=s.updatedAt,
                 source=s.source, text=s.text, answer=s.answer, conversationJson=s.conversationJson,

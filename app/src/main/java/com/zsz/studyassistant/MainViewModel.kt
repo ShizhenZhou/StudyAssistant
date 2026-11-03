@@ -564,12 +564,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] }
         }
     }
+    private var resumeSequence = 0L
+
     fun resumeDraft(id: QuestionId, origin: String) {
         if(busy || reviewBusy || dataBusy) return
+        val request = ++resumeSequence
+        var expectedBinding = sessionRecordBinding
+        var expectedCall = callSeq
+        fun current() = request == resumeSequence && sessionRecordBinding === expectedBinding && callSeq == expectedCall
         viewModelScope.launch {
             try {
                 val value=draftWriteMutex.withLock { withContext(Dispatchers.IO) { checkNotNull(conversationDrafts.read(id)) } }
                 val row=solveSessionWriteMutex.withLock { dao.heavyOnce(id) }
+                if (!current()) return@launch
                 if (value.notebookId==null && row!=null) {
                     check(!row.deleted && id !in deletionState.value.questionIds)
                     check(com.zsz.studyassistant.data.ConversationDraftCodec.matchesNotebook(value, row)) { "Draft conflict" }
@@ -581,16 +588,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         val completed=value.completedChats?.let { chats -> com.zsz.studyassistant.data.SavePayload(id,value.createdAt,
                             value.completedQuestion ?: value.question,chats.lastOrNull { it.role=="assistant" }?.content.orEmpty(),json.encodeToString(chats)) }
                         if(completed!=null && actual==com.zsz.studyassistant.data.PendingSaveCodec.fingerprint(completed)) {
+                            if (!current()) return@launch
                             withContext(Dispatchers.IO) { conversationDrafts.clear(id,value.generation) }
-                            loadQuestion(row); refreshDrafts(); draftReturnOrigin=origin; draftSolveRequested=true
+                            if (!current()) return@launch
+                            loadQuestion(row)
+                            expectedBinding = sessionRecordBinding
+                            expectedCall = callSeq
+                            refreshDrafts()
+                            if (current()) { draftReturnOrigin=origin; draftSolveRequested=true }
                             return@launch
                         }
                         error("Draft conflict")
                     }
                 }
+                // Finish fallible reads before replacing the visible session.
+                val history = dao.sessionLightOnce(id)
+                val images = if (value.grade) emptyList() else withContext(Dispatchers.IO) {
+                    value.images.map { Base64.decode(it, Base64.NO_WRAP) }
+                }
+                val tags = row?.let { dao.tagIdsForQuestion(it.id) }.orEmpty()
+                val baseline = row?.let { withContext(Dispatchers.Default) { com.zsz.studyassistant.data.SavePayload.notebook(it) } }
+                if (!current() || busy || reviewBusy || dataBusy) return@launch
                 stopActiveGeneration()
                 resetSession()
-                val history=dao.solveSessionOnce(id)
+                expectedCall = callSeq
                 // Old grading never created a history row. Migrate only those legacy drafts;
                 // a modern deleted/pruned history must remain missing.
                 val legacyGrade = value.grade && !value.gradeHistoryEnabled && !value.historyAllowed &&
@@ -598,23 +619,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     id !in deletionState.value.historyIds && id !in deletionState.value.questionIds
                 sessionRecordBinding=SolveSessionBinding(id,value.createdAt,value.source,
                     historyAllowed=(value.historyAllowed && history!=null) || legacyGrade)
+                expectedBinding = sessionRecordBinding
                 questionText=value.question
                 isPhoto=value.photo; askMode=value.ask; gradeMode=value.grade
                 pendingRedoFor=value.redoFor
                 questionImages=value.images
-                directImages=if (value.grade) emptyList() else withContext(Dispatchers.IO) { value.images.map { Base64.decode(it,Base64.NO_WRAP) } }
+                directImages=images
                 imageBytes=directImages.firstOrNull()
                 savedQuestionId=row?.id; savedToNotebook=row!=null; isFromNotebook=row!=null
                 currentQuestionCreatedAt=value.createdAt
                 currentQuestionCategoryId=row?.categoryId
-                currentQuestionTags = row?.let { dao.tagIdsForQuestion(it.id) }.orEmpty()
-                currentNotebookBaseline=row?.let { com.zsz.studyassistant.data.SavePayload.notebook(it) }
+                currentQuestionTags = tags
+                currentNotebookBaseline=baseline
                 chatItems=value.base
                 conversationDrafts.reserve(value.id,value.generation)
                 val recovered = if (legacyGrade) value.copy(historyAllowed=true, gradeHistoryEnabled=true) else value
                 activeDraft=recovered
                 draftRevision=maxOf(draftRevision,value.revision)
                 if (legacyGrade) writeDraft(recovered.copy(revision=++draftRevision),currentNotebookBaseline)
+                if (!current()) return@launch
                 if(value.complete && value.completedChats!=null) {
                     chatItems=value.completedChats; questionText=value.completedQuestion ?: value.question
                     if (legacyGrade) recordSolveSession("grade", create=true)
@@ -632,10 +655,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     contDraftAction=value.action
                     contOnDone={ output -> applyRecoveredReply(value.action,output) }
                 }
+                if (!current()) return@launch
                 restoreGradeContext(value.grade)
-                refreshDrafts(); draftReturnOrigin=origin; draftSolveRequested=true
+                refreshDrafts()
+                if (current()) { draftReturnOrigin=origin; draftSolveRequested=true }
             } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"] }
+            catch (_: Exception) { if (current()) draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"] }
         }
     }
     private fun applyRecoveredReply(action: String, output: String) {
@@ -1351,8 +1376,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         classifying = true
         classificationJob = viewModelScope.launch {
             try {
-                val images = if (encoded.isEmpty()) rawImages else withContext(Dispatchers.Default) {
-                    encoded.map { Base64.decode(it, Base64.NO_WRAP) }
+                val images = if (encoded.isEmpty()) rawImages else try {
+                    withContext(Dispatchers.Default) { encoded.map { Base64.decode(it, Base64.NO_WRAP) } }
+                } catch (_: IllegalArgumentException) {
+                    return@launch // Malformed restored images must not crash an optional classification.
                 }
                 val (c, t) = request(q, categories, tags, images, needCategory, needTags)
                 if (classificationOwner !== owner || sessionRecordBinding !== binding) return@launch

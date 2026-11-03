@@ -222,7 +222,7 @@ internal class UpdateDownloads(
                 .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "updates/${destination.name}")
                 // Never advertise an unverified .apk to another app or launch an installer on completion.
                 // MIME is an immediately queryable ownership tag, including before COLUMN_LOCAL_URI exists.
-                .setMimeType("$MIME_PREFIX${destination.nameWithoutExtension}").setTitle("Study Assistant v${release.version}")
+                .setMimeType("$MIME_PREFIX${destination.nameWithoutExtension}").setTitle("Study Assistant v${release.displayVersion}")
                 .setDescription(strings["update.background"])
                 .setNotificationVisibility(if (appNotification) DownloadManager.Request.VISIBILITY_HIDDEN else DownloadManager.Request.VISIBILITY_VISIBLE)
                 .setAllowedOverMetered(true).setAllowedOverRoaming(false)

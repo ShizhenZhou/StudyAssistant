@@ -38,7 +38,7 @@ internal object UpdateDownloadNotifications {
         ensureChannel(context)
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
             NotificationManagerCompat.from(context).areNotificationsEnabled() &&
-            context.getSystemService(NotificationManager::class.java)?.getNotificationChannel(CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
+            context.getSystemService(NotificationManager::class.java)?.getNotificationChannel(CHANNEL_ID)?.importance?.let { it != NotificationManager.IMPORTANCE_NONE } == true
     } catch (_: Exception) { false }
     fun canReplaceNative(context: Context): Boolean = canPost(context) &&
         ContextCompat.checkSelfPermission(context, "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION") == PackageManager.PERMISSION_GRANTED
@@ -60,7 +60,7 @@ internal object UpdateDownloadNotifications {
         val error: String?, val version: String, val language: String, val locales: String, val color: Int
     )
     internal fun presentationKey(context: Context, task: UpdateDownloads.Snapshot) = PresentationKey(
-        task.token, task.phase, task.progress, task.errorKey, task.release.version,
+        task.token, task.phase, task.progress, task.errorKey, task.release.displayVersion,
         UiLangStore.load(context).name, context.resources.configuration.locales.toLanguageTags(), accentColor(context)
     )
 
@@ -76,7 +76,7 @@ internal object UpdateDownloadNotifications {
             messageKey != null || task == null -> strings["update.notif.genericTitle"]
             task.phase == UpdateDownloads.Phase.READY -> strings["update.notif.readyTitle"]
             task.phase == UpdateDownloads.Phase.FAILED -> strings["update.notif.failureTitle"]
-            else -> strings.format("update.notif.title", "v" to task.release.version)
+            else -> strings.format("update.notif.title", "v" to task.release.displayVersion)
         }
         val text = when {
             messageKey != null -> strings[messageKey]

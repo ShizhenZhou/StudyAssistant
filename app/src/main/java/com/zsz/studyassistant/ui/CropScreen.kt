@@ -118,7 +118,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
     // ★ 2026-10-13：现在**手指一按下就置位**（见手势层的 awaitFirstDown），堵住"按下→超过 touch slop"那段窗口。
     // 手动 AI 识别中
-    var aiBusy by remember { mutableStateOf(false) }
+    var aiBusy by remember(path) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var submitting by remember { mutableStateOf(false) }
     var imageFailed by remember(path) { mutableStateOf(false) }
@@ -267,7 +267,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                                 //   要**超过 touch slop** 才回调 → 按下但还没滑动的那段时间里，异步的自动框选结果
                                 //   仍会把用户的框覆盖掉（"上边蹦到最上边"的常见来源）。
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                region.touched = true
+                                region.touch()
                                 var prevDist = 0f
                                 // ★ 记录当前参与缩放的两根手指，换手指就重新起算（防止把单指拖动误判成缩放）
                                 var idA = -1L
@@ -327,7 +327,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                                             selection.bounds = Rect(Offset(nl, nt), Offset(nl + nw, nt + nh))
                                             selection.rect = screenRect?.let { normalizeSelRect(it, selection.bounds) }
                                             zoomed = true
-                                            region.touched = true
+                                            region.touch()
                                         }
                                     }
                                     prevDist = dist
@@ -343,7 +343,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         .pointerInput(path) {
                             detectDragGestures(
                         onDragStart = { pos ->
-                            region.touched = true
+                            region.touch()
                             val r = selection.rect
                             mode = if (r == null) "NONE" else {
                                 val d2 = selection.bounds
@@ -368,7 +368,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         },
                         onDrag = { change, drag ->
-                            region.touched = true
+                            region.touch()
                             val r = selection.rect
                             val d2 = selection.bounds
                             if (r != null && d2 != Rect.Zero) {
@@ -491,49 +491,30 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     TextButton(
                         enabled = !aiBusy,
                         onClick = {
-                            region.touched = true
+                            val p = path ?: return@TextButton
+                            val edit = region.touch()
                             aiBusy = true
+                            zoom = 1f
+                            panX = 0f
+                            panY = 0f
+                            if (dispBase.width > 1f) selection.bounds = dispBase
                             scope.launch {
-                                val p2 = vm.currentCropPath
-                                // ★ 先复位缩放/平移：把图片重新填回原位，自动框选的结果才可见可调
-                                zoom = 1f
-                                panX = 0f
-                                panY = 0f
-                                if (dispBase.width > 1f) selection.bounds = dispBase
-                                val fallbackDefault = {
-                                    val w = selection.bounds.width * 0.7f
-                                    val h = selection.bounds.height * 0.7f
-                                    selection.rect = Rect(selection.bounds.center.x - w / 2, selection.bounds.center.y - h / 2,
-                                        selection.bounds.center.x + w / 2, selection.bounds.center.y + h / 2)
-                                }
-                                var done = false
-                                if (p2 != null) {
-                                    val bytes = runCatching {
-                                        withContext(Dispatchers.IO) { java.io.File(p2).readBytes() }
-                                    }.getOrNull()
-                                    if (bytes != null) {
-                                        val boxes = runCatching {
-                                            StudyAssistant.detectQuestionBoxesAi(bytes, timeoutMs = aiCropMs + 1000L)   // 手动按钮：设置值 + 1s
-                                        }.getOrNull()
-                                        val best = boxes?.maxByOrNull { it.area }
-                                        if (best != null) {
-                                            selection.rect = normalizeSelRect(toDisp(best, selection.bounds), selection.bounds); done = true
-                                        }
+                                try {
+                                    val best = withContext(Dispatchers.IO) {
+                                        val ai = try {
+                                            StudyAssistant.detectQuestionBoxesAi(java.io.File(p).readBytes(), aiCropMs + 1000L)
+                                                ?.maxByOrNull { it.area }
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                                        catch (_: Exception) { null }
+                                        ai ?: runCatching { com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p) }.getOrNull()
+                                            ?.takeUnless { it.looksUnreliable() }
                                     }
-                                    if (!done) {
-                                        val local = runCatching {
-                                            withContext(Dispatchers.Default) {
-                                                com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(p2)
-                                            }
-                                        }.getOrNull()
-                                        if (local != null && !local.looksUnreliable()) {
-                                            selection.rect = normalizeSelRect(toDisp(local, selection.bounds), selection.bounds); done = true
-                                        }
-                                    }
-                                }
-                                if (!done) fallbackDefault()
-                                region.touched = true
-                                aiBusy = false
+                                    if (vm.currentCropPath != p || !region.isLatestEdit(edit)) return@launch
+                                    val bounds = selection.bounds
+                                    selection.rect = if (best != null) normalizeSelRect(toDisp(best, bounds), bounds)
+                                        else Rect(bounds.left + bounds.width * .15f, bounds.top + bounds.height * .15f,
+                                            bounds.right - bounds.width * .15f, bounds.bottom - bounds.height * .15f)
+                                } finally { aiBusy = false }
                             }
                         }
                     ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"]) }

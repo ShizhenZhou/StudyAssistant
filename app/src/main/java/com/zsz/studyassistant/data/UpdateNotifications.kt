@@ -19,7 +19,7 @@ import com.zsz.studyassistant.ui.UiLangStore
 import com.zsz.studyassistant.ui.stringsFor
 import kotlinx.coroutines.ensureActive
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.currentCoroutineContext
 
 /** Optional stable-release alerts. No push service, APK download or exact alarm. */
 object UpdateNotifications {
@@ -111,7 +111,7 @@ class UpdateNotificationWorker(context: Context, parameters: WorkerParameters) :
         if (!UpdateNotifications.isEnabled(context) || !UpdateNotifications.canNotify(context)) return Result.success()
         // Only fetch the official stable endpoint, never the optional beta feed.
         val release = UpdateChecker.fetchLatest() ?: return Result.success()
-        coroutineContext.ensureActive()
+        currentCoroutineContext().ensureActive()
         UpdateChecker.markChecked(context)
         UpdateNotifications.postIfNeeded(context, release)
         // Unavailable networks are handled at the next period, without a retry loop.
