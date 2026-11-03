@@ -545,21 +545,29 @@ object StudyAssistant {
     internal data class CropAiResult(val status: String, val box: ImageAutoCrop.NormRect? = null)
 
     /** Prepare an oriented JPEG; gallery formats and full-size camera files need not be valid API images. */
-    internal suspend fun detectCrop(path: String, timeoutMs: Long, manual: Boolean): CropAiResult {
+    internal suspend fun detectCrop(path: String, timeoutMs: Long, manual: Boolean,
+                                   target: ImageAutoCrop.NormRect?, answerSheet: Boolean): CropAiResult {
         return try {
             if (KeyManager.getApiKey().isBlank()) return CropAiResult("crop.aiKey")
             val jpeg = compressImage(File(path), maxDim = 1280)
             val b64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
-            requestCrop(b64, timeoutMs, manual)
+            requestCrop(b64, timeoutMs, manual, target, answerSheet)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (_: Exception) { CropAiResult("crop.aiError") }
     }
 
-    private suspend fun requestCrop(b64: String, timeoutMs: Long, manual: Boolean): CropAiResult {
-        val prompt = "你是图像分析助手。找出图中每一道题目的正文区域（包含题干文字与题图、包含选项；" +
-            "不要包含页眉页脚、\"提交\"按钮、手写笔记或已作答内容）。" +
-            "只输出 json，不要任何解释：{\"boxes\":[{\"x\":0.05,\"y\":0.35,\"w\":0.9,\"h\":0.12}]}。" +
-            "坐标是相对整张图的 0~1 比例值：x/y 为左上角，w/h 为宽高。"
+    private suspend fun requestCrop(b64: String, timeoutMs: Long, manual: Boolean,
+                                    target: ImageAutoCrop.NormRect?, answerSheet: Boolean): CropAiResult {
+        val prompt = buildString {
+            if (answerSheet) {
+                append("这是学生的作答图。完整包住本题的手写推导、公式、作图和最终答案，作为一个框。不要排除手写内容。")
+            } else {
+                append("每道独立的题返回一个完整框。题号、题干、小问、选项、公式、题图及图注归入同一题；不要把相邻的题或另一栏合成一个框。")
+            }
+            append("排除页眉、页脚和界面按钮，无法识别则返回空数组。")
+            target?.let { append("用户圈选的参考区域为 x=${it.x},y=${it.y},w=${it.w},h=${it.h}。请优先定位与该区域重叠的题，补全它的内容。") }
+            append("只输出 json：{\"boxes\":[{\"x\":0.05,\"y\":0.35,\"w\":0.9,\"h\":0.12}]}。坐标相对整张图归一到 0~1，x/y 为左上角，w/h 为宽高。")
+        }
         val parts = buildJsonArray {
             addJsonObject {
                 put("type", "text")
@@ -577,11 +585,11 @@ object StudyAssistant {
                 responseFormat = DeepSeekResponseFormat("json_object")))
         } ?: return CropAiResult("crop.aiTimeout")
         lastUsage = resp.usage
-        val box = parseCropBox(resp.choices.firstOrNull()?.message?.content?.asText().orEmpty(), manual)
+        val box = parseCropBox(resp.choices.firstOrNull()?.message?.content?.asText().orEmpty(), manual, target)
         return if (box == null) CropAiResult("crop.aiNoBox") else CropAiResult("crop.aiApplied", box)
     }
 
-    internal fun parseCropBox(text: String, manual: Boolean = false): ImageAutoCrop.NormRect? {
+    internal fun parseCropBox(text: String, manual: Boolean = false, target: ImageAutoCrop.NormRect? = null): ImageAutoCrop.NormRect? {
         val start = text.indexOf('{')
         val end = text.lastIndexOf('}')
         if (start < 0 || end <= start) return null
@@ -597,8 +605,11 @@ object StudyAssistant {
             val box = ImageAutoCrop.NormRect(x, y, minOf(w, 1f - x), minOf(h, 1f - y))
             box.takeIf { it.w > .02f && it.h > .02f }
         }
-        return valid.filterNot { it.touchesEdge() || it.looksUnreliable() }.maxByOrNull { it.area }
-            ?: if (manual) valid.maxByOrNull { it.area } else null
+        val candidates = if (target == null) valid else valid.filter { it.overlapScore(target) > 0f }
+        val preferred = candidates.filter { it.usableAiBox() }.ifEmpty { if (manual) candidates else emptyList() }
+        return if (target != null) preferred.maxByOrNull { it.overlapScore(target) }
+            else preferred.maxByOrNull { it.area }
+
     }
 
     /** 同类题结果：AI 出的题目 + 完整解答 */

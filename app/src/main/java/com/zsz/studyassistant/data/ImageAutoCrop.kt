@@ -14,15 +14,18 @@ object ImageAutoCrop {
     /** 归一化矩形（相对整张图，x/y 为左上角） */
     data class NormRect(val x: Float, val y: Float, val w: Float, val h: Float) {
         val area: Float get() = w * h
-        /** 本地结果是否"可疑"（几乎整页 / 只有一行 / 太窄）——可疑时更应采纳 AI 的结果 */
-        /**
-     * 是否"贴到照片边界"。
-     * AI 给的框一旦贴边（x/y≈0 或 x+w/y+h≈1），往往意味着它没框准（把整页当一题），
-     * 而且这类框在拖动/裁剪时更容易踩到边界条件。策略：宁可丢弃它，回退到默认框。
-     */
-    fun touchesEdge(margin: Float = 0.012f): Boolean =
-        x <= margin || y <= margin || (x + w) >= (1f - margin) || (y + h) >= (1f - margin)
-    fun looksUnreliable(): Boolean = h > 0.72f || h < 0.055f || w < 0.30f
+        fun touchesEdge(margin: Float = 0.012f): Boolean =
+            x <= margin || y <= margin || x + w >= 1f - margin || y + h >= 1f - margin
+        fun looksUnreliable(): Boolean = h > .72f || h < .055f || w < .30f
+        // A long complete question or a narrow handwritten column can legitimately be tall.
+        fun usableAiBox() = !touchesEdge() && w >= .12f && h >= .035f && area >= .012f && area <= .82f
+
+        fun overlapScore(other: NormRect): Float {
+            val width = (minOf(x+w, other.x+other.w) - maxOf(x, other.x)).coerceAtLeast(0f)
+            val height = (minOf(y+h, other.y+other.h) - maxOf(y, other.y)).coerceAtLeast(0f)
+            val intersection = width * height
+            return if (intersection > 0) intersection / (area + other.area - intersection) else 0f
+        }
     }
 
     /** 按文本块切分，返回按面积从大到小排序的归一化矩形 */
@@ -31,18 +34,26 @@ object ImageAutoCrop {
 
         val w = bmp.width
         val h = bmp.height
-        val px = IntArray(w * h)
-        bmp.getPixels(px, 0, w, 0, 0, w, h)
-        bmp.recycle()
-        val gray = IntArray(px.size)
-        for (i in px.indices) {
-            val c = px[i]
-            gray[i] = ((c shr 16 and 0xFF) * 299 + (c shr 8 and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
-        }
+        val pixels = try {
+            IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
+        } finally { bmp.recycle() }
+        return projectBlocks(pixels, w, h)
+    }
 
-        // ── Otsu 自适应阈值（对拍照的明暗不均比固定阈值稳） ──
+    /** Convert the private pixel buffer in place. Use light ink on predominantly dark screenshots. */
+    internal fun projectBlocks(gray: IntArray, w: Int, h: Int): List<NormRect> {
         val hist = IntArray(256)
-        for (g in gray) hist[g]++
+        for (i in gray.indices) {
+            val c = gray[i]
+            val g = ((c shr 16 and 0xFF) * 299 + (c shr 8 and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
+            gray[i] = g
+            hist[g]++
+        }
+        if (hist.count { it > 0 } < 2) return emptyList()
+        if ((0..96).sumOf { hist[it] } > gray.size / 2) {
+            for (i in gray.indices) gray[i] = 255 - gray[i]
+            hist.reverse()
+        }
         val total = gray.size
         var sum = 0.0
         for (i in 0..255) sum += i.toDouble() * hist[i]
@@ -83,10 +94,11 @@ object ImageAutoCrop {
         if (st >= 0) lines += intArrayOf(st, h - 1)
         if (lines.isEmpty()) return emptyList()
 
-        // ── 合并成块：行间空隙 > 2.6 × 平均行高 才分段 ──
+        // Use typical text height so one tall diagram does not merge unrelated paragraphs.
         // （取 2.6 是为了把「题干 + 其下方选项」归到同一块；太大则整页会连成一块）
-        val avgLineH = lines.map { it[1] - it[0] + 1 }.average().toFloat().coerceAtLeast(4f)
-        val gapThr = (avgLineH * 2.6f).toInt().coerceAtLeast(10)
+        val heights = lines.map { it[1] - it[0] + 1 }.sorted()
+        val typicalLine = heights[(heights.size - 1) / 2].coerceAtLeast(3)
+        val gapThr = (typicalLine * 2.2f).toInt().coerceIn(maxOf(3, h / 120), maxOf(8, h / 24))
         val blocks = ArrayList<IntArray>()
         var top = lines[0][0]
         var bottom = lines[0][1]
@@ -138,8 +150,9 @@ object ImageAutoCrop {
      *  - 越靠近页面中部权重越高（题目通常在中间）
      *  - 贴上下边缘的块显著降权（状态栏、底部导航、提交按钮、页脚页码）
      */
-    fun detectQuestionRect(path: String): NormRect? {
-        val blocks = detectBlocks(path)
+    fun detectQuestionRect(path: String): NormRect? = selectQuestionBlock(detectBlocks(path))
+
+    internal fun selectQuestionBlock(blocks: List<NormRect>): NormRect? {
         if (blocks.isEmpty()) return null
         val cand = blocks.filter { it.h in 0.02f..0.90f && it.w >= 0.20f }
         if (cand.isEmpty()) return blocks.firstOrNull()
@@ -151,24 +164,18 @@ object ImageAutoCrop {
         var bottom = best.y + best.h
         var left = best.x
         var right = best.x + best.w
-        val maxGap = maxOf(0.055f, best.h * 2.5f)
-        var grew = true
-        var guard = 0
-        while (grew && guard++ < 16) {
-            grew = false
-            for (b in blocks) {
-                val bTop = b.y
-                val bBottom = b.y + b.h
-                val hOverlap = minOf(right, b.x + b.w) - maxOf(left, b.x) > 0.15f * (right - left)
-                if (!hOverlap) continue
-                val gapBelow = bTop - bottom
-                val gapAbove = top - bBottom
-                if (gapBelow >= -0.001f && gapBelow <= maxGap) {
-                    bottom = maxOf(bottom, bBottom); left = minOf(left, b.x); right = maxOf(right, b.x + b.w); grew = true
-                } else if (gapAbove >= -0.001f && gapAbove <= maxGap) {
-                    top = minOf(top, bTop); left = minOf(left, b.x); right = maxOf(right, b.x + b.w); grew = true
-                }
-            }
+        // Attach short nearby fragments to the original block. A second full question is not
+        // an option or a caption; merging outward from a growing union can swallow a whole page.
+        val maxGap = (best.h * .3f).coerceIn(.018f, .045f)
+        for (part in blocks) {
+            if (part == best || part.h > minOf(.10f, best.h * .65f) || part.touchesEdge()) continue
+            val gap = maxOf(best.y - (part.y + part.h), part.y - (best.y + best.h))
+            val overlap = minOf(best.x + best.w, part.x + part.w) - maxOf(best.x, part.x)
+            if (gap !in 0f..maxGap || overlap < .45f * minOf(best.w, part.w)) continue
+            top = minOf(top, part.y)
+            bottom = maxOf(bottom, part.y + part.h)
+            left = minOf(left, part.x)
+            right = maxOf(right, part.x + part.w)
         }
         // ── 向四周略微外扩：视觉更舒适，也给识别留出上下文（题号、单位、边距） ──
         // 外扩量按比例给：横向上限 2%、纵向上限 1.6%，且不低于块高的 12%（一行字的呼吸感）
@@ -178,12 +185,15 @@ object ImageAutoCrop {
         val t2 = (top - padY).coerceAtLeast(0f)
         val r2 = (right + padX).coerceAtMost(1f)
         val b2 = (bottom + padY).coerceAtMost(1f)
-        return NormRect(
+        val padded = NormRect(
             l2,
             t2,
             (r2 - l2).coerceIn(0.05f, 1f),
             (b2 - t2).coerceIn(0.03f, 1f)
         )
+        // Padding alone must not turn an otherwise valid selection into a rejected edge box.
+        val content = NormRect(left, top, right - left, bottom - top)
+        return if (!content.touchesEdge() && padded.touchesEdge()) content else padded
     }
 
     /** 像不像"题目块"：面积 × 中段权重 × 边缘惩罚（见 detectQuestionRect 注释） */

@@ -39,7 +39,9 @@ internal class CropSelection {
 
     /** AI has priority over the local suggestion, and a user's selection has priority over both. */
     fun suggest(box: com.zsz.studyassistant.data.ImageAutoCrop.NormRect?, ai: Boolean, bounds: Rect) {
-        if (box == null || touched || hasAiResult || box.looksUnreliable() || box.touchesEdge()) return
+        if (box == null || touched || hasAiResult) return
+        if (ai && !box.usableAiBox()) return
+        if (!ai && (box.looksUnreliable() || box.touchesEdge())) return
         hasAiResult = ai
         setBox(box, bounds)
     }

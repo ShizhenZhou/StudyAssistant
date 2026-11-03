@@ -1078,6 +1078,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (currentCropPath != path) return
         val region = cropSelection(path)
         if (!manual && (region.touched || region.autoJob != null)) return
+        val target = if (manual && region.touched) region.fraction?.let {
+            com.zsz.studyassistant.data.ImageAutoCrop.NormRect(it.left, it.top, it.width, it.height)
+        } else null
+        val answerSheet = cropGrade && cropIndex == 1
         val edit = if (manual) region.touch() else null
         region.autoJob = viewModelScope.launch {
             if (!manual) launch {
@@ -1088,7 +1092,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (useAi) {
                 region.status = "crop.aiBusy"
-                val result = withContext(Dispatchers.IO) { StudyAssistant.detectCrop(path, timeout, manual) }
+                val result = withContext(Dispatchers.IO) { StudyAssistant.detectCrop(path, timeout, manual, target, answerSheet) }
                 if (currentCropPath != path || (edit != null && !region.isLatestEdit(edit))) return@launch
                 result.box?.let { box ->
                     if (manual) region.applyManual(box, bounds) else region.suggest(box, ai = true, bounds)
