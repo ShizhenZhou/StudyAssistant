@@ -207,14 +207,19 @@ object StudyAssistant {
     }
 
     /** 追问等场景：文字 + 1~3 张图 → 视觉模型 user 消息（多图 image_url） */
-    fun userMessageWithImages(text: String, images: List<ByteArray>): DeepSeekMessage {
+    fun userMessageWithImages(text: String, images: List<ByteArray>): DeepSeekMessage =
+        encodedImageMessage(text, images.asSequence().map { Base64.encodeToString(it, Base64.NO_WRAP) })
+
+    internal fun userMessageWithEncodedImages(text: String, images: List<String>): DeepSeekMessage =
+        encodedImageMessage(text, images.asSequence())
+
+    private fun encodedImageMessage(text: String, images: Sequence<String>): DeepSeekMessage {
         val content = buildJsonArray {
             addJsonObject {
                 put("type", "text")
                 put("text", text)
             }
-            for (img in images) {
-                val base64 = Base64.encodeToString(img, Base64.NO_WRAP)
+            for (base64 in images) {
                 addJsonObject {
                     put("type", "image_url")
                     putJsonObject("image_url") { put("url", "data:image/jpeg;base64,$base64") }

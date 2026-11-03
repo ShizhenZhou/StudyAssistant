@@ -468,6 +468,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         var historyAllowed: Boolean = false
     )
 
+    internal var solveInputDraft by mutableStateOf(com.zsz.studyassistant.ui.SolveInputDraft())
+        private set
     private var sessionRecordBinding = SolveSessionBinding()
     private var retryBinding: SolveSessionBinding? = null
     private var captureIdentity: Pair<QuestionId, Long>? = null
@@ -600,7 +602,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 isPhoto=value.photo; askMode=value.ask; gradeMode=value.grade
                 pendingRedoFor=value.redoFor
                 questionImages=value.images
-                directImages=withContext(Dispatchers.IO) { value.images.map { Base64.decode(it,Base64.NO_WRAP) } }
+                directImages=if (value.grade) emptyList() else withContext(Dispatchers.IO) { value.images.map { Base64.decode(it,Base64.NO_WRAP) } }
                 imageBytes=directImages.firstOrNull()
                 savedQuestionId=row?.id; savedToNotebook=row!=null; isFromNotebook=row!=null
                 currentQuestionCreatedAt=value.createdAt
@@ -1042,10 +1044,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val cropTotal: Int get() = cropPaths.size
     val cropPos: Int get() = cropIndex + 1
 
+    private val selections = mutableMapOf<String, com.zsz.studyassistant.ui.CropSelection>()
+    internal fun cropSelection(path: String) = selections.getOrPut(path) { com.zsz.studyassistant.ui.CropSelection() }
+
     fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
         val firstTime = System.currentTimeMillis()
         captureStartedAt = firstTime
         captureIdentity = if (!grade) QuestionIdentity.create(firstTime) to firstTime else null
+        selections.clear()
         cropPaths = paths
         cropIndex = 0
         cropGrade = grade
@@ -1097,22 +1103,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val binding = sessionRecordBinding
         if (!binding.historyAllowed) return
         val problemId = binding.id ?: return
-        val imgs = when {
-            questionImages.isNotEmpty() -> questionImages.map { Base64.decode(it, Base64.NO_WRAP) }
+        // The history row needs only the primary image as bytes; keep the image list encoded.
+        val fallback = when {
             multiImages.isNotEmpty() -> multiImages
             directImages.isNotEmpty() -> directImages
-            imageBytes != null -> listOf(imageBytes!!)
-            else -> emptyList()
+            else -> listOfNotNull(imageBytes)
         }
-        val q = questionText.ifBlank { if (imgs.isEmpty()) return else "（图片题）" }
+        val keys = questionImages
+        val q = questionText.ifBlank { if (keys.isEmpty() && fallback.isEmpty()) return else "（图片题）" }
         val row = SolveSession(
             id = problemId, createdAt = binding.createdAt,
             updatedAt = System.currentTimeMillis(), source = binding.source ?: source,
             text = q, answer = lastAnswer(), conversationJson = json.encodeToString(chatItems),
-            imageBytes = imgs.firstOrNull(),
-            imagesJson = if (imgs.size > 1) json.encodeToString(imgs.map {
-                Base64.encodeToString(it, Base64.NO_WRAP)
-            }) else null,
+            imageBytes = keys.firstOrNull()?.let { Base64.decode(it, Base64.NO_WRAP) } ?: fallback.firstOrNull(),
+            imagesJson = when {
+                keys.size > 1 -> json.encodeToString(keys)
+                keys.isEmpty() && fallback.size > 1 -> json.encodeToString(fallback.map { Base64.encodeToString(it, Base64.NO_WRAP) })
+                else -> null
+            },
             savedQuestionId = savedQuestionId
         )
         hasSaveActivity = true
@@ -1225,7 +1233,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 s.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
                 multiKeys + questionImageBase64(s.conversationJson)
             )
-            directImages = questionImages.map { Base64.decode(it, Base64.NO_WRAP) }
+            directImages = if (gradeMode) emptyList() else questionImages.map { Base64.decode(it, Base64.NO_WRAP) }
             questionFromPhoto = isPhoto && questionImages.isNotEmpty()
             currentQuestionCreatedAt = s.createdAt
             return true
@@ -1251,7 +1259,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     ) {
         val retry = retryBinding
         val capture = if (photo && !ask && !grade) captureIdentity else null
+        val pendingInput = solveInputDraft.takeIf { retry === sessionRecordBinding }
         resetSession()
+        if (pendingInput != null) solveInputDraft = pendingInput
         val firstTime = capture?.second ?: System.currentTimeMillis()
         sessionRecordBinding = retry ?: SolveSessionBinding(
             id = capture?.first ?: QuestionIdentity.create(firstTime), createdAt = firstTime,
@@ -1299,19 +1309,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             imageBytes != null -> listOf(imageBytes!!)
             else -> emptyList()
         }
-        if (q.isBlank() && imgs.isEmpty()) {
+        val encoded = if (gradeMode) questionImages else emptyList()
+        if (q.isBlank() && imgs.isEmpty() && encoded.isEmpty()) {
             return
         }
         val owner = Any()
         val binding = sessionRecordBinding
         val categories = categoryNames.toList()
         val tags = tagNames.toList()
-        val images = imgs.map { it.copyOf() }
+        val rawImages = if (encoded.isEmpty()) imgs.map { it.copyOf() } else emptyList()
         val request = classifyRequest
         classificationOwner = owner
         classifying = true
         classificationJob = viewModelScope.launch {
             try {
+                val images = if (encoded.isEmpty()) rawImages else withContext(Dispatchers.Default) {
+                    encoded.map { Base64.decode(it, Base64.NO_WRAP) }
+                }
                 val (c, t) = request(q, categories, tags, images, needCategory, needTags)
                 if (classificationOwner !== owner || sessionRecordBinding !== binding) return@launch
                 // 已有分类（来自库/用户选择）优先，AI 只补空的
@@ -1406,6 +1420,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryClearFailed"
             }
         }
+        selections.clear()
         cropPaths = emptyList()
         cropIndex = 0
         cropGrade = false
@@ -1459,6 +1474,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (multiImages.isNotEmpty()) {
             // 多张搜题：多图一起作为题目（同一套搜题指令）
             msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames, tagNames))
+        } else if (gradeMode && questionImages.isNotEmpty()) {
+            msgs.add(StudyAssistant.userMessageWithEncodedImages(
+                StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n【我的题目/问题】" + questionText, questionImages))
         } else if (directImages.isNotEmpty()) {
             // 直接提问：文字 + 多图一起作为问题
             // ★ 带图的「直接提问」原来用追问提示词（不问分类/知识点）→ 改用搜题指令，保证与拍题一致
@@ -1489,8 +1507,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         msgs.add(DeepSeekMessage("user", JsonPrimitive(item.content)))
                     } else {
                         // 追问带有附图的 user 消息 → 视觉模型（文字 + 多图）
-                        val bytes = imgs.map { Base64.decode(it, Base64.NO_WRAP) }
-                        msgs.add(StudyAssistant.userMessageWithImages(item.content, bytes))
+                        msgs.add(StudyAssistant.userMessageWithEncodedImages(item.content, imgs))
                     }
                 }
                 // "question" 已作为题目消息
@@ -1520,6 +1537,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun resetSession() {
+        solveInputDraft = com.zsz.studyassistant.ui.SolveInputDraft()
         currentNotebookBaseline=null
         sessionRecordBinding = SolveSessionBinding()
         askMode = false
@@ -3399,7 +3417,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             add(questionBytes)
             answerBytes?.let { add(it) }
         }
-        directImages = imgs
         questionFromPhoto = false
         questionText = if (answerBytes != null) {
             str["grade.label.question"] + " + " + str["grade.label.answer"]
@@ -3421,7 +3438,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         prepareSession(grade = true)
         pendingRedoFor = redoFor
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
-        directImages = questionImageKeys.map { Base64.decode(it, Base64.NO_WRAP) }
         questionFromPhoto = false
         this.questionText = questionText
         val encoded = listOf(Base64.encodeToString(answerBytes, Base64.NO_WRAP))
@@ -3570,7 +3586,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val tagIds = dao.tagIdsForQuestion(q.id)
                 if (binding !== sessionRecordBinding || savedQuestionId != q.id) return@launch
                 questionImages = keys
-                directImages = keys.mapNotNull {
+                directImages = if (gradeMode) emptyList() else keys.mapNotNull {
                     runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
                 }
                 if (rows.size < MAX_QUESTION_IMAGES && fallbackKeys.any { it !in storedKeys }) {

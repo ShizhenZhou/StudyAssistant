@@ -87,9 +87,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 if (today > 0 || week > 0) {
                     ReminderScheduler.ensureChannel(c)
                     val s = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(c))
-                    val text = s.format("notif.review.text", "today" to "$today", "week" to "$week")
+                    val text = notificationText(s.format("notif.review.text", "today" to "$today", "week" to "$week"))
                     val notification = NotificationCompat.Builder(c, ReminderScheduler.CHANNEL_ID)
-                        .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(s["notif.review.channel"])
+                        .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_review).setContentTitle(s["notif.review.channel"])
+                        .setCategory(NotificationCompat.CATEGORY_REMINDER)
                         .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text))
                         .setContentIntent(NotificationIntents.reviewReminder(c))
                         .setAutoCancel(true).build()

@@ -16,6 +16,16 @@ import org.junit.Test
  *    —— 换图 / 自动框写回 / 缩放结束后都要调用，避免 `sel` 处于非法几何。
  */
 class CropMathTest {
+    @Test
+    fun manualRegionKeepsImageCoordinatesAcrossRecreation() {
+        val region = CropSelection()
+        val before = DisplayedCrop(region)
+        before.bounds = Rect(10f, 20f, 410f, 220f)
+        before.rect = Rect(110f, 70f, 310f, 170f)
+        val after = DisplayedCrop(region)
+        after.bounds = Rect(0f, 100f, 200f, 200f)
+        assertEquals(Rect(50f, 125f, 150f, 175f), after.rect)
+    }
 
     @Test
     fun `区间合法时正常夹取`() {

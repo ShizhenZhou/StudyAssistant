@@ -209,7 +209,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                 LazyVerticalStaggeredGrid(
                     columns = StaggeredGridCells.Fixed(1),   // 单列：整行宽度，图更大
                     state = gridState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.readablePage(720.dp),
                     contentPadding = PaddingValues(12.dp),
                     verticalItemSpacing = 8.dp
                 ) {

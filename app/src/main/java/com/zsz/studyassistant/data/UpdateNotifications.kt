@@ -86,9 +86,10 @@ object UpdateNotifications {
         val key = candidateKey(release, eligible, preferences.getString(LAST_NOTIFIED, null)) ?: return
         val s = stringsFor(UiLangStore.load(context))
         val note = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_answer)
+            .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_update)
             .setContentTitle(s.format("notify.update.title", "version" to release.displayVersion))
-            .setContentText(s["notify.update.body"])
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setContentText(notificationText(s["notify.update.body"]))
             .setContentIntent(NotificationIntents.updateAvailable(context))
             .setAutoCancel(true).setOnlyAlertOnce(true).build()
         try {

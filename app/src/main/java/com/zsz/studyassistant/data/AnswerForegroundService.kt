@@ -43,11 +43,11 @@ class AnswerForegroundService : Service() {
             )
             return NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_answer)
-                .setLargeIcon(android.graphics.BitmapFactory.decodeResource(context.resources, com.zsz.studyassistant.R.mipmap.ic_launcher))
+                .setCategory(NotificationCompat.CATEGORY_PROGRESS)
                 .setColor(0xFF2563EB.toInt())
                 // Colorized backgrounds make Android 16 notifications ineligible for promotion.
                 .setContentTitle("Study Assistant")
-                .setContentText(strings["notif.answer.text"])
+                .setContentText(notificationText(strings["notif.answer.text"]))
                 .setContentIntent(NotificationIntents.answerRunning(context))
                 .setOngoing(true)
                 .setRequestPromotedOngoing(true)

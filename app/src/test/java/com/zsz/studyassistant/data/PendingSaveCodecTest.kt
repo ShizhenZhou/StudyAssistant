@@ -40,6 +40,9 @@ class PendingSaveCodecTest {
             (image.getValue("url") as kotlinx.serialization.json.JsonPrimitive).content.substringAfter("base64,")
         }
         assertEquals(listOf("one", "two", "three", "handwriting"), sentImages)
+        val followUp = StudyAssistant.userMessageWithEncodedImages("conditions", input.questionImages)
+            .content as kotlinx.serialization.json.JsonArray
+        assertEquals(parts.subList(1, 4), followUp.drop(1))
         assertFalse(gradingInput(true, "conditions", listOf(original, follow), listOf("one"))!!.canGrade)
         val old = kotlinx.serialization.json.Json.decodeFromString(com.zsz.studyassistant.ChatItem.serializer(),
             """{"id":0,"role":"question","content":"legacy"}""")

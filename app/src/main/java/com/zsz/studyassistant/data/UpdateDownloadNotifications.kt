@@ -89,13 +89,22 @@ internal object UpdateDownloadNotifications {
             else -> strings["update.notif.preparing"]
         }
         val color = accentColor(context)
+        val failed = task?.phase == UpdateDownloads.Phase.FAILED
         val note = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setSmallIcon(when {
+                failed || messageKey != null -> com.zsz.studyassistant.R.drawable.ic_stat_warning
+                completed -> com.zsz.studyassistant.R.drawable.ic_stat_ready
+                else -> com.zsz.studyassistant.R.drawable.ic_stat_download
+            })
             .setColor(color)
-            .setContentTitle(title).setContentText(text)
+            .setContentTitle(title).setContentText(notificationText(text, caution = failed || messageKey != null))
             .setContentIntent(NotificationIntents.update(context, task?.token, completed))
             .addExtras(android.os.Bundle().apply { putString(TOKEN_EXTRA, task?.token) })
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setCategory(when {
+                failed -> NotificationCompat.CATEGORY_ERROR
+                ongoing -> NotificationCompat.CATEGORY_PROGRESS
+                else -> NotificationCompat.CATEGORY_STATUS
+            })
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setOngoing(ongoing || showCompletion).setAutoCancel(!ongoing && !showCompletion).setOnlyAlertOnce(true).setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)

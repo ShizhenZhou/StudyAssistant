@@ -46,9 +46,10 @@ object BackupNotifications {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 .putExtra(AppNav.OPEN_BACKUP_EXTRA, true)
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_backup_warning)
                 .setContentTitle(strings["data.backupNotifyFailed"])
-                .setContentText(strings["data.backupNotifyBody"])
+                .setCategory(NotificationCompat.CATEGORY_ERROR)
+                .setContentText(notificationText(strings["data.backupNotifyBody"], caution = true))
                 .setContentIntent(PendingIntent.getActivity(context, NOTIFICATION_ID, open,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

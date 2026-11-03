@@ -83,11 +83,9 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     // 「通用 → AI 框选时限」：AI 自动框选的等待上限
     val aiCropMs = com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx)
     val path = vm.currentCropPath
-    var userTouched by remember(path) { mutableStateOf(false) }
     fun handleBack() {
         if (vm.cropIndex > 0) {
             vm.cropGoBackOne()
-            userTouched = false
         } else {
             vm.cancelCropFlow()
             nav.navigate(AppNav.CAMERA) { popUpTo(AppNav.CROP) { inclusive = true } }
@@ -112,15 +110,11 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
         return
     }
 
-    // ★ 2026-10-13：`sel` 按 `path` 重置 —— 两张模式 / 点「上一张」换图时，选框不该带着上一张的屏幕坐标
-    //   （否则第二张的框可能整块落在图片外 → 拖动夹取区间塌缩 → "上边被钉住、完全不跟手"）。
-    //   ⚠️ 必须与下面两处 `pointerInput` 的键（也改成 `path`）**一起**改：否则换图时手势闭包会被保留，
-    //      它会继续写**旧的** state 对象 → 新图上的框"拖不动"。
-    var sel by remember(path) { mutableStateOf<Rect?>(null) }
-    var dispRect by remember { mutableStateOf(Rect.Zero) }
+    val region = remember(path) { vm.cropSelection(requireNotNull(path)) }
+    val selection = remember(region) { DisplayedCrop(region) }
     var mode by remember { mutableStateOf("NONE") }
     /** 把当前选框夹回图片显示范围（换图、自动框写回、缩放结束后各调一次） */
-    fun normalizeSel() { sel = sel?.let { normalizeSelRect(it, dispRect) } }
+    fun normalizeSel() { selection.rect = selection.rect?.let { normalizeSelRect(it, selection.bounds) } }
     // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
     // ★ 2026-10-13：现在**手指一按下就置位**（见手势层的 awaitFirstDown），堵住"按下→超过 touch slop"那段窗口。
     // 是否已跑过一次自动识别（每次换图重来）
@@ -129,7 +123,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     var aiLaunched by remember(path) { mutableStateOf(false) }
     // 手动 AI 识别中
     var aiBusy by remember { mutableStateOf(false) }
-val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     var submitting by remember { mutableStateOf(false) }
     var imageFailed by remember(path) { mutableStateOf(false) }
 
@@ -212,14 +206,13 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                 //   若只以 disp 为键，检测就永远不会触发（预框选静默失效）
                 LaunchedEffect(disp, path) {
                     if (disp == Rect.Zero) return@LaunchedEffect
-                    dispRect = disp
-                    normalizeSel()   // ★ 换图/尺寸变化后先把旧框夹回新图范围（避免非法几何）
-                    if (sel == null) {
+                    selection.bounds = disp
+                    if (selection.rect == null) {
                         // 默认框：居中的 70% 子矩形（不占满屏，方便拖动）
                         // ★ 预框选失败/超时/结果可疑时，就保持这个默认框
                         val w = disp.width * 0.7f
                         val h = disp.height * 0.7f
-                        sel = Rect(disp.center.x - w / 2, disp.center.y - h / 2,
+                        selection.rect = Rect(disp.center.x - w / 2, disp.center.y - h / 2,
                             disp.center.x + w / 2, disp.center.y + h / 2)
                     }
                     // ── 预框选（总预算 0.5 秒）：本地算法与 AI **并行**跑 ──
@@ -228,7 +221,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                     //   · 两者都不可靠 → 保持默认框
                     //   · 「AI 切图」关掉时**不请求 AI**，只用本地算法
                     val p = path ?: return@LaunchedEffect
-                    if (autoTried) return@LaunchedEffect
+                    if (autoTried || region.touched) return@LaunchedEffect
                     autoTried = true
                     val bytes = runCatching {
                         withContext(Dispatchers.IO) { java.io.File(p).readBytes() }
@@ -246,10 +239,10 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                 // ★ 2026-10-13：把作者当年写好的"贴边就丢弃"防线**接上**（原来零调用）——
                                 //   AI/本地给出的贴边框（y≈0 等）会让上边正好落在图片顶边，看起来就是"上边蹦到最上边"。
                                 ?.takeIf { !it.touchesEdge() }
-                            if (ai == null || userTouched) return@launch
-                            val d = dispRect
+                            if (ai == null || region.touched) return@launch
+                            val d = selection.bounds
                             if (d.width < 2f) return@launch
-                            sel = normalizeSelRect(toDisp(ai, d), d)
+                            selection.rect = normalizeSelRect(toDisp(ai, d), d)
                         }
                     }
                     // ① 本地投影法：毫秒级，先出结果
@@ -260,8 +253,8 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                     }.getOrNull()
                     // ★ 同样接上 touchesEdge 防线（贴顶/贴边的"一页一题"框不要，回退默认框）
                     val localOk = local?.takeIf { !it.looksUnreliable() }?.takeIf { !it.touchesEdge() }
-                    if (localOk != null && !userTouched) {
-                        sel = normalizeSelRect(toDisp(localOk, disp), disp)
+                    if (localOk != null && !region.touched) {
+                        selection.rect = normalizeSelRect(toDisp(localOk, disp), disp)
                     }
                 }
 
@@ -281,7 +274,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
 
                 // 选区外遮罩 + 选框边框
                 Canvas(Modifier.fillMaxSize()) {
-                    val r = sel
+                    val r = selection.rect
                     val d2 = disp
                     if (r != null && d2 != Rect.Zero) {
                         // 四块遮罩
@@ -309,16 +302,16 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                 Box(
                     Modifier
                         .fillMaxSize()
-                        // ★ 键用 path：与上面的 `sel = remember(path)` 配套 —— 换图时手势层一起重建，
+                        // ★ 键用 path：换图时手势层与保留的选区一起切换，
                         //   避免旧闭包继续写已废弃的 state（否则新图上的框拖不动）。
                         .pointerInput(path) {
                             awaitEachGesture {
-                                // ★ 2026-10-13：**手指一按下就置 userTouched**。
+                                // ★ 2026-10-13：**手指一按下就置 region.touched**。
                                 //   原来只在 onDragStart/onDrag 置位，而 `detectDragGestures` 的 onDragStart
                                 //   要**超过 touch slop** 才回调 → 按下但还没滑动的那段时间里，异步的自动框选结果
                                 //   仍会把用户的框覆盖掉（"上边蹦到最上边"的常见来源）。
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                userTouched = true
+                                region.touched = true
                                 var prevDist = 0f
                                 // ★ 记录当前参与缩放的两根手指，换手指就重新起算（防止把单指拖动误判成缩放）
                                 var idA = -1L
@@ -340,13 +333,13 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                     val p1 = pressed[1].position
                                     val dist = (p0 - p1).getDistance()
                                     // 允许在红框内捏合，也允许在红框外捏合；但两指必须在同一侧（不跨越框边）
-                                    val r0 = sel
+                                    val r0 = selection.rect
                                     val sameSide = if (r0 == null) true
                                     else (r0.contains(p0) && r0.contains(p1)) ||
                                         (!r0.contains(p0) && !r0.contains(p1))
                                     // ★ 两指中点必须落在图片内：落在图片外的黑色区域不响应缩放
                                     val mid = Offset((p0.x + p1.x) / 2f, (p0.y + p1.y) / 2f)
-                                    val dNow = dispRect
+                                    val dNow = selection.bounds
                                     val onImage = dNow.width <= 1f || dNow.contains(mid)
                                     if (sameSide && onImage && prevDist > 1f && dist > 1f) {
                                         // 单次事件限幅 ±10%，避免异常比值把图瞬间放大/缩小
@@ -354,7 +347,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                         val newZoom = safeCoerceRange(zoom * ratio, 1f, 4f)
                                         if (newZoom != zoom) {
                                             // ★ 以两指中点为中心缩放：中点下方的图像内容保持不动
-                                            val oldDisp = dispRect
+                                            val oldDisp = selection.bounds
                                             val k = newZoom / zoom          // 实际比例（含夹紧后的修正）
                                             val cx = (p0.x + p1.x) / 2f
                                             val cy = (p0.y + p1.y) / 2f
@@ -374,9 +367,11 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                             val nl = (bw - nw) / 2f + panX
                                             val nt = (bh - nh) / 2f + panY
                                             // ★ 红框保持"屏幕上原大小原位"不动（只动图片）
-                                            dispRect = Rect(Offset(nl, nt), Offset(nl + nw, nt + nh))
+                                            val screenRect = selection.rect
+                                            selection.bounds = Rect(Offset(nl, nt), Offset(nl + nw, nt + nh))
+                                            selection.rect = screenRect?.let { normalizeSelRect(it, selection.bounds) }
                                             zoomed = true
-                                            userTouched = true
+                                            region.touched = true
                                         }
                                     }
                                     prevDist = dist
@@ -386,16 +381,16 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                 if (zoomed) normalizeSel()
                             }
                         }
-                        // ★ 键用 path（原来是 dispRect）：dispRect 在缩放时每帧都变 → 键变 → 手柄拖到一半
+                        // ★ 键用 path（原来是 selection.bounds）：selection.bounds 在缩放时每帧都变 → 键变 → 手柄拖到一半
                         //   手势会被取消重建（"卡住不跟手"）。改用 path 后手势层只在换图时重建，
-                        //   拖动逻辑本来就是每帧现读 `dispRect`/`sel`，不依赖这个键。
+                        //   拖动逻辑本来就是每帧现读 `selection.bounds`/`selection.rect`，不依赖这个键。
                         .pointerInput(path) {
                             detectDragGestures(
                         onDragStart = { pos ->
-                            userTouched = true
-                            val r = sel
+                            region.touched = true
+                            val r = selection.rect
                             mode = if (r == null) "NONE" else {
-                                val d2 = dispRect
+                                val d2 = selection.bounds
                                 when {
                                     // 四角优先（★ 2026-10-13 补外侧边界：原来只有"内侧"判定，
                                     //   在图片上方黑区甚至屏幕顶端按下也会被判成 TL/TR → 上边被拖到图片顶）
@@ -417,9 +412,9 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                             }
                         },
                         onDrag = { change, drag ->
-                            userTouched = true
-                            val r = sel
-                            val d2 = dispRect
+                            region.touched = true
+                            val r = selection.rect
+                            val d2 = selection.bounds
                             if (r != null && d2 != Rect.Zero) {
                                 val n = when (mode) {
                                     // ★ 2026-10-13：每个夹取区间的**两个界都先夹成合法**（coerceAtLeast/coerceAtMost），
@@ -458,7 +453,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                     }
                                     else -> null
                                 }
-                                if (n != null) sel = n
+                                if (n != null) selection.rect = n
                             }
                             change.consume()
                         }
@@ -492,9 +487,9 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
             Button(
                 enabled = !submitting,
                 onClick = {
-                    val r = sel ?: dispRect
-                    if (r != null && dispRect != Rect.Zero) {
-                        val d2 = dispRect
+                    val r = selection.rect ?: selection.bounds
+                    if (selection.bounds != Rect.Zero) {
+                        val d2 = selection.bounds
                         // 裁剪区域：全部用 safeCoerceRange（原来 1..bitmap.width-x 在贴边时会出现 1 > max → 崩溃）
                         val x = safeCoerceRange((r.left - d2.left) / d2.width * bitmap.width, 0f, (bitmap.width - 1).toFloat()).toInt()
                         val y = safeCoerceRange((r.top - d2.top) / d2.height * bitmap.height, 0f, (bitmap.height - 1).toFloat()).toInt()
@@ -547,12 +542,12 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                 zoom = 1f
                                 panX = 0f
                                 panY = 0f
-                                if (dispBase.width > 1f) dispRect = dispBase
+                                if (dispBase.width > 1f) selection.bounds = dispBase
                                 val fallbackDefault = {
-                                    val w = dispRect.width * 0.7f
-                                    val h = dispRect.height * 0.7f
-                                    sel = Rect(dispRect.center.x - w / 2, dispRect.center.y - h / 2,
-                                        dispRect.center.x + w / 2, dispRect.center.y + h / 2)
+                                    val w = selection.bounds.width * 0.7f
+                                    val h = selection.bounds.height * 0.7f
+                                    selection.rect = Rect(selection.bounds.center.x - w / 2, selection.bounds.center.y - h / 2,
+                                        selection.bounds.center.x + w / 2, selection.bounds.center.y + h / 2)
                                 }
                                 var done = false
                                 if (p2 != null) {
@@ -565,7 +560,7 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                         }.getOrNull()
                                         val best = boxes?.maxByOrNull { it.area }
                                         if (best != null) {
-                                            sel = normalizeSelRect(toDisp(best, dispRect), dispRect); done = true
+                                            selection.rect = normalizeSelRect(toDisp(best, selection.bounds), selection.bounds); done = true
                                         }
                                     }
                                     if (!done) {
@@ -575,12 +570,12 @@ val scope = androidx.compose.runtime.rememberCoroutineScope()
                                             }
                                         }.getOrNull()
                                         if (local != null && !local.looksUnreliable()) {
-                                            sel = normalizeSelRect(toDisp(local, dispRect), dispRect); done = true
+                                            selection.rect = normalizeSelRect(toDisp(local, selection.bounds), selection.bounds); done = true
                                         }
                                     }
                                 }
                                 if (!done) fallbackDefault()
-                                userTouched = true
+                                region.touched = true
                                 aiBusy = false
                             }
                         }

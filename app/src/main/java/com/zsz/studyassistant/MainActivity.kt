@@ -123,10 +123,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        val draft = viewModel.solveInputDraft
+        if (draft.fieldFocused && window.decorView.rootWindowInsets?.isVisible(
+                android.view.WindowInsets.Type.ime()) == true) {
+            outState.putString("solveEditingSession", draft.id)
+        }
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         wallpaperWindowMode = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("wallpaper_background", false)
         if (wallpaperWindowMode) setTheme(R.style.Theme_StudyAssistant_Wallpaper)
         super.onCreate(savedInstanceState)
+        viewModel.solveInputDraft.apply { restoreIme = savedInstanceState?.getString("solveEditingSession") == id }
         viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
         if (wallpaperWindowMode) setTranslucent(true)

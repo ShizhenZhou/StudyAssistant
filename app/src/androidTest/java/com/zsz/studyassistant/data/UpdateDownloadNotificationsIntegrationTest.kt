@@ -301,7 +301,7 @@ class UpdateDownloadNotificationsIntegrationTest {
         assertFalse(NotificationCompat.isRequestPromotedOngoing(note))
         assertTrue(note.actions.isNullOrEmpty())
     }
-    @Test fun answerNotificationRequestsPromotionWithLocalizedTextAndAppMark() {
+    @Test fun answerNotificationRequestsPromotionWithoutExtraAppIcon() {
         val previous = UiLangStore.load(context)
         try {
             for (lang in listOf(com.zsz.studyassistant.ui.UiLang.ZH_CN, com.zsz.studyassistant.ui.UiLang.EN,
@@ -314,7 +314,7 @@ class UpdateDownloadNotificationsIntegrationTest {
                 assertFalse(note.extras.getBoolean(Notification.EXTRA_COLORIZED))
                 assertEquals(0xFF2563EB.toInt(), note.color)
                 assertEquals(com.zsz.studyassistant.R.drawable.ic_stat_answer, note.smallIcon.resId)
-                assertNotNull(note.getLargeIcon())
+                assertNull(note.getLargeIcon())
                 assertEquals(NotificationIntents.answerRunning(context), note.contentIntent)
             }
         } finally { UiLangStore.save(context, previous) }

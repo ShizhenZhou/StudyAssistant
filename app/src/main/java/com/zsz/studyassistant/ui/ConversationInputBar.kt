@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
@@ -56,7 +57,7 @@ import androidx.compose.ui.unit.sp
  * 参数全部由调用方提供，页面只负责保管状态与发送逻辑。
  */
 @Composable
-fun ConversationInputBar(
+internal fun ConversationInputBar(
     value: String,
     onValueChange: (String) -> Unit,
     images: List<ByteArray>,
@@ -70,16 +71,10 @@ fun ConversationInputBar(
     modifier: Modifier = Modifier,
     quotedText: String? = null,
     onRemoveQuote: () -> Unit = {},
-    quoteFocusSignal: Int = 0
+    quoteFocusSignal: Int = 0,
+    draft: SolveInputDraft? = null
 ) {
-    val focusRequester = remember { FocusRequester() }
-    val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(quoteFocusSignal) {
-        if (quoteFocusSignal > 0) {
-            focusRequester.requestFocus()
-            keyboard?.show()
-        }
-    }
+    val editor = editorFocus(draft, quoteFocusSignal)
     Column(modifier) {
         quotedText?.let { QuotedTextPreview(it, onRemoveQuote) }
         // 已选 1~3 张附图缩略图（可删除）
@@ -126,7 +121,7 @@ fun ConversationInputBar(
             // 图库选图（最多 3 张，附在消息里）
             Surface(
                 onClick = onPickImages,
-                enabled = !busy,
+                enabled = !busy && images.size < 3,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier.size(44.dp)
@@ -137,7 +132,7 @@ fun ConversationInputBar(
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.weight(1f).heightIn(min = 44.dp).focusRequester(focusRequester),
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp).then(editor),
                 placeholder = { Text(hint, fontSize = 14.sp, maxLines = 1, softWrap = false) },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 maxLines = 3,
@@ -152,6 +147,26 @@ fun ConversationInputBar(
             ) { Text(sendLabel, fontSize = BTN_LABEL) }
         }
     }
+}
+
+@Composable
+internal fun editorFocus(draft: SolveInputDraft?, quoteSignal: Int = 0): Modifier {
+    val requester = remember(draft) { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val windowFocused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
+    var handled by remember(draft) { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(draft) {
+        onDispose { draft?.fieldFocused = false }
+    }
+    LaunchedEffect(windowFocused, draft, draft?.restoreIme, quoteSignal) {
+        if (windowFocused && (draft?.restoreIme == true || quoteSignal > handled)) {
+            requester.requestFocus()
+            keyboard?.show()
+            draft?.restoreIme = false
+            handled = quoteSignal
+        }
+    }
+    return Modifier.focusRequester(requester).onFocusChanged { draft?.fieldFocused = it.isFocused }
 }
 
 @Composable

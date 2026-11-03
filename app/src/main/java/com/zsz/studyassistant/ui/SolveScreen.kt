@@ -79,7 +79,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -136,12 +135,25 @@ fun SolveScreen(
     val cfg = sessionConfig(sessionMode)
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
-    var followUp by remember { mutableStateOf("") }
-    var quotedSelection by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf<QuoteSelection?>(null) }
-    var quoteFocusSignal by remember { mutableIntStateOf(0) }
-    var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
-    var pickingImages by remember { mutableStateOf(false) }
-    val imageScope = rememberCoroutineScope()
+    val draft = vm.solveInputDraft
+    var quoteFocusSignal by remember(draft) { mutableIntStateOf(0) }
+    val attachments = draft.attachments
+    val loaded = remember(draft) { androidx.compose.runtime.mutableStateMapOf<android.net.Uri, ByteArray>() }
+    val selectedImages = attachments.mapNotNull { loaded[it] }
+    val pickingImages = selectedImages.size != attachments.size
+    LaunchedEffect(draft, attachments) {
+        loaded.keys.toList().filterNot { it in attachments }.forEach { loaded.remove(it) }
+        val missing = attachments.filterNot(loaded::containsKey)
+        if (missing.isNotEmpty()) {
+            val picked = withContext(Dispatchers.IO) { urisToCompressedBytes(context, missing) }
+            if (vm.solveInputDraft === draft && draft.attachments == attachments) {
+                if (picked == null) {
+                    draft.attachments = attachments.filter(loaded::containsKey)
+                    feedback.show(s["camera.errRead"])
+                } else loaded.putAll(missing.zip(picked))
+            }
+        }
+    }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val hasKey = vm.hasApiKey()
     // 深色 + 字号：对话区（C14）用（导出 B7 已于 v0.6.4 取消）
@@ -165,20 +177,15 @@ fun SolveScreen(
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(3)
     ) { uris ->
-        if (uris.isNotEmpty() && !pickingImages) {
-            val session = vm.chatItems.firstOrNull()?.messageKey
-            val remaining = (3 - selectedImages.size).coerceAtLeast(0)
-            pickingImages = true
-            imageScope.launch {
-                try {
-                    val picked = withContext(Dispatchers.IO) { urisToCompressedBytes(context, uris.take(remaining)) }
-                    if (session == vm.chatItems.firstOrNull()?.messageKey) {
-                        if (picked == null) feedback.show(s["camera.errRead"])
-                        else selectedImages = (selectedImages + picked).take(3)
-                    }
-                } finally { pickingImages = false }
-            }
+        if (draft.awaitingPicker && vm.solveInputDraft === draft) {
+            draft.awaitingPicker = false
+            draft.attachments = (draft.attachments + uris).distinct().take(3)
         }
+    }
+    fun pickImages() {
+        if (draft.attachments.size >= 3) return
+        draft.awaitingPicker = true
+        imagePicker.launch(imagePickRequest(maxItems = 3))
     }
 
     // B7 导出功能已在 v0.6.4 **取消并移除**（长图/PDF 无法保证完整，用户决定不做）
@@ -690,7 +697,7 @@ fun SolveScreen(
                 )
             }
         }
-        Column(Modifier.readablePage().imePadding().padding(padding)) {
+        Column(Modifier.readablePage(720.dp).imePadding().padding(padding)) {
             if (!hasKey) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
                     Column(Modifier.padding(12.dp)) {
@@ -761,10 +768,10 @@ fun SolveScreen(
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
 
                         OutlinedTextField(
-                            value = followUp,
-                            onValueChange = { followUp = it },
+                            value = draft.text,
+                            onValueChange = { draft.text = it },
                             placeholder = { Text(s["ask.placeholder"]) },
-                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            modifier = Modifier.fillMaxWidth().weight(1f).then(editorFocus(draft)),
                             maxLines = 12
                         )
                         if (selectedImages.isNotEmpty()) {
@@ -776,23 +783,23 @@ fun SolveScreen(
                             )
                         }
                         Spacer(Modifier.height(8.dp))
-                        FormulaBar(onInsert = { followUp = followUp + it })
+                        FormulaBar(onInsert = { draft.text = draft.text + it })
                         Spacer(Modifier.height(8.dp))
                         Row(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            TextButton(enabled = !pickingImages, onClick = { imagePicker.launch(imagePickRequest(maxItems = 3)) }) {
+                            TextButton(enabled = !pickingImages && attachments.size < 3, onClick = ::pickImages) {
                                 Text(s["ask.addImage"])
                             }
                             Button(
                                 onClick = {
-                                    vm.solveDirect(followUp.trim(), selectedImages)
-                                    followUp = ""
-                                    selectedImages = emptyList()
+                                    vm.solveDirect(draft.text.trim(), selectedImages)
+                                    draft.text = ""
+                                    draft.attachments = emptyList()
                                 },
-                                enabled = !pickingImages && (followUp.isNotBlank() || selectedImages.isNotEmpty()),
+                                enabled = !pickingImages && (draft.text.isNotBlank() || selectedImages.isNotEmpty()),
                                 modifier = Modifier.height(52.dp)
                             ) { Text(s["solve.send"]) }
                         }
@@ -805,7 +812,7 @@ fun SolveScreen(
                         scrollTopSignal = scrollTopTick,
                         onContinue = { vm.continueGeneration() },
                         onQuoteText = if (sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { selection ->
-                            quotedSelection = selection
+                            draft.quote = selection
                             quoteFocusSignal++
                         } else null,
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择，JS 侧已拦截，这里再兜一层）
@@ -1006,25 +1013,26 @@ fun SolveScreen(
                 // 输入栏（与同类题页共用组件：附图 + 公式键盘 + 图库 + 发送）
                 // ★ 生成中也显示：否则拍题后到首字出现之前，整条输入栏会被"答案生成中…"顶掉
                 ConversationInputBar(
-                    value = followUp,
-                    onValueChange = { followUp = it },
+                    value = draft.text,
+                    onValueChange = { draft.text = it },
                     images = selectedImages,
-                    onRemoveImage = { selectedImages = selectedImages - it },
-                    onPickImages = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
+                    onRemoveImage = { bytes -> draft.attachments = attachments.filterNot { loaded[it] === bytes } },
+                    onPickImages = ::pickImages,
                     onSend = {
-                        if (vm.sendFollowUp(followUp.trim(), selectedImages, quotedSelection?.text, quotedSelection?.anchor)) {
-                            followUp = ""
-                            selectedImages = emptyList()
-                            quotedSelection = null
+                        if (vm.sendFollowUp(draft.text.trim(), selectedImages, draft.quote?.text, draft.quote?.anchor)) {
+                            draft.text = ""
+                            draft.attachments = emptyList()
+                            draft.quote = null
                         }
                     },
                     busy = vm.busy || vm.dataBusy || pickingImages,
                     hint = s["solve.followUpHint"],
                     sendLabel = s["solve.send"],
                     imageDesc = s["solve.imageDesc"],
-                    quotedText = quotedSelection?.text,
-                    onRemoveQuote = { quotedSelection = null },
-                    quoteFocusSignal = quoteFocusSignal
+                    quotedText = draft.quote?.text,
+                    onRemoveQuote = { draft.quote = null },
+                    quoteFocusSignal = quoteFocusSignal,
+                    draft = draft
                 )
             }
         }
