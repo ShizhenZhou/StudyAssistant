@@ -376,7 +376,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         if (rel.displayVersion == installed) {
                             Text(s.format("update.sameVersion", "name" to rel.assetName), style = MaterialTheme.typography.bodySmall)
                         }
-                        Text(rel.assetName + "  " + String.format("%.1f MB", rel.assetSize / 1024.0 / 1024.0),
+                        Text(rel.assetName + "\n" + String.format("%.1f MB", rel.assetSize / 1024.0 / 1024.0),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                         val notes = UpdateChecker.prettyReleaseNotes(rel.notes)
                         if (notes.isNotBlank()) {
