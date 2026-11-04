@@ -50,6 +50,11 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.0.1
+
+- 💬 Quote just the selected part of a formula and tap the quote to highlight that exact passage.
+- 📌 `versionCode` **103**.
+
 ### v0.7.0
 
 - ✂️ AI crop results appear in a floating message so the image and controls stay in place.

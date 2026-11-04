@@ -75,7 +75,7 @@ data class QuotedFollowUp(val text: String, val question: String, val anchor: Qu
 
 @Serializable
 data class QuoteAnchor(val messageKey: String, val scope: String, val start: Int, val end: Int,
-                       val sourceHash: String)
+                       val sourceHash: String, val visualMath: Boolean = false)
 
 /** Legacy numeric IDs can be reused after deletion. Quote links use independent persistent keys. */
 internal fun withStableMessageKeys(items: List<ChatItem>): List<ChatItem> {

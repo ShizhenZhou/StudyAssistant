@@ -220,7 +220,7 @@ fun ConversationWebView(
                             val start = selected.optInt("start", -1)
                             val end = selected.optInt("end", -1)
                             val anchor = message.messageKey?.takeIf { start >= 0 && end > start }?.let {
-                                com.zsz.studyassistant.QuoteAnchor(it, scope, start, end, hash)
+                                com.zsz.studyassistant.QuoteAnchor(it, scope, start, end, hash, selected.optBoolean("visualMath"))
                             }
                             currentOnQuote?.invoke(QuoteSelection(text, anchor))
                         }
@@ -466,6 +466,7 @@ internal fun buildMessagesJson(messages: List<ChatMsg>): String = JSONArray().ap
             .put("quoteAnchor", m.quoteAnchor?.let { anchor -> JSONObject()
                 .put("messageKey", anchor.messageKey).put("scope", anchor.scope)
                 .put("start", anchor.start).put("end", anchor.end).put("sourceHash", anchor.sourceHash)
+                .put("visualMath", anchor.visualMath)
             } ?: JSONObject.NULL))
     }
 }.toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")

@@ -1,11 +1,11 @@
-/* Quote anchors use normalized visible text; formulas are atomic original-LaTeX units. */
+/* Whole-formula anchors use original LaTeX; partial-formula anchors use the visible KaTeX tree. */
 (function(){
   'use strict';
   function normalized(text){ return (text || '').replace(/\s+/g, ' ').trim(); }
   function boundary(node, after){
     return [node.parentNode, Array.prototype.indexOf.call(node.parentNode.childNodes, node) + (after ? 1 : 0)];
   }
-  function textMap(root){
+  function textMap(root, visualMath){
     var text = '', points = [];
     function add(value, point){
       for(var i=0;i<value.length;i++){
@@ -21,6 +21,10 @@
       if(node.nodeType !== 1) return;
       if(node.matches('.continue,.thinkhead,.thinkfold,.pick,img,summary,.quote-jump-highlight')) return;
       if(node.matches('.math-source')){
+        if(visualMath){
+          var visual=node.querySelector('.katex-html,.katex-error');
+          if(visual){ walk(visual); return; }
+        }
         var atom = {a:boundary(node,false), b:boundary(node,true)};
         add(node.getAttribute('data-tex') || '', function(){ return atom; }); return;
       }
@@ -45,8 +49,8 @@
     while(lo<hi){ var mid=(lo+hi)>>>1; if(predicate(points[mid])) lo=mid+1; else hi=mid; }
     return lo;
   }
-  window.dshQuoteRange = function(scope, range){
-    var map=textMap(scope), start=[range.startContainer,range.startOffset], end=[range.endContainer,range.endOffset];
+  window.dshQuoteRange = function(scope, range, visualMath){
+    var map=textMap(scope,visualMath), start=[range.startContainer,range.startOffset], end=[range.endContainer,range.endOffset];
     return {
       start:lowerBound(map.points,function(p){ return compare(p.b,start)<=0; }),
       end:lowerBound(map.points,function(p){ return compare(p.a,end)<0; })
@@ -77,8 +81,13 @@
       if(!anchor.sourceHash || hashes[anchor.scope]!==anchor.sourceHash) return null;
       var scope=scopeAt(matches[0],anchor.scope,true);
       if(!scope) return null;
-      var map=textMap(scope), start=anchor.start, end=anchor.end;
+      var map=textMap(scope,anchor.visualMath), start=anchor.start, end=anchor.end;
       if(!Number.isInteger(start) || !Number.isInteger(end) || start<0 || end<=start) return null;
+      if(anchor.visualMath){
+        var range=mappedRange(map,start,end);
+        if(!range || normalized(quoteContents(range).text)!==needle) return null;
+        return {idx:matches[0],scope:anchor.scope,range:range};
+      }
       if(end>map.text.length || normalized(map.text.slice(start,end))!==needle){
         // Renderer fixes can shift visible offsets without changing source text.
         // Identity/hash/scope are already verified: relocate only one exact occurrence
@@ -175,6 +184,13 @@
     if(highlight) highlight.layer.classList.add('blink-twice');
   }
   function unavailable(){ try{ if(window.Android && Android.quoteUnavailable) Android.quoteUnavailable(); }catch(e){} }
+  function mappedRange(map,start,end){
+    var first=map.points[start], last=map.points[end-1];
+    if(!first || !last) return null;
+    var range=document.createRange();
+    range.setStart(first.a[0],first.a[1]); range.setEnd(last.b[0],last.b[1]);
+    return range;
+  }
   function jump(idx){
     var target=resolve(idx);
     if(!target){ unavailable(); return; }
@@ -188,10 +204,9 @@
     }
     var scope=scopeAt(target.idx,target.scope,false), bubble=bubbleAt(target.idx);
     if(!scope || !bubble){ unavailable(); return; }
-    var map=textMap(scope), first=map.points[target.start], last=map.points[target.end-1];
-    if(!first || !last){ unavailable(); return; }
+    var range=target.range || mappedRange(textMap(scope),target.start,target.end);
+    if(!range){ unavailable(); return; }
     setReturn(originPoint);
-    var range=document.createRange(); range.setStart(first.a[0],first.a[1]); range.setEnd(last.b[0],last.b[1]);
     var layer=document.createElement('div'); layer.className='quote-jump-highlight'; layer.setAttribute('aria-hidden','true');
     bubble.appendChild(layer); highlight={layer:layer,scope:scope,bubble:bubble,range:range};
     var startY=window.scrollY, began=performance.now();

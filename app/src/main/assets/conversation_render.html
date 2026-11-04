@@ -303,16 +303,70 @@ window.dshSelectMessageText = function(){
   var selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
   return true;
 };
-window.dshSelectedText = function(){
-  var selected = selectionInMessage();
-  if(!selected) return null;
-  var range = selected.range;
-  // Treat a selected formula as a unit. Preserve its original LaTeX rather than
-  // copying KaTeX's duplicated accessibility/visual DOM or half a fraction.
+// Recover complete operands (including fractions and scripts) only if their rendered
+// glyphs align exactly with the selected DOM offsets. Otherwise quote the visible text.
+function formulaExcerpt(math,visual,range,part){
+  var annotation = math.querySelector('annotation[encoding="application/x-tex"]');
+  if(!part || !annotation) return part;
+  var tex = annotation.textContent;
+  if(tex.length>1500 || !/[\\^_]/.test(tex)) return part;
+  var depth=0, chunks=[], from=0;
+  for(var i=0;i<tex.length;i++){
+    var c=tex[i];
+    if(c==='\\'){ i++; continue; }
+    if(c==='{') depth++;
+    else if(c==='}') depth--;
+    else if(!depth && /[=+\-<>;,]/.test(c)){
+      if(i>from) chunks.push(tex.slice(from,i));
+      chunks.push(c); from=i+1;
+    }
+  }
+  if(from<tex.length) chunks.push(tex.slice(from));
+  if(chunks.length<2 || chunks.length>48) return part;
+  var prefix=range.cloneRange(); prefix.setStart(visual,0);
+  prefix.setEnd(range.startContainer,range.startOffset);
+  var start=prefix.toString().replace(/\u200b/g,'').length, end=start+part.length;
+  var glyphs='', selected='', template=document.createElement('template');
+  try{
+    for(var chunk of chunks){
+      template.innerHTML=katex.renderToString(chunk,{output:'html',strict:false,trust:false,maxExpand:1000,maxSize:20});
+      var pos=glyphs.length;
+      glyphs+=template.content.textContent.replace(/\u200b/g,'');
+      if(pos>=start && glyphs.length<=end) selected+=chunk;
+      if((pos<start && start<glyphs.length) || (pos<end && end<glyphs.length)) return part;
+    }
+    if(selected && glyphs===visual.textContent.replace(/\u200b/g,'')) return '\\('+selected+'\\)';
+  }catch(e){ /* Incomplete or context-dependent operands keep the actual selection. */ }
+  return part;
+}
+// Keep whole formulas as LaTeX, including those between two partial endpoints.
+function quoteContents(original){
+  var range = original.cloneRange(), partial = false, replacements = [];
   var startMath = elementOf(range.startContainer).closest('.math-source');
   var endMath = elementOf(range.endContainer).closest('.math-source');
+  for(var math of new Set([startMath,endMath])){
+    if(!math) continue;
+    var visual = math.querySelector('.katex-html,.katex-error');
+    if(!visual) continue;
+    var visible = document.createRange(); visible.selectNodeContents(visual);
+    // Clip to the visible KaTeX tree, excluding its duplicate accessibility content.
+    if(!original.intersectsNode(visual)) visible.collapse(true);
+    else {
+      if(visual.contains(original.startContainer)) visible.setStart(original.startContainer,original.startOffset);
+      if(visual.contains(original.endContainer)) visible.setEnd(original.endContainer,original.endOffset);
+    }
+    var part = visible.toString().replace(/\u200b/g,'');
+    if(part !== visual.textContent.replace(/\u200b/g,'')){
+      partial = true;
+      replacements.push({first:math===startMath,text:formulaExcerpt(math,visual,visible,part)});
+    }
+  }
   if(startMath) range.setStartBefore(startMath);
   if(endMath) range.setEndAfter(endMath);
+  var contents = range.cloneContents(), formulas = contents.querySelectorAll('.math-source');
+  replacements.forEach(function(item){
+    formulas[item.first ? 0 : formulas.length-1].replaceWith(document.createTextNode(item.text));
+  });
   function plain(node){
     if(node.nodeType === 3) return node.nodeValue;
     if(node.nodeType === 1){
@@ -324,12 +378,17 @@ window.dshSelectedText = function(){
     for(var child=node.firstChild;child;child=child.nextSibling) value += plain(child);
     return node.nodeType === 1 && /^(DIV|P|LI|H[1-6]|PRE|BLOCKQUOTE)$/.test(node.tagName) ? '\n'+value+'\n' : value;
   }
-  var text = plain(range.cloneContents()).replace(/\n{3,}/g,'\n\n').trim();
+  return {text:plain(contents).replace(/\n{3,}/g,'\n\n').trim(),partial:partial};
+}
+window.dshSelectedText = function(){
+  var selected = selectionInMessage();
+  if(!selected) return null;
+  var excerpt = quoteContents(selected.range), text = excerpt.text;
   var idx = parseInt(selected.bubble.getAttribute('data-idx'),10);
   var source = messageSources[idx];
   if(!text || !source) return null;
-  var scope = window.dshQuoteScope(selected.scope), offsets = window.dshQuoteRange(selected.scope,range);
-  return {idx:idx, text:text, source:source.content || '', scope:scope, start:offsets.start, end:offsets.end,
+  var scope = window.dshQuoteScope(selected.scope), offsets = window.dshQuoteRange(selected.scope,selected.range,excerpt.partial);
+  return {idx:idx, text:text, visualMath:excerpt.partial, source:source.content || '', scope:scope, start:offsets.start, end:offsets.end,
     sourceHash:(source.hashes || {})[scope] || ''};
 };
 document.addEventListener('selectionchange', function(){
