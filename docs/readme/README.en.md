@@ -50,7 +50,7 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
-### v0.6.9.9
+### v0.7.0
 
 - ✂️ AI crop results appear in a floating message so the image and controls stay in place.
 - 💬 Choose a follow-up prompt after quoting a passage, then edit and send it.

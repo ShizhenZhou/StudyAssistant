@@ -15,7 +15,7 @@ plugins {
 // 版本号约定（2026-09-25 用户确定）：
 //   · `0.x.x`   —— 每次都要在 README「版本记录」+ App 内「更新内容」记一次
 //   · `0.x.x.x` —— 同系列小修补（patch），也要在 README + App 四语言「更新内容」记录
-val appVersionName = "0.6.9.9"
+val appVersionName = "0.7.0"
 
 // Generated only when build inputs change; one UTC identity is shared by embedded metadata and APK names.
 abstract class GenerateBuildStamp : DefaultTask() {
