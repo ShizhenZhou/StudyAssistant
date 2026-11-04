@@ -10,7 +10,13 @@
 
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek 与 GPT 辅助编写。
-安装包和已发布版本以 [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) 为准。
+
+## 下载 APK
+
+- **Android 16 及以上** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
+- **Android 9–15** · [下载最后兼容版 v0.6.7.9](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+
+[全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 功能
 

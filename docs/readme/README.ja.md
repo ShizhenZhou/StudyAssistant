@@ -9,7 +9,14 @@
 ![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
 
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
-zsz が DeepSeek と GPT の支援で開発。公開版は [GitHub Releases](https://github.com/ShizhenZhou/StudyAssistant/releases) から入手できます。
+zsz が DeepSeek と GPT の支援で開発。
+
+## APK のダウンロード
+
+- **Android 16 以降** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
+- **Android 9–15** · [最終対応版 v0.6.7.9 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+
+[過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 機能
 
