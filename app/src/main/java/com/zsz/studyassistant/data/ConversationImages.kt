@@ -1,5 +1,68 @@
 package com.zsz.studyassistant.data
 
+import android.util.JsonReader
+import android.util.JsonToken
+import java.io.Reader
+
+/** Legacy card fallback. Read only the first (question) object with a bounded display-only budget. */
+internal fun legacyPreviewImages(part: (Int, Int) -> String?): List<ByteArray> {
+    val budget = minOf(16L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 16)
+    val reader = object : Reader() {
+        private var piece = ""
+        private var index = 0
+        private var position = 1
+        private var consumed = 0L
+        override fun read(buffer: CharArray, off: Int, len: Int): Int {
+            if (len == 0) return 0
+            if (index == piece.length) {
+                if (consumed >= budget) throw java.io.EOFException()
+                piece = part(position, 8192).orEmpty()
+                if (piece.isEmpty()) return -1
+                position += piece.codePointCount(0, piece.length)
+                consumed += piece.length
+                index = 0
+            }
+            val count = minOf(len, piece.length - index)
+            piece.toCharArray(buffer, off, index, index + count)
+            index += count
+            return count
+        }
+        override fun close() = Unit
+    }
+    val images = mutableListOf<ByteArray>()
+    var isQuestion = false
+    try {
+        JsonReader(reader).use { json ->
+            json.beginArray()
+            json.beginObject()
+            while (json.hasNext()) {
+                when (json.nextName()) {
+                    "role" -> {
+                        isQuestion = json.nextString() == "question"
+                        if (!isQuestion) return emptyList()
+                    }
+                    "images" -> if (json.peek() == JsonToken.BEGIN_ARRAY) {
+                        json.beginArray()
+                        while (json.hasNext() && images.size < MAX_QUESTION_IMAGES) {
+                            val key = json.nextString()
+                            if (key.isNotBlank()) {
+                                try { images.add(android.util.Base64.decode(key, android.util.Base64.NO_WRAP)) }
+                                catch (_: IllegalArgumentException) { /* Skip an invalid legacy image. */ }
+                            }
+                        }
+                        if (isQuestion) return images
+                        while (json.hasNext()) json.skipValue()
+                        json.endArray()
+                    } else json.skipValue()
+                    else -> json.skipValue()
+                }
+            }
+        }
+    } catch (_: java.io.IOException) { /* Truncated or over the card budget. */ }
+    catch (_: IllegalStateException) { /* Unrecognized legacy structure. */ }
+    return if (isQuestion) images else emptyList()
+}
+
 /**
  * 从会话 JSON 里取出**题目那条消息的附图**（base64 列表）。
  *

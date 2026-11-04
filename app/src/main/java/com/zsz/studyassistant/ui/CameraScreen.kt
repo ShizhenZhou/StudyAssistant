@@ -62,9 +62,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -113,6 +115,27 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         val previewView = remember { PreviewView(context) }
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
+        var labelDegrees by remember { mutableStateOf(0f) }
+        androidx.lifecycle.compose.LifecycleResumeEffect(imageCapture, hasPermission) {
+            fun displayRotation() = previewView.display?.rotation ?: android.view.Surface.ROTATION_0
+            var target = displayRotation()
+            fun updateOrientation() {
+                imageCapture.targetRotation = target
+                labelDegrees = ((target - displayRotation() + 4) % 4) * 90f
+            }
+            val sensor = object : android.view.OrientationEventListener(context) {
+                override fun onOrientationChanged(angle: Int) {
+                    if (angle == android.view.OrientationEventListener.ORIENTATION_UNKNOWN) return
+                    val nearest = (angle + 45) / 90
+                    // Ignore ambiguous diagonals so labels stay still near a quadrant boundary.
+                    if (kotlin.math.abs(angle - nearest * 90) <= 32) target = (4 - nearest) % 4
+                    updateOrientation()
+                }
+            }
+            updateOrientation()
+            if (hasPermission && sensor.canDetectOrientation()) sensor.enable()
+            onPauseOrDispose { sensor.disable() }
+        }
         var camera by remember { mutableStateOf<Camera?>(null) }
         var zoomRatio by remember { mutableStateOf<Float?>(null) }
         var cameraFailed by remember { mutableStateOf(false) }
@@ -462,7 +485,8 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .height(44.dp)
         ) {
             Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                Text(if (doubleMode) s["camera.mode.two"] else s["camera.mode.one"], style = MaterialTheme.typography.labelLarge)
+                Text(if (doubleMode) s["camera.mode.two"] else s["camera.mode.one"], style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.cameraLabelRotation(labelDegrees))
             }
         }
 
@@ -509,6 +533,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         ) {
             Text(
                 s["camera.gradeToggle"],
+                modifier = Modifier.cameraLabelRotation(labelDegrees),
                 fontSize = BTN_LABEL,
                 color = Color.White
             )
@@ -522,6 +547,16 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             )
         }
     }
+}
+
+// Rotate only the glyphs inside the existing control. Long translations fit the same height.
+private fun Modifier.cameraLabelRotation(degrees: Float) = drawWithContent {
+    val sideways = degrees == 90f || degrees == 270f
+    val fit = if (sideways && size.width > 0f) minOf(1f, 40.dp.toPx() / size.width) else 1f
+    withTransform({
+        rotate(degrees)
+        scale(fit, fit)
+    }) { this@drawWithContent.drawContent() }
 }
 
 /** Bounded, oriented thumbnail; decoding never blocks camera preview or the main thread. */

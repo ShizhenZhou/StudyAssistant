@@ -33,4 +33,15 @@ class SearchSnippetTest {
         assertEquals(0..159, hit.highlights.first())
         assertTrue(hit.highlights.all { it.first >= 0 && it.last < hit.text.length })
     }
+    @Test fun chunkedSearchPreservesUnicodeBoundariesAndFullTextContext() = kotlinx.coroutines.runBlocking {
+        val prefix = "x".repeat(8188) + "😀"
+        for (suffix in listOf("", "z".repeat(10000))) {
+            val text = prefix + "Boundary" + suffix
+            val actual = searchChunks("boundary", true) { offset, count ->
+                val start = text.offsetByCodePoints(0, offset - 1)
+                text.substring(start, text.offsetByCodePoints(start, minOf(count, text.codePointCount(start, text.length))))
+            }
+            assertEquals(searchSnippet(text, "boundary", true), actual)
+        }
+    }
 }

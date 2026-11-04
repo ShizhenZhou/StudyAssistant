@@ -467,7 +467,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 },
                 onSkip = {
                     val remaining = vm.cropPaths.drop(vm.cropIndex)
-                    submitImages(true) { remaining.map { CaptureImage.wholeJpeg(it) } }
+                    submitImages(true) { remaining.map { if (it == path) compressBitmap(bitmap) else CaptureImage.wholeJpeg(it) } }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             )
@@ -500,7 +500,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
 
 private fun compressBitmap(bmp: Bitmap, quality: Int = 85): ByteArray {
     val out = ByteArrayOutputStream()
-    bmp.compress(Bitmap.CompressFormat.JPEG, quality, out)
+    check(bmp.compress(Bitmap.CompressFormat.JPEG, quality, out))
     return out.toByteArray()
 }
 

@@ -250,10 +250,8 @@ interface QuestionDao {
         if (query.isBlank()) return emptyMap()
         return buildMap {
             for (id in activeQuestionIdsOnce()) {
-                val text = readChunkedText(questionTextSize(id, "text")) { a,b -> questionTextPart(id,"text",a,b) }.orEmpty()
-                val hit = searchSnippet(text, query, answer = false) ?: searchSnippet(
-                    readChunkedText(questionTextSize(id,"answer")) { a,b -> questionTextPart(id,"answer",a,b) }.orEmpty(),
-                    query, answer = true)
+                val hit = searchChunks(query, answer = false) { offset, count -> questionTextPart(id, "text", offset, count) }
+                    ?: searchChunks(query, answer = true) { offset, count -> questionTextPart(id, "answer", offset, count) }
                 if (hit != null) put(id, hit)
             }
         }
@@ -308,6 +306,19 @@ interface QuestionDao {
     suspend fun imagesForQuestion(qid: QuestionId): List<QuestionImage> = imageHeadersForQuestion(qid).map {
         it.copy(bytes=checkNotNull(readChunkedBlob(imageSize(it.id)) { a,b -> imagePart(it.id,a,b) }))
     }
+
+    /** Card-only projection. Never load the answer or later conversation turns for a thumbnail. */
+    @androidx.room.Transaction
+    suspend fun previewImages(qid: QuestionId): List<ByteArray> {
+        val stored = imagesForQuestion(qid)
+        if (stored.isNotEmpty()) return stored.map { it.bytes }
+        val primary = listOfNotNull(questionImageOnce(qid))
+        val legacy = legacyPreviewImages { offset, count -> previewConversationPart(qid, offset, count) }
+        return primary + additionalQuestionImages(primary, legacy)
+    }
+
+    @Query("SELECT substr(conversationJson,:offset,:count) FROM questions WHERE id=:qid")
+    fun previewConversationPart(qid: QuestionId, offset: Int, count: Int): String?
 
     /** 批量读"主图"（列表页兜底；只取 position=0，避免把全部大图读进内存） */
     @Query("SELECT id,questionId,position,X'' AS bytes,source,createdAt FROM question_images WHERE position = 0 AND questionId IN (:qids)")

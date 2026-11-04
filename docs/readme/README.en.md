@@ -43,13 +43,15 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
-### v0.6.9.8_beta
+### v0.6.9.8
 
+- 📷 Shot count and grading labels follow your grip, and photos use the same orientation. Skipping the remaining crops reuses the current preview.
+- 📚 Reduced repeated reads when opening conversations with images, loading notebook thumbnails and searching long answers.
 - 📐 Local cropping handles light text on dark pages and groups nearby options. AI retries target the marked problem, and two-image grading keeps handwriting in the second image.
 - ✂️ Slide past the 5-second stop to select ∞ and wait for AI cropping without a deadline.
 - 📷 Improved image preparation and crop selection. The crop page shows when AI applies a result, times out or fails, and respects manual edits.
 - 🛠️ Fixed edge cases in draft recovery, share cancellation, multi-selection and beta download notices.
-- 📌 `versionCode` **100**.
+- 📌 `versionCode` **101**.
 
 ### v0.6.9.7
 

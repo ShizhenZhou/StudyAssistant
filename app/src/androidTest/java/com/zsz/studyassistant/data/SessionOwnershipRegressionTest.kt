@@ -34,7 +34,7 @@ class SessionOwnershipRegressionTest {
         field("similarCreatedAt").setLong(model, QuestionIdentity.time(id))
         assertEquals("Fixture identity and creation time must agree", QuestionIdentity.time(id), field("similarCreatedAt").getLong(model))
     }
-    private suspend fun main(block: () -> Unit) = withContext(Dispatchers.Main) { block() }
+    private suspend fun main(block: suspend () -> Unit) = withContext(Dispatchers.Main) { block() }
     private suspend fun await(test: suspend () -> Boolean) = withTimeout(8000) { while (!test()) delay(20) }
     private fun question(text: String, time: Long) = Question(QuestionIdentity.create(time), text, "answer $text", time)
 

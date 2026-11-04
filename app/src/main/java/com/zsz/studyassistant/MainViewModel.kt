@@ -591,7 +591,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             if (!current()) return@launch
                             withContext(Dispatchers.IO) { conversationDrafts.clear(id,value.generation) }
                             if (!current()) return@launch
-                            loadQuestion(row)
+                            if (!loadQuestion(row, ownsOpen = ::current)) return@launch
                             expectedBinding = sessionRecordBinding
                             expectedCall = callSeq
                             refreshDrafts()
@@ -1261,6 +1261,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 已存记录读取对应错题的最新内容；对应错题不存在 / 已软删除时，独立查看记录。
      * 返回 true 后调用方才导航，期间保留 opening，避免重复打开。
      */
+    private data class LoadedConversation(
+        val messages: List<ChatItem>,
+        val imageKeys: List<String>,
+        val direct: List<ByteArray>,
+        val grading: Boolean,
+        val legacyImages: Boolean
+    )
+
+    private suspend fun readConversation(
+        text: String, answer: String, conversation: String?, primary: ByteArray?, grading: Boolean,
+        notebookId: QuestionId? = null, historyImages: String? = null
+    ): LoadedConversation = withContext(Dispatchers.Default) {
+        val parsed = runCatching { json.decodeFromString<List<ChatItem>>(conversation.orEmpty()) }.getOrNull()
+        val messages = parsed.orEmpty().ifEmpty { listOf(ChatItem(0, "question", text), ChatItem(1, "assistant", answer)) }
+        val embedded = parsed?.firstOrNull { it.role == "question" }?.images
+            ?: if (parsed == null) questionImageBase64(conversation) else emptyList()
+        val extras = historyImages?.let { json.decodeFromString<List<String>>(it) }.orEmpty()
+        val primaryKey = primary?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+        val fallback = mergeImageKeys(primaryKey, extras + embedded)
+        val stored = notebookId?.let { dao.imagesForQuestion(it) }.orEmpty().associate {
+            Base64.encodeToString(it.bytes, Base64.NO_WRAP) to it.bytes
+        }
+        val keys = mergeImageKeys(null, stored.keys.toList() + fallback)
+        val isGrade = gradingInput(grading, text, messages, keys) != null
+        val bytes = if (isGrade) emptyList() else keys.mapNotNull { key ->
+            stored[key] ?: if (key == primaryKey) primary else if (notebookId == null) Base64.decode(key, Base64.NO_WRAP)
+            else runCatching { Base64.decode(key, Base64.NO_WRAP) }.getOrNull()
+        }
+        LoadedConversation(messages, keys, bytes, isGrade,
+            notebookId != null && stored.size < MAX_QUESTION_IMAGES && fallback.any { it !in stored })
+    }
+
     suspend fun loadSolveSession(s: SolveSession): Boolean {
         if (!canOpenSavedQuestion(s.id)) return false
         stopActiveGeneration()
@@ -1270,10 +1302,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (seq != callSeq) return false
             if (linked != null && !linked.deleted) {
                 // 用户选择 A：以错题本最新内容为准，但继续绑定这条搜题记录。
-                loadQuestion(linked, historySession = s)
-                return true
+                return loadQuestion(linked, historySession = s)
             }
             // 对应错题已删除或不存在：记录仍可查看，不再回写失效的错题 id。
+            val loaded = readConversation(s.text, s.answer, s.conversationJson, s.imageBytes, s.source == "grade",
+                historyImages = s.imagesJson)
+            if (seq != callSeq) return false
             resetSession()
             sessionRecordBinding = SolveSessionBinding(
                 s.id, s.createdAt, s.source, historyAllowed = true
@@ -1281,21 +1315,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             exitRedo()
             isPhoto = s.source == "camera"
             askMode = s.source == "ask"
-            chatItems = runCatching {
-                json.decodeFromString<List<ChatItem>>(s.conversationJson.orEmpty())
-            }.getOrDefault(emptyList())
-            if (chatItems.isEmpty()) {
-                chatItems = listOf(ChatItem(0, "question", s.text), ChatItem(1, "assistant", s.answer))
-            }
+            chatItems = loaded.messages
             questionText = s.text
-            restoreGradeContext(s.source == "grade")
+            gradeMode = loaded.grading
             imageBytes = s.imageBytes
-            val multiKeys = s.imagesJson?.let { json.decodeFromString<List<String>>(it) }.orEmpty()
-            questionImages = mergeImageKeys(
-                s.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
-                multiKeys + questionImageBase64(s.conversationJson)
-            )
-            directImages = if (gradeMode) emptyList() else questionImages.map { Base64.decode(it, Base64.NO_WRAP) }
+            questionImages = loaded.imageKeys
+            directImages = loaded.direct
             questionFromPhoto = isPhoto && questionImages.isNotEmpty()
             currentQuestionCreatedAt = s.createdAt
             return true
@@ -2797,8 +2822,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val full = dao.heavyOnce(q.id) ?: return@launch
                 if (seq != callSeq || binding !== sessionRecordBinding) return@launch
                 redoMessage = null
-                loadQuestion(full, keepReview = true)
-                onReady()
+                if (loadQuestion(full, keepReview = true)) onReady()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -2856,8 +2880,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (!ownsSession()) return
             if (full != null && !full.deleted && full.id !in deletionState.value.questionIds) {
                 redoMessage = null
-                loadQuestion(full, keepReview = true)
-                error=null
+                if (loadQuestion(full, keepReview = true, ownsOpen = ::ownsSession)) error=null
                 return
             }
             reviewQueue = reviewQueue.filter { it.id != candidate.id }
@@ -3586,22 +3609,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             false
         }
     }
+    private var notebookOpenSequence = 0L
     fun openNotebookQuestion(id: QuestionId, onReady: () -> Unit) {
         val seq = callSeq
+        val request = ++notebookOpenSequence
+        fun current() = request == notebookOpenSequence && seq == callSeq
         viewModelScope.launch {
             try {
-                if (!canOpenSavedQuestion(id)) return@launch
+                if (!canOpenSavedQuestion(id, ::current)) return@launch
                 val full = dao.heavyOnce(id) ?: return@launch
-                if (seq != callSeq || full.deleted) return@launch
-                loadQuestion(full)
-                onReady()
+                if (!current() || full.deleted) return@launch
+                if (loadQuestion(full, ownsOpen = ::current)) onReady()
             } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"] }
+            catch (_: Exception) { if (current()) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"] }
         }
     }
 
-    fun loadQuestion(q: Question, keepReview: Boolean = false, historySession: SolveSession? = null) {
-        // 调用方提供完整 Question：错题本来自 getAll，复习 / 记录入口先 heavyOnce。
+    suspend fun loadQuestion(q: Question, keepReview: Boolean = false, historySession: SolveSession? = null,
+                             ownsOpen: () -> Boolean = { true }): Boolean {
+        val seq = callSeq
+        val previousBinding = sessionRecordBinding
+        val epoch = reviewEpoch
+        val loaded = readConversation(q.text, q.answer, q.conversationJson, q.imageBytes, historySession?.source == "grade", q.id)
+        if (seq != callSeq || previousBinding !== sessionRecordBinding || !ownsOpen() ||
+            (keepReview && epoch != reviewEpoch) || q.id in deletionState.value.questionIds) return false
         if (keepReview && reviewMode) saveSessionOnExit()
         stopActiveGeneration()
         resetSession()
@@ -3614,15 +3645,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val binding = sessionRecordBinding
         exitRedo()
         reviewMode = keepReview
-        chatItems = runCatching {
-            json.decodeFromString<List<ChatItem>>(q.conversationJson.orEmpty())
-        }.getOrDefault(emptyList())
-        if (chatItems.isEmpty()) {
-            chatItems = listOf(ChatItem(0, "question", q.text), ChatItem(1, "assistant", q.answer))
-        }
+        chatItems = loaded.messages
         currentNotebookBaseline=com.zsz.studyassistant.data.SavePayload.notebook(q)
         questionText = q.text
-        restoreGradeContext(historySession?.source == "grade")
+        gradeMode = loaded.grading
         imageBytes = q.imageBytes
         isPhoto = q.imageBytes != null
         savedToNotebook = !q.deleted
@@ -3631,32 +3657,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         isDeleted = q.deleted
         currentQuestionCategoryId = q.categoryId
         currentQuestionCreatedAt = q.createdAt
-        questionImages = mergeImageKeys(
-            q.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
-            questionImageBase64(q.conversationJson)
-        )
+        questionImages = loaded.imageKeys
+        directImages = loaded.direct
+        showLegacyImageWarn = loaded.legacyImages
         questionFromPhoto = q.imageBytes != null
         if (keepReview) currentReviewQuestion = q
         viewModelScope.launch {
             try {
-                val rows = dao.imagesForQuestion(q.id).sortedBy { it.position }
-                val storedKeys = rows.map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
-                val fallbackKeys = mergeImageKeys(
-                    q.imageBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
-                    questionImageBase64(q.conversationJson)
-                )
-                val keys = mergeImageKeys(storedKeys.firstOrNull(), storedKeys.drop(1) + fallbackKeys)
                 val cats = dao.allCategoriesOnce()
                 val allTags = dao.getAllTagsOnce()
                 val tagIds = dao.tagIdsForQuestion(q.id)
                 if (binding !== sessionRecordBinding || savedQuestionId != q.id) return@launch
-                questionImages = keys
-                directImages = if (gradeMode) emptyList() else keys.mapNotNull {
-                    runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
-                }
-                if (rows.size < MAX_QUESTION_IMAGES && fallbackKeys.any { it !in storedKeys }) {
-                    showLegacyImageWarn = true
-                }
                 currentQuestionTags = tagIds
                 suggestedCategory = cats.firstOrNull { it.id == q.categoryId }?.name
                 suggestedTags = tagIds.mapNotNull { id -> allTags.firstOrNull { it.id == id }?.name }
@@ -3669,6 +3680,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+        return true
     }
 }
 
