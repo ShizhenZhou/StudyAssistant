@@ -21,9 +21,9 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Features
 
 - 📷 Ask with photos or text and images, crop images and grade handwritten work.
-- 🤖 Stream answers, ask with images and practise similar questions. Select “Quote” to ask about text, visit its source and return, with formula rendering.
+- 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Formulas are supported.
 - 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.
-- 📚 Organize notebook entries with categories, tags, sorting and batch actions.
+- 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.
 - 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.
 - 🏷 Organize tags with AI suggestions, merge previews and undo.
 - 📖 Spaced review, daily reminders and learning statistics.
@@ -49,6 +49,15 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.6.9.9
+
+- ✂️ AI crop results appear in a floating message so the image and controls stay in place.
+- 💬 Choose a follow-up prompt after quoting a passage, then edit and send it.
+- 📚 Practise a filtered set of notebook problems and see a session summary without changing your review schedule.
+- 🕘 History shows which record is opening and lets you retry. Date groups refresh overnight, and review loads only the current selection.
+- ⬆️ The updater recognizes numbered beta releases.
+- 📌 `versionCode` **102**.
 
 ### v0.6.9.8
 

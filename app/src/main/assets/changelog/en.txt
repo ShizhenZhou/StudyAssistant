@@ -1,3 +1,10 @@
+v0.6.9.9
+· ✂️ AI crop results appear in a floating message so the image and controls stay in place.
+· 💬 Choose a follow-up prompt after quoting a passage, then edit and send it.
+· 📚 Practise a filtered set of notebook problems and see a session summary without changing your review schedule.
+· 🕘 History shows which record is opening and lets you retry. Date groups refresh overnight, and review loads only the current selection.
+· ⬆️ The updater recognizes numbered beta releases.
+
 v0.6.9.8
 · 📷 Shot count and grading labels follow your grip, and photos use the same orientation. Skipping the remaining crops reuses the current preview.
 · 📚 Reduced repeated reads when opening conversations with images, loading notebook thumbnails and searching long answers.

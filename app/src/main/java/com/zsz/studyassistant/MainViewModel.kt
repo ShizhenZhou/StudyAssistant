@@ -98,6 +98,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init { KeyManager.init(app) }
     private val calendarDay = MutableStateFlow(com.zsz.studyassistant.data.CalendarDay.now())
+    val currentDay: StateFlow<com.zsz.studyassistant.data.CalendarDay> get() = calendarDay
     fun refreshClock() { calendarDay.value = com.zsz.studyassistant.data.CalendarDay.now() }
     // Draft text stays in memory across Activity recreation, never in a Binder saved-state Bundle.
     var customPromptDraft by mutableStateOf<String?>(null)
@@ -289,10 +290,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val qs=allQuestions.filterNot { it.id in deletes.questionIds }
             com.zsz.studyassistant.data.NotebookSorting.sort(qs, rs.associateBy { it.questionId }, mode)
         }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    /** 复习记录流（A5 复习筛选用：掌握档位 / 下次复习时间） */
-    val reviewRecords: StateFlow<List<Review>> =
-        dao.allReviews().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * B9 查重：题干（归一化后）相同的已有错题。
@@ -1293,17 +1290,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             notebookId != null && stored.size < MAX_QUESTION_IMAGES && fallback.any { it !in stored })
     }
 
-    suspend fun loadSolveSession(s: SolveSession): Boolean {
-        if (!canOpenSavedQuestion(s.id)) return false
+    suspend fun loadSolveSession(id: QuestionId): Boolean {
+        if (!canOpenSavedQuestion(id)) return false
         stopActiveGeneration()
         val seq = callSeq
         try {
-            val linked = dao.heavyOnce(s.id)
-            if (seq != callSeq) return false
-            if (linked != null && !linked.deleted) {
-                // 用户选择 A：以错题本最新内容为准，但继续绑定这条搜题记录。
-                return loadQuestion(linked, historySession = s)
+            val (s, linked) = AppDatabase.get(getApplication()).withTransaction {
+                val question = if (dao.questionPreviewOnce(id)?.deleted == false) dao.heavyOnce(id) else null
+                val session = if (question != null) dao.sessionLightOnce(id) else dao.solveSessionOnce(id)
+                (session ?: return@withTransaction null) to question
+            } ?: run {
+                if (seq == callSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["history.readFailed"]
+                return false
             }
+            if (seq != callSeq) return false
+            if (linked != null) return loadQuestion(linked, historySession = s)
             // 对应错题已删除或不存在：记录仍可查看，不再回写失效的错题 id。
             val loaded = readConversation(s.text, s.answer, s.conversationJson, s.imageBytes, s.source == "grade",
                 historyImages = s.imagesJson)
@@ -1327,8 +1328,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = com.zsz.studyassistant.ui.stringsFor(uiLang)
-                .format("data.failed", "msg" to (e.message ?: ""))
+            if (seq == callSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["history.readFailed"]
             return false
         }
     }
@@ -2768,11 +2768,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- 复习（艾宾浩斯）----
 
-    /** 今天到期的错题 */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun dueQuestionsToday(): Flow<List<Question>> = kotlinx.coroutines.flow.combine(calendarDay.flatMapLatest { dao.dueQuestions(it.end) }, deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.questionIds } }
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun dueQuestionsWeek(): Flow<List<Question>> = kotlinx.coroutines.flow.combine(calendarDay.flatMapLatest { dao.dueQuestions(it.weekEnd) }, deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.questionIds } }
+    fun dueQuestions(week: Boolean, onlyWeak: Boolean): Flow<List<Question>> =
+        kotlinx.coroutines.flow.combine(calendarDay.flatMapLatest { day ->
+            dao.dueQuestions(if (week) day.weekEnd else day.end, onlyWeak)
+        }, deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.questionIds } }
 
     var reviewBusy by mutableStateOf(false)
         private set
@@ -3623,6 +3623,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { if (current()) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"] }
         }
+    }
+
+    /** Read a single practice card without opening a solve session or recording a review. */
+    internal suspend fun readPracticeQuestion(id: QuestionId): List<com.zsz.studyassistant.ui.ChatMsg>? {
+        val row = dao.heavyOnce(id)?.takeUnless { it.deleted || id in deletionState.value.questionIds } ?: return null
+        val grade = dao.sessionLightOnce(id)?.source == "grade"
+        val loaded = readConversation(row.text, row.answer, row.conversationJson, row.imageBytes, grade, id)
+        // Legacy grading entries can outlive their history row. Match their original
+        // saved labels so the student's answer photo stays hidden until reveal.
+        val original = loaded.messages.firstOrNull { it.role == "question" }?.content
+        val gradeLabel = !grade && loaded.imageKeys.isNotEmpty() && com.zsz.studyassistant.ui.UiLang.entries.any { lang ->
+            val labels = com.zsz.studyassistant.ui.stringsFor(lang)
+            original == labels["grade.label.question"] + " + " + labels["grade.label.answer"] ||
+                original == row.text + "\n" + labels["grade.label.answer"]
+        }
+        val parts = gradingInput(grade || gradeLabel, row.text, loaded.messages, loaded.imageKeys)
+        val images = parts?.questionImages ?: loaded.imageKeys
+        // The row's answer may be the latest follow-up, while practice asks the original question.
+        val solution = loaded.messages.firstOrNull { it.role == "assistant" && it.content.isNotBlank() }?.content ?: row.answer
+        return listOf(
+            com.zsz.studyassistant.ui.ChatMsg("user", row.text, images),
+            com.zsz.studyassistant.ui.ChatMsg("assistant", solution, listOfNotNull(parts?.answerImage))
+        )
     }
 
     suspend fun loadQuestion(q: Question, keepReview: Boolean = false, historySession: SolveSession? = null,

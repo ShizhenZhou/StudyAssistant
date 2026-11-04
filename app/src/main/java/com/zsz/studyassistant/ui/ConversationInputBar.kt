@@ -3,6 +3,8 @@ package com.zsz.studyassistant.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -76,7 +79,25 @@ internal fun ConversationInputBar(
 ) {
     val editor = editorFocus(draft, quoteFocusSignal)
     Column(modifier) {
-        quotedText?.let { QuotedTextPreview(it, onRemoveQuote) }
+        quotedText?.let { quote ->
+            QuotedTextPreview(quote, onRemoveQuote)
+            val strings = LocalStrings.current
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (prompt in listOf(strings["solve.quoteExplainStep"], strings["solve.quoteWhyFormula"])) {
+                    AssistChip(
+                        onClick = {
+                            val separator = if (value.isEmpty() || value.last().isWhitespace()) "" else "\n"
+                            onValueChange(value + separator + prompt)
+                        },
+                        label = { Text(prompt) }
+                    )
+                }
+            }
+        }
         // 已选 1~3 张附图缩略图（可删除）
         if (images.isNotEmpty()) {
             Row(

@@ -16,7 +16,7 @@ import uuid
 import io
 import zipfile
 import tempfile
-from release_common import VERSION, apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
+from release_common import VERSION, apk_identity, apk_payload, extract_candidate, numeric_version, sha256, validate_manifest
 from verification import (make_plan, validate_ci_evidence,
                           validate_promotion, pre_main_gate)
 
@@ -56,7 +56,7 @@ def update_manifest(apk, identity, candidate):
         raise ReleaseError("Signed APK identity differs from the CI manifest.")
     # Existing clients compare the normalized numeric release version; the APK
     # identity retains its suffix and GitHub prerelease/channel carries the channel.
-    return dict(schema=1, version=identity["version"].removesuffix("_beta"), versionCode=identity["versionCode"],
+    return dict(schema=1, version=numeric_version(identity["version"]), versionCode=identity["versionCode"],
                 minSdk=identity["minSdk"], apkName=apk.name, apkSha256=sha256(apk), apkSize=apk.stat().st_size)
 
 def release_body(notes, metadata):
@@ -351,7 +351,7 @@ class Release:
         metadata = json.loads(asset_bytes(metadata_assets[0]))
         apk_assets = [a for a in assets if a["name"] == metadata["apkName"]]
         if (len(apk_assets) != 1 or metadata.get("schema") != 1 or
-            published["tag_name"].removeprefix("v").removesuffix("_beta") != metadata["version"] or
+            numeric_version(published["tag_name"].removeprefix("v")) != metadata["version"] or
             (is_beta and metadata.get("channel") != "beta")):
             raise ReleaseError("Published APK identity mismatch")
         apk = asset_bytes(apk_assets[0])
@@ -364,7 +364,7 @@ class Release:
             for path in (self.root / ".local-notes/release-state").glob("*.json"):
                 state = json.loads(path.read_text(encoding="utf-8"))
                 if (state.get("published") is True and state.get("phase") == "archived" and
-                    state.get("releaseId") == published["id"] and state.get("version") == metadata["version"] and
+                    state.get("releaseId") == published["id"] and state.get("version") == published["tag_name"].removeprefix("v") and
                     state.get("signedSha256") == apk_sha):
                     matches.append(dict(sourceCommit=state["commit"], runId=state["runId"]))
             unique = {(item["sourceCommit"],item["runId"]) for item in matches}
@@ -390,7 +390,7 @@ class Release:
             manifest, _ = extract_candidate(artifact("release-candidate"), Path(tmp) / "candidate")
             if (manifest["schema"] not in (2, 3) or manifest["commit"] != commit or
                 published["tag_name"] != "v" + manifest["version"] or
-                metadata["version"] != manifest["version"].removesuffix("_beta") or
+                metadata["version"] != numeric_version(manifest["version"]) or
                 any(metadata.get(k) != manifest.get(k) for k in ("versionCode", "minSdk")) or
                 apk_payload(io.BytesIO(apk)) != (manifest["payloadSha256"], manifest["buildUtc"])):
                 raise ReleaseError("Published APK does not match CI payload/source")
@@ -449,7 +449,7 @@ class Release:
         if self.remote(branch) != commit:
             raise ReleaseError("Push the reviewed source branch before requesting its build.")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
-        if version.endswith("_beta") and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
+        if numeric_version(version) != version and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
         source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
         if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
             raise ReleaseError("Requested version differs from source.")
@@ -616,6 +616,8 @@ class Release:
                     self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
             branch = run.get("head_branch")
+            if numeric_version(manifest["version"]) != manifest["version"] and self.state.get("channel") != "beta":
+                raise ReleaseError("Beta candidates require an explicitly requested beta release")
             if (branch != "main" and not (branch == "Develop" and self.state.get("channel") == "beta" and
                     self.state.get("dispatchBranch") == "Develop")) or run.get("path", "").split("@")[0] != ".github/workflows/" + WORKFLOW:
                 raise ReleaseError("Candidate requires main or an explicitly requested Develop beta build")
@@ -685,7 +687,7 @@ class Release:
         # Persist exact metadata before any durable replacement ownership marker.
         files = {signed.name: signed}
         # Previously published legacy releases retain their single-APK layout.
-        if tuple(map(int, version.removesuffix("_beta").split("."))) > (0, 6, 7, 8):
+        if tuple(map(int, numeric_version(version).split("."))) > (0, 6, 7, 8):
             metadata = self.signed_identity(signed, manifest)
             update_path = signed.parent / "update-manifest.json"
             # Preserve byte-for-byte legacy metadata when resuming an existing state.

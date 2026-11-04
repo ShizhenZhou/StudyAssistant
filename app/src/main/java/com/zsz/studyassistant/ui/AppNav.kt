@@ -19,6 +19,7 @@ import androidx.navigation.NavHostController
  * ├── grade ──→ solve(grade)                批改
  * ├── history ──→ solve(history)            🕘 搜题记录（**保留来路**）
  * ├── notebook ──→ solve(notebook)          📚 错题本
+ * │            └─→ notebookPractice         当前筛选结果的临时练习
  * ├── review ──→ solve(review)              📖 复习
  * ├── similar                               练同类题（从解题页进）
  * ├── stats（底部页签）                       📊 统计
@@ -46,6 +47,7 @@ object AppNav {
     const val SOLVE_PATTERN = "solve/{origin}"
     const val HISTORY = "history"
     const val NOTEBOOK = "notebook"
+    const val NOTEBOOK_PRACTICE = "notebookPractice"
     const val REVIEW = "review"
     const val SIMILAR = "similar"
     const val STATS = "stats"

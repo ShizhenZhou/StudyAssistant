@@ -6,8 +6,13 @@ import re
 import zipfile
 
 PACKAGE = "com.zsz.studyassistant"
-VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}(?:_beta)?")
+VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?")
 SIGNATURE_ENTRY = re.compile(r"META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC))", re.IGNORECASE)
+
+def numeric_version(version):
+    if not VERSION.fullmatch(version):
+        raise ValueError("Invalid release version")
+    return version.partition("_beta")[0]
 
 def sha256(path):
     with Path(path).open("rb") as stream:

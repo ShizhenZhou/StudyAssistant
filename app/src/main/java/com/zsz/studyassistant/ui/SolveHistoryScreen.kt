@@ -51,11 +51,11 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AppDatabase
 import com.zsz.studyassistant.data.SolveSession
-import kotlinx.coroutines.Dispatchers
+import com.zsz.studyassistant.data.CalendarDay
+import com.zsz.studyassistant.data.QuestionId
+import androidx.compose.material3.CircularProgressIndicator
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Calendar
-import java.util.concurrent.TimeUnit
 
 /**
  * 🕘 搜题记录（DESIGN-20261013 §2 的 P0 界面部分）。
@@ -70,7 +70,6 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
     val darkTheme = rememberDarkTheme(vm.theme)
     val haptics = LocalHapticFeedback.current
-    val feedback = LocalAppFeedback.current
     val context = LocalContext.current
     // Dao 直接取（与 Reminder.kt 同一写法）；MainViewModel 的 dao 是 private，不改 VM
     val dao = remember(context) { AppDatabase.get(context).questionDao() }
@@ -79,26 +78,22 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val storedSessions by remember { dao.solveSessionsLight() }
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val deletes by vm.deletionState.collectAsStateWithLifecycle()
-    val sessions=storedSessions.filterNot { it.id in deletes.historyIds }
+    val sessions = remember(storedSessions, deletes.historyIds) { storedSessions.filterNot { it.id in deletes.historyIds } }
 
     var selectionMode by remember { mutableStateOf(false) }
     var requestedIds by remember { mutableStateOf<Set<com.zsz.studyassistant.data.QuestionId>>(emptySet()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var opening by remember { mutableStateOf(false) }   // 取重字段期间防重复点击
+    var opening by remember { mutableStateOf<QuestionId?>(null) }
+    var failed by remember { mutableStateOf<QuestionId?>(null) }
+    var failureMessage by remember { mutableStateOf<String?>(null) }
 
     fun exitSelection() { selectionMode = false; requestedIds = emptySet() }
 
     // 返回键：选择模式 → 先退出选择，而不是直接退页面
     BackHandler(enabled = selectionMode) { exitSelection() }
 
-    // 今天 00:00 / 昨天 00:00（按天分组用；每次重组取一次，语义与 MainViewModel.startOfToday 一致）
-    val todayStart = remember(sessions) {
-        Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-    }
-    val groups = remember(sessions, todayStart) { groupSolveSessionsByDay(sessions, todayStart) }
+    val day by vm.currentDay.collectAsStateWithLifecycle()
+    val groups = remember(sessions, day) { groupSolveSessionsByDay(sessions, day) }
 
     // A refreshed list must never apply a batch action to rows no longer on screen.
     val selectedIds = remember(sessions, requestedIds) {
@@ -191,25 +186,28 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                     SolveHistoryItem(
                         rec = rec,
                         modifier = Modifier.animateItem(fadeInSpec = null, placementSpec = tween(180), fadeOutSpec = tween(140)),
+                        day = day,
+                        loading = opening == rec.id,
+                        retryMessage = if (failed == rec.id) failureMessage ?: s["history.readFailed"] else null,
                         darkTheme = darkTheme,
                         selectionMode = selectionMode,
                         selected = selectedIds.contains(rec.id),
                         onClick = {
                             if (selectionMode) {
                                 requestedIds = if (selectedIds.contains(rec.id)) selectedIds - rec.id else selectedIds + rec.id
-                            } else if (!opening) {
-                                // ★ 续答链路：轻查询拿不到重字段 → 先按 id 取整条 → 载回 VM → 进解题页
-                                opening = true
+                            } else if (opening == null) {
+                                opening = rec.id
+                                failed = null
                                 scope.launch {
                                     try {
-                                        val full = withContext(Dispatchers.IO) {
-                                            runCatching { dao.solveSessionOnce(rec.id) }.getOrNull()
-                                        }
-                                        if (full != null && vm.loadSolveSession(full)) {
+                                        if (vm.loadSolveSession(rec.id)) {
                                             AppNav.openSolve(nav, AppNav.Origin.HISTORY)
+                                        } else {
+                                            failureMessage = vm.error
+                                            failed = rec.id
                                         }
                                     } finally {
-                                        opening = false
+                                        opening = null
                                     }
                                 }
                             }
@@ -256,6 +254,9 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 private fun SolveHistoryItem(
     rec: SolveSession,
     modifier: Modifier = Modifier,
+    day: CalendarDay,
+    loading: Boolean,
+    retryMessage: String?,
     darkTheme: Boolean,
     selectionMode: Boolean,
     selected: Boolean,
@@ -285,8 +286,12 @@ private fun SolveHistoryItem(
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
                     Text(
-                        relativeTimeText(rec.createdAt),
+                        relativeTimeText(rec.createdAt, day.start),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -296,6 +301,10 @@ private fun SolveHistoryItem(
                         fontSize = 10.sp,
                         color = if (rec.savedQuestionId != null) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline
                     )
+                }
+                if (retryMessage != null && !selectionMode) {
+                    Text(retryMessage + " · " + s["update.retry"], style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error)
                 }
             }
             if (selectionMode) {
@@ -312,13 +321,10 @@ internal data class SolveHistoryGroup(val label: String, val items: List<SolveSe
 /**
  * 按天分组 + 组内 `createdAt` 倒序（纯函数，便于单测）。
  *
- * @param todayStart 今天 00:00 的时间戳；昨天区间 = `[todayStart - 1 天, todayStart)`
  */
-internal fun groupSolveSessionsByDay(all: List<SolveSession>, todayStart: Long): List<SolveHistoryGroup> {
-    val yesterdayStart = todayStart - TimeUnit.DAYS.toMillis(1)
-    // ★ 2026-10-13：**坏数据兜底** —— 之前的版本可能把 `createdAt` 写成 0（根因见
-    //   `MainViewModel.recordSolveSession` 的修复：INSERT 没记 `solveSessionCreatedAt`，UPDATE 时又写回 0）。
-    //   `createdAt <= 0` 的记录改用 `updatedAt` 参与分组与排序，否则"今天刚搜的题"会掉进「更早」。
+internal fun groupSolveSessionsByDay(all: List<SolveSession>, day: CalendarDay): List<SolveHistoryGroup> {
+    val todayStart = day.start
+    val yesterdayStart = day.after(-1)
     fun ts(s: SolveSession) = s.createdAt
     val sorted = all.sortedByDescending { ts(it) }
     val today = sorted.filter { ts(it) >= todayStart }

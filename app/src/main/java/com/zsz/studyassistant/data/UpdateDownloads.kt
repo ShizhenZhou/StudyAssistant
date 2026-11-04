@@ -20,7 +20,7 @@ internal class UpdateDownloads(
     context: Context,
     private val backend: Backend = SystemBackend(context.applicationContext),
     private val verifier: (File, UpdateChecker.ReleaseInfo) -> UpdateChecker.VerifyResult = { file, release ->
-        UpdateChecker.verify(context.applicationContext, file, release.assetSha256, release.version, release.minSdk, release.versionCode)
+        UpdateChecker.verify(context.applicationContext, file, release.assetSha256, release.displayVersion, release.minSdk, release.versionCode)
     },
 ) {
     private val context = context.applicationContext

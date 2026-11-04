@@ -12,6 +12,29 @@ import org.junit.Test
  * 只能靠装机试。这里把 `isNewer` 的分段数值语义、以及 Release 说明的清洗固定下来。
  */
 class UpdateCheckerVersionTest {
+    @Test fun numberedBetasKeepIndependentUpgradeAndSkipIdentities() {
+        val base = "0.6.9.9"
+        fun release(suffix: String, stamp: String) = UpdateChecker.ReleaseInfo(
+            "v$base$suffix", base, "", "StudyAssistant-$base$suffix-$stamp.apk", "", null, 1,
+            channel = if (suffix.isEmpty()) UpdateChecker.Channel.STABLE else UpdateChecker.Channel.BETA)
+        val early = "20261101000000"
+        val late = "20261102120000"
+        val legacy = release("_beta", late)
+        val first = release("_beta1", late)
+        val second = release("_beta2", late)
+        val tenth = release("_beta10", early)
+        val stable = release("", early)
+        for ((old, newer) in listOf(legacy, first, second, tenth, stable).zipWithNext()) {
+            assertTrue(UpdateChecker.compareReleases(newer, old) > 0)
+            assertFalse(UpdateChecker.isNewer(old.displayVersion, newer.displayVersion))
+        }
+        val candidates = listOf(second, stable, tenth, first).map { it to emptyList<kotlinx.serialization.json.JsonObject>() }
+        assertEquals(UpdateChecker.AvailableReleases(stable, tenth), UpdateChecker.resolveAvailable(candidates) { it.first })
+        assertEquals(base, UpdateChecker.skipIdentity(legacy.displayVersion))
+        assertEquals("${base}_beta1", UpdateChecker.skipIdentity(first.displayVersion))
+        assertEquals("${base}_beta2", UpdateChecker.skipIdentity(second.displayVersion))
+    }
+
     @Test fun betaBuildOrderingKeepsPublishedSuffix() {
         fun release(stamp: String) = UpdateChecker.ReleaseInfo("v0.6.9_beta", "0.6.9", "",
             "StudyAssistant-0.6.9_beta-$stamp.apk", "", null, 1, channel=UpdateChecker.Channel.BETA)

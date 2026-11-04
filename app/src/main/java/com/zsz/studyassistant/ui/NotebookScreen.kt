@@ -108,10 +108,11 @@ import java.util.Locale
 /** 复用同一个格式化器，避免列表每项每次重组都新建 SimpleDateFormat */
 private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
+    val practice = androidx.lifecycle.viewmodel.compose.viewModel<NotebookPracticeQueue>()
     val haptics = LocalHapticFeedback.current
     val questions by vm.notebook.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -342,12 +343,12 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         )
                     }
                 }
-                // 标签筛选：「按标签搜索」按钮（有标签才显示）+ **当前列表条数**（始终显示在右侧）
-                // 题数从标题挪到这里：它是"筛选后的结果数"，跟筛选控件放一起更直观
+                // Wrap filter actions at narrow widths and large font sizes.
                 var tagMenu by remember { mutableStateOf(false) }
-                Row(
+                FlowRow(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically
                 ) {
                     if (tags.isNotEmpty()) {
                         Box {
@@ -369,9 +370,18 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         }
                     }
-                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        enabled = filtered.isNotEmpty() && !searching && !searchFailed,
+                        onClick = {
+                            keyboard?.hide()
+                            practice.ids = filtered.map { it.id }
+                            nav.navigate(AppNav.NOTEBOOK_PRACTICE) { launchSingleTop = true }
+                        }
+                    ) { Text(s["practice.title"]) }
                     Text(
                         s.format("notebook.listCount", "n" to "${filtered.size}"),
+                        modifier = Modifier.weight(1f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline,
                         maxLines = 1,

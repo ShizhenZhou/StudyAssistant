@@ -142,7 +142,7 @@ class ReliabilityRegressionTest {
         assertEquals("synthetic grade result",db.questionDao().solveSessionOnce(id)?.answer)
         assertEquals("grade",db.questionDao().solveSessionOnce(id)?.source)
         assertFalse(db.questionDao().questionExists(id));assertNull(store.read(id))
-        withContext(Dispatchers.Main) { assertTrue(model.loadSolveSession(db.questionDao().solveSessionOnce(id)!!)) }
+        withContext(Dispatchers.Main) { assertTrue(model.loadSolveSession(id)) }
         assertTrue("History must reopen as grading",model.gradeMode)
     }
     @Test fun completedLegacyGradeSavedToNotebookAlsoMovesToHistoryAndClearsDraft()=runBlocking {
@@ -157,7 +157,7 @@ class ReliabilityRegressionTest {
         assertEquals(id,db.questionDao().solveSessionOnce(id)?.savedQuestionId)
         assertEquals("synthetic grade result",db.questionDao().heavyOnce(id)?.answer)
         assertNull(store.read(id))
-        withContext(Dispatchers.Main) { assertTrue(model.loadSolveSession(db.questionDao().solveSessionOnce(id)!!)) }
+        withContext(Dispatchers.Main) { assertTrue(model.loadSolveSession(id)) }
         assertTrue("Linked history must reopen as grading",model.gradeMode)
     }
     @Test fun newGradeCreatesHistoryAtInitialInputEvenWithoutNotebook()=runBlocking {
@@ -212,7 +212,7 @@ class ReliabilityRegressionTest {
         withContext(Dispatchers.Main) { model.resumeDraft(id,"home") }
         awaitCondition { model.draftSolveRequested || model.draftError!=null }
         assertNull(model.draftError)
-        withContext(Dispatchers.Main) { assertTrue(model.loadSolveSession(db.questionDao().solveSessionOnce(id)!!)) }
+        withContext(Dispatchers.Main) { assertTrue(model.loadSolveSession(id)) }
         assertTrue(model.gradeMode)
         val text=MainViewModel::class.java.getDeclaredField("gradeTextQuestion").apply { isAccessible=true }.get(model)
         assertEquals("Actual text question",text)

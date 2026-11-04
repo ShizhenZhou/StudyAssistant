@@ -11,7 +11,7 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import local_checks
 import release
-from release_common import apk_payload, extract_candidate, sha256, validate_manifest
+from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
 
 
 class DeliveryTest(unittest.TestCase):
@@ -36,6 +36,26 @@ class DeliveryTest(unittest.TestCase):
         self.assertEqual(value, validate_manifest(value))
         for extra in ({"jvm": {"tests": 1}}, {"planSha256": "e"*64}):
             with self.assertRaises(ValueError): validate_manifest(dict(value, **extra))
+
+    def test_beta_candidate_and_signed_apk_keep_number_but_update_manifest_uses_numeric_version(self):
+        base = "0.6.9.9"
+        value = self.manifest()
+        with tempfile.TemporaryDirectory() as tmp:
+            for suffix in ("", "_beta", "_beta1", "_beta10"):
+                version = base + suffix
+                badging = (f"package: name='com.zsz.studyassistant' versionCode='102' versionName='{version}'\n"
+                           "sdkVersion:'36'\ntargetSdkVersion:'37'")
+                identity = apk_identity(badging)
+                apk = Path(tmp) / f"StudyAssistant-{version}-{value['buildUtc']}.apk"
+                apk.write_bytes(b"fixture")
+                candidate = validate_manifest(dict(value, **identity, candidate=apk.stem + "-candidate.apk"))
+                metadata = release.update_manifest(apk, identity, candidate)
+                self.assertEqual(version, candidate["version"])
+                self.assertEqual(base, metadata["version"])
+                self.assertEqual(apk.name, metadata["apkName"])
+            for suffix in ("_beta0", "_beta01", "_beta1more"):
+                with self.assertRaises(ValueError):
+                    apk_identity(badging.replace(version, base + suffix))
 
     def test_old_evidence_manifest_still_requires_real_test_totals(self):
         value = dict(self.manifest(), schema=2, planSha256="e"*64,

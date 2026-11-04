@@ -42,9 +42,9 @@ class UpdateCompatibilityTest {
         assertNull(UpdateChecker.parseRelease(kotlinx.serialization.json.JsonObject(root + ("draft" to kotlinx.serialization.json.JsonPrimitive(true)))))
     }
     @Test fun attachmentOnlyBetaDoesNotHideTheNextRealStableRelease() {
-        val hiddenBeta=release.copy(version="0.7.0",channel=UpdateChecker.Channel.STABLE)
-        val stable=release.copy(version="0.6.9",versionCode=90)
-        val explicitBeta=release.copy(version="0.7.1",versionCode=92,channel=UpdateChecker.Channel.BETA)
+        val hiddenBeta=release.copy(tagName="v0.7.0",version="0.7.0",channel=UpdateChecker.Channel.STABLE)
+        val stable=release.copy(tagName="v0.6.9",version="0.6.9",versionCode=90)
+        val explicitBeta=release.copy(tagName="v0.7.1",version="0.7.1",versionCode=92,channel=UpdateChecker.Channel.BETA)
         val calls=mutableListOf<String>()
         val result=UpdateChecker.resolveAvailable(listOf(hiddenBeta,stable,explicitBeta).map { it to emptyList() }) {
             calls+=it.first.version

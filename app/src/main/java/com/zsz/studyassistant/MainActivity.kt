@@ -415,6 +415,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable(AppNav.HISTORY) { SolveHistoryScreen(nav, viewModel) }
                                     composable(AppNav.NOTEBOOK) { NotebookScreen(nav, viewModel) }
+                                    composable(AppNav.NOTEBOOK_PRACTICE) { com.zsz.studyassistant.ui.NotebookPracticeScreen(nav, viewModel) }
                                     composable(AppNav.REVIEW) { ReviewScreen(nav, viewModel) }
                                     composable(AppNav.SIMILAR) { SimilarScreen(nav, viewModel) }
                                     composable(AppNav.STATS) { StatsScreen(viewModel, statsScroll) }

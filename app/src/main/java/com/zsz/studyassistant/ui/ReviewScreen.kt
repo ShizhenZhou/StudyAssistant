@@ -81,24 +81,15 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
     var tab by rememberSaveable { mutableIntStateOf(0) } // 0=今天 1=本周
-    // 固定 Flow 实例，避免每次重组都重新订阅/查询数据库
-    val todayFlow = remember { vm.dueQuestionsToday() }
-    val weekFlow = remember { vm.dueQuestionsWeek() }
-    val dueToday by todayFlow.collectAsStateWithLifecycle(emptyList())
-    val dueWeek by weekFlow.collectAsStateWithLifecycle(emptyList())
-    val dueAll = if (tab == 0) dueToday else dueWeek
-
-    // ── A5 复习筛选：按科目 + 只看"不熟"（掌握档位 ≤1，含未开始）──
     var filterCat by rememberSaveable { mutableStateOf<Long?>(null) }
     var onlyWeak by rememberSaveable { mutableStateOf(false) }
     var catMenu by remember { mutableStateOf(false) }
-    val reviewRecords by vm.reviewRecords.collectAsStateWithLifecycle()
-    val stepById = remember(reviewRecords) { reviewRecords.associate { it.questionId to it.intervalStep } }
-    val questions = remember(dueAll, stepById, filterCat, onlyWeak) {
-        dueAll.filter { q ->
-            (filterCat == null || q.categoryId == filterCat) &&
-                (!onlyWeak || (stepById[q.id] ?: 0) <= 1)
-        }
+    val dueAll = androidx.compose.runtime.key(tab, onlyWeak) {
+        remember(vm, tab, onlyWeak) { vm.dueQuestions(tab == 1, onlyWeak) }
+            .collectAsStateWithLifecycle(emptyList()).value
+    }
+    val questions = remember(dueAll, filterCat) {
+        if (filterCat == null) dueAll else dueAll.filter { it.categoryId == filterCat }
     }
     val filterActive = filterCat != null || onlyWeak
 
@@ -148,7 +139,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                         SubPageBackArrow(onClick = { nav.popBackStack() })
                     },
                     actions = {
-                        if (dueAll.isNotEmpty()) {
+                        if (dueAll.isNotEmpty() || filterActive) {
                             Row(
                                 Modifier.widthIn(max = filtersMaxWidth).padding(end = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -199,7 +190,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                     Text(
                         when {
                             // 有题但被筛选滤空 → 明确说是筛选导致的（否则用户以为题库空了）
-                            filterActive && dueAll.isNotEmpty() -> s["review.empty.filtered"]
+                            filterActive -> s["review.empty.filtered"]
                             tab == 0 -> s["review.empty.today"]
                             else -> s["review.empty.week"]
                         }

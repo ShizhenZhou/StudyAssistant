@@ -135,8 +135,8 @@ interface QuestionDao {
 //   否则复习队列题一多，结果集超过 CursorWindow 的 2MB 上限会直接崩：
 //   IllegalStateException: Couldn't read row N, col 0 from CursorWindow
 //   图片/会话在真正进入某题时用 heavyOnce(id) 单独取。
-@Query("SELECT DISTINCT q.id, substr(q.text,1,256) AS text, substr(q.answer,1,256) AS answer, q.createdAt, q.deleted, q.categoryId FROM questions q INNER JOIN review r ON q.id = r.questionId WHERE q.deleted = 0 AND r.nextReviewAt <= :until ORDER BY r.nextReviewAt ASC")
-    fun dueQuestions(until: Long): Flow<List<Question>>
+@Query("SELECT DISTINCT q.id, substr(q.text,1,256) AS text, substr(q.answer,1,256) AS answer, q.createdAt, q.deleted, q.categoryId FROM questions q INNER JOIN review r ON q.id = r.questionId WHERE q.deleted = 0 AND r.nextReviewAt <= :until AND (:onlyWeak = 0 OR r.intervalStep <= 1) ORDER BY r.nextReviewAt ASC")
+    fun dueQuestions(until: Long, onlyWeak: Boolean = false): Flow<List<Question>>
 
     /** 按 id 取完整一行（含图片 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
     @androidx.room.Transaction

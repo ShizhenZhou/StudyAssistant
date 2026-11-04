@@ -473,6 +473,13 @@ private val B14_KO = mapOf(
 // 批次 0：底部导航 / 主页 / 设置主页 / 语言设置页
 // ===========================================================================
 private val B0_ZH = mapOf(
+    "practice.title" to "专项练习",
+    "practice.summary" to "本轮小结",
+    "practice.temporary" to "本轮自评只用于练习小结，不影响复习计划。",
+    "practice.results" to "共 {total} 题\n熟悉 {easy} · 模糊 {vague} · 忘记 {forgot}\n未评价 {left}",
+    "practice.return" to "返回错题本",
+    "practice.unavailable" to "无法读取这道题。",
+    "practice.skip" to "跳过",
     "settings.aiCropPage" to "✂️ AI 切图",
     "settings.solveSettings" to "🧠 解题设置",
     "feedback.handle" to "处理",
@@ -529,6 +536,7 @@ private val B0_ZH = mapOf(
     "history.saveFailed" to "{n} 条解题记录尚未保存。请在关闭应用前重试。",
     "history.saveRetry" to "重试保存",
     "history.saveRetrying" to "正在保存…",
+    "history.readFailed" to "读取记录失败",
     "history.deleteFailed" to "删除解题记录失败，请重试。",
     "history.today" to "今天",
     "history.yesterday" to "昨天",
@@ -588,6 +596,13 @@ private val B0_ZH = mapOf(
 )
 
 private val B0_EN = mapOf(
+    "practice.title" to "Focused practice",
+    "practice.summary" to "Practice summary",
+    "practice.temporary" to "Your ratings count only for this session. Your review schedule stays the same.",
+    "practice.results" to "{total} questions\nEasy {easy} · Unsure {vague} · Forgot {forgot}\nUnrated {left}",
+    "practice.return" to "Back to notebook",
+    "practice.unavailable" to "This question could not be loaded.",
+    "practice.skip" to "Skip",
     "settings.aiCropPage" to "✂️ AI cropping",
     "settings.solveSettings" to "🧠 Solving settings",
     "feedback.handle" to "Resolve",
@@ -643,6 +658,7 @@ private val B0_EN = mapOf(
     "history.saveFailed" to "{n} history records are not saved. Retry before closing the app.",
     "history.saveRetry" to "Retry saving",
     "history.saveRetrying" to "Saving…",
+    "history.readFailed" to "Could not open this record",
     "history.deleteFailed" to "Could not delete history. Please retry.",
     "history.today" to "Today",
     "history.yesterday" to "Yesterday",
@@ -702,6 +718,13 @@ private val B0_EN = mapOf(
 )
 
 private val B0_JA = mapOf(
+    "practice.title" to "集中練習",
+    "practice.summary" to "今回の練習結果",
+    "practice.temporary" to "自己評価は今回の練習結果にだけ反映されます。復習予定は変わりません。",
+    "practice.results" to "全 {total} 問\nわかる {easy} · あいまい {vague} · 忘れた {forgot}\n未評価 {left}",
+    "practice.return" to "間違いノートに戻る",
+    "practice.unavailable" to "この問題を読み込めませんでした。",
+    "practice.skip" to "スキップ",
     "settings.aiCropPage" to "✂️ AI 切り抜き",
     "settings.solveSettings" to "🧠 解答設定",
     "feedback.handle" to "対処する",
@@ -757,6 +780,7 @@ private val B0_JA = mapOf(
     "history.saveFailed" to "履歴 {n} 件が未保存です。アプリを閉じる前に再試行してください。",
     "history.saveRetry" to "保存を再試行",
     "history.saveRetrying" to "保存中…",
+    "history.readFailed" to "履歴を開けませんでした",
     "history.deleteFailed" to "履歴を削除できませんでした。再試行してください。",
     "history.today" to "今日",
     "history.yesterday" to "昨日",
@@ -816,6 +840,13 @@ private val B0_JA = mapOf(
 )
 
 private val B0_KO = mapOf(
+    "practice.title" to "집중 연습",
+    "practice.summary" to "이번 연습 결과",
+    "practice.temporary" to "자기 평가는 이번 연습 결과에만 반영되며 복습 일정은 그대로 유지됩니다.",
+    "practice.results" to "전체 {total}문제\n익숙함 {easy} · 가물가물 {vague} · 잊어버림 {forgot}\n미평가 {left}",
+    "practice.return" to "오답 노트로 돌아가기",
+    "practice.unavailable" to "문제를 불러올 수 없습니다.",
+    "practice.skip" to "건너뛰기",
     "settings.aiCropPage" to "✂️ AI 자르기",
     "settings.solveSettings" to "🧠 풀이 설정",
     "feedback.handle" to "문제 해결",
@@ -871,6 +902,7 @@ private val B0_KO = mapOf(
     "history.saveFailed" to "풀이 기록 {n}개가 저장되지 않았습니다. 앱을 닫기 전에 다시 시도하세요.",
     "history.saveRetry" to "저장 재시도",
     "history.saveRetrying" to "저장 중…",
+    "history.readFailed" to "기록을 열지 못했습니다",
     "history.deleteFailed" to "풀이 기록을 삭제하지 못했습니다. 다시 시도하세요.",
     "history.today" to "오늘",
     "history.yesterday" to "어제",
@@ -1143,6 +1175,8 @@ private val B2_ZH = mapOf(
     "solve.quoteUnavailable" to "原文已变更、不存在或无法唯一定位。",
     "solve.quoteTitle" to "引用内容",
     "solve.quoteRemove" to "移除引用",
+    "solve.quoteExplainStep" to "解释这一步",
+    "solve.quoteWhyFormula" to "为什么用这个公式",
     "solve.quoteQuestion" to "我的问题",
     "solve.imagesCount" to "已附 {n} 张图",
     "solve.cat.choose" to "请选择分类，或新建一个",
@@ -1201,6 +1235,8 @@ private val B2_EN = mapOf(
     "solve.quoteUnavailable" to "The source has changed, is missing, or cannot be uniquely located.",
     "solve.quoteTitle" to "Quoted text",
     "solve.quoteRemove" to "Remove quote",
+    "solve.quoteExplainStep" to "Explain this step",
+    "solve.quoteWhyFormula" to "Why use this formula?",
     "solve.quoteQuestion" to "My question",
     "solve.imagesCount" to "{n} image(s) attached",
     "solve.cat.choose" to "Pick a category, or create a new one",
@@ -1259,6 +1295,8 @@ private val B2_JA = mapOf(
     "solve.quoteUnavailable" to "引用元が変更・削除されたか、一意に特定できません。",
     "solve.quoteTitle" to "引用内容",
     "solve.quoteRemove" to "引用を削除",
+    "solve.quoteExplainStep" to "このステップを説明して",
+    "solve.quoteWhyFormula" to "なぜこの公式を使うの？",
     "solve.quoteQuestion" to "質問",
     "solve.imagesCount" to "画像 {n} 枚を添付",
     "solve.cat.choose" to "分類を選ぶか、新規作成してください",
@@ -1317,6 +1355,8 @@ private val B2_KO = mapOf(
     "solve.quoteUnavailable" to "원문이 변경되었거나 없으며, 또는 하나로 특정할 수 없습니다.",
     "solve.quoteTitle" to "인용 내용",
     "solve.quoteRemove" to "인용 삭제",
+    "solve.quoteExplainStep" to "이 단계를 설명해 줘",
+    "solve.quoteWhyFormula" to "왜 이 공식을 쓰는 거야?",
     "solve.quoteQuestion" to "내 질문",
     "solve.imagesCount" to "이미지 {n}장 첨부",
     "solve.cat.choose" to "분류를 선택하거나 새로 만드세요",
@@ -2437,9 +2477,9 @@ private val B10_ZH = mapOf(
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
         "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
-        "· 🤖 流式解答、附图追问与同类题练习；选文“引用”可追问、查看原文并返回，支持公式显示。\n" +
+        "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式显示。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
-        "· 📚 错题本支持分类、标签、排序和批量管理。\n" +
+        "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
         "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
         "· 🏷 标签整理支持 AI 建议、预览确认和合并撤销。\n" +
         "· 📖 间隔复习、每日提醒与学习统计。\n" +
@@ -2498,9 +2538,9 @@ private val B10_EN = mapOf(
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
         "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
-        "· 🤖 Stream answers, ask with images and practise similar questions. Select “Quote” to ask about text, visit its source and return, with formula rendering.\n" +
+        "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Formulas are supported.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
-        "· 📚 Organize notebook entries with categories, tags, sorting and batch actions.\n" +
+        "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
         "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
         "· 🏷 Organize tags with AI suggestions, merge previews and undo.\n" +
         "· 📖 Spaced review, daily reminders and learning statistics.\n" +
@@ -2559,9 +2599,9 @@ private val B10_JA = mapOf(
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
         "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
-        "· 🤖 逐次解答、画像付き質問、類似問題の練習。選文の「引用」で質問し、引用元と質問の位置を往復できます。数式表示に対応。\n" +
+        "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式表示に対応。\n" +
         "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
-        "· 📚 間違いノートを分類・タグ・並べ替え・一括操作で管理。\n" +
+        "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
         "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
         "· 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。\n" +
         "· 📖 間隔を空けた復習、毎日の通知と学習統計。\n" +
@@ -2620,9 +2660,9 @@ private val B10_KO = mapOf(
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
         "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
-        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 선택한 글자를 “인용”하여 질문하고 원문과 질문 위치를 오갈 수 있으며 수식을 표시합니다.\n" +
+        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식 표시를 지원합니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
-        "· 📚 분류, 태그, 정렬과 일괄 작업으로 오답노트를 관리합니다.\n" +
+        "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
         "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
         "· 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.\n" +
         "· 📖 간격 복습, 매일 알림과 학습 통계.\n" +

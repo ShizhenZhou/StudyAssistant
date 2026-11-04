@@ -108,7 +108,7 @@ suspend fun silentUpdateCheck(context: Context) {
     UpdateChecker.markChecked(context)
     // 版本更高，或同一版本但发布物是更晚的新构建（替换过同名附件）→ 都算有更新
     val version = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        releases.notification(context)?.version
+        releases.notification(context)?.displayVersion
     }
     UpdateBadgeState.set(version)
 }
@@ -274,7 +274,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                 // 被跳过的版本不再顶红点（页面上仍显示，可手动下载/取消跳过）
                 // Eligibility was already checked above; prefer stable for the badge.
                 UpdateBadgeState.set(eligible.sortedBy { it.channel == UpdateChecker.Channel.BETA }
-                    .firstOrNull { UpdateChecker.compatibilityError(it) == null && !UpdateChecker.isSkipped(context, it) }?.version)
+                    .firstOrNull { UpdateChecker.compatibilityError(it) == null && !UpdateChecker.isSkipped(context, it) }?.displayVersion)
                 message = compatibilityMessage(rel)
                 phase = Phase.FOUND
             } else {
@@ -373,7 +373,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         val channelKey = if (beta) "update.channel.beta" else "update.channel.stable"
                         Text(s[channelKey] + " v" + rel.displayVersion, fontWeight = FontWeight.SemiBold)
                         if (beta) Text(s["update.betaWarning"], style = MaterialTheme.typography.bodySmall, color = BADGE_RED)
-                        if (UpdateChecker.normalizeVersion(rel.version) == UpdateChecker.normalizeVersion(installed)) {
+                        if (rel.displayVersion == installed) {
                             Text(s.format("update.sameVersion", "name" to rel.assetName), style = MaterialTheme.typography.bodySmall)
                         }
                         Text(rel.assetName + "  " + String.format("%.1f MB", rel.assetSize / 1024.0 / 1024.0),
@@ -396,10 +396,10 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         if (skipped) Text(s.format("update.skipped", "v" to rel.displayVersion), style = MaterialTheme.typography.bodySmall)
                         AppOutlinedButton(onClick = {
                             if (skipped) UpdateChecker.clearSkippedVersion(context, rel.channel)
-                            else UpdateChecker.skipVersion(context, rel.version, rel.channel)
+                            else UpdateChecker.skipVersion(context, rel.displayVersion, rel.channel)
                             skipRevision++
                             UpdateBadgeState.set(offers.sortedBy { it.channel == UpdateChecker.Channel.BETA }
-                                .firstOrNull { UpdateChecker.shouldNotify(context, it) }?.version)
+                                .firstOrNull { UpdateChecker.shouldNotify(context, it) }?.displayVersion)
                         }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(44.dp)) {
                             Text(s[if (skipped) "update.unskip" else "update.skip"])
                         }

@@ -63,8 +63,8 @@ object UpdateChecker {
     internal fun compareReleases(a: ReleaseInfo, b: ReleaseInfo): Int {
         if (a.versionCode != null && b.versionCode != null && a.versionCode != b.versionCode)
             return a.versionCode.compareTo(b.versionCode)
-        if (isNewer(a.version, b.version)) return 1
-        if (isNewer(b.version, a.version)) return -1
+        val order = compareVersions(a.displayVersion, b.displayVersion)
+        if (order != 0) return order
         return BuildIdentity.assetTime(a.assetName, a.displayVersion).compareTo(BuildIdentity.assetTime(b.assetName, b.displayVersion))
     }
 
@@ -234,21 +234,23 @@ object UpdateChecker {
     fun normalizeVersion(raw: String): String =
         raw.trim().removePrefix("v").removePrefix("V").substringBefore('_').trim()
 
-    /**
-     * 判断 a 是否比 b 新：按 `.` 分段做**数值**比较（1.10 > 1.9 ✓）。
-     * 段数不同时，缺失段按 0 处理。
-     */
-    fun isNewer(a: String, b: String): Boolean {
+    private val betaSuffix = Regex("_beta([1-9][0-9]*)?$")
+
+    /** Missing numeric components count as zero. For the same base: legacy beta < beta1 < beta2 < stable. */
+    internal fun compareVersions(a: String, b: String): Int {
         val pa = normalizeVersion(a).split('.').map { it.toIntOrNull() ?: 0 }
         val pb = normalizeVersion(b).split('.').map { it.toIntOrNull() ?: 0 }
         val n = maxOf(pa.size, pb.size)
         for (i in 0 until n) {
             val x = pa.getOrElse(i) { 0 }
             val y = pb.getOrElse(i) { 0 }
-            if (x != y) return x > y
+            if (x != y) return x.compareTo(y)
         }
-        return false
+        fun betaNumber(raw: String) = betaSuffix.find(raw.trim())?.groupValues?.get(1)?.ifEmpty { "0" }?.toBigInteger()
+        return nullsLast<java.math.BigInteger>().compare(betaNumber(a), betaNumber(b))
     }
+
+    fun isNewer(a: String, b: String): Boolean = compareVersions(a, b) > 0
 
     /** ISO8601（如 2026-09-25T03:11:00Z）→ epoch ms；解析失败返回 0 */
     private fun parseIsoMillis(iso: String?): Long = try {
@@ -289,11 +291,8 @@ object UpdateChecker {
         val installed = installedVersion(context)
         val code = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode }.getOrNull()
         if (code != null && rel.versionCode != null && code != rel.versionCode) return rel.versionCode > code
-        if (isNewer(rel.version, installed)) return true
-        if (normalizeVersion(rel.version) == normalizeVersion(installed)) {
-            return sameVersionNewBuild(context, rel)
-        }
-        return false
+        val order = compareVersions(rel.displayVersion, installed)
+        return order > 0 || (order == 0 && sameVersionNewBuild(context, rel))
     }
 
     // ── 「跳过此版本」与「上次检查时间」的本地持久化 ──────────────────────────
@@ -305,17 +304,20 @@ object UpdateChecker {
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** 用户「跳过此版本」记下的版本号（已规范化）；null = 没有跳过任何版本 */
+    /** 用户「跳过此版本」记下的版本标识；旧版已保存的裸 Beta 使用基础版本号。 */
     fun skippedVersion(context: Context, channel: Channel = Channel.STABLE): String? =
         prefs(context).getString(skipKey(channel), null)?.takeIf { it.isNotBlank() }
 
     /** 这个发布物是否正是用户跳过的那一版 */
     fun isSkipped(context: Context, rel: ReleaseInfo): Boolean =
-        normalizeVersion(rel.version) == skippedVersion(context, rel.channel)
+        skipIdentity(rel.displayVersion) == skippedVersion(context, rel.channel)
+
+    internal fun skipIdentity(version: String): String =
+        version.trim().removePrefix("v").removePrefix("V").removeSuffix("_beta")
 
     private fun skipKey(channel: Channel) = if (channel == Channel.BETA) KEY_SKIPPED + "_beta" else KEY_SKIPPED
     fun skipVersion(context: Context, version: String, channel: Channel = Channel.STABLE) {
-        prefs(context).edit().putString(skipKey(channel), normalizeVersion(version)).apply()
+        prefs(context).edit().putString(skipKey(channel), skipIdentity(version)).apply()
     }
 
     fun clearSkippedVersion(context: Context, channel: Channel = Channel.STABLE) {
@@ -525,7 +527,7 @@ object UpdateChecker {
         val identityOk = info != null && info.packageName == context.packageName &&
             info.longVersionCode >= installed.longVersionCode &&
             (expectedVersionCode == null || info.longVersionCode == expectedVersionCode) &&
-            (expectedVersion == null || normalizeVersion(info.versionName.orEmpty()) == expectedVersion)
+            (expectedVersion == null || info.versionName == expectedVersion)
         val sdkOk = apkSdkCompatible(info?.applicationInfo?.minSdkVersion, Build.VERSION.SDK_INT, expectedMinSdk)
         return VerifyResult(ok = shaOk && signerOk && identityOk && sdkOk, shaOk = shaOk, signerOk = signerOk, actualSigner = actualSigner)
     }

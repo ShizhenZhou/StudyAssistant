@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -117,8 +118,18 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     fun normalizeSel() { selection.rect = selection.rect?.let { normalizeSelRect(it, selection.bounds) } }
     // 预框选：用户一旦手动调整过，就不再被自动结果覆盖（避免"手还没松又被改回去"）
     // ★ 2026-10-13：现在**手指一按下就置位**（见手势层的 awaitFirstDown），堵住"按下→超过 touch slop"那段窗口。
-    // 手动 AI 识别中
     val aiBusy = region.status == "crop.aiBusy"
+    val feedback = LocalAppFeedback.current
+    DisposableEffect(region, feedback) {
+        onDispose { feedback.dismiss("cropAi") }
+    }
+    LaunchedEffect(region, region.status, aiCropOn) {
+        val result = region.status ?: return@LaunchedEffect
+        if (aiCropOn && result != "crop.aiBusy") {
+            feedback.show(s[result], isError = result != "crop.aiApplied", source = "cropAi")
+            region.status = null
+        }
+    }
     val scope = rememberCoroutineScope()
     var submitting by remember { mutableStateOf(false) }
     var imageFailed by remember(path) { mutableStateOf(false) }
@@ -199,8 +210,6 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                     path?.let { vm.detectCrop(it, disp, aiCropOn, aiCropMs) }
                 }
-
-                // 自动框选提示的 3 秒淡出计时：提示本身已按用户要求移除（见下方底部按钮区），计时一并去掉
 
                 // 按计算出的 disp 绘制图片（这样缩放/平移后选区仍与图片对齐）
                 Canvas(Modifier.fillMaxSize()) {
@@ -413,9 +422,6 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 .navigationBarsPadding()
                 .padding(16.dp)
         ) {
-            if (aiCropOn) region.status?.let { key ->
-                Text(s[key], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
             // 多张时提示当前是第几张
             if (vm.cropTotal > 1) {
                 Text(
@@ -426,9 +432,6 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                     textAlign = TextAlign.Center
                 )
             }
-            // ★ 2026-10-13（用户要求）：这里原来显示一行绿字「已自动框选题目范围，可拖动微调」。
-            //   它出现/消失会改变底部 Column 的高度 → 上面那张图（weight 1f）跟着重新布局，画面会"抽搐"一下。
-            //   用户要求去掉，所以这里不再渲染任何提示（autoHint 标志保留但不再展示）。
             Button(
                 enabled = !submitting,
                 onClick = {
@@ -481,13 +484,14 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         enabled = !aiBusy,
                         onClick = {
                             val p = path ?: return@TextButton
+                            feedback.dismiss("cropAi")
                             zoom = 1f
                             panX = 0f
                             panY = 0f
                             if (dispBase.width > 1f) selection.bounds = dispBase
                             vm.detectCrop(p, selection.bounds, true, aiCropMs, manual = true)
                         }
-                    ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"]) }
+                    ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"], maxLines = 1, softWrap = false) }
                 }
                 // 返回 = 回到拍摄界面（不换行）
                 TextButton(onClick = { handleBack() }) {
