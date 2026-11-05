@@ -146,6 +146,7 @@ object StudyAssistant {
         needCategory: Boolean = true,
         needTags: Boolean = true,
         timeoutMs: Long = 8000,
+        onUsage: (DeepSeekUsage?) -> Unit = {},
     ): Pair<String?, List<String>> {
         if (question.isBlank() && images.isEmpty()) return null to emptyList()
         return runCatching {
@@ -180,7 +181,7 @@ object StudyAssistant {
                     )
                 )
             } ?: return@runCatching null to emptyList()
-            lastUsage = resp.usage
+            onUsage(resp.usage)
             val txt = resp.choices.firstOrNull()?.message?.content?.asText()
                 ?: return@runCatching null to emptyList()
             val s = txt.indexOf('{')
@@ -546,18 +547,20 @@ object StudyAssistant {
 
     /** Prepare an oriented JPEG; gallery formats and full-size camera files need not be valid API images. */
     internal suspend fun detectCrop(path: String, timeoutMs: Long, manual: Boolean,
-                                   target: ImageAutoCrop.NormRect?, answerSheet: Boolean): CropAiResult {
+                                   target: ImageAutoCrop.NormRect?, answerSheet: Boolean,
+                                   onUsage: (DeepSeekUsage?) -> Unit = {}): CropAiResult {
         return try {
             if (KeyManager.getApiKey().isBlank()) return CropAiResult("crop.aiKey")
             val jpeg = compressImage(File(path), maxDim = 1280)
             val b64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
-            requestCrop(b64, timeoutMs, manual, target, answerSheet)
+            requestCrop(b64, timeoutMs, manual, target, answerSheet, onUsage)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (_: Exception) { CropAiResult("crop.aiError") }
     }
 
     private suspend fun requestCrop(b64: String, timeoutMs: Long, manual: Boolean,
-                                    target: ImageAutoCrop.NormRect?, answerSheet: Boolean): CropAiResult {
+                                    target: ImageAutoCrop.NormRect?, answerSheet: Boolean,
+                                    onUsage: (DeepSeekUsage?) -> Unit): CropAiResult {
         val prompt = buildString {
             if (answerSheet) {
                 append("这是学生的作答图。完整包住本题的手写推导、公式、作图和最终答案，作为一个框。不要排除手写内容。")
@@ -584,7 +587,7 @@ object StudyAssistant {
                 maxTokens = 512, temperature = 0.0, thinking = ThinkingOption("disabled"),
                 responseFormat = DeepSeekResponseFormat("json_object")))
         } ?: return CropAiResult("crop.aiTimeout")
-        lastUsage = resp.usage
+        onUsage(resp.usage)
         val box = parseCropBox(resp.choices.firstOrNull()?.message?.content?.asText().orEmpty(), manual, target)
         return if (box == null) CropAiResult("crop.aiNoBox") else CropAiResult("crop.aiApplied", box)
     }

@@ -1090,7 +1090,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (useAi) {
                 region.status = "crop.aiBusy"
-                val result = withContext(Dispatchers.IO) { StudyAssistant.detectCrop(path, timeout, manual, target, answerSheet) }
+                val result = try {
+                    withContext(Dispatchers.IO) {
+                        StudyAssistant.detectCrop(path, timeout, manual, target, answerSheet) {
+                            com.zsz.studyassistant.data.UsageStats.add(getApplication(), it)
+                        }
+                    }
+                } finally {
+                    refreshUsage()
+                }
                 if (currentCropPath != path || (edit != null && !region.isLatestEdit(edit))) return@launch
                 result.box?.let { box ->
                     if (manual) region.applyManual(box, bounds) else region.suggest(box, ai = true, bounds)
@@ -1269,7 +1277,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun readConversation(
         text: String, answer: String, conversation: String?, primary: ByteArray?, grading: Boolean,
-        notebookId: QuestionId? = null, historyImages: String? = null
+        notebookId: QuestionId? = null, historyImages: String? = null, decodeImages: Boolean = true
     ): LoadedConversation = withContext(Dispatchers.Default) {
         val parsed = runCatching { json.decodeFromString<List<ChatItem>>(conversation.orEmpty()) }.getOrNull()
         val messages = parsed.orEmpty().ifEmpty { listOf(ChatItem(0, "question", text), ChatItem(1, "assistant", answer)) }
@@ -1283,7 +1291,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val keys = mergeImageKeys(null, stored.keys.toList() + fallback)
         val isGrade = gradingInput(grading, text, messages, keys) != null
-        val bytes = if (isGrade) emptyList() else keys.mapNotNull { key ->
+        val bytes = if (isGrade || !decodeImages) emptyList() else keys.mapNotNull { key ->
             stored[key] ?: if (key == primaryKey) primary else if (notebookId == null) Base64.decode(key, Base64.NO_WRAP)
             else runCatching { Base64.decode(key, Base64.NO_WRAP) }.getOrNull()
         }
@@ -1384,7 +1392,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     // Replaceable request boundaries let integration fixtures control completion without network access.
     internal var classifyRequest: suspend (String, List<String>, List<String>, List<ByteArray>, Boolean, Boolean) -> Pair<String?, List<String>> =
-        { q, categories, tags, images, category, tag -> StudyAssistant.classifyQuestion(q, categories, tags, images, category, tag) }
+        { q, categories, tags, images, category, tag ->
+            StudyAssistant.classifyQuestion(q, categories, tags, images, category, tag, onUsage = {
+                com.zsz.studyassistant.data.UsageStats.add(getApplication(), it)
+            })
+        }
     private var classificationJob: Job? = null
     private var classificationOwner: Any? = null
 
@@ -1437,6 +1449,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             } finally {
+                refreshUsage()
                 // ★ 必须放 finally：请求异常/被取消时也要复位，否则标志卡死 → 之后所有分类都被跳过
                 if (classificationOwner === owner && sessionRecordBinding === binding) {
                     classificationOwner = null
@@ -1852,7 +1865,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 // ★ 分类兜底（C）：正文里没给出「分类：/知识点：」时，解答完成即后台补一次，
                 //   这样等用户去点「存错题本」时建议已经就绪（不必在对话框里干等）
-                if (suggestedCategory == null && questionText.isNotBlank()) classifyCurrentQuestion()
+                val suggestions = notebookSaveSuggestions()
+                if (suggestions.category.isNullOrBlank() && questionText.isNotBlank()) {
+                    classifyCurrentQuestion(needTags = suggestions.tags.isEmpty())
+                }
                 // 放在 onDone 之后：万一 onDone 内部抛异常，已生成的内容仍留在界面上（catch 会保留）
                 streamingText = null
                 contMessages = null
@@ -3652,7 +3668,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     internal suspend fun readPracticeQuestion(id: QuestionId): List<com.zsz.studyassistant.ui.ChatMsg>? {
         val row = dao.heavyOnce(id)?.takeUnless { it.deleted || id in deletionState.value.questionIds } ?: return null
         val grade = dao.sessionLightOnce(id)?.source == "grade"
-        val loaded = readConversation(row.text, row.answer, row.conversationJson, row.imageBytes, grade, id)
+        val loaded = readConversation(row.text, row.answer, row.conversationJson, row.imageBytes, grade, id,
+            decodeImages = false)
         // Legacy grading entries can outlive their history row. Match their original
         // saved labels so the student's answer photo stays hidden until reveal.
         val original = loaded.messages.firstOrNull { it.role == "question" }?.content

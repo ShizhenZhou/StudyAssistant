@@ -14,6 +14,7 @@ object UsageStats {
 
     data class Snapshot(val calls: Int, val promptTokens: Int, val completionTokens: Int)
 
+    @Synchronized
     fun load(c: Context): Snapshot {
         val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return Snapshot(
@@ -24,6 +25,7 @@ object UsageStats {
     }
 
     /** 记一次调用（usage 为空时只累加次数） */
+    @Synchronized
     fun add(c: Context, usage: DeepSeekUsage?) {
         val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         p.edit()
@@ -33,6 +35,7 @@ object UsageStats {
             .apply()
     }
 
+    @Synchronized
     fun reset(c: Context) {
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .remove(K_CALLS).remove(K_PROMPT).remove(K_COMPLETION).apply()
