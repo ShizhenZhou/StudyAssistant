@@ -50,6 +50,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.0.3
+
+- 🏷️ Reuse saved classification suggestions to avoid redundant AI requests.
+- 📊 Include AI cropping and auxiliary classification in usage totals, with safe concurrent counting.
+- 📚 Reduce unnecessary image decoding and memory use in focused practice.
+- 📌 `versionCode` **105**.
+
 ### v0.7.0.2
 
 - ✂️ The AI crop switch controls automatic detection. Manual AI cropping is always available.

@@ -1,3 +1,8 @@
+v0.7.0.3
+· 🏷️ Reuse saved classification suggestions to avoid redundant AI requests.
+· 📊 Include AI cropping and auxiliary classification in usage totals, with safe concurrent counting.
+· 📚 Reduce unnecessary image decoding and memory use in focused practice.
+
 v0.7.0.2
 · ✂️ The AI crop switch controls automatic detection. Manual AI cropping is always available.
 · 🏷️ Saving a problem again preselects the subject and concepts from the first AI answer.
