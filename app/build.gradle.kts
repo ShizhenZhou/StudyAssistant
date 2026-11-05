@@ -144,9 +144,19 @@ kotlin {
     }
 }
 
+// All variants use the same database schema. Track the directory for KSP's incremental inputs.
+class RoomSchemaArgProvider(
+    @get:org.gradle.api.tasks.InputDirectory
+    @get:org.gradle.api.tasks.PathSensitive(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    val schemaDir: File
+) : org.gradle.process.CommandLineArgumentProvider {
+    override fun asArguments() = listOf("room.schemaLocation=${schemaDir.path}")
+}
+
 ksp {
     // Preserve Java DAO generation while replacing kapt's Kotlin metadata reader.
     arg("room.generateKotlin", "false")
+    arg(RoomSchemaArgProvider(layout.projectDirectory.dir("schemas").asFile))
 }
 
 // The SQLite verifier consumes these extra test outputs. Include them in Gradle's

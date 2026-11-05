@@ -636,7 +636,7 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
-@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = false)
+@Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
     lateinit var tagUndoStore: TagUndoStore
