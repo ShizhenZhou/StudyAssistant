@@ -50,6 +50,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.0.2
+
+- ✂️ The AI crop switch controls automatic detection. Manual AI cropping is always available.
+- 🏷️ Saving a problem again preselects the subject and concepts from the first AI answer.
+- 📌 `versionCode` **104**.
+
 ### v0.7.0.1
 
 - 💬 Quote just the selected part of a formula and tap the quote to highlight that exact passage.
