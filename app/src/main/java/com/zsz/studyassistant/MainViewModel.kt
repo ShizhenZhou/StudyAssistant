@@ -61,7 +61,8 @@ import kotlinx.serialization.json.JsonPrimitive
 @Serializable
 data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null,
                     val thinking: String? = null, val quote: QuotedFollowUp? = null,
-                    val messageKey: String? = null, val gradePart: String? = null)
+                    val messageKey: String? = null, val gradePart: String? = null,
+                    val notebookSuggestions: com.zsz.studyassistant.data.NotebookSuggestions? = null)
 
 internal fun protectedMessageIndices(items: List<ChatItem>): Set<Int> = buildSet {
     add(items.indexOfFirst { it.role == "question" })
@@ -1420,6 +1421,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // 已有分类（来自库/用户选择）优先，AI 只补空的
                 if (!c.isNullOrBlank() && suggestedCategory == null) suggestedCategory = c
                 if (t.isNotEmpty()) suggestedTags = t
+                val firstIndex = chatItems.indexOfFirst { it.role == "assistant" }
+                if (firstIndex >= 0) {
+                    val first = chatItems[firstIndex]
+                    val original = com.zsz.studyassistant.data.firstAnswerSuggestions(listOf(first))
+                    val filled = original.copy(
+                        category = original.category ?: c?.takeIf { it.isNotBlank() },
+                        tags = original.tags.ifEmpty { t.toList() }
+                    )
+                    if (filled != original) {
+                        chatItems = chatItems.toMutableList().apply {
+                            this[firstIndex] = first.copy(notebookSuggestions = filled)
+                        }
+                        persistCompletedConversation()
+                    }
+                }
             } finally {
                 // ★ 必须放 finally：请求异常/被取消时也要复位，否则标志卡死 → 之后所有分类都被跳过
                 if (classificationOwner === owner && sessionRecordBinding === binding) {
@@ -1623,8 +1639,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         quote: QuotedFollowUp? = null, gradePart: String? = null) {
         // 助手消息默认带上本轮思考（这样所有调用方都不用改，避免"正文一出思考就没了"）
         val th = thinking ?: if (role == "assistant") thinkingText?.takeIf { it.isNotBlank() } else null
-        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote, gradePart = gradePart)
+        val suggestions = if (role == "assistant" && chatItems.none { it.role == "assistant" })
+            com.zsz.studyassistant.data.NotebookSuggestions(suggestedCategory, suggestedTags.toList()) else null
+        chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote,
+            gradePart = gradePart, notebookSuggestions = suggestions)
     }
+
+    fun notebookSaveSuggestions() = com.zsz.studyassistant.data.firstAnswerSuggestions(
+        chatItems, com.zsz.studyassistant.data.NotebookSuggestions(suggestedCategory, suggestedTags)
+    )
 
     private fun resetSession() {
         solveInputDraft = com.zsz.studyassistant.ui.SolveInputDraft()

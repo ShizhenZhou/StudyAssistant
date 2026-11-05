@@ -80,7 +80,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // 「AI 管理 → AI 切图」开关：**关掉就完全不跑 AI**（自动预框选不请求、手动「AI 识别」按钮也不显示）
-    val aiCropOn = com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)
+    val autoAiCrop = com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)
     // 「通用 → AI 框选时限」：AI 自动框选的等待上限
     val aiCropMs = com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx)
     val path = vm.currentCropPath
@@ -123,9 +123,9 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     DisposableEffect(region, feedback) {
         onDispose { feedback.dismiss("cropAi") }
     }
-    LaunchedEffect(region, region.status, aiCropOn) {
+    LaunchedEffect(region, region.status) {
         val result = region.status ?: return@LaunchedEffect
-        if (aiCropOn && result != "crop.aiBusy") {
+        if (result != "crop.aiBusy") {
             feedback.show(s[result], isError = result != "crop.aiApplied", source = "cropAi")
             region.status = null
         }
@@ -208,7 +208,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         selection.rect = Rect(disp.center.x - w / 2, disp.center.y - h / 2,
                             disp.center.x + w / 2, disp.center.y + h / 2)
                     }
-                    path?.let { vm.detectCrop(it, disp, aiCropOn, aiCropMs) }
+                    path?.let { vm.detectCrop(it, disp, autoAiCrop, aiCropMs) }
                 }
 
                 // 按计算出的 disp 绘制图片（这样缩放/平移后选区仍与图片对齐）
@@ -478,21 +478,18 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 // Manual detection uses the same deadline and retains the current selection on failure.
-                // ★ 「AI 切图」关掉时不显示这个按钮（它本质就是手动跑一次 AI），只留「返回」
-                if (aiCropOn) {
-                    TextButton(
-                        enabled = !aiBusy,
-                        onClick = {
-                            val p = path ?: return@TextButton
-                            feedback.dismiss("cropAi")
-                            zoom = 1f
-                            panX = 0f
-                            panY = 0f
-                            if (dispBase.width > 1f) selection.bounds = dispBase
-                            vm.detectCrop(p, selection.bounds, true, aiCropMs, manual = true)
-                        }
-                    ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"], maxLines = 1, softWrap = false) }
-                }
+                TextButton(
+                    enabled = !aiBusy,
+                    onClick = {
+                        val p = path ?: return@TextButton
+                        feedback.dismiss("cropAi")
+                        zoom = 1f
+                        panX = 0f
+                        panY = 0f
+                        if (dispBase.width > 1f) selection.bounds = dispBase
+                        vm.detectCrop(p, selection.bounds, true, aiCropMs, manual = true)
+                    }
+                ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"], maxLines = 1, softWrap = false) }
                 // 返回 = 回到拍摄界面（不换行）
                 TextButton(onClick = { handleBack() }) {
                     Text(if (vm.cropIndex > 0) s["crop.prevImage"] else s["crop.backToCamera"], maxLines = 1, softWrap = false)

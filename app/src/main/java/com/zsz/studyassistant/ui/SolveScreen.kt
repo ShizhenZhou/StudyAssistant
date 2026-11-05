@@ -640,8 +640,9 @@ fun SolveScreen(
                 //   `remember {}`（无 key）只取首次值 → 之后即使"解答流式解析 / 完成兜底"再把
                 //   suggestedCategory / suggestedTags 写进来，也**不会**改变对话框里的初始勾选，
                 //   更不会把用户刚取消的 ✕ "复活"（这是残余的 AI 干扰来源）。
-                val frozenCat = remember { vm.suggestedCategory }
-                val frozenTags = remember { vm.suggestedTags }
+                val suggestions = remember { vm.notebookSaveSuggestions() }
+                val frozenCat = suggestions.category
+                val frozenTags = suggestions.tags
                 val defaultCat = frozenCat
                 val initCatId = categories.firstOrNull { it.name == defaultCat }?.id
                 // ★ 2026-10-14（用户要求）：**打开对话框时不再后台问 AI**（原来是"预选为空就兜底问一次"）。

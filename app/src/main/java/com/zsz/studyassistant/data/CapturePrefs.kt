@@ -38,10 +38,10 @@ object CapturePrefs {
         prefs(c).edit().putBoolean(KEY_GRADE_TOGGLE, v).apply()
 
 private const val KEY_AI_CROP_MS = "ai_crop_timeout_ms"   // AI 框选时限（毫秒）
-private const val KEY_AI_CROP_ENABLED = "ai_crop_enabled" // AI 切图总开关
+private const val KEY_AI_CROP_ENABLED = "ai_crop_enabled" // 进入框选页时自动运行 AI
 private const val KEY_THINK_EXPAND = "think_expand_pref"  // 思考区展开/折叠的全局记忆
 
-    /** 「AI 管理 → AI 切图」开关：**关闭＝完全不跑 AI**，只用本地投影算法框选（默认开） */
+    /** 「AI 管理 → AI 切图」开关：自动运行 AI（默认开）；关闭后仍可手动触发 */
     fun aiCropEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_AI_CROP_ENABLED, true)
 
     fun setAiCropEnabled(c: Context, v: Boolean) =

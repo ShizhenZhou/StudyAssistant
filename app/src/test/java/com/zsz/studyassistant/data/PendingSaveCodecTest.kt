@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.data
 
+import kotlinx.serialization.encodeToString
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -56,6 +57,25 @@ class PendingSaveCodecTest {
         }
         assertNull(gradingInput(false, "legacy", listOf(old, follow), listOf("photo", "second question photo")))
     }
+    @Test fun originalNotebookSuggestionsSurviveReopening() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val original = NotebookSuggestions("物理", listOf("电场", "电势"))
+        val chats = listOf(
+            com.zsz.studyassistant.ChatItem(0, "question", "题目"),
+            com.zsz.studyassistant.ChatItem(1, "assistant", "解答", notebookSuggestions = original),
+            com.zsz.studyassistant.ChatItem(2, "assistant", "分类：数学\n知识点：函数")
+        )
+        val restored = json.decodeFromString<List<com.zsz.studyassistant.ChatItem>>(json.encodeToString(chats))
+        assertEquals(original, firstAnswerSuggestions(restored, NotebookSuggestions("其他", listOf("旧标签"))))
+        for (lang in com.zsz.studyassistant.ui.UiLang.entries) {
+            val hint = com.zsz.studyassistant.ui.stringsFor(lang)["solve.tagsHint"]
+            val legacy = listOf(com.zsz.studyassistant.ChatItem(1, "assistant", "旧解答" + hint + "电场、 电势"))
+            assertEquals(original, firstAnswerSuggestions(legacy, NotebookSuggestions("物理")))
+        }
+        val raw = listOf(com.zsz.studyassistant.ChatItem(1, "assistant", "分类：物理\n知识点：电场、电势\n解答：内容"))
+        assertEquals(original, firstAnswerSuggestions(raw))
+    }
+
     @Test fun quotedConversationRetainsFullContentAcrossSaveAndRestore() {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         val legacySource = com.zsz.studyassistant.ChatItem(1, "assistant", "Formula: \\(x^2\\)")

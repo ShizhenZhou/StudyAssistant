@@ -201,10 +201,8 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                                 aiCropOn = it
                                 com.zsz.studyassistant.data.CapturePrefs.setAiCropEnabled(ctx, it)
                             })
-                            if (aiCropOn) {
-                                Spacer(Modifier.height(20.dp))
-                                AiCropTimeoutSettings()
-                            }
+                            Spacer(Modifier.height(20.dp))
+                            AiCropTimeoutSettings()
                         }
                         AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { returnToParent() }) {
                             AiSolveModelSettings()
