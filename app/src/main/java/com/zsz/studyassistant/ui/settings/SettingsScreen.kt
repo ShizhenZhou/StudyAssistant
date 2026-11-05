@@ -465,7 +465,7 @@ private fun SettingGroupTitle(text: String) {
 
 /**
  * ✂️ **AI 切图总开关**（用户 2026-09-17 提出，2026-10-07 实现）。
- * 开：进框选页时本地算法**与 AI 视觉并行**，AI 先回来就用 AI 的框（见 `ui/CropScreen.kt`）。
+ * 开：进框选页时本地算法**与 AI 视觉并行**，AI 先回来就用 AI 的框（见 `ui/capture/CropScreen.kt`）。
  * 关：**完全不跑 AI**，只用本地投影算法框选，进度快也更省额度；下面的「AI 框选时限」也随之隐藏。
  */
 @Composable
@@ -1297,7 +1297,7 @@ private fun CrashLogSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
 
-    // ── 崩溃日志：崩溃时自动记到本机（data/CrashLogger.kt），这里只做「导出 / 清空」 ──
+    // ── 崩溃日志：崩溃时自动记到本机（data/diagnostics/CrashLogger.kt），这里只做「导出 / 清空」 ──
     // 设计取舍：不做自动上传（隐私 + 自用无服务端），导出走系统「保存到文件」，用户自己决定发给谁。
     var crashCount by remember { mutableStateOf(CrashLogger.count(context)) }
     var showCrashClearConfirm by remember { mutableStateOf(false) }

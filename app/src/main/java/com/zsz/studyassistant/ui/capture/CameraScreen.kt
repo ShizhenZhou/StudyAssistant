@@ -638,7 +638,7 @@ private fun analyzeLuma(proxy: ImageProxy, out: AtomicReference<FrameLuma>) {
 /**
  * 单击对焦之后，用预览帧亮度把**曝光补偿**收敛到合适区间（最多 ~1.2 秒）。
  *
- * 规则见 `data/AutoExposure.kt`：近白像素多/整体偏亮 → 往下压 EV；太暗 → 往上抬；已在合适区间就不动。
+ * 规则见 `data/capture/AutoExposure.kt`：近白像素多/整体偏亮 → 往下压 EV；太暗 → 往上抬；已在合适区间就不动。
  * 每一步都夹在设备支持范围与自动调整范围（-2EV ~ +2EV）内，避免越调越偏。
  */
 private suspend fun autoTuneExposure(camera: Camera, latest: AtomicReference<FrameLuma>) {

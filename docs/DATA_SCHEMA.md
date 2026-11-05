@@ -202,7 +202,7 @@
 >   `solveSessionsLightOnce`（裁剪用）、`deleteSolveSessionsByIds`、`deleteSolveSessionsBefore`。
 >
 > **保留策略**：最近 **200 条 / 30 天，两者先到先删**（`SOLVE_SESSION_KEEP` / `SOLVE_SESSION_KEEP_DAYS`），
-> 启动时挂在 `purgeDeletedData()` 旁边执行；判据是纯函数 `solveSessionsToDelete(...)`（`data/SolveSessionPrune.kt`，有单测）。
+> 启动时挂在 `purgeDeletedData()` 旁边执行；判据是纯函数 `solveSessionsToDelete(...)`（`data/database/SolveSessionPrune.kt`，有单测）。
 > **记录时机**：4 个生成入口的 `onDone` 里**尽早 insert**（进程被杀也不丢），追问/继续生成 `UPDATE` 同一条。
 
 ### 1.3 迁移历史（每个版本对应的结构）
@@ -220,8 +220,8 @@
 | `MIGRATION_8_9` | v0.6.6 | 新建表 `question_images`（一题多图，二进制、有序）+ 索引；**旧 `imageBytes` 搬成 `position=0`** | `CREATE TABLE question_images(...)`；`CREATE INDEX index_question_images_questionId_position ...`；`INSERT INTO question_images(questionId,position,bytes,source,createdAt) SELECT id,0,imageBytes,'migrate',createdAt FROM questions WHERE imageBytes IS NOT NULL` |
 | `MIGRATION_9_10` | v0.6.6.3 | 题目及所有题目引用改为 TEXT 永久编号；补齐旧时间 | 迁移前备份；映射复制五表；数量校验；事务回滚保护 |
 
-> 代码位置：`app/src/main/java/com/zsz/studyassistant/data/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
-> 与 `data/SolveSession.kt`（`SolveSession` 实体）、`data/SolveSessionPrune.kt`（裁剪纯函数）。
+> 代码位置：`app/src/main/java/com/zsz/studyassistant/data/database/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
+> 与 `data/database/SolveSession.kt`（`SolveSession` 实体）、`data/database/SolveSessionPrune.kt`（裁剪纯函数）。
 > **`SolveSession` 实体单独一个文件**是刻意的：本机单测是纯 JVM 且手工拼 classpath（不含 Room），
 > 与 `@Dao`/`Migration` 同文件会让纯函数测试加载不到 `androidx.room.migration.Migration` 而报 `NoClassDefFoundError`。
 
@@ -314,7 +314,7 @@ data class ChatItem(
 - `content` 为**字符串** → 纯文本消息。
 - `content` 为**数组**（`[{type:"text",text:..},{type:"image_url",image_url:{url:"data:image/jpeg;base64,.."}}]`）→ 视觉消息（文字 + 多图）。
 
-视图相关：`gradeWithImages`、`visionUserMessage`、`userMessageWithImages` 在此文件：`app/src/main/java/com/zsz/studyassistant/data/StudyAssistant.kt`。
+视图相关：`gradeWithImages`、`visionUserMessage`、`userMessageWithImages` 在此文件：`app/src/main/java/com/zsz/studyassistant/data/ai/StudyAssistant.kt`。
 
 ---
 

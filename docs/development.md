@@ -1,5 +1,15 @@
 # 开发、真机验证与发布
 
+## 目录布局
+
+- 根目录保留 README、许可证、开发约定和 Gradle 入口；多语言 README 在 `docs/readme/`，数据结构与开发说明在 `docs/`。
+- `app/src/main/java/com/zsz/studyassistant/` 保留应用与主状态入口。`data/` 按 `ai`、`backup`、`capture`、`conversation`、`database`、`notebook`、`review`、`tags`、`update`、`storage`、`diagnostics`、`notifications` 归类。
+- `ui/` 按 `capture`、`conversation`、`notebook`、`settings`、`appearance`、`components`、`navigation`、`localization`、`home` 归类；统一路由入口仍为 `ui/AppNav.kt`。
+- 这些源码子目录仅用于按功能定位文件，Kotlin 包名仍为原来的 `com.zsz.studyassistant.data` / `.ui`，不改变类名、数据库标识、组件注册或序列化身份。`test`、`androidTest`、`integration` 中的相关用例与夹具按相同功能归类，测试类名和调用方式不变。
+- `app/schemas/` 保存 Room 结构 JSON；`app/src/main/assets/` 保存运行时离线资源；`app/src/main/res/` 保持 Android 标准资源目录，不混入开发文档。
+- `tools/` 保留现有本地检查、发布、签名和可选设备诊断入口，`tools/tests/` 为按需工具用例。`verification.py` 中的历史路径规则只用于旧发布证据读取，不随当前目录改写。
+- `.local-notes/` 保存不入库的本机记录及退役文件归档，`history_apk/` 保存已下载核验的发布包。构建缓存、签名配置和用户数据不参与源码目录整理。
+
 ## 日常开发
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.4.0、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。

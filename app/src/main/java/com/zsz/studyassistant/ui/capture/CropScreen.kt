@@ -72,7 +72,7 @@ private const val EDGE = 48f        // 边缘命中带宽度(px)（加粗，增�
 private const val CORNER = 56f      // 四角命中半径(px)
 private val DIM = Color(0x66000000) // 选区外部遮罩
 private val BORDER = Color(0xFFFF5252)
-// 注：框选相关的**纯数学**（MIN_SIZE / safeCoerceRange / normalizeSelRect）在 `ui/CropMath.kt`，
+// 注：框选相关的**纯数学**（MIN_SIZE / safeCoerceRange / normalizeSelRect）在 `ui/capture/CropMath.kt`，
 //     单独成文件是为了能被本机单测加载（那个文件不碰 Compose 的 Color，见 CropMathTest）。
 
 @Composable

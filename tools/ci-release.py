@@ -20,7 +20,7 @@ def main():
     if check.returncode == 0:
         raise RuntimeError("CI release candidate must not carry an official signature")
     payload, stamp = apk_payload(source)
-    code = (ROOT / "app/src/main/java/com/zsz/studyassistant/data/UpdateChecker.kt").read_text(encoding="utf-8")
+    code = (ROOT / "app/src/main/java/com/zsz/studyassistant/data/update/UpdateChecker.kt").read_text(encoding="utf-8")
     cert = re.search(r'EXPECTED_CERT_SHA256 = "([0-9a-f]{64})"', code)[1]
     manifest = dict(schema=3, **identity, commit=os.environ["GITHUB_SHA"], buildUtc=stamp,
         candidate=f"StudyAssistant-{identity['version']}-{stamp}-candidate.apk",
