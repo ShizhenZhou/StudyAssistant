@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NotebookSortingTest {
-    private fun q(id: String, time: Long) = Question(id=id,text=id,answer="",createdAt=time)
+    private fun q(id: String, time: Long) = QuestionPreview(id=id,text=id,answer="",createdAt=time)
     private val questions = listOf(q("one",100),q("two",300),q("three",200))
     private fun ids(mode: NotebookSortMode, reviews: Map<String,Review> = emptyMap()) =
         NotebookSorting.sort(questions,reviews,mode).map { it.id }

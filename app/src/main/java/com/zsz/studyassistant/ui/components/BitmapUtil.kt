@@ -41,7 +41,7 @@ internal fun decodeSampledBitmap(bytes: ByteArray, reqWidth: Int): Bitmap? = try
 
 /** Query and decode images only for composed/visible cards, on IO, rather than in list queries. */
 @androidx.compose.runtime.Composable
-internal fun questionCardBitmaps(q: com.zsz.studyassistant.data.Question, width: Int): List<android.graphics.Bitmap>? {
+internal fun questionCardBitmaps(q: com.zsz.studyassistant.data.QuestionPreview, width: Int): List<android.graphics.Bitmap>? {
     val context = androidx.compose.ui.platform.LocalContext.current
     val state = androidx.compose.runtime.produceState<List<android.graphics.Bitmap>?>(null, q.id, width) {
         value = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

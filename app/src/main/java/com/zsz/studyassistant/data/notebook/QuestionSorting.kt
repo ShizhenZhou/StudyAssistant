@@ -36,17 +36,17 @@ enum class NotebookSortMode(val id: String) {
 object NotebookSorting {
 
     fun sort(
-        questions: List<Question>,
+        questions: List<QuestionPreview>,
         reviews: Map<QuestionId, Review>,
         mode: NotebookSortMode
-    ): List<Question> = when (mode) {
+    ): List<QuestionPreview> = when (mode) {
         NotebookSortMode.NEWEST -> questions.sortedByDescending { it.createdAt }
         NotebookSortMode.OLDEST -> questions.sortedBy { it.createdAt }
         NotebookSortMode.NEXT_REVIEW -> questions.sortedWith(
             compareBy({ reviews[it.id]?.nextReviewAt ?: Long.MAX_VALUE }, { -it.createdAt })
         )
         NotebookSortMode.MOST_REVIEWED -> questions.sortedWith(
-            compareByDescending<Question> { reviews[it.id]?.reviewCount ?: 0 }.thenByDescending { it.createdAt }
+            compareByDescending<QuestionPreview> { reviews[it.id]?.reviewCount ?: 0 }.thenByDescending { it.createdAt }
         )
         NotebookSortMode.WEAKEST -> questions.sortedWith(
             compareBy(

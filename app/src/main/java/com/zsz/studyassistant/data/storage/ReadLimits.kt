@@ -1,12 +1,29 @@
 package com.zsz.studyassistant.data
 
 import java.io.InputStream
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 suspend fun readChunkedText(length: Int?, part: suspend (Int,Int) -> String?): String? {
     if (length == null) return null
+    currentCoroutineContext().ensureActive()
+    // Budget the complete UTF-16 string, not just each CursorWindow chunk.
+    // The builder and final copy can coexist, so reserve only a fraction of the heap.
+    val maxUnits = (minOf(16L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 16) / 2).toInt()
+    require(length >= 0 && length <= maxUnits) { "Text exceeds safe read size" }
     val result = StringBuilder(minOf(length, 65536))
     var position = 1
-    while(position <= length) { result.append(checkNotNull(part(position,65536))); position += 65536 }
+    while (position <= length) {
+        currentCoroutineContext().ensureActive()
+        val count = minOf(65536, length - position + 1)
+        val chunk = checkNotNull(part(position, count))
+        currentCoroutineContext().ensureActive()
+        // SQLite LENGTH/substr count Unicode code points, not UTF-16 code units.
+        check(chunk.codePointCount(0, chunk.length) == count) { "Incomplete text read" }
+        require(result.length.toLong() + chunk.length <= maxUnits) { "Text exceeds safe read size" }
+        result.append(chunk)
+        position += count
+    }
     return result.toString()
 }
 

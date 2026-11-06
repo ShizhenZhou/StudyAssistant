@@ -33,13 +33,13 @@ class HistoryWriteQueueTest {
         val store = Store(); val queue = HistoryWriteQueue()
         val first = queue.enqueue(row("old"), true)
         store.failWrite = true
-        try { persistHistoryWrite(store.dao,first.row,queue.canCreate(first),0); fail() }
+        try { persistHistoryWrite(store.dao,first.row(),queue.canCreate(first),0); fail() }
         catch (_: IllegalStateException) { queue.fail(first) }
         assertEquals(1, queue.failedTickets().size)
         val latest = queue.enqueue(row("new"), false)
         assertTrue(queue.canCreate(latest)); assertFalse(queue.isCurrent(first))
         store.failWrite = false
-        persistHistoryWrite(store.dao,latest.row,queue.canCreate(latest),0); queue.complete(latest)
+        persistHistoryWrite(store.dao,latest.row(),queue.canCreate(latest),0); queue.complete(latest)
         assertEquals(1, store.rows.size); assertEquals("new", store.rows.getValue(id).answer)
         assertEquals(10000L, store.rows.getValue(id).createdAt); assertTrue(queue.failedTickets().isEmpty())
     }

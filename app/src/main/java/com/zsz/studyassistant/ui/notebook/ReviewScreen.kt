@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
-import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.QuestionPreview
 import com.zsz.studyassistant.data.QuestionTag
 import com.zsz.studyassistant.data.mergeImageKeys
 import com.zsz.studyassistant.data.questionImageBase64
@@ -114,7 +114,7 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
 
     // 按 科目 → 知识点 分组；组内保持 nextReviewAt 升序（dueQuestions 已排序）
     val groups = remember(questions, catById, tagById, qTagIds, s) {
-        val m = LinkedHashMap<String, MutableList<Question>>()
+        val m = LinkedHashMap<String, MutableList<QuestionPreview>>()
         for (q in questions.distinctBy { it.id }) {   // 去重兜底：同 id 只出现一次
             val cn = q.categoryId?.let { catById[it]?.name } ?: s["notebook.filter.uncategorized"]
             val tn = (qTagIds[q.id] ?: emptyList()).mapNotNull { tagById[it]?.name }
@@ -251,7 +251,7 @@ private fun ReviewFilterButton(
 /** 复习卡片（两列瀑布流）：图片按比例或文字 + 学科标签 + 下次时间 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ReviewCard(q: Question, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun ReviewCard(q: QuestionPreview, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val s = LocalStrings.current
     Card(
         modifier = modifier

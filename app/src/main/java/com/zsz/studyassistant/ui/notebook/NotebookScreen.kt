@@ -96,7 +96,7 @@ import com.zsz.studyassistant.data.UNCATEGORIZED_ORDER_ID
 import com.zsz.studyassistant.data.categoryChipOrder
 import com.zsz.studyassistant.data.moveCategoryOrder
 import com.zsz.studyassistant.data.NotebookSortMode
-import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.QuestionPreview
 import com.zsz.studyassistant.data.QuestionTag
 import com.zsz.studyassistant.data.mergeImageKeys
 import com.zsz.studyassistant.data.questionImageBase64
@@ -482,7 +482,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun NotebookItem(
-    q: Question,
+    q: QuestionPreview,
     modifier: Modifier = Modifier,
     snippet: com.zsz.studyassistant.data.SearchSnippet?,
     tags: List<Tag>,

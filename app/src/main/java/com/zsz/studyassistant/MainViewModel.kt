@@ -17,6 +17,10 @@ import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.gradingInput
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.SaveSnapshot
+import com.zsz.studyassistant.data.QuestionPreview
+import com.zsz.studyassistant.data.SolveSessionPreview
+import com.zsz.studyassistant.data.toPreview
 import com.zsz.studyassistant.data.QuestionId
 import com.zsz.studyassistant.data.QuestionIdentity
 import com.zsz.studyassistant.data.QuestionImage
@@ -284,7 +288,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 错题本数据流（A5：按用户选的排序方式排好；排序变化 → 立即重新发射） */
-    val notebook: StateFlow<List<Question>> =
+    val notebook: StateFlow<List<QuestionPreview>> =
         kotlinx.coroutines.flow.combine(
             dao.getAll(), dao.allReviews(), notebookSort, deletionState
         ) { allQuestions, rs, mode, deletes ->
@@ -521,11 +525,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val chats=value.completedChats ?: return false
         val text=value.completedQuestion ?: value.question
         val answer=chats.lastOrNull { it.role=="assistant" }?.content.orEmpty()
-        val conversation=json.encodeToString(chats)
+        val conversation=withContext(Dispatchers.Default) { json.encodeToString(chats) }
         return try {
             val scan=withContext(Dispatchers.IO) { pendingSaveStore.scan() }
             if(scan.unreadable!=0 || scan.entries.any { it.payload.id==value.id } ||
-                value.id in pendingNotebookContent || historyWriteQueue.failedTickets().any { it.row.id==value.id }) return false
+                value.id in pendingNotebookContent || historyWriteQueue.failedTickets().any { it.id==value.id }) return false
             // Absence of an error is not evidence of a save: read back a durable destination.
             val notebook=dao.heavyOnce(value.id)
             val history=dao.solveSessionOnce(value.id)
@@ -686,7 +690,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val pendingSaveStore = com.zsz.studyassistant.data.PendingSaveStore(app)
     private val pendingSaveRepository = com.zsz.studyassistant.data.PendingSaveRepository(AppDatabase.get(app), pendingSaveStore)
-    private val pendingNotebookContent = linkedMapOf<QuestionId, com.zsz.studyassistant.data.SavePayload>()
+    private val pendingNotebookContent = linkedMapOf<QuestionId, SaveSnapshot<com.zsz.studyassistant.data.SavePayload>>()
     var hasSaveActivity by mutableStateOf(false)
         private set
     var saveRecoveryReady by mutableStateOf(false)
@@ -726,13 +730,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val scan = withContext(Dispatchers.IO) { pendingSaveStore.scan() }
             val durable = scan.entries.map { "${it.target}:${it.payload.id}" }.toSet()
             val keys = durable.toMutableSet()
-            historyWriteQueue.failedTickets().forEach { keys += "HISTORY:${it.row.id}" }
+            historyWriteQueue.failedTickets().forEach { keys += "HISTORY:${it.id}" }
             pendingNotebookContent.keys.forEach { keys += "NOTEBOOK:$it" }
             pendingSaveCount = keys.size
             val copies = scan.entries.associateBy { "${it.target}:${it.payload.id}" }
-            val memory = historyWriteQueue.failedTickets().associate { "HISTORY:${it.row.id}" to
-                com.zsz.studyassistant.data.SavePayload.history(it.row) } +
-                pendingNotebookContent.values.associate { "NOTEBOOK:${it.id}" to it }
+            val memory = historyWriteQueue.failedTickets().associate { "HISTORY:${it.id}" to
+                withContext(Dispatchers.Default) { com.zsz.studyassistant.data.SavePayload.history(it.row()) } } +
+                pendingNotebookContent.values.toList().associate { "NOTEBOOK:${it.id}" to it.value() }
             saveRecoveryReady = scan.unreadable == 0 && memory.all { (key, payload) ->
                 copies[key]?.payload == payload
             }
@@ -741,25 +745,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         saveRevision++
     }
 
-    private fun queueNotebookSave(payload: com.zsz.studyassistant.data.SavePayload) {
-        if(payload.id in deletionState.value.questionIds || payload.id in deletedNotebookIds) return
+    private fun queueNotebookSave(payload: com.zsz.studyassistant.data.SavePayload) =
+        queueNotebookSave(SaveSnapshot(payload.id) { payload })
+
+    private fun queueNotebookSave(snapshot: SaveSnapshot<com.zsz.studyassistant.data.SavePayload>) {
+        if(snapshot.id in deletionState.value.questionIds || snapshot.id in deletedNotebookIds) return
         hasSaveActivity = true
-        pendingNotebookContent[payload.id] = payload
+        pendingNotebookContent[snapshot.id] = snapshot
         viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
-            withContext(kotlinx.coroutines.NonCancellable) { persistNotebookContent(payload) }
+            withContext(kotlinx.coroutines.NonCancellable) { persistNotebookContent(snapshot) }
         }
     }
-    private suspend fun persistNotebookContent(payload: com.zsz.studyassistant.data.SavePayload) {
+    private suspend fun persistNotebookContent(snapshot: SaveSnapshot<com.zsz.studyassistant.data.SavePayload>) {
         saveOperations++
         try {
             solveSessionWriteMutex.withLock {
-                if (pendingNotebookContent[payload.id] !== payload || payload.id in deletedNotebookIds) return@withLock
+                fun current() = pendingNotebookContent[snapshot.id] === snapshot &&
+                    snapshot.id !in deletedNotebookIds
+                if (!current()) return@withLock
                 try {
+                    val payload = snapshot.value()
+                    if (!current()) return@withLock
                     pendingSaveRepository.saveNotebook(payload)
-                    if (pendingNotebookContent[payload.id] === payload) pendingNotebookContent.remove(payload.id)
+                    if (pendingNotebookContent[snapshot.id] === snapshot) pendingNotebookContent.remove(snapshot.id)
                     if(savedQuestionId==payload.id) currentNotebookBaseline=payload
                 } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { /* Preserve the in-memory snapshot even if journal creation failed. */ }
+                catch (_: Exception) { /* Keep the frozen snapshot if preparation or journal creation failed. */ }
                 refreshPendingSaveState()
             }
         } finally { saveOperations-- }
@@ -771,11 +782,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     val entries = withContext(Dispatchers.IO) { pendingSaveStore.scan().entries }.toMutableList()
                     historyWriteQueue.failedTickets().forEach { ticket ->
-                        entries.removeAll { it.target == com.zsz.studyassistant.data.SaveTarget.HISTORY && it.payload.id == ticket.row.id }
+                        entries.removeAll { it.target == com.zsz.studyassistant.data.SaveTarget.HISTORY && it.payload.id == ticket.id }
                         entries += com.zsz.studyassistant.data.PendingSave(com.zsz.studyassistant.data.SaveTarget.HISTORY,
-                            com.zsz.studyassistant.data.SavePayload.history(ticket.row), null)
+                            withContext(Dispatchers.Default) { com.zsz.studyassistant.data.SavePayload.history(ticket.row()) }, null)
                     }
-                    pendingNotebookContent.values.forEach { payload ->
+                    pendingNotebookContent.values.toList().forEach { snapshot ->
+                        val payload = snapshot.value()
                         entries.removeAll { it.target == com.zsz.studyassistant.data.SaveTarget.NOTEBOOK && it.payload.id == payload.id }
                         entries += com.zsz.studyassistant.data.PendingSave(com.zsz.studyassistant.data.SaveTarget.NOTEBOOK, payload, null)
                     }
@@ -1167,32 +1179,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // History is created at initial input, before requesting AI. Both tables share
     // the permanent problem ID. Subsequent calls may only update an existing row.
     // Notebook/review loads explicitly disable history writes.
-    private fun recordSolveSession(source: String, create: Boolean = false) {
+    private fun conversationSnapshot(): Lazy<String> {
+        val chats = chatItems.toList()
+        return lazy { json.encodeToString(chats) }
+    }
+
+    private fun recordSolveSession(source: String, create: Boolean = false,
+                                   conversation: Lazy<String> = conversationSnapshot()) {
         val binding = sessionRecordBinding
         if (!binding.historyAllowed) return
         val problemId = binding.id ?: return
-        // The history row needs only the primary image as bytes; keep the image list encoded.
         val fallback = when {
-            multiImages.isNotEmpty() -> multiImages
-            directImages.isNotEmpty() -> directImages
+            multiImages.isNotEmpty() -> multiImages.toList()
+            directImages.isNotEmpty() -> directImages.toList()
             else -> listOfNotNull(imageBytes)
         }
-        val keys = questionImages
+        val keys = questionImages.toList()
         val q = questionText.ifBlank { if (keys.isEmpty() && fallback.isEmpty()) return else "（图片题）" }
-        val row = SolveSession(
-            id = problemId, createdAt = binding.createdAt,
-            updatedAt = System.currentTimeMillis(), source = binding.source ?: source,
-            text = q, answer = lastAnswer(), conversationJson = json.encodeToString(chatItems),
-            imageBytes = keys.firstOrNull()?.let { Base64.decode(it, Base64.NO_WRAP) } ?: fallback.firstOrNull(),
-            imagesJson = when {
-                keys.size > 1 -> json.encodeToString(keys)
-                keys.isEmpty() && fallback.size > 1 -> json.encodeToString(fallback.map { Base64.encodeToString(it, Base64.NO_WRAP) })
-                else -> null
-            },
-            savedQuestionId = savedQuestionId
-        )
+        val created = binding.createdAt
+        val updated = System.currentTimeMillis()
+        val origin = binding.source ?: source
+        val answer = lastAnswer()
+        val notebookId = savedQuestionId
+        val snapshot = SaveSnapshot(problemId) {
+            SolveSession(id = problemId, createdAt = created, updatedAt = updated, source = origin,
+                text = q, answer = answer, conversationJson = conversation.value,
+                imageBytes = keys.firstOrNull()?.let { Base64.decode(it, Base64.NO_WRAP) } ?: fallback.firstOrNull(),
+                imagesJson = when {
+                    keys.size > 1 -> json.encodeToString(keys)
+                    keys.isEmpty() && fallback.size > 1 -> json.encodeToString(fallback.map { Base64.encodeToString(it, Base64.NO_WRAP) })
+                    else -> null
+                }, savedQuestionId = notebookId)
+        }
         hasSaveActivity = true
-        val ticket = historyWriteQueue.enqueue(row, create)
+        val ticket = historyWriteQueue.enqueue(snapshot, create)
         failedHistoryWrites = historyWriteQueue.failedTickets().size
         viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
             withContext(kotlinx.coroutines.NonCancellable) { persistHistoryTicket(ticket) }
@@ -1204,7 +1224,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         try { solveSessionWriteMutex.withLock {
             if (!historyWriteQueue.isCurrent(ticket)) return@withLock
             try {
-                pendingSaveRepository.saveHistory(ticket.row, historyWriteQueue.canCreate(ticket), historyCutoff())
+                val row = ticket.row()
+                if (!historyWriteQueue.isCurrent(ticket)) return@withLock
+                pendingSaveRepository.saveHistory(row, historyWriteQueue.canCreate(ticket), historyCutoff())
                 historyWriteQueue.complete(ticket)
             } catch (e: CancellationException) {
                 historyWriteQueue.fail(ticket)
@@ -1304,16 +1326,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         stopActiveGeneration()
         val seq = callSeq
         try {
-            val (s, linked) = AppDatabase.get(getApplication()).withTransaction {
+            val (summary, linked, history) = AppDatabase.get(getApplication()).withTransaction {
                 val question = if (dao.questionPreviewOnce(id)?.deleted == false) dao.heavyOnce(id) else null
-                val session = if (question != null) dao.sessionLightOnce(id) else dao.solveSessionOnce(id)
-                (session ?: return@withTransaction null) to question
+                val summary = dao.sessionLightOnce(id) ?: return@withTransaction null
+                Triple(summary, question, if (question == null) dao.solveSessionOnce(id) else null)
             } ?: run {
                 if (seq == callSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["history.readFailed"]
                 return false
             }
             if (seq != callSeq) return false
-            if (linked != null) return loadQuestion(linked, historySession = s)
+            if (linked != null) return loadQuestion(linked, historySession = summary)
+            val s = checkNotNull(history)
             // 对应错题已删除或不存在：记录仍可查看，不再回写失效的错题 id。
             val loaded = readConversation(s.text, s.answer, s.conversationJson, s.imageBytes, s.source == "grade",
                 historyImages = s.imagesJson)
@@ -2614,19 +2637,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val binding = sessionRecordBinding
         val stableId = binding.id ?: return
         val firstCreatedAt = binding.createdAt
-        val convJson = json.encodeToString(chatItems)
+        val conversation = conversationSnapshot()
         val a = lastAnswer()
-        val img = imageBytes ?: questionImages.firstOrNull()?.let {
-            runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
-        }
-        val allImgBytes = questionImages.take(MAX_QUESTION_IMAGES).mapNotNull {
-            runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
-        }.ifEmpty { img?.let { listOf(it) } ?: emptyList() }
+        val primaryImage = imageBytes
+        val imageKeys = questionImages.take(MAX_QUESTION_IMAGES)
+        val selectedTagIds = tagIds.toList()
+        val selectedTagNames = tagNames.toList()
         val now = System.currentTimeMillis()
         saving = true
         cancelPending = false
         viewModelScope.launch {
             try {
+                val prepared = withContext(Dispatchers.Default) {
+                    val decoded = imageKeys.map {
+                        runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull()
+                    }
+                    val primary = primaryImage ?: decoded.firstOrNull()
+                    val images = decoded.filterNotNull()
+                    Triple(conversation.value, primary, images.ifEmpty { listOfNotNull(primary) })
+                }
+                val (convJson, img, allImgBytes) = prepared
                 val db = AppDatabase.get(getApplication())
                 var reusedQuestion: Question? = null
                 val saved = notebookWriteMutex.withLock { db.withTransaction {
@@ -2645,8 +2675,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val qid = dao.insertQuestionWithId(Question(id = stableId, text = q, answer = a, imageBytes = img,
                         conversationJson = convJson, categoryId = cid, createdAt = firstCreatedAt))
                     writeQuestionImages(qid, allImgBytes, source = "save")
-                    val ids = tagIds.distinct().toMutableList()
-                    for (tn in tagNames.take(5)) {
+                    val ids = selectedTagIds.distinct().toMutableList()
+                    for (tn in selectedTagNames.take(5)) {
                         val n = tn.trim()
                         if (n.isBlank()) continue
                         val existing = dao.getAllTagsOnce().firstOrNull { it.name == n }
@@ -2672,7 +2702,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val reused = reusedQuestion
                     if (reused != null) {
                         val history = if (binding.historyAllowed) dao.solveSessionOnce(stableId) else null
-                        if (binding === sessionRecordBinding) loadQuestion(reused, historySession = history)
+                        if (binding === sessionRecordBinding) loadQuestion(reused, historySession = history?.toPreview())
                         return@launch
                     }
                     savedQuestionId = saved?.first
@@ -2808,7 +2838,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ---- 复习（艾宾浩斯）----
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun dueQuestions(week: Boolean, onlyWeak: Boolean): Flow<List<Question>> =
+    fun dueQuestions(week: Boolean, onlyWeak: Boolean): Flow<List<QuestionPreview>> =
         kotlinx.coroutines.flow.combine(calendarDay.flatMapLatest { day ->
             dao.dueQuestions(if (week) day.weekEnd else day.end, onlyWeak)
         }, deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.questionIds } }
@@ -2830,7 +2860,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 复习模式：点进错题查看；详情页底部为 熟悉/模糊/忘记 三按钮 */
     var reviewMode by mutableStateOf(false)
         private set
-    private var reviewQueue: List<Question> = emptyList()
+    private var reviewQueue: List<QuestionPreview> = emptyList()
     private var currentReviewQuestion: Question? = null
 
     /** 本轮复习进度：第 reviewDone+1 / reviewTotal 题（进入复习时由列表确定总数） */
@@ -2840,7 +2870,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     /** 从复习列表进入时调用：记录本轮总数与起始位置，用于「第 i/n 题」显示 */
-    fun startReviewSession(candidates: List<Question>, index: Int) {
+    fun startReviewSession(candidates: List<QuestionPreview>, index: Int) {
         reviewEpoch++
         committedReviewIds.clear()
         val ids = com.zsz.studyassistant.data.ReviewPlanning.ordered(candidates.map { it.id }, index)
@@ -2851,7 +2881,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         reviewBusy = false
     }
 
-    fun loadForReview(q: Question, onReady: () -> Unit = {}) {
+    fun loadForReview(q: QuestionPreview, onReady: () -> Unit = {}) {
         stopActiveGeneration()
         val seq = callSeq
         val binding = sessionRecordBinding
@@ -3318,7 +3348,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // Keep updates with their explicit save request until its insert commits. In particular,
     // a previously deleted ID must stay blocked to ordinary writes during recreation.
     private class SimilarSaveRequest {
-        var latest: com.zsz.studyassistant.data.SavePayload? = null
+        var latest: SaveSnapshot<com.zsz.studyassistant.data.SavePayload>? = null
         var invalidated = false
     }
     private val similarSaveRequests = mutableMapOf<QuestionId, SimilarSaveRequest>()
@@ -3334,7 +3364,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (similarSavedQuestionId != id && request == null) return
         if(id in deletionState.value.questionIds) return
         val chats=similarChats()
-        val payload=com.zsz.studyassistant.data.SavePayload(id,similarCreatedAt,similarQuestion.orEmpty(),similarAnswer.orEmpty(),json.encodeToString(chats))
+        val created = similarCreatedAt
+        val text = similarQuestion.orEmpty()
+        val answer = similarAnswer.orEmpty()
+        val payload = SaveSnapshot(id) {
+            com.zsz.studyassistant.data.SavePayload(id, created, text, answer, json.encodeToString(chats))
+        }
         if (request != null) {
             if (request.invalidated) return
             if (id in deletedNotebookIds) {
@@ -3353,21 +3388,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (id in deletionState.value.questionIds || id in similarSaveRequests) return
         val created = similarCreatedAt
         val seq = similarSeq
-        val conversationJson = json.encodeToString(similarChats())
+        val chats = similarChats()
         val selectedTagIds = tagIds.toList()
         val selectedTagNames = tagNames.toList()
-        val answerText = buildString {
-            similarAnswer?.let { append(it) }
-            for (m in similarMessages) {
-                if (isNotEmpty()) append("\n\n")
-                append(if (m.role == "assistant") "AI：" else "我：")
-                append(m.content)
-            }
-        }
+        val originalAnswer = similarAnswer.orEmpty()
+        val followups = similarMessages.toList()
         val request = SimilarSaveRequest()
         similarSaveRequests[id] = request
         viewModelScope.launch {
             try {
+                val (conversationJson, answerText) = withContext(Dispatchers.Default) {
+                    json.encodeToString(chats) to buildString {
+                        append(originalAnswer)
+                        for (m in followups) {
+                            if (isNotEmpty()) append("\n\n")
+                            append(if (m.role == "assistant") "AI：" else "我：")
+                            append(m.content)
+                        }
+                    }
+                }
                 val saved = notebookWriteMutex.withLock {
                     if (request.invalidated || id in deletionState.value.questionIds) return@withLock false
                     AppDatabase.get(getApplication()).withTransaction {
@@ -3449,17 +3488,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveSessionOnExit() {
         if (chatItems.isEmpty()) return
         val id = savedQuestionId
-        val snapshot = id?.takeIf { QuestionIdentity.valid(it) }?.let {
-            Question(
-                id = it, text = questionText, answer = lastAnswer(), imageBytes = imageBytes,
-                conversationJson = json.encodeToString(chatItems), deleted = isDeleted,
-                categoryId = currentQuestionCategoryId,
-                createdAt = currentQuestionCreatedAt
-            )
+        val conversation = conversationSnapshot()
+        val text = questionText
+        val answer = lastAnswer()
+        val created = currentQuestionCreatedAt
+        val snapshot = id?.takeIf { QuestionIdentity.valid(it) && !isDeleted }?.let {
+            SaveSnapshot(it) { com.zsz.studyassistant.data.SavePayload(it, created, text, answer, conversation.value) }
         }
-        // 在启动任何异步任务之前捕获记录快照，而不是写库结束后再读取 VM。
-        recordSolveSession(currentSource())
-        if (snapshot != null && !snapshot.deleted) queueNotebookSave(com.zsz.studyassistant.data.SavePayload.notebook(snapshot))
+        // Register both frozen destinations before returning; encoding happens under the existing queue.
+        recordSolveSession(currentSource(), conversation = conversation)
+        if (snapshot != null) queueNotebookSave(snapshot)
     }
 
     /** 从解题页软删除当前已存的这条错题（可恢复） */
@@ -3467,7 +3505,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     fun deleteSavedQuestion() { savedQuestionId?.let { stageQuestionDeletion(listOf(it)) } }
     fun restoreSavedQuestion() { deletionState.value.pending?.let { undoDelete(it.token) } }
-    fun deleteFromNotebook(q: Question) { stageQuestionDeletion(listOf(q.id)) }
+    fun deleteFromNotebook(q: QuestionPreview) { stageQuestionDeletion(listOf(q.id)) }
 
     // ---- 科目（分类）管理：重命名 / 批量删除 ----
     fun renameCategory(id: Long, newName: String) {
@@ -3688,7 +3726,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    suspend fun loadQuestion(q: Question, keepReview: Boolean = false, historySession: SolveSession? = null,
+    suspend fun loadQuestion(q: Question, keepReview: Boolean = false, historySession: SolveSessionPreview? = null,
                              ownsOpen: () -> Boolean = { true }): Boolean {
         val seq = callSeq
         val previousBinding = sessionRecordBinding

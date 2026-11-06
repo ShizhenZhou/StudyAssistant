@@ -76,7 +76,7 @@ interface QuestionDao {
     suspend fun updateAnswerContent(id: QuestionId, text: String, answer: String, conversation: String?)
 
     @Query("SELECT id,substr(text,1,256) AS text,substr(answer,1,256) AS answer,createdAt,deleted,categoryId FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
-    fun getAll(): Flow<List<Question>>
+    fun getAll(): Flow<List<QuestionPreview>>
 
     @Query("SELECT * FROM categories ORDER BY createdAt ASC")
     fun categories(): Flow<List<Category>>
@@ -136,7 +136,7 @@ interface QuestionDao {
 //   IllegalStateException: Couldn't read row N, col 0 from CursorWindow
 //   图片/会话在真正进入某题时用 heavyOnce(id) 单独取。
 @Query("SELECT DISTINCT q.id, substr(q.text,1,256) AS text, substr(q.answer,1,256) AS answer, q.createdAt, q.deleted, q.categoryId FROM questions q INNER JOIN review r ON q.id = r.questionId WHERE q.deleted = 0 AND r.nextReviewAt <= :until AND (:onlyWeak = 0 OR r.intervalStep <= 1) ORDER BY r.nextReviewAt ASC")
-    fun dueQuestions(until: Long, onlyWeak: Boolean = false): Flow<List<Question>>
+    fun dueQuestions(until: Long, onlyWeak: Boolean = false): Flow<List<QuestionPreview>>
 
     /** 按 id 取完整一行（含图片 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
     @androidx.room.Transaction
@@ -158,7 +158,7 @@ interface QuestionDao {
     suspend fun questionConversationPart(id: QuestionId, offset: Int, count: Int): String?
 
     @Query("SELECT id,substr(text,1,256) AS text,substr(answer,1,256) AS answer,createdAt,deleted,categoryId FROM questions WHERE id=:id")
-    suspend fun questionPreviewOnce(id: QuestionId): Question?
+    suspend fun questionPreviewOnce(id: QuestionId): QuestionPreview?
     @Query("SELECT LENGTH(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END) FROM questions WHERE id=:id")
     suspend fun questionTextSize(id: QuestionId, field: String): Int?
     @Query("SELECT substr(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END,:offset,:count) FROM questions WHERE id=:id")
@@ -167,7 +167,7 @@ interface QuestionDao {
     @androidx.room.Transaction
     suspend fun questionLightOnce(id: QuestionId): Question? {
         val row=questionPreviewOnce(id) ?: return null
-        return row.copy(
+        return Question(id = row.id, createdAt = row.createdAt, deleted = row.deleted, categoryId = row.categoryId,
             text=checkNotNull(readChunkedText(questionTextSize(id,"text")) { a,b -> questionTextPart(id,"text",a,b) }),
             answer=checkNotNull(readChunkedText(questionTextSize(id,"answer")) { a,b -> questionTextPart(id,"answer",a,b) }))
     }
@@ -276,7 +276,7 @@ interface QuestionDao {
 
     /** 维护候选只读取轻字段；调用方逐题 heavyOnce 分段读取会话，避免批量 CursorWindow 溢出。 */
     @Query("SELECT id, substr(text,1,256) AS text, substr(answer,1,256) AS answer, createdAt, deleted, categoryId FROM questions WHERE deleted = 0")
-    suspend fun questionsWithConversationOnce(): List<Question>
+    suspend fun questionsWithConversationOnce(): List<QuestionPreview>
 
     /** 「多图修复」用：把补好的会话 JSON 写回（只动这一列） */
     @Query("UPDATE questions SET conversationJson = :cj WHERE id = :id")
@@ -474,11 +474,11 @@ interface QuestionDao {
      *   重字段（原图 / 会话 JSON）在真正进入某条记录时用 `solveSessionOnce(id)` 单独取。
      */
     @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId FROM solve_sessions ORDER BY createdAt DESC")
-    fun solveSessionsLight(): Flow<List<SolveSession>>
+    fun solveSessionsLight(): Flow<List<SolveSessionPreview>>
 
     /** 按 id 取**重字段**（含原图 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
     @Query("SELECT id,createdAt,updatedAt,source,substr(text,1,256) AS text,substr(answer,1,256) AS answer,savedQuestionId FROM solve_sessions WHERE id=:id")
-    suspend fun sessionLightOnce(id: QuestionId): SolveSession?
+    suspend fun sessionLightOnce(id: QuestionId): SolveSessionPreview?
     @Query("SELECT LENGTH(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END) FROM solve_sessions WHERE id=:id")
     suspend fun sessionTextSize(id: QuestionId, field: String): Int?
     @Query("SELECT substr(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END,:offset,:count) FROM solve_sessions WHERE id=:id")
@@ -501,7 +501,8 @@ interface QuestionDao {
     @androidx.room.Transaction
     suspend fun solveSessionOnce(id: QuestionId): SolveSession? {
         val row = sessionLightOnce(id) ?: return null
-        return row.copy(imageBytes = sessionImageOnce(id),
+        return SolveSession(id = row.id, createdAt = row.createdAt, updatedAt = row.updatedAt, source = row.source,
+            savedQuestionId = row.savedQuestionId, imageBytes = sessionImageOnce(id),
             text=checkNotNull(readChunkedText(sessionTextSize(id,"text")) { a,b -> sessionTextPart(id,"text",a,b) }),
             answer=checkNotNull(readChunkedText(sessionTextSize(id,"answer")) { a,b -> sessionTextPart(id,"answer",a,b) }),
             conversationJson = readChunkedText(sessionConversationSize(id)) { a,b -> sessionConversationPart(id,a,b) },
@@ -519,7 +520,7 @@ interface QuestionDao {
 
     /** 全部记录的轻字段（裁剪策略用：只判 id 与 createdAt） */
     @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId FROM solve_sessions")
-    suspend fun solveSessionsLightOnce(): List<SolveSession>
+    suspend fun solveSessionsLightOnce(): List<SolveSessionPreview>
 
     @Query("DELETE FROM solve_sessions WHERE id IN (:ids)")
     suspend fun deleteSolveSessionsByIds(ids: List<QuestionId>)

@@ -31,7 +31,7 @@ const val SOLVE_SESSION_KEEP_DAYS = 30
  * 返回去重后的 id 列表，调用方直接拿去 `deleteSolveSessionsByIds`。
  */
 fun solveSessionsToDelete(
-    sessions: List<SolveSession>,
+    sessions: List<SolveSessionPreview>,
     cutoffTs: Long,
     keep: Int = SOLVE_SESSION_KEEP
 ): List<QuestionId> {
@@ -40,7 +40,7 @@ fun solveSessionsToDelete(
     //   否则它一定 `0 < cutoffTs`，每次启动都会被当成"过期 30 天"**直接删掉**
     //   （用户实测：刚搜的题进了「更早」，随后整个记录消失；根因是 UPDATE 把 createdAt 写成了 0，
     //     已在 `MainViewModel.recordSolveSession` 修掉，这里是对历史坏数据的兜底）。
-    fun ts(s: SolveSession) = if (s.createdAt > 0L) s.createdAt else s.updatedAt
+    fun ts(s: SolveSessionPreview) = if (s.createdAt > 0L) s.createdAt else s.updatedAt
     val tooOld = if (cutoffTs > 0) sessions.filter { ts(it) < cutoffTs } else emptyList()
     val overflow = if (keep > 0) sessions.sortedByDescending { ts(it) }.drop(keep) else emptyList()
     return (tooOld + overflow).map { it.id }.distinct()

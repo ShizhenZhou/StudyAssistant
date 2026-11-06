@@ -113,7 +113,7 @@ class SessionOwnershipRegressionTest {
             }
         }
         field("dao").set(model, tracked)
-        main { model.startReviewSession(listOf(first, next), 0); model.loadQuestion(first, keepReview = true); model.reviewNext(2) {} }
+        main { model.startReviewSession(listOf(first, next).map { it.toPreview() }, 0); model.loadQuestion(first, keepReview = true); model.reviewNext(2) {} }
         await { !model.reviewBusy && dao.reviewFor(first.id)?.reviewCount == 1 }
         assertEquals(first.id, model.savedQuestionId); assertNotNull(model.error)
         assertEquals("Pending content must block even reading the stale candidate", 0, reads)
@@ -142,7 +142,7 @@ class SessionOwnershipRegressionTest {
         field("dao").set(model, delayed)
         var reviewJob: Job? = null
         main {
-            model.startReviewSession(listOf(first, next), 0); model.loadQuestion(first, keepReview = true)
+            model.startReviewSession(listOf(first, next).map { it.toPreview() }, 0); model.loadQuestion(first, keepReview = true)
             val before = model.viewModelScope.coroutineContext[Job]!!.children.toSet()
             model.reviewNext(2) {}
             reviewJob = model.viewModelScope.coroutineContext[Job]!!.children.first { it !in before }

@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AppDatabase
-import com.zsz.studyassistant.data.SolveSession
+import com.zsz.studyassistant.data.SolveSessionPreview
 import com.zsz.studyassistant.data.CalendarDay
 import com.zsz.studyassistant.data.QuestionId
 import androidx.compose.material3.CircularProgressIndicator
@@ -252,7 +252,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SolveHistoryItem(
-    rec: SolveSession,
+    rec: SolveSessionPreview,
     modifier: Modifier = Modifier,
     day: CalendarDay,
     loading: Boolean,
@@ -316,16 +316,16 @@ private fun SolveHistoryItem(
 }
 
 /** 一天的记录分组（label = L10n key：history.today / history.yesterday / history.earlier） */
-internal data class SolveHistoryGroup(val label: String, val items: List<SolveSession>)
+internal data class SolveHistoryGroup(val label: String, val items: List<SolveSessionPreview>)
 
 /**
  * 按天分组 + 组内 `createdAt` 倒序（纯函数，便于单测）。
  *
  */
-internal fun groupSolveSessionsByDay(all: List<SolveSession>, day: CalendarDay): List<SolveHistoryGroup> {
+internal fun groupSolveSessionsByDay(all: List<SolveSessionPreview>, day: CalendarDay): List<SolveHistoryGroup> {
     val todayStart = day.start
     val yesterdayStart = day.after(-1)
-    fun ts(s: SolveSession) = s.createdAt
+    fun ts(s: SolveSessionPreview) = s.createdAt
     val sorted = all.sortedByDescending { ts(it) }
     val today = sorted.filter { ts(it) >= todayStart }
     val yesterday = sorted.filter { ts(it) in yesterdayStart until todayStart }

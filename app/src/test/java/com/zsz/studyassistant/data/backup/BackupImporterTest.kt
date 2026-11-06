@@ -26,7 +26,7 @@ class BackupImporterTest {
                 "insertImages" -> { @Suppress("UNCHECKED_CAST") val rows=a[0] as List<QuestionImage>;images+=rows;rows.indices.map { it.toLong() } }
                 "insertQuestionTags" -> { @Suppress("UNCHECKED_CAST") val rows=a[0] as List<QuestionTag>;links+=rows;Unit }
                 "insertReviews" -> { @Suppress("UNCHECKED_CAST") val rows=a[0] as List<Review>;reviews+=rows;Unit }
-                "sessionLightOnce" -> sessions[a[0]]
+                "sessionLightOnce" -> sessions[a[0]]?.toPreview()
                 "insertSolveSession" -> { val s=a[0] as SolveSession;check(s.id !in sessions);sessions[s.id]=s;sessions.size.toLong() }
                 "linkExistingSession" -> { val id=a[0] as String;if(id in questions) sessions[id]?.let { sessions[id]=it.copy(savedQuestionId=id) };Unit }
                 "toString" -> "IsolatedBackupStore"

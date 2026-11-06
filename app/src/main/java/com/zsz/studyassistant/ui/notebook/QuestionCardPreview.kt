@@ -25,11 +25,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.zsz.studyassistant.data.Question
+import com.zsz.studyassistant.data.QuestionPreview
 
 /** Save only layout metadata, never image bytes, in the navigation entry's UI state. */
 @Composable
-internal fun QuestionCardPreview(q: Question, description: String) {
+internal fun QuestionCardPreview(q: QuestionPreview, description: String) {
     val bitmaps = questionCardBitmaps(q, 400)
     var rememberedRatios by rememberSaveable(q.id) { mutableStateOf(floatArrayOf(1.6f)) }
     val ratios = bitmaps?.map { it.width.toFloat() / it.height.coerceAtLeast(1) }?.toFloatArray()

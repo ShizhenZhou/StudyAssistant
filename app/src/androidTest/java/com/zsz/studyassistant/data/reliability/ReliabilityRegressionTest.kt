@@ -260,7 +260,7 @@ class ReliabilityRegressionTest {
             }
         }
         MainViewModel::class.java.getDeclaredField("dao").apply { isAccessible=true }.set(model,failingDao)
-        withContext(Dispatchers.Main) { model.startReviewSession(listOf(first,second),0);model.loadQuestion(first,keepReview=true) }
+        withContext(Dispatchers.Main) { model.startReviewSession(listOf(first,second).map { it.toPreview() },0);model.loadQuestion(first,keepReview=true) }
         withContext(Dispatchers.Main) { model.reviewNext(2) { } }
         awaitCondition { !model.reviewBusy && dao.reviewFor(first.id)?.reviewCount==1 }
         assertEquals(first.id,model.savedQuestionId)
