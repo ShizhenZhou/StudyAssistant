@@ -50,6 +50,14 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.0.4
+
+- 💾 Optimize long-conversation saving and draft writes to reduce repeated work.
+- 🛡️ Strengthen large-text read safeguards and separate list previews from full content to prevent accidental writes.
+- ⚡ Streamline statistics and search reads, and separate capture/crop and conversation persistence logic.
+- 🧹 Organize project files, remove unused resources, and enable database schema snapshot export.
+- 📌 `versionCode` **106**.
+
 ### v0.7.0.3
 
 - 🏷️ Reuse saved classification suggestions to avoid redundant AI requests.

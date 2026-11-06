@@ -1,3 +1,9 @@
+v0.7.0.4
+· 💾 Optimize long-conversation saving and draft writes to reduce repeated work.
+· 🛡️ Strengthen large-text read safeguards and separate list previews from full content to prevent accidental writes.
+· ⚡ Streamline statistics and search reads, and separate capture/crop and conversation persistence logic.
+· 🧹 Organize project files, remove unused resources, and enable database schema snapshot export.
+
 v0.7.0.3
 · 🏷️ Reuse saved classification suggestions to avoid redundant AI requests.
 · 📊 Include AI cropping and auxiliary classification in usage totals, with safe concurrent counting.
