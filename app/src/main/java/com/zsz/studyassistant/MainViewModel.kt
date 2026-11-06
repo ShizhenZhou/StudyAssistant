@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
@@ -337,14 +338,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** A nullable match map reports an IO failure, not an empty successful search. */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun notebookMatches(query: String): Flow<Pair<String,Map<QuestionId,com.zsz.studyassistant.data.SearchSnippet>?>> = dao.getAll().mapLatest {
+    fun notebookMatches(query: String): Flow<Pair<String,Map<QuestionId,com.zsz.studyassistant.data.SearchSnippet>?>> = dao.questionSearchChanges().mapLatest {
         if(query.isNotBlank()) kotlinx.coroutines.delay(200)
         Pair<String,Map<QuestionId,com.zsz.studyassistant.data.SearchSnippet>?>(query,dao.matchingQuestionSnippets(query))
     }.flowOn(Dispatchers.IO).catch { emit(query to null) }
 
     val stats: StateFlow<StatsSnapshot> =
         kotlinx.coroutines.flow.combine(
-            dao.getAll(), dao.allReviews(), dao.categories(), calendarDay, deletionState
+            dao.questionStats().distinctUntilChanged(), dao.allReviews(), dao.categories(), calendarDay, deletionState
         ) { allQuestions, rs, cats, day, deletes ->
             val qs=allQuestions.filterNot { it.id in deletes.questionIds }
             val todayStart = day.start
@@ -474,14 +475,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     private var sessionRecordBinding = SolveSessionBinding()
     private var retryBinding: SolveSessionBinding? = null
-    private var captureIdentity: Pair<QuestionId, Long>? = null
     private val solveSessionWriteMutex = kotlinx.coroutines.sync.Mutex()
     private val historyWriteQueue = com.zsz.studyassistant.data.HistoryWriteQueue()
     var failedHistoryWrites by mutableStateOf(0)
         private set
     var retryingHistoryWrites by mutableStateOf(false)
         private set
-    private val conversationDrafts = com.zsz.studyassistant.data.ConversationDraftStore(app)
+    private val conversationDrafts = com.zsz.studyassistant.data.ConversationDraftPersistence(
+        app, viewModelScope,
+        onSaved = { saved ->
+            if (activeDraft?.generation == saved.generation) activeDraft = activeDraft?.copy(baseline = saved.baseline)
+        },
+        onFailure = { draftError = com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] },
+        refresh = { refreshDrafts() }
+    )
     private var activeDraft: com.zsz.studyassistant.data.ConversationDraft? = null
     private var currentNotebookBaseline: com.zsz.studyassistant.data.SavePayload? = null
     private var draftRevision = 0L
@@ -500,22 +507,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init { viewModelScope.launch { refreshDrafts() } }
     private suspend fun refreshDrafts() {
         try {
-            val scan=withContext(Dispatchers.IO) { conversationDrafts.summaries() }
+            val scan=conversationDrafts.summaries()
             draftSummaries=scan.first; draftIssue=scan.second>0
         } catch (_: Exception) { draftIssue=true }
     }
-    private val draftWriteMutex = kotlinx.coroutines.sync.Mutex()
     private suspend fun writeDraft(value: com.zsz.studyassistant.data.ConversationDraft,
         baseline: com.zsz.studyassistant.data.SavePayload?) {
-        try {
-            val saved=withContext(kotlinx.coroutines.NonCancellable) { draftWriteMutex.withLock { withContext(Dispatchers.IO) { conversationDrafts.write(value,baseline) } } }
-            if(activeDraft?.generation==value.generation) activeDraft=activeDraft?.copy(baseline=saved.baseline)
-        } catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] }
+        conversationDrafts.write(value, baseline)
     }
     private fun checkpointDraft(refresh: Boolean = true) {
-        val value=activeDraft?.copy(revision=++draftRevision) ?: return
-        val baseline=currentNotebookBaseline
-        viewModelScope.launch { writeDraft(value,baseline); if(refresh) refreshDrafts() }
+        val value = activeDraft?.copy(revision = ++draftRevision) ?: return
+        conversationDrafts.checkpoint(value, currentNotebookBaseline, refresh)
     }
     private suspend fun persistCompletedConversation() {
         saveSessionOnExit()
@@ -541,9 +543,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun cleanupPersistedDrafts() {
         try {
             solveSessionWriteMutex.withLock { /* Await snapshots already enqueued by this save/retry. */ }
-            val summaries=withContext(Dispatchers.IO) { conversationDrafts.summaries().first }
+            val summaries=conversationDrafts.summaries().first
             for (summary in summaries) {
-                val value=withContext(Dispatchers.IO) { conversationDrafts.read(summary.id) } ?: continue
+                val value=conversationDrafts.read(summary.id) ?: continue
                 if (value.complete && draftCanBeCleared(value)) finishDraftCleanup(value)
             }
             refreshDrafts()
@@ -551,7 +553,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
           catch (_: Exception) { draftIssue=true }
     }
     internal suspend fun finishDraftCleanup(value: com.zsz.studyassistant.data.ConversationDraft) {
-        try { withContext(kotlinx.coroutines.NonCancellable+Dispatchers.IO) { conversationDrafts.clear(value.id,value.generation) } }
+        try { conversationDrafts.clear(value.id,value.generation) }
         catch (e: CancellationException) { throw e }
         catch (_: Exception) { draftIssue=true; return }
         if(activeDraft?.generation==value.generation) activeDraft=null
@@ -559,8 +561,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun discardDraft(id: QuestionId) {
         viewModelScope.launch {
             try {
-                val value=withContext(Dispatchers.IO) { conversationDrafts.read(id) } ?: return@launch
-                withContext(Dispatchers.IO) { conversationDrafts.clear(id,value.generation) }
+                val value=conversationDrafts.read(id) ?: return@launch
+                conversationDrafts.clear(id,value.generation)
                 if(activeDraft?.generation==value.generation) { activeDraft=null; discardInterrupted() }
                 refreshDrafts()
             } catch (_: Exception) { draftError=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.saveFailed"] }
@@ -576,7 +578,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         fun current() = request == resumeSequence && sessionRecordBinding === expectedBinding && callSeq == expectedCall
         viewModelScope.launch {
             try {
-                val value=draftWriteMutex.withLock { withContext(Dispatchers.IO) { checkNotNull(conversationDrafts.read(id)) } }
+                val value=checkNotNull(conversationDrafts.read(id))
                 val row=solveSessionWriteMutex.withLock { dao.heavyOnce(id) }
                 if (!current()) return@launch
                 if (value.notebookId==null && row!=null) {
@@ -591,7 +593,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             value.completedQuestion ?: value.question,chats.lastOrNull { it.role=="assistant" }?.content.orEmpty(),json.encodeToString(chats)) }
                         if(completed!=null && actual==com.zsz.studyassistant.data.PendingSaveCodec.fingerprint(completed)) {
                             if (!current()) return@launch
-                            withContext(Dispatchers.IO) { conversationDrafts.clear(id,value.generation) }
+                            conversationDrafts.clear(id,value.generation)
                             if (!current()) return@launch
                             if (!loadQuestion(row, ownsOpen = ::current)) return@launch
                             expectedBinding = sessionRecordBinding
@@ -791,10 +793,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         entries.removeAll { it.target == com.zsz.studyassistant.data.SaveTarget.NOTEBOOK && it.payload.id == payload.id }
                         entries += com.zsz.studyassistant.data.PendingSave(com.zsz.studyassistant.data.SaveTarget.NOTEBOOK, payload, null)
                     }
+                    val drafts = conversationDrafts.exportable()
                     withContext(Dispatchers.IO) {
                         val resolver = getApplication<Application>().contentResolver
                         checkNotNull(resolver.openOutputStream(uri, "wt")).bufferedWriter(Charsets.UTF_8).use {
-                            it.write(com.zsz.studyassistant.data.PendingSaveCodec.export(entries, conversationDrafts.exportable()))
+                            it.write(com.zsz.studyassistant.data.PendingSaveCodec.export(entries, drafts))
                         }
                     }
                     saveFeedbackIsError = false
@@ -991,190 +994,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     fun updatePendingImagePath(path: String) { pendingImagePath = path }
 
-    // ---- 框选流程：一次 1~2 张（拍题 / 批改 的「两张」模式，两张都各自过框选）----
-    /** 待框选的图片路径（有序：单张 = 题目；两张 = 题目、我的作答） */
-    var cropPaths by mutableStateOf<List<String>>(emptyList())
-        private set
-    /** 当前正在框选第几张（0 基） */
-    var cropIndex by mutableStateOf(0)
-        private set
-    /** 本次流程是否属于批改（决定框选完成后走 startGrade 还是 solve） */
-    var cropGrade by mutableStateOf(false)
-        private set
-    /** 期望张数：两张模式 = 2；其余 = 实际选择张数 */
-    var cropExpect by mutableStateOf(1)
-        private set
-    /** 还差一张（两张模式只给了一张）→ 界面应回到拍摄界面继续拍/选 */
-    var cropNeedsMore by mutableStateOf(false)
-        private set
-    private val cropResults = mutableListOf<ByteArray>()
-    private val captureFlowStore by lazy { com.zsz.studyassistant.data.CaptureFlowStore(getApplication()) }
-    private val captureRestoreMutex = kotlinx.coroutines.sync.Mutex()
-    private var captureRecoveryChecked = false
-    private var captureStartedAt = 0L
-    private var captureFlowRevision = 0L
-    private var captureWriteJob: kotlinx.coroutines.Job? = null
-    var captureRecoveryNoticeKey by mutableStateOf<String?>(null)
-        private set
-    fun consumeCaptureRecoveryNotice() { captureRecoveryNoticeKey = null }
-
-    /** Restore only the input/crop queue. Recovery must never start an AI request. */
-    suspend fun restoreCaptureFlowIfNeeded() = captureRestoreMutex.withLock {
-        if (captureRecoveryChecked || cropPaths.isNotEmpty()) return@withLock
-        val revision = captureFlowRevision
-        val restored = try {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { captureFlowStore.read() }
-        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
-        catch (_: Exception) {
-            if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryReadFailed"
-            null
-        }
-        if (revision != captureFlowRevision) return@withLock
-        captureRecoveryChecked = true
-        if (restored != null) {
-            cropPaths = restored.paths
-            cropIndex = restored.index
-            cropGrade = restored.grade
-            cropExpect = restored.expect
-            cropNeedsMore = restored.needsMore
-            cropResults.clear(); cropResults.addAll(restored.results)
-            captureStartedAt = restored.createdAt
-            captureIdentity = restored.questionId?.let { it to restored.createdAt }
+    private val captureFlow: com.zsz.studyassistant.ui.CaptureFlowController by lazy {
+        com.zsz.studyassistant.ui.CaptureFlowController(getApplication(), viewModelScope, ::refreshUsage) { images, grade ->
+            if (grade) startGrade(images[0], images.getOrNull(1))
+            else if (images.size >= 2) solveWithImages(images) else solveWithImage(images[0])
         }
     }
-
-    private fun checkpointCaptureFlow() {
-        if (cropPaths.isEmpty()) return
-        captureRecoveryChecked = true
-        val revision = ++captureFlowRevision
-        val ticket = captureFlowStore.reserve()
-        val state = com.zsz.studyassistant.data.CaptureFlowState(cropPaths.toList(), cropIndex, cropGrade,
-            cropExpect, cropNeedsMore, cropResults.toList(), captureIdentity?.first, captureStartedAt)
-        captureWriteJob?.cancel()
-        captureWriteJob = viewModelScope.launch {
-            try {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    val job = kotlinx.coroutines.currentCoroutineContext()
-                    captureFlowStore.write(state, ticket) { job.ensureActive() }
-                }
-            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
-            catch (_: Exception) {
-                if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryWriteFailed"
-            }
-        }
-    }
-
-    /** Test/lifecycle callers can wait for the latest durable checkpoint without blocking Main. */
-    internal suspend fun awaitCaptureCheckpoint() { captureWriteJob?.join() }
-
-
-    val currentCropPath: String? get() = cropPaths.getOrNull(cropIndex)
-    internal val cropRevision: Long get() = captureFlowRevision
-    /**
-     * 是否还有待框选的图。
-     * 注意：submitCropResult 里"前进"是立刻发生的，所以提交完第一张后
-     * currentCropPath 已经指向第二张 —— 这里就用它判断，不要再比较 index 与 size。
-     */
-    val cropHasNext: Boolean get() = currentCropPath != null
-    val cropTotal: Int get() = cropPaths.size
-    val cropPos: Int get() = cropIndex + 1
-
-    private val selections = mutableMapOf<String, com.zsz.studyassistant.ui.CropSelection>()
-    internal fun cropSelection(path: String) = selections.getOrPut(path) { com.zsz.studyassistant.ui.CropSelection() }
-
-    /** Own detection in the capture flow, so replacing an Activity doesn't restart an AI request. */
-    internal fun detectCrop(path: String, bounds: androidx.compose.ui.geometry.Rect, useAi: Boolean, timeout: Long,
-                            manual: Boolean = false) {
-        if (currentCropPath != path) return
-        val region = cropSelection(path)
-        if (!manual && (region.touched || region.autoJob != null)) return
-        val target = if (manual && region.touched) region.fraction?.let {
-            com.zsz.studyassistant.data.ImageAutoCrop.NormRect(it.left, it.top, it.width, it.height)
-        } else null
-        val answerSheet = cropGrade && cropIndex == 1
-        val edit = if (manual) region.touch() else null
-        region.autoJob = viewModelScope.launch {
-            if (!manual) launch {
-                val box = withContext(Dispatchers.Default) {
-                    runCatching { com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(path) }.getOrNull()
-                }
-                region.suggest(box, ai = false, bounds)
-            }
-            if (useAi) {
-                region.status = "crop.aiBusy"
-                val result = try {
-                    withContext(Dispatchers.IO) {
-                        StudyAssistant.detectCrop(path, timeout, manual, target, answerSheet) {
-                            com.zsz.studyassistant.data.UsageStats.add(getApplication(), it)
-                        }
-                    }
-                } finally {
-                    refreshUsage()
-                }
-                if (currentCropPath != path || (edit != null && !region.isLatestEdit(edit))) return@launch
-                result.box?.let { box ->
-                    if (manual) region.applyManual(box, bounds) else region.suggest(box, ai = true, bounds)
-                }
-                region.status = result.status
-            }
-        }
-    }
-
-    private fun clearCropSelections() {
-        selections.values.forEach { it.cancelDetection() }
-        selections.clear()
-    }
-
-    fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
-        val firstTime = System.currentTimeMillis()
-        captureStartedAt = firstTime
-        captureIdentity = if (!grade) QuestionIdentity.create(firstTime) to firstTime else null
-        clearCropSelections()
-        cropPaths = paths
-        cropIndex = 0
-        cropGrade = grade
-        cropExpect = maxOf(expect, paths.size).coerceAtLeast(1)
-        cropNeedsMore = false
-        cropResults.clear()
-        checkpointCaptureFlow()
-    }
-
-    /** 两张模式下又拍到 / 选到第 2 张 */
-    fun appendCropPath(path: String) {
-        // ★ 只在"确实还缺一张"时追加（cropNeedsMore），并把索引指向**刚追加的这张**：
-        //   否则框选页仍显示上一张（曾经：第一张提交后守卫直接 return，第二张永远进不来/显示错图）
-        if (!cropNeedsMore) return
-        cropPaths = cropPaths + path
-        cropIndex = cropPaths.size - 1
-        cropNeedsMore = false
-        checkpointCaptureFlow()
-    }
-
-    /** 提交当前这张的框选结果：还有下一张就前进；否则凑够张数就进入解题/批改，不够就回拍摄界面 */
-    fun submitCropResult(bytes: ByteArray) {
-        selections[currentCropPath]?.cancelDetection()
-        cropResults.add(bytes)
-        if (cropIndex + 1 < cropPaths.size) {
-            cropIndex += 1
-        } else if (cropResults.size < cropExpect) {
-            cropNeedsMore = true
-        } else {
-            finishCropFlow()
-        }
-        if (cropPaths.isNotEmpty()) checkpointCaptureFlow()
-    }
-
-    /** 长按「整张图片」：把剩下的（最多两张）全部按整图提交 */
-    fun skipRemainingCrop(decode: (String) -> ByteArray?): Boolean {
-        if (currentCropPath == null) return false
-        // Commit the batch only after every input decoded; dropping one changes question/answer roles.
-        val decoded = cropPaths.drop(cropIndex).map { decode(it)?.takeIf { bytes -> bytes.isNotEmpty() } ?: return false }
-        selections[currentCropPath]?.cancelDetection()
-        cropResults.addAll(decoded)
-        cropIndex = cropPaths.size
-        if (cropResults.size < cropExpect) { cropNeedsMore = true; checkpointCaptureFlow() } else finishCropFlow()
-        return true
-    }
+    private var captureIdentity: Pair<QuestionId, Long>?
+        get() = captureFlow.captureIdentity
+        set(value) { captureFlow.captureIdentity = value }
+    val cropPaths get() = captureFlow.cropPaths
+    val cropIndex get() = captureFlow.cropIndex
+    val cropGrade get() = captureFlow.cropGrade
+    val cropExpect get() = captureFlow.cropExpect
+    val cropNeedsMore get() = captureFlow.cropNeedsMore
+    val captureRecoveryNoticeKey get() = captureFlow.captureRecoveryNoticeKey
+    val currentCropPath get() = captureFlow.currentCropPath
+    internal val cropRevision get() = captureFlow.cropRevision
+    val cropHasNext get() = captureFlow.cropHasNext
+    val cropTotal get() = captureFlow.cropTotal
+    val cropPos get() = captureFlow.cropPos
+    fun consumeCaptureRecoveryNotice() = captureFlow.consumeCaptureRecoveryNotice()
+    suspend fun restoreCaptureFlowIfNeeded() = captureFlow.restoreCaptureFlowIfNeeded()
+    internal suspend fun awaitCaptureCheckpoint() = captureFlow.awaitCaptureCheckpoint()
+    internal fun cropSelection(path: String) = captureFlow.cropSelection(path)
+    internal fun detectCrop(path: String, bounds: androidx.compose.ui.geometry.Rect, useAi: Boolean,
+                            timeout: Long, manual: Boolean = false) = captureFlow.detectCrop(path, bounds, useAi, timeout, manual)
+    fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) = captureFlow.startCropFlow(paths, grade, expect)
+    fun appendCropPath(path: String) = captureFlow.appendCropPath(path)
+    fun submitCropResult(bytes: ByteArray) = captureFlow.submitCropResult(bytes)
+    fun skipRemainingCrop(decode: (String) -> ByteArray?): Boolean = captureFlow.skipRemainingCrop(decode)
+    fun cropGoBackOne() = captureFlow.cropGoBackOne()
+    fun cancelCropFlow() = captureFlow.cancelCropFlow()
 
     // History is created at initial input, before requesting AI. Both tables share
     // the permanent problem ID. Subsequent calls may only update an existing row.
@@ -1482,16 +1333,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    /** 两张模式：从第 2 张返回第 1 张重新框（丢弃第 1 张已提交的结果，保持队列一致） */
-    fun cropGoBackOne() {
-        if (cropIndex <= 0) return
-        selections[currentCropPath]?.cancelDetection()
-        if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
-        cropIndex -= 1
-        cropNeedsMore = false
-        checkpointCaptureFlow()
-    }
-
     /**
      * 回到主页时调用：清空所有拍摄/框选缓存 ——
      * 内存里的框选队列、已框结果、待框路径、追问附图，以及缓存目录里的临时图片文件。
@@ -1540,50 +1381,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     runCatching { f.delete() }
                 }
             }
-        }
-    }
-
-    fun cancelCropFlow() {
-        val sharedSources = cropPaths.map { java.io.File(it) }.filter {
-            it.parentFile == getApplication<Application>().cacheDir && it.name.startsWith("shared_")
-        }
-        captureRecoveryChecked = true
-        val revision = ++captureFlowRevision
-        val ticket = captureFlowStore.reserve()
-        captureWriteJob?.cancel()
-        captureWriteJob = viewModelScope.launch {
-            try {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    captureFlowStore.clear(ticket)
-                    sharedSources.forEach { it.delete() }
-                }
-            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
-            catch (_: Exception) {
-                if (revision == captureFlowRevision) captureRecoveryNoticeKey = "camera.recoveryClearFailed"
-            }
-        }
-        clearCropSelections()
-        cropPaths = emptyList()
-        cropIndex = 0
-        cropGrade = false
-        cropExpect = 1
-        cropNeedsMore = false
-        cropResults.clear()
-        captureIdentity = null
-        captureStartedAt = 0L
-    }
-
-    private fun finishCropFlow() {
-        val imgs = cropResults.toList()
-        val grade = cropGrade
-        val identity = captureIdentity
-        cancelCropFlow()
-        captureIdentity = identity
-        if (imgs.isEmpty()) return
-        if (grade) {
-            if (imgs.size >= 2) startGrade(imgs[0], imgs[1]) else startGrade(imgs[0], null)
-        } else {
-            if (imgs.size >= 2) solveWithImages(imgs) else solveWithImage(imgs[0])
         }
     }
 
@@ -1751,7 +1548,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 固化后会重复出现两次（见 FIXES 记录里的取舍说明）。
      */
     fun discardInterrupted() {
-        activeDraft?.let { value -> viewModelScope.launch { withContext(Dispatchers.IO) { conversationDrafts.clear(value.id,value.generation) }; refreshDrafts() } }
+        activeDraft?.let { value -> viewModelScope.launch { conversationDrafts.clear(value.id,value.generation); refreshDrafts() } }
         activeDraft=null
         streamInterrupted = false
         streamingText = null
@@ -2410,7 +2207,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 solveSessionWriteMutex.withLock {
                     requireNoPendingSaves()
                     com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
-                    draftWriteMutex.withLock { withContext(Dispatchers.IO) { conversationDrafts.clearAll() } }
+                    conversationDrafts.clearAll()
                     historyWriteQueue.clear()
                     failedHistoryWrites = 0
                     activeDraft=null

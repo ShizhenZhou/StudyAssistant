@@ -51,7 +51,9 @@ class ReliabilityRegressionTest {
         val model=model()
         val storeField=MainViewModel::class.java.getDeclaredField("conversationDrafts").apply { isAccessible=true }
         val activeField=MainViewModel::class.java.getDeclaredField("activeDraft").apply { isAccessible=true }
-        val ownedStore=storeField.get(model) as ConversationDraftStore
+        val persistence=storeField.get(model) as ConversationDraftPersistence
+        val ownedStore=ConversationDraftPersistence::class.java.getDeclaredField("store")
+            .apply { isAccessible=true }.get(persistence) as ConversationDraftStore
         val lock=ConversationDraftStore::class.java.getDeclaredField("lock").apply { isAccessible=true }.get(ownedStore)
         ownedStore.reserve(id,old.generation);ownedStore.write(old,null)
         var cleanupJob: Job?=null
@@ -76,7 +78,9 @@ class ReliabilityRegressionTest {
         val model=model()
         val storeField=MainViewModel::class.java.getDeclaredField("conversationDrafts").apply { isAccessible=true }
         val activeField=MainViewModel::class.java.getDeclaredField("activeDraft").apply { isAccessible=true }
-        val ownedStore=storeField.get(model) as ConversationDraftStore
+        val persistence=storeField.get(model) as ConversationDraftPersistence
+        val ownedStore=ConversationDraftPersistence::class.java.getDeclaredField("store")
+            .apply { isAccessible=true }.get(persistence) as ConversationDraftStore
         val lock=ConversationDraftStore::class.java.getDeclaredField("lock").apply { isAccessible=true }.get(ownedStore)
         ownedStore.reserve(id,old.generation);ownedStore.write(old,null)
         var cleanupJob:Job?=null

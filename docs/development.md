@@ -10,6 +10,8 @@
 - `tools/` 保留现有本地检查、发布、签名和可选设备诊断入口，`tools/tests/` 为按需工具用例。`verification.py` 中的历史路径规则只用于旧发布证据读取，不随当前目录改写。
 - `.local-notes/` 保存不入库的本机记录及退役文件归档，`history_apk/` 保存已下载核验的发布包。构建缓存、签名配置和用户数据不参与源码目录整理。
 
+`MainViewModel` 负责页面状态与会话业务协调；`data/conversation/ConversationDraftPersistence` 负责草稿调度和磁盘访问，`ui/capture/CaptureFlowController` 管理拍摄框选状态、检测任务及恢复检查点。控制器沿用 ViewModel 生命周期和既有界面入口，框选恢复不会自动请求解题；完整内容保存的冲突与恢复逻辑继续由 `PendingSaveRepository` 负责。
+
 ## 日常开发
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.4.0、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。

@@ -1,5 +1,8 @@
 package com.zsz.studyassistant.data
 
+/** Statistics never need question/answer text, images or conversation JSON. */
+data class QuestionStatsRow(val id: QuestionId, val createdAt: Long, val categoryId: Long?)
+
 /** Read-only projections. Truncated display content must never enter entity write APIs. */
 data class QuestionPreview(
     val id: QuestionId, val text: String, val answer: String,

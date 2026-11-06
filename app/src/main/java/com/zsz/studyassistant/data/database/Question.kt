@@ -78,6 +78,15 @@ interface QuestionDao {
     @Query("SELECT id,substr(text,1,256) AS text,substr(answer,1,256) AS answer,createdAt,deleted,categoryId FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
     fun getAll(): Flow<List<QuestionPreview>>
 
+    @Query("SELECT id,createdAt,categoryId FROM questions WHERE deleted = 0 ORDER BY createdAt DESC")
+    fun questionStats(): Flow<List<QuestionStatsRow>>
+
+    /** Room reruns this tiny query on table invalidation, including edits with unchanged count.
+     * Do not distinct the Boolean: it is a change signal, not the search input.
+     */
+    @Query("SELECT EXISTS(SELECT 1 FROM questions LIMIT 1)")
+    fun questionSearchChanges(): Flow<Boolean>
+
     @Query("SELECT * FROM categories ORDER BY createdAt ASC")
     fun categories(): Flow<List<Category>>
 
