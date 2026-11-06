@@ -9,6 +9,10 @@ import androidx.compose.ui.geometry.Rect
  */
 internal const val MIN_SIZE = 60f  // 选框最小尺寸(px)
 
+/** A clockwise quarter turn in normalized image coordinates; no rounding to display pixels. */
+internal fun rotateCropClockwise(rect: Rect): Rect =
+    Rect(1f - rect.bottom, rect.left, 1f - rect.top, rect.right)
+
 /**
  * 安全钳制：把 v 夹到 `[a, b]`；**区间非法（a > b）时返回原值 v**（保持不动、不跳），
  * 绝不抛 `IllegalArgumentException`（曾导致"拖动选框时应用自动退出"）。

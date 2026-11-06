@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -76,20 +78,30 @@ private val BORDER = Color(0xFFFF5252)
 //     单独成文件是为了能被本机单测加载（那个文件不碰 Compose 的 Color，见 CropMathTest）。
 
 @Composable
-fun CropScreen(nav: NavHostController, vm: MainViewModel) {
+fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = false) {
     val s = LocalStrings.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    // 「AI 管理 → AI 切图」开关：**关掉就完全不跑 AI**（自动预框选不请求、手动「AI 识别」按钮也不显示）
+    val flow = if (attachment) vm.attachmentCropFlow else vm.captureFlow
+    if (flow == null) {
+        androidx.activity.compose.BackHandler { AppNav.backFromAttachmentCrop(nav) }
+        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(s["crop.noImage"])
+            TextButton(onClick = { AppNav.backFromAttachmentCrop(nav) }) { Text(s["crop.backToInput"]) }
+        }
+        return
+    }
+    // The preference controls automatic AI only; manual AI remains available.
     val autoAiCrop = com.zsz.studyassistant.data.CapturePrefs.aiCropEnabled(ctx)
     // 「通用 → AI 框选时限」：AI 自动框选的等待上限
     val aiCropMs = com.zsz.studyassistant.data.CapturePrefs.aiCropTimeoutMs(ctx)
-    val path = vm.currentCropPath
+    val path = flow.currentCropPath
     fun handleBack() {
-        if (vm.cropIndex > 0) {
-            vm.cropGoBackOne()
+        if (flow.cropIndex > 0) {
+            flow.cropGoBackOne()
         } else {
-            vm.cancelCropFlow()
-            nav.navigate(AppNav.CAMERA) { popUpTo(AppNav.CROP) { inclusive = true } }
+            flow.cancelCropFlow()
+            if (attachment) AppNav.backFromAttachmentCrop(nav) else AppNav.backFromCropToCamera(nav)
         }
     }
     androidx.activity.compose.BackHandler { handleBack() }
@@ -111,7 +123,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
         return
     }
 
-    val region = remember(path) { vm.cropSelection(requireNotNull(path)) }
+    val region = remember(path) { flow.cropSelection(requireNotNull(path)) }
     val selection = remember(region) { DisplayedCrop(region) }
     var mode by remember { mutableStateOf("NONE") }
     /** 把当前选框夹回图片显示范围（换图、自动框写回、缩放结束后各调一次） */
@@ -137,40 +149,41 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
     /** 提交一张之后：还差一张 → 回拍摄界面；队列还有下一张 → 留在本页继续框；都完成 → 进入解题/批改 */
     fun afterSubmit() {
         when {
-            vm.cropNeedsMore -> nav.navigate(AppNav.CAMERA) { popUpTo(AppNav.CROP) { inclusive = true } }
-            vm.cropHasNext -> Unit   // ★ 留在框选页继续框下一张（界面会自动换图）
+            flow.cropNeedsMore -> AppNav.backFromCropToCamera(nav)
+            flow.cropHasNext -> Unit   // ★ 留在框选页继续框下一张（界面会自动换图）
             // 框选完成 → 进解题页；来路 = 相机（返回箭头因此回拍题页，方便再拍一张）
+            attachment -> AppNav.backFromAttachmentCrop(nav)
             else -> AppNav.openSolve(nav, AppNav.Origin.CAMERA)
         }
     }
 
     // Decode/compress away from Main; an old result cannot advance a replaced/cancelled crop flow.
     fun submitImages(all: Boolean, encode: () -> List<ByteArray>) {
-        if (submitting || vm.currentCropPath != path) return
-        val revision = vm.cropRevision
-        val remaining = vm.cropPaths.drop(vm.cropIndex)
+        if (submitting || flow.rotating || flow.currentCropPath != path) return
+        val revision = flow.cropRevision
+        val remaining = flow.cropPaths.drop(flow.cropIndex)
         submitting = true
         imageFailed = false
         scope.launch {
             try {
                 val bytes = withContext(Dispatchers.IO) { runCatching(encode).getOrNull() }
-                if (revision != vm.cropRevision) return@launch
+                if (revision != flow.cropRevision) return@launch
                 if (bytes == null || bytes.isEmpty()) { imageFailed = true; return@launch }
                 if (all) {
                     val byPath = remaining.zip(bytes).toMap()
-                    if (!vm.skipRemainingCrop { byPath[it] }) { imageFailed = true; return@launch }
-                } else vm.submitCropResult(bytes.single())
+                    if (!flow.skipRemainingCrop { byPath[it] }) { imageFailed = true; return@launch }
+                } else flow.submitCropResult(bytes.single())
                 afterSubmit()
             } finally { submitting = false }
         }
     }
 
     // 缩放 / 平移（双指捏合调整图片大小；1x~4x）
-    var zoom by remember { mutableFloatStateOf(1f) }
-    var panX by remember { mutableFloatStateOf(0f) }
+    var zoom by remember(path) { mutableFloatStateOf(1f) }
+    var panX by remember(path) { mutableFloatStateOf(0f) }
     // zoom=1 时的图片显示矩形（按钮里复位缩放用）
-    var dispBase by remember { mutableStateOf(Rect.Zero) }
-    var panY by remember { mutableFloatStateOf(0f) }
+    var dispBase by remember(path) { mutableStateOf(Rect.Zero) }
+    var panY by remember(path) { mutableFloatStateOf(0f) }
 
     // ★ 用 Column 布局：图片显示区 = weight(1f)，下缘正好挨着按钮上缘（不会再被按钮盖住）
     Column(Modifier.fillMaxSize()) {
@@ -208,7 +221,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         selection.rect = Rect(disp.center.x - w / 2, disp.center.y - h / 2,
                             disp.center.x + w / 2, disp.center.y + h / 2)
                     }
-                    path?.let { vm.detectCrop(it, disp, autoAiCrop, aiCropMs) }
+                    path?.let { flow.detectCrop(it, disp, autoAiCrop, aiCropMs) }
                 }
 
                 // 按计算出的 disp 绘制图片（这样缩放/平移后选区仍与图片对齐）
@@ -255,7 +268,8 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         .fillMaxSize()
                         // ★ 键用 path：换图时手势层与保留的选区一起切换，
                         //   避免旧闭包继续写已废弃的 state（否则新图上的框拖不动）。
-                        .pointerInput(path) {
+                        .pointerInput(path, flow.rotating, submitting) {
+                            if (flow.rotating || submitting) return@pointerInput
                             awaitEachGesture {
                                 // ★ 2026-10-13：**手指一按下就置 region.touched**。
                                 //   原来只在 onDragStart/onDrag 置位，而 `detectDragGestures` 的 onDragStart
@@ -335,7 +349,8 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         // ★ 键用 path（原来是 selection.bounds）：selection.bounds 在缩放时每帧都变 → 键变 → 手柄拖到一半
                         //   手势会被取消重建（"卡住不跟手"）。改用 path 后手势层只在换图时重建，
                         //   拖动逻辑本来就是每帧现读 `selection.bounds`/`selection.rect`，不依赖这个键。
-                        .pointerInput(path) {
+                        .pointerInput(path, flow.rotating, submitting) {
+                            if (flow.rotating || submitting) return@pointerInput
                             detectDragGestures(
                         onDragStart = { pos ->
                             region.touch()
@@ -423,9 +438,9 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 .padding(16.dp)
         ) {
             // 多张时提示当前是第几张
-            if (vm.cropTotal > 1) {
+            if (attachment || flow.cropExpect > 1) {
                 Text(
-                    s.format("crop.multiPos", "i" to "${vm.cropPos}", "n" to "${vm.cropTotal}"),
+                    s.format(if (attachment) "crop.batchPos" else "crop.multiPos", "i" to "${flow.cropPos}", "n" to "${flow.cropExpect}"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
@@ -433,7 +448,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 )
             }
             Button(
-                enabled = !submitting,
+                enabled = !submitting && !flow.rotating,
                 onClick = {
                     val r = selection.rect ?: selection.bounds
                     if (selection.bounds != Rect.Zero) {
@@ -453,8 +468,9 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
                 Text(s[when {
-                    vm.cropIndex + 1 < vm.cropExpect -> "crop.confirmMore"
-                    vm.cropGrade -> "crop.confirmGrade"
+                    flow.cropIndex + 1 < flow.cropExpect -> "crop.confirmMore"
+                    attachment -> "crop.confirmAdd"
+                    flow.cropGrade -> "crop.confirmGrade"
                     else -> "crop.confirm"
                 }])
             }
@@ -462,24 +478,28 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
             // 「整张图片」：单击 = 跳过这一张（多张时进入下一张）；**按住 1 秒填满 → 松开 = 剩下全部跳过**
             // 没填满松手 = 取消；填满后上滑（填充变浅红）= 取消
             HoldToSkipButton(
+                enabled = !submitting && !flow.rotating,
                 text = s["crop.whole"],
-                holdHint = if (vm.cropExpect > 1) s["crop.wholeHoldHint"] else "",
-                holdEnabled = vm.cropExpect > 1,
+                holdHint = if (flow.cropExpect > 1) s["crop.wholeHoldHint"] else "",
+                holdEnabled = flow.cropExpect > 1,
                 onTap = {
                     submitImages(false) { listOf(compressBitmap(bitmap)) }
                 },
                 onSkip = {
-                    val remaining = vm.cropPaths.drop(vm.cropIndex)
+                    val remaining = flow.cropPaths.drop(flow.cropIndex)
                     submitImages(true) { remaining.map { if (it == path) compressBitmap(bitmap) else CaptureImage.wholeJpeg(it) } }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             )
+            if (attachment) Text(s["crop.attachmentHint"], style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             if (imageFailed) Text(s["crop.noImage"], color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 // Manual detection uses the same deadline and retains the current selection on failure.
                 TextButton(
-                    enabled = !aiBusy,
+                    enabled = !aiBusy && !submitting && !flow.rotating,
                     onClick = {
                         val p = path ?: return@TextButton
                         feedback.dismiss("cropAi")
@@ -487,12 +507,23 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel) {
                         panX = 0f
                         panY = 0f
                         if (dispBase.width > 1f) selection.bounds = dispBase
-                        vm.detectCrop(p, selection.bounds, true, aiCropMs, manual = true)
+                        flow.detectCrop(p, selection.bounds, true, aiCropMs, manual = true)
                     }
                 ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"], maxLines = 1, softWrap = false) }
-                // 返回 = 回到拍摄界面（不换行）
+                TextButton(
+                    enabled = !submitting && !flow.rotating,
+                    onClick = {
+                        scope.launch {
+                            try { flow.rotateCurrent(requireNotNull(path), bitmap) }
+                            catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                            catch (_: Exception) { feedback.show(s["crop.rotateFailed"], isError = true) }
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = s["crop.rotate"] }
+                ) { Text("↻ 90°", maxLines = 1, softWrap = false) }
+                // Returning from an attachment batch preserves the original input.
                 TextButton(onClick = { handleBack() }) {
-                    Text(if (vm.cropIndex > 0) s["crop.prevImage"] else s["crop.backToCamera"], maxLines = 1, softWrap = false)
+                    Text(if (flow.cropIndex > 0) s["crop.prevImage"] else s[if (attachment) "crop.backToInput" else "crop.backToCamera"], maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -518,10 +549,12 @@ internal fun HoldToSkipButton(
     onTap: () -> Unit,
     onSkip: () -> Unit,
     holdEnabled: Boolean = true,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     holdMs: Long = 1000L
 ) {
     val haptics = LocalHapticFeedback.current
+    val latestEnabled by rememberUpdatedState(enabled)
     val latestHaptics by rememberUpdatedState(haptics)
     val latestOnTap by rememberUpdatedState(onTap)
     val latestOnSkip by rememberUpdatedState(onSkip)
@@ -538,6 +571,7 @@ internal fun HoldToSkipButton(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    if (!latestEnabled) return@awaitEachGesture
                     armed = false
                     val startY = down.position.y
                     val slideUpPx = 36.dp.toPx()
@@ -579,7 +613,7 @@ internal fun HoldToSkipButton(
                     slideCancel = false
                     cancelled = false
                     progress = 0f
-                    if (doSkip) latestOnSkip() else if (doTap) latestOnTap()
+                    if (latestEnabled) { if (doSkip) latestOnSkip() else if (doTap) latestOnTap() }
                 }
             },
         contentAlignment = Alignment.Center

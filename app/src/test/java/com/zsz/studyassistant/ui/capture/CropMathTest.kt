@@ -17,6 +17,16 @@ import org.junit.Test
  */
 class CropMathTest {
     @Test
+    fun clockwiseRotationPreservesSelectedRegionAndFourTurnsRestoreIt() {
+        val original = Rect(.125f, .25f, .5f, .875f)
+        assertEquals(Rect(.125f, .125f, .75f, .5f), rotateCropClockwise(original))
+        var rotated = original
+        repeat(4) { rotated = rotateCropClockwise(rotated) }
+        assertEquals(original, rotated)
+        assertEquals(Rect(0f, 0f, 1f, 1f), rotateCropClockwise(Rect(0f, 0f, 1f, 1f)))
+    }
+
+    @Test
     fun lateAutoResultsRespectAiAndManualSelections() {
         val region = CropSelection()
         val bounds = Rect(0f, 0f, 800f, 600f)

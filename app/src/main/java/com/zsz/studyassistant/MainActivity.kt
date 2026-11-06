@@ -404,6 +404,7 @@ class MainActivity : ComponentActivity() {
                                     composable(AppNav.HOME) { HomeScreen(nav, viewModel, homeScroll) }
                                     composable(AppNav.CAMERA) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CameraScreen(nav, viewModel) } }
                                     composable(AppNav.CROP) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CropScreen(nav, viewModel) } }
+                                    composable(AppNav.ATTACHMENT_CROP) { CropScreen(nav, viewModel, attachment = true) }
                                     composable(AppNav.GRADE) { GradeScreen(nav, viewModel) }
                                     // 解题页带上来路（home / camera / grade / history / notebook / review）
                                     composable(AppNav.SOLVE_PATTERN) { entry ->

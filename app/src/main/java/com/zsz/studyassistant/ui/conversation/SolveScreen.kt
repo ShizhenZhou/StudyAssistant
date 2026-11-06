@@ -138,9 +138,10 @@ fun SolveScreen(
     val draft = vm.solveInputDraft
     var quoteFocusSignal by remember(draft) { mutableIntStateOf(0) }
     val attachments = draft.attachments
-    val loaded = remember(draft) { androidx.compose.runtime.mutableStateMapOf<android.net.Uri, ByteArray>() }
+    val loaded = draft.images
+    val inputScope = androidx.compose.runtime.rememberCoroutineScope()
     val selectedImages = attachments.mapNotNull { loaded[it] }
-    val pickingImages = selectedImages.size != attachments.size
+    val pickingImages = draft.importingImages || selectedImages.size != attachments.size
     LaunchedEffect(draft, attachments) {
         loaded.keys.toList().filterNot { it in attachments }.forEach { loaded.remove(it) }
         val missing = attachments.filterNot(loaded::containsKey)
@@ -176,11 +177,17 @@ fun SolveScreen(
     ) { uris ->
         if (draft.awaitingPicker && vm.solveInputDraft === draft) {
             draft.awaitingPicker = false
-            draft.attachments = (draft.attachments + uris).distinct().take(3)
+            if (uris.any { it !in draft.attachments }) inputScope.launch {
+                try {
+                    if (vm.prepareAttachmentCrop(draft, uris)) AppNav.openAttachmentCrop(nav)
+                    else if (vm.solveInputDraft === draft) feedback.show(s["camera.errRead"])
+                } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                catch (_: Exception) { feedback.show(s["camera.errRead"]) }
+            }
         }
     }
     fun pickImages() {
-        if (draft.attachments.size >= 3) return
+        if (draft.importingImages || draft.attachments.size >= 3) return
         draft.awaitingPicker = true
         imagePicker.launch(imagePickRequest(maxItems = 3))
     }

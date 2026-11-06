@@ -12,6 +12,8 @@ internal class SolveInputDraft {
     var text by mutableStateOf("")
     var quote by mutableStateOf<QuoteSelection?>(null)
     var attachments by mutableStateOf<List<Uri>>(emptyList())
+    val images = androidx.compose.runtime.mutableStateMapOf<Uri, ByteArray>()
+    var importingImages by mutableStateOf(false)
     var awaitingPicker = false
     var fieldFocused = false
     var restoreIme by mutableStateOf(false)

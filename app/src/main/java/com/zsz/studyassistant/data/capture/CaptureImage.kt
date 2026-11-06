@@ -7,6 +7,24 @@ import java.io.File
 
 /** One oriented, bounded software decode for crop preview, detection and whole-image submission. */
 object CaptureImage {
+    /** Rotate the already-oriented preview without JPEG recompression or changing its source. */
+    fun rotateClockwise(bitmap: Bitmap, cacheDir: File): File {
+        val matrix = android.graphics.Matrix().apply { postRotate(90f) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, false)
+        var output: File? = null
+        try {
+            val file = File.createTempFile("crop_rotated_", ".png", cacheDir).also { output = it }
+            file.outputStream().use { check(rotated.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            require(file.length() in 1L..(32L * 1024 * 1024)) { "Rotated image exceeds safe input size" }
+            return file
+        } catch (e: Exception) {
+            output?.delete()
+            throw e
+        } finally {
+            if (rotated !== bitmap) rotated.recycle()
+        }
+    }
+
     fun decode(path: String, maxDim: Int = 4096): Bitmap {
         require(maxDim > 0)
         return ImageDecoder.decodeBitmap(ImageDecoder.createSource(File(path))) { decoder, info, _ ->

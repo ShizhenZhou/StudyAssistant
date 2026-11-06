@@ -17,10 +17,14 @@ internal class CaptureFlowController(
     private val app: Application,
     private val scope: CoroutineScope,
     private val onUsageChanged: () -> Unit,
+    private val persistCheckpoints: Boolean = true,
     private val onComplete: (List<ByteArray>, Boolean) -> Unit
 ) {
+    private val ownedInputs = mutableSetOf<String>()
+    var rotating by mutableStateOf(false)
+        private set
     var captureIdentity: Pair<QuestionId, Long>? = null
-    // ---- 框选流程：一次 1~2 张（拍题 / 批改 的「两张」模式，两张都各自过框选）----
+    // 拍题/批改最多两张；输入框附图最多三张，按批次逐张处理。
     /** 待框选的图片路径（有序：单张 = 题目；两张 = 题目、我的作答） */
     var cropPaths by mutableStateOf<List<String>>(emptyList())
         private set
@@ -49,6 +53,7 @@ internal class CaptureFlowController(
 
     /** Restore only the input/crop queue. Recovery must never start an AI request. */
     suspend fun restoreCaptureFlowIfNeeded() = captureRestoreMutex.withLock {
+        if (!persistCheckpoints) return@withLock
         if (captureRecoveryChecked || cropPaths.isNotEmpty()) return@withLock
         val revision = captureFlowRevision
         val restored = try {
@@ -76,6 +81,7 @@ internal class CaptureFlowController(
         if (cropPaths.isEmpty()) return
         captureRecoveryChecked = true
         val revision = ++captureFlowRevision
+        if (!persistCheckpoints) return
         val ticket = captureFlowStore.reserve()
         val state = com.zsz.studyassistant.data.CaptureFlowState(cropPaths.toList(), cropIndex, cropGrade,
             cropExpect, cropNeedsMore, cropResults.toList(), captureIdentity?.first, captureStartedAt)
@@ -114,7 +120,7 @@ internal class CaptureFlowController(
     /** Own detection in the capture flow, so replacing an Activity doesn't restart an AI request. */
     internal fun detectCrop(path: String, bounds: androidx.compose.ui.geometry.Rect, useAi: Boolean, timeout: Long,
                             manual: Boolean = false) {
-        if (currentCropPath != path) return
+        if (rotating || currentCropPath != path) return
         val region = cropSelection(path)
         if (!manual && (region.touched || region.autoJob != null)) return
         val target = if (manual && region.touched) region.fraction?.let {
@@ -155,6 +161,7 @@ internal class CaptureFlowController(
     }
 
     fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
+        if (!persistCheckpoints) ownedInputs += paths
         val firstTime = System.currentTimeMillis()
         captureStartedAt = firstTime
         captureIdentity = if (!grade) QuestionIdentity.create(firstTime) to firstTime else null
@@ -181,6 +188,7 @@ internal class CaptureFlowController(
 
     /** 提交当前这张的框选结果：还有下一张就前进；否则凑够张数就进入解题/批改，不够就回拍摄界面 */
     fun submitCropResult(bytes: ByteArray) {
+        if (rotating || currentCropPath == null) return
         selections[currentCropPath]?.cancelDetection()
         cropResults.add(bytes)
         if (cropIndex + 1 < cropPaths.size) {
@@ -193,9 +201,9 @@ internal class CaptureFlowController(
         if (cropPaths.isNotEmpty()) checkpointCaptureFlow()
     }
 
-    /** 长按「整张图片」：把剩下的（最多两张）全部按整图提交 */
+    /** 长按「整张图片」：把本批剩下的图片全部按整图提交 */
     fun skipRemainingCrop(decode: (String) -> ByteArray?): Boolean {
-        if (currentCropPath == null) return false
+        if (rotating || currentCropPath == null) return false
         // Commit the batch only after every input decoded; dropping one changes question/answer roles.
         val decoded = cropPaths.drop(cropIndex).map { decode(it)?.takeIf { bytes -> bytes.isNotEmpty() } ?: return false }
         selections[currentCropPath]?.cancelDetection()
@@ -216,17 +224,20 @@ internal class CaptureFlowController(
     }
 
     fun cancelCropFlow() {
-        val sharedSources = cropPaths.map { java.io.File(it) }.filter {
-            it.parentFile == app.cacheDir && it.name.startsWith("shared_")
+        val sharedSources = (cropPaths + ownedInputs).distinct().map { java.io.File(it) }.filter {
+            it.parentFile == app.cacheDir && (it.absolutePath in ownedInputs || it.name.startsWith("shared_"))
         }
+        ownedInputs.clear()
         captureRecoveryChecked = true
         val revision = ++captureFlowRevision
-        val ticket = captureFlowStore.reserve()
-        captureWriteJob?.cancel()
-        captureWriteJob = scope.launch {
+        val ticket = if (persistCheckpoints) captureFlowStore.reserve() else null
+        if (persistCheckpoints) captureWriteJob?.cancel()
+        // Transient attachment cleanup must survive the conversation/ViewModel being discarded.
+        val cleanupScope = if (persistCheckpoints) scope else CoroutineScope(Dispatchers.IO)
+        captureWriteJob = cleanupScope.launch {
             try {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    captureFlowStore.clear(ticket)
+                    if (ticket != null) captureFlowStore.clear(ticket)
                     sharedSources.forEach { it.delete() }
                 }
             } catch (error: kotlinx.coroutines.CancellationException) { throw error }
@@ -253,6 +264,41 @@ internal class CaptureFlowController(
         captureIdentity = identity
         if (imgs.isEmpty()) return
         onComplete(imgs, grade)
+    }
+
+    /** Capture ownership before IO; back/cancel or a new flow must reject the late rotation. */
+    suspend fun rotateCurrent(path: String, bitmap: android.graphics.Bitmap): Boolean {
+        if (rotating || currentCropPath != path) return false
+        val revision = captureFlowRevision
+        val region = cropSelection(path)
+        val edit = region.touch()
+        val fraction = region.fraction
+        var output: java.io.File? = null
+        var accepted = false
+        rotating = true
+        try {
+            withContext(Dispatchers.IO) {
+                output = com.zsz.studyassistant.data.CaptureImage.rotateClockwise(bitmap, app.cacheDir)
+            }
+            if (revision != captureFlowRevision || currentCropPath != path || !region.isLatestEdit(edit)) return false
+            val newPath = checkNotNull(output).absolutePath
+            val replacement = CropSelection().apply {
+                touch()
+                this.fraction = fraction?.let(::rotateCropClockwise)
+            }
+            selections[newPath] = replacement
+            selections.remove(path)
+            val original = java.io.File(path)
+            if (original.parentFile == app.cacheDir && original.name.startsWith("shared_")) ownedInputs += path
+            ownedInputs += newPath
+            cropPaths = cropPaths.toMutableList().also { it[cropIndex] = newPath }
+            checkpointCaptureFlow()
+            accepted = true
+            return true
+        } finally {
+            rotating = false
+            if (!accepted) withContext(NonCancellable + Dispatchers.IO) { output?.delete() }
+        }
     }
 
 }

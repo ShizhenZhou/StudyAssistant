@@ -994,10 +994,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     fun updatePendingImagePath(path: String) { pendingImagePath = path }
 
-    private val captureFlow: com.zsz.studyassistant.ui.CaptureFlowController by lazy {
+    internal val captureFlow: com.zsz.studyassistant.ui.CaptureFlowController by lazy {
         com.zsz.studyassistant.ui.CaptureFlowController(getApplication(), viewModelScope, ::refreshUsage) { images, grade ->
             if (grade) startGrade(images[0], images.getOrNull(1))
             else if (images.size >= 2) solveWithImages(images) else solveWithImage(images[0])
+        }
+    }
+    internal var attachmentCropFlow by mutableStateOf<com.zsz.studyassistant.ui.CaptureFlowController?>(null)
+        private set
+
+    /** Input attachments are transient and must never overwrite the camera recovery queue. */
+    internal suspend fun prepareAttachmentCrop(owner: com.zsz.studyassistant.ui.SolveInputDraft,
+                                               uris: List<android.net.Uri>): Boolean {
+        if (solveInputDraft !== owner || owner.importingImages) return false
+        val batch = uris.distinct().filterNot { it in owner.attachments }.take((3 - owner.attachments.size).coerceAtLeast(0))
+        if (batch.isEmpty()) return false
+        var files: List<java.io.File>? = null
+        var accepted = false
+        owner.importingImages = true
+        try {
+            withContext(Dispatchers.IO) {
+                files = com.zsz.studyassistant.ui.urisToTempFiles(getApplication(), batch, "askcrop_")
+            }
+            val imported = files ?: return false
+            if (solveInputDraft !== owner) return false
+            attachmentCropFlow?.cancelCropFlow()
+            attachmentCropFlow = com.zsz.studyassistant.ui.CaptureFlowController(
+                getApplication(), viewModelScope, ::refreshUsage, persistCheckpoints = false
+            ) { images, _ ->
+                if (solveInputDraft === owner && images.size == batch.size) {
+                    owner.images.putAll(batch.zip(images))
+                    owner.attachments = owner.attachments + batch
+                }
+            }.also { it.startCropFlow(imported.map { file -> file.absolutePath }, grade = false) }
+            accepted = true
+            return true
+        } finally {
+            owner.importingImages = false
+            if (!accepted) withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                files?.forEach { it.delete() }
+            }
         }
     }
     private var captureIdentity: Pair<QuestionId, Long>?
@@ -1483,6 +1519,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     private fun resetSession() {
+        attachmentCropFlow?.cancelCropFlow()
+        attachmentCropFlow = null
         solveInputDraft = com.zsz.studyassistant.ui.SolveInputDraft()
         currentNotebookBaseline=null
         sessionRecordBinding = SolveSessionBinding()
@@ -1759,6 +1797,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        attachmentCropFlow?.cancelCropFlow()
         sharedImages.discard()
         val readJob = backupReadJob
         val exportJob = backupExportJob

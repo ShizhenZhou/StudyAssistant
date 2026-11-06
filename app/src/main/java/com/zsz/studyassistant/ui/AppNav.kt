@@ -42,6 +42,7 @@ object AppNav {
     const val HOME = "home"
     const val CAMERA = "camera"
     const val CROP = "crop"
+    const val ATTACHMENT_CROP = "attachmentCrop"
     const val GRADE = "grade"
     const val SOLVE = "solve"                 // 路由模板：[SOLVE_PATTERN]
     const val SOLVE_PATTERN = "solve/{origin}"
@@ -98,6 +99,19 @@ object AppNav {
     /** 拍照 → 框选：拍题页用完即弃（栈 = home → crop），保证返回键不会回到相机预览 */
     fun openCrop(nav: NavHostController) {
         nav.navigate(CROP) { popUpTo(CAMERA) { inclusive = true } }
+    }
+
+    /** Keep the existing conversation and its unsent input underneath the crop batch. */
+    fun openAttachmentCrop(nav: NavHostController) {
+        nav.navigate(ATTACHMENT_CROP) { launchSingleTop = true }
+    }
+
+    fun backFromAttachmentCrop(nav: NavHostController) {
+        if (!nav.popBackStack()) nav.navigate(HOME) { launchSingleTop = true }
+    }
+
+    fun backFromCropToCamera(nav: NavHostController) {
+        nav.navigate(CAMERA) { popUpTo(CROP) { inclusive = true } }
     }
 
     /**
