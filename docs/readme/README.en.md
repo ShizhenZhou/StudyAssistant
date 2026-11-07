@@ -53,7 +53,7 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 ### v0.7.0.5
 
 - ✂️ Crop attached images one by one for initial questions and follow-ups, then return to the input to send.
-- 🔄 Rotate images by 90° in the crop screen, with matching selection rotation and clearer image counts and controls.
+- 🔄 Rotate images by 90° with less waiting, matching selection rotation and clearer image counts and controls.
 - 📌 `versionCode` **107**.
 
 ### v0.7.0.4
