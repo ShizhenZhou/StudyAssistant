@@ -27,7 +27,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.semantics
@@ -106,11 +105,16 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
     }
     androidx.activity.compose.BackHandler { handleBack() }
     var loading by remember(path) { mutableStateOf(true) }
-    val loadedBitmap by produceState<Pair<String?, Bitmap?>?>(null, path) {
-        value = path to withContext(Dispatchers.IO) { path?.let { runCatching { CaptureImage.decode(it) }.getOrNull() } }
-        loading = false
+    LaunchedEffect(flow, path) {
+        loading = true
+        try { path?.let { flow.loadPreview(it) } }
+        catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (_: Exception) { /* Keep the normal unreadable-image/back UI. */ }
+        finally { loading = false }
     }
-    val bitmap = loadedBitmap?.takeIf { it.first == path }?.second
+    val preview = flow.preview?.takeIf { it.path == path }
+    val bitmap = preview?.bitmap
+    val turns = preview?.turns ?: 0
 
     if (bitmap == null) {
         Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
@@ -124,7 +128,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
     }
 
     val region = remember(path) { flow.cropSelection(requireNotNull(path)) }
-    val selection = remember(region) { DisplayedCrop(region) }
+    val selection = remember(region, turns) { DisplayedCrop(region) }
     var mode by remember { mutableStateOf("NONE") }
     /** 把当前选框夹回图片显示范围（换图、自动框写回、缩放结束后各调一次） */
     fun normalizeSel() { selection.rect = selection.rect?.let { normalizeSelRect(it, selection.bounds) } }
@@ -159,7 +163,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
 
     // Decode/compress away from Main; an old result cannot advance a replaced/cancelled crop flow.
     fun submitImages(all: Boolean, encode: () -> List<ByteArray>) {
-        if (submitting || flow.rotating || flow.currentCropPath != path) return
+        if (submitting || flow.rotating || flow.currentCropPath != path || flow.preview?.bitmap !== bitmap) return
         val revision = flow.cropRevision
         val remaining = flow.cropPaths.drop(flow.cropIndex)
         submitting = true
@@ -179,11 +183,11 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
     }
 
     // 缩放 / 平移（双指捏合调整图片大小；1x~4x）
-    var zoom by remember(path) { mutableFloatStateOf(1f) }
-    var panX by remember(path) { mutableFloatStateOf(0f) }
+    var zoom by remember(path, turns) { mutableFloatStateOf(1f) }
+    var panX by remember(path, turns) { mutableFloatStateOf(0f) }
     // zoom=1 时的图片显示矩形（按钮里复位缩放用）
-    var dispBase by remember(path) { mutableStateOf(Rect.Zero) }
-    var panY by remember(path) { mutableFloatStateOf(0f) }
+    var dispBase by remember(path, turns) { mutableStateOf(Rect.Zero) }
+    var panY by remember(path, turns) { mutableFloatStateOf(0f) }
 
     // ★ 用 Column 布局：图片显示区 = weight(1f)，下缘正好挨着按钮上缘（不会再被按钮盖住）
     Column(Modifier.fillMaxSize()) {
@@ -210,7 +214,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
 
                 // ★ 键必须同时包含 disp 与 path：首次组合时 path 可能还没就绪，
                 //   若只以 disp 为键，检测就永远不会触发（预框选静默失效）
-                LaunchedEffect(disp, path) {
+                LaunchedEffect(disp, path, turns) {
                     if (disp == Rect.Zero) return@LaunchedEffect
                     selection.bounds = disp
                     if (selection.rect == null) {
@@ -268,7 +272,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                         .fillMaxSize()
                         // ★ 键用 path：换图时手势层与保留的选区一起切换，
                         //   避免旧闭包继续写已废弃的 state（否则新图上的框拖不动）。
-                        .pointerInput(path, flow.rotating, submitting) {
+                        .pointerInput(path, turns, flow.rotating, submitting) {
                             if (flow.rotating || submitting) return@pointerInput
                             awaitEachGesture {
                                 // ★ 2026-10-13：**手指一按下就置 region.touched**。
@@ -349,7 +353,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                         // ★ 键用 path（原来是 selection.bounds）：selection.bounds 在缩放时每帧都变 → 键变 → 手柄拖到一半
                         //   手势会被取消重建（"卡住不跟手"）。改用 path 后手势层只在换图时重建，
                         //   拖动逻辑本来就是每帧现读 `selection.bounds`/`selection.rect`，不依赖这个键。
-                        .pointerInput(path, flow.rotating, submitting) {
+                        .pointerInput(path, turns, flow.rotating, submitting) {
                             if (flow.rotating || submitting) return@pointerInput
                             detectDragGestures(
                         onDragStart = { pos ->
@@ -486,8 +490,10 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                     submitImages(false) { listOf(compressBitmap(bitmap)) }
                 },
                 onSkip = {
-                    val remaining = flow.cropPaths.drop(flow.cropIndex)
-                    submitImages(true) { remaining.map { if (it == path) compressBitmap(bitmap) else CaptureImage.wholeJpeg(it) } }
+                    val remaining = flow.cropPaths.drop(flow.cropIndex).map { it to flow.cropRotation(it) }
+                    submitImages(true) { remaining.map { (source, rotation) ->
+                        if (source == path) compressBitmap(bitmap) else CaptureImage.wholeJpeg(source, rotation)
+                    } }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             )

@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicLong
 
 internal data class CaptureFlowState(
     val paths: List<String>, val index: Int, val grade: Boolean, val expect: Int,
-    val needsMore: Boolean, val results: List<ByteArray>, val questionId: String?, val createdAt: Long
+    val needsMore: Boolean, val results: List<ByteArray>, val questionId: String?, val createdAt: Long,
+    val rotations: List<Int> = List(paths.size) { 0 }
 )
 
 /** Independent, app-private checkpoint. Call disk operations on an IO dispatcher. */
@@ -75,6 +76,7 @@ internal class CaptureFlowStore(context: Context) {
                 val json = JSONObject().put("version", 1).put("generation", generation)
                     .put("paths", JSONArray(paths)).put("index", state.index).put("grade", state.grade)
                     .put("expect", state.expect).put("needsMore", state.needsMore)
+                    .put("rotations", JSONArray(state.rotations))
                     .put("results", JSONArray(results)).put("questionId", state.questionId ?: JSONObject.NULL)
                     .put("createdAt", state.createdAt).toString()
                 active()
@@ -128,8 +130,17 @@ internal class CaptureFlowStore(context: Context) {
             if (!json.has("questionId")) throw IOException("Missing capture identity")
             val questionId = if (json.isNull("questionId")) null else json.get("questionId") as? String
                 ?: throw IOException("Invalid capture identity")
+            val rotations = if (json.has("rotations")) {
+                val values = json.getJSONArray("rotations")
+                if (values.length() != paths.size) throw IOException("Invalid capture rotations")
+                List(values.length()) { index ->
+                    val value = values.get(index)
+                    if (value !is Int || value !in 0..3) throw IOException("Invalid capture rotation")
+                    value
+                }
+            } else List(paths.size) { 0 }
             val state = CaptureFlowState(paths, int(json, "index"), boolean(json, "grade"),
-                int(json, "expect"), boolean(json, "needsMore"), results, questionId, integer(json, "createdAt"))
+                int(json, "expect"), boolean(json, "needsMore"), results, questionId, integer(json, "createdAt"), rotations)
             validate(state)
             state
         }
@@ -146,7 +157,8 @@ internal class CaptureFlowStore(context: Context) {
     }
 
     private fun validate(state: CaptureFlowState) {
-        if (state.paths.size !in 1..2 || state.expect !in 1..2 || state.paths.size > state.expect ||
+        if (state.rotations.size != state.paths.size || state.rotations.any { it !in 0..3 } ||
+            state.paths.size !in 1..2 || state.expect !in 1..2 || state.paths.size > state.expect ||
             state.results.size > 2 || state.results.any { it.isEmpty() || it.size > RESULT_LIMIT } ||
             state.createdAt <= 0 || state.index !in 0..state.paths.size || state.results.size >= state.expect ||
             (!state.needsMore && (state.index >= state.paths.size || state.results.size != state.index)) ||

@@ -21,6 +21,29 @@ internal class CaptureFlowController(
     private val onComplete: (List<ByteArray>, Boolean) -> Unit
 ) {
     private val ownedInputs = mutableSetOf<String>()
+    private val rotations = mutableMapOf<String, Int>()
+    internal data class Preview(val path: String, val turns: Int, val bitmap: android.graphics.Bitmap)
+    var preview by mutableStateOf<Preview?>(null)
+        private set
+    fun cropRotation(path: String): Int = rotations[path] ?: 0
+
+    suspend fun loadPreview(path: String) {
+        val turns = cropRotation(path)
+        if (preview?.let { it.path == path && it.turns == turns } == true) return
+        val revision = captureFlowRevision
+        var decoded: android.graphics.Bitmap? = null
+        var accepted = false
+        try {
+            withContext(Dispatchers.IO) {
+                decoded = com.zsz.studyassistant.data.CaptureImage.decode(path, quarterTurns = turns)
+            }
+            if (currentCropPath != path || revision != captureFlowRevision) return
+            preview = Preview(path, turns, checkNotNull(decoded))
+            accepted = true
+        } finally {
+            if (!accepted) decoded?.recycle()
+        }
+    }
     var rotating by mutableStateOf(false)
         private set
     var captureIdentity: Pair<QuestionId, Long>? = null
@@ -67,6 +90,9 @@ internal class CaptureFlowController(
         captureRecoveryChecked = true
         if (restored != null) {
             cropPaths = restored.paths
+            rotations.clear()
+            rotations.putAll(restored.paths.zip(restored.rotations))
+            rotations.filterValues { it != 0 }.keys.forEach { cropSelection(it).touch() }
             cropIndex = restored.index
             cropGrade = restored.grade
             cropExpect = restored.expect
@@ -77,17 +103,18 @@ internal class CaptureFlowController(
         }
     }
 
-    private fun checkpointCaptureFlow() {
+    private fun checkpointCaptureFlow(debounceMs: Long = 0) {
         if (cropPaths.isEmpty()) return
         captureRecoveryChecked = true
         val revision = ++captureFlowRevision
         if (!persistCheckpoints) return
         val ticket = captureFlowStore.reserve()
         val state = com.zsz.studyassistant.data.CaptureFlowState(cropPaths.toList(), cropIndex, cropGrade,
-            cropExpect, cropNeedsMore, cropResults.toList(), captureIdentity?.first, captureStartedAt)
+            cropExpect, cropNeedsMore, cropResults.toList(), captureIdentity?.first, captureStartedAt, cropPaths.map(::cropRotation))
         captureWriteJob?.cancel()
         captureWriteJob = scope.launch {
             try {
+                if (debounceMs > 0) delay(debounceMs)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     val job = kotlinx.coroutines.currentCoroutineContext()
                     captureFlowStore.write(state, ticket) { job.ensureActive() }
@@ -126,6 +153,7 @@ internal class CaptureFlowController(
         val target = if (manual && region.touched) region.fraction?.let {
             com.zsz.studyassistant.data.ImageAutoCrop.NormRect(it.left, it.top, it.width, it.height)
         } else null
+        val turns = cropRotation(path)
         val answerSheet = cropGrade && cropIndex == 1
         val edit = if (manual) region.touch() else null
         region.autoJob = scope.launch {
@@ -133,13 +161,18 @@ internal class CaptureFlowController(
                 val box = withContext(Dispatchers.Default) {
                     runCatching { com.zsz.studyassistant.data.ImageAutoCrop.detectQuestionRect(path) }.getOrNull()
                 }
-                region.suggest(box, ai = false, bounds)
+                val oriented = box?.let {
+                    var rect = androidx.compose.ui.geometry.Rect(it.x, it.y, it.x + it.w, it.y + it.h)
+                    repeat(turns) { rect = rotateCropClockwise(rect) }
+                    com.zsz.studyassistant.data.ImageAutoCrop.NormRect(rect.left, rect.top, rect.width, rect.height)
+                }
+                region.suggest(oriented, ai = false, bounds)
             }
             if (useAi) {
                 region.status = "crop.aiBusy"
                 val result = try {
                     withContext(Dispatchers.IO) {
-                        StudyAssistant.detectCrop(path, timeout, manual, target, answerSheet) {
+                        StudyAssistant.detectCrop(path, timeout, manual, target, answerSheet, quarterTurns = turns) {
                             com.zsz.studyassistant.data.UsageStats.add(app, it)
                         }
                     }
@@ -158,6 +191,8 @@ internal class CaptureFlowController(
     private fun clearCropSelections() {
         selections.values.forEach { it.cancelDetection() }
         selections.clear()
+        preview = null
+        rotations.clear()
     }
 
     fun startCropFlow(paths: List<String>, grade: Boolean, expect: Int = paths.size) {
@@ -190,6 +225,7 @@ internal class CaptureFlowController(
     fun submitCropResult(bytes: ByteArray) {
         if (rotating || currentCropPath == null) return
         selections[currentCropPath]?.cancelDetection()
+        preview = null
         cropResults.add(bytes)
         if (cropIndex + 1 < cropPaths.size) {
             cropIndex += 1
@@ -218,6 +254,7 @@ internal class CaptureFlowController(
         if (cropIndex <= 0) return
         selections[currentCropPath]?.cancelDetection()
         if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
+        preview = null
         cropIndex -= 1
         cropNeedsMore = false
         checkpointCaptureFlow()
@@ -266,38 +303,31 @@ internal class CaptureFlowController(
         onComplete(imgs, grade)
     }
 
-    /** Capture ownership before IO; back/cancel or a new flow must reject the late rotation. */
+    /** Swap the in-memory preview first; checkpoint orientation with the unchanged source, never a PNG. */
     suspend fun rotateCurrent(path: String, bitmap: android.graphics.Bitmap): Boolean {
-        if (rotating || currentCropPath != path) return false
+        if (rotating || currentCropPath != path || preview?.bitmap !== bitmap) return false
         val revision = captureFlowRevision
         val region = cropSelection(path)
         val edit = region.touch()
         val fraction = region.fraction
-        var output: java.io.File? = null
+        val turns = (cropRotation(path) + 1) % 4
+        var output: android.graphics.Bitmap? = null
         var accepted = false
         rotating = true
         try {
-            withContext(Dispatchers.IO) {
-                output = com.zsz.studyassistant.data.CaptureImage.rotateClockwise(bitmap, app.cacheDir)
+            withContext(Dispatchers.Default) {
+                output = com.zsz.studyassistant.data.CaptureImage.rotate(bitmap, 1)
             }
             if (revision != captureFlowRevision || currentCropPath != path || !region.isLatestEdit(edit)) return false
-            val newPath = checkNotNull(output).absolutePath
-            val replacement = CropSelection().apply {
-                touch()
-                this.fraction = fraction?.let(::rotateCropClockwise)
-            }
-            selections[newPath] = replacement
-            selections.remove(path)
-            val original = java.io.File(path)
-            if (original.parentFile == app.cacheDir && original.name.startsWith("shared_")) ownedInputs += path
-            ownedInputs += newPath
-            cropPaths = cropPaths.toMutableList().also { it[cropIndex] = newPath }
-            checkpointCaptureFlow()
+            rotations[path] = turns
+            region.fraction = fraction?.let(::rotateCropClockwise)
+            preview = Preview(path, turns, checkNotNull(output))
             accepted = true
+            checkpointCaptureFlow(debounceMs = 250)
             return true
         } finally {
             rotating = false
-            if (!accepted) withContext(NonCancellable + Dispatchers.IO) { output?.delete() }
+            if (!accepted && output !== bitmap) output?.recycle()
         }
     }
 

@@ -547,11 +547,11 @@ object StudyAssistant {
 
     /** Prepare an oriented JPEG; gallery formats and full-size camera files need not be valid API images. */
     internal suspend fun detectCrop(path: String, timeoutMs: Long, manual: Boolean,
-                                   target: ImageAutoCrop.NormRect?, answerSheet: Boolean,
+                                   target: ImageAutoCrop.NormRect?, answerSheet: Boolean, quarterTurns: Int = 0,
                                    onUsage: (DeepSeekUsage?) -> Unit = {}): CropAiResult {
         return try {
             if (KeyManager.getApiKey().isBlank()) return CropAiResult("crop.aiKey")
-            val jpeg = compressImage(File(path), maxDim = 1280)
+            val jpeg = compressImage(File(path), maxDim = 1280, quarterTurns = quarterTurns)
             val b64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
             requestCrop(b64, timeoutMs, manual, target, answerSheet, onUsage)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
@@ -678,8 +678,8 @@ object StudyAssistant {
 
 
     /** 图片压缩为 JPEG 字节（发送前处理，最大边长 maxDim，质量 quality） */
-    fun compressImage(file: File, maxDim: Int = 1280, quality: Int = 80): ByteArray {
-        val bitmap = CaptureImage.decode(file.absolutePath, maxDim)
+    fun compressImage(file: File, maxDim: Int = 1280, quality: Int = 80, quarterTurns: Int = 0): ByteArray {
+        val bitmap = CaptureImage.decode(file.absolutePath, maxDim, quarterTurns)
         return try {
             ByteArrayOutputStream().use { out ->
                 check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out))
