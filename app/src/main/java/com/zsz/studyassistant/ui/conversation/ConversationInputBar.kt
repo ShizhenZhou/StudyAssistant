@@ -78,6 +78,7 @@ internal fun ConversationInputBar(
     draft: SolveInputDraft? = null
 ) {
     val editor = editorFocus(draft, quoteFocusSignal)
+    val addImageLabel = appLabelIcon(LocalStrings.current["ask.addImage"]).second
     Column(modifier) {
         quotedText?.let { quote ->
             QuotedTextPreview(quote, onRemoveQuote)
@@ -145,9 +146,9 @@ internal fun ConversationInputBar(
                 enabled = !busy && images.size < 3,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.secondaryContainer,
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier.size(44.dp).semantics { contentDescription = addImageLabel }
             ) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("🖼", fontSize = 18.sp) }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { AppSymbol(AppIcon.Gallery, size = 23.dp) }
             }
             Spacer(Modifier.width(8.dp))
             OutlinedTextField(

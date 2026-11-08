@@ -50,6 +50,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.1_beta2
+
+- 🎨 Introduce more varied, slightly richer icon colors and extend them to the solution screen and Settings subpages.
+- 📐 Make the solution toolbar and actions more compact while preserving wrapped subject names and large-text support.
+- 📌 `versionCode` **109**.
+
 ### v0.7.1_beta
 
 - 🎨 Try unified soft-fill icons with fine outlines, replacing selected emoji on Home, the bottom navigation and the main Settings page.

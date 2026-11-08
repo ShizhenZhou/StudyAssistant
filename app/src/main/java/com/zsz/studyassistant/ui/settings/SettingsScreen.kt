@@ -288,7 +288,7 @@ private fun AboutPage() {
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
     }
     Spacer(Modifier.height(20.dp))
-    Text(s["about.features"], style = MaterialTheme.typography.titleMedium)
+    AppIconLabel(s["about.features"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -302,7 +302,7 @@ private fun AboutPage() {
     // ★ 2026-10-14：新增「数据与隐私」小节 —— 与 README 顶部那两句保持一致
     //   （用户要求：README 的内容更新同步到这里；数据只存本机是本项目对外最重要的一条）
     Spacer(Modifier.height(20.dp))
-    Text(s["about.privacy"], style = MaterialTheme.typography.titleMedium)
+    AppIconLabel(s["about.privacy"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -377,7 +377,7 @@ private fun SettingsSubPage(
             // 2026-10-20 又发现"看起来还是更大"：原来这里用 `titleLarge.copy(fontSize=…)`，
             // titleLarge 自带更大的行高与字重（Medium/SemiBold）→ 同字号也显大。
             // 解题页用的是**默认文本样式 + 覆盖 fontSize**，这里改成同一写法，字号/字重/行高全部一致。
-            Text(title, fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            AppIconLabel(title, modifier = Modifier.weight(1f), fontSize = SUBPAGE_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(8.dp))
         // weight(1f)：把剩余高度都给内容区，底部操作栏因此始终贴在容器底部（键盘弹出时=键盘上方）
@@ -447,7 +447,7 @@ private fun BackupHealthEntry(onOpen: (String) -> Unit) {
     failure?.takeIf { AutoBackup.treeUri(context) != null }?.let {
         Text(s.format("data.autoBackup.healthWarning", "t" to formatCheckTime(it.at), "reason" to s[it.key]),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_BACKUP) }) { Text(s["data.backup"]) }
+        TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_BACKUP) }) { AppIconLabel(s["data.backup"]) }
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -477,7 +477,7 @@ private fun AiCropSwitchSettings(checked: Boolean, onChecked: (Boolean) -> Unit)
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(s["settings.aiCrop.enable"], style = MaterialTheme.typography.titleMedium)
+            AppIconLabel(s["settings.aiCrop.enable"], style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
                 s["settings.aiCrop.enable.desc"],
@@ -516,7 +516,7 @@ private fun AiCropTimeoutSettings() {
     val snapPoints = listOf(100f, 500f, 1000f, 3000f, 5000f)
 
     Column(Modifier.fillMaxWidth()) {
-        Text(s["settings.aiCrop.timeout"], style = MaterialTheme.typography.titleMedium)
+        AppIconLabel(s["settings.aiCrop.timeout"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
             s["settings.aiCrop.desc"],
@@ -555,7 +555,7 @@ private fun AiSolveModelSettings() {
     val s = LocalStrings.current
     val ctx = LocalContext.current
     Spacer(Modifier.height(22.dp))
-    Text(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
+    AppIconLabel(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(4.dp))
     Text(s["settings.solveModel.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(8.dp))
@@ -745,14 +745,9 @@ private fun SettingEntry(title: String, badge: Boolean = false, danger: Boolean 
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                if (icon != null) {
-                    AppSymbol(icon)
-                    Spacer(Modifier.size(12.dp))
-                }
-                Text(title, style = MaterialTheme.typography.bodyLarge,
-                    color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified)
-            }
+            AppIconLabel(title, modifier = Modifier.weight(1f), icon = icon, iconSize = 24.dp,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (badge) {
                     // 红色消息气泡「1」：有可用更新时显示（Canvas 精确居中，见 UpdateBadgeDot）
@@ -969,12 +964,12 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
         CrashLogSettings(vm)
     } else {
         val s = LocalStrings.current
-        Text(s["data.manualBackup"], style = MaterialTheme.typography.titleMedium)
+        AppIconLabel(s["data.manualBackup"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         BackupSettings(vm)
         androidx.compose.material3.HorizontalDivider()
         Spacer(Modifier.height(16.dp))
-        Text(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
+        AppIconLabel(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         AutoBackupSettings(vm)
     }
@@ -1283,7 +1278,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     TextButton(shape = smoothPill(), onClick = { showBackupInfo = !showBackupInfo },
         modifier = Modifier.fillMaxWidth().then(Modifier.semantics {
             stateDescription = s[if (showBackupInfo) "data.autoBackup.expanded" else "data.autoBackup.collapsed"]
-        })) { Text(s["data.autoBackup.info"], style = MaterialTheme.typography.bodySmall) }
+        })) { AppIconLabel(s["data.autoBackup.info"], style = MaterialTheme.typography.bodySmall) }
     androidx.compose.animation.AnimatedVisibility(
         visible = showBackupInfo,
         enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) +
@@ -1476,7 +1471,7 @@ private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
             ) {
                 if (c == AppThemeColor.CUSTOM && !selected) {
                     // 自定义色未选中时，圆点里画一支小画笔提示"可自选"
-                    Text("🎨", fontSize = 16.sp)
+                    AppSymbol(AppIcon.Theme, size = 20.dp)
                 } else if (selected) {
                     Text("✓", color = contrastForeground(face), fontSize = 20.sp)
                 }
@@ -1666,7 +1661,7 @@ private fun NotifyBackgroundSettings() {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
     Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
     if (ignoringBattery) {
-    Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    AppIconLabel(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
     } else {
     TextButton(shape = smoothPill(), onClick = {
     try {
@@ -1778,7 +1773,7 @@ private fun BackgroundSettings() {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
         if (ignoringBattery) {
-            Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            AppIconLabel(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         } else {
             TextButton(shape = smoothPill(), onClick = {
                 try {
