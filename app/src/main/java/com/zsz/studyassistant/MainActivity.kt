@@ -1,5 +1,7 @@
 package com.zsz.studyassistant
 
+import com.zsz.studyassistant.ui.AppIcon
+import com.zsz.studyassistant.ui.AppSymbol
 import android.app.Activity
 import android.os.Bundle
 import android.view.View
@@ -466,13 +468,13 @@ class MainActivity : ComponentActivity() {
                                 NavigationBarItem(
                                     selected = AppNav.rootTab(current) == AppNav.HOME,
                                     onClick = { selectTab(AppNav.HOME) },
-                                    icon = { Text("📚") },
+                                    icon = { AppSymbol(AppIcon.Book) },
                                     label = { Text(strings["nav.learn"]) }
                                 )
                                 NavigationBarItem(
                                     selected = current == AppNav.STATS,
                                     onClick = { selectTab(AppNav.STATS) },
-                                    icon = { Text("📊") },
+                                    icon = { AppSymbol(AppIcon.Chart) },
                                     label = { Text(strings["nav.stats"]) }
                                 )
                                 NavigationBarItem(
@@ -481,7 +483,7 @@ class MainActivity : ComponentActivity() {
                                     icon = {
                                         // 有可用更新时，在「设置」图标右上角叠一个红点①（Canvas 精确居中）
                                         Box {
-                                            Text("⚙️")
+                                            AppSymbol(AppIcon.Settings)
                                             if (UpdateBadgeState.availableVersion != null) {
                                                 UpdateBadgeDot(
                                                     modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp),

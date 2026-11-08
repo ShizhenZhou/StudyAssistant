@@ -1,3 +1,7 @@
+v0.7.1_beta
+· 🎨 Try unified soft-fill icons with fine outlines, replacing selected emoji on Home, the bottom navigation and the main Settings page.
+· 🌓 Icons adapt to light and dark themes and button backgrounds, with localized text labels.
+
 v0.7.0.5
 · ✂️ Crop attached images one by one for initial questions and follow-ups, then return to the input to send.
 · 🔄 Rotate images by 90° with less waiting, matching selection rotation and clearer image counts and controls.

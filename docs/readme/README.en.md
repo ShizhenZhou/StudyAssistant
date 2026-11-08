@@ -50,6 +50,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.1_beta
+
+- 🎨 Try unified soft-fill icons with fine outlines, replacing selected emoji on Home, the bottom navigation and the main Settings page.
+- 🌓 Icons adapt to light and dark themes and button backgrounds, with localized text labels.
+- 📌 `versionCode` **108**.
+
 ### v0.7.0.5
 
 - ✂️ Crop attached images one by one for initial questions and follow-ups, then return to the input to send.

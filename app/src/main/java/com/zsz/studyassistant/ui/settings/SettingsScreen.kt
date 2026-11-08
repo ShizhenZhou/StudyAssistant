@@ -410,22 +410,22 @@ internal fun SettingsMain(scroll: androidx.compose.foundation.ScrollState = reme
         // ── 通用 ──
         SettingGroupTitle(s["settings.group.general"])
         // API 管理已并入「AI 管理」二级菜单（放在该页最顶端）
-        SettingEntry(s["settings.aiManage"]) { onOpen(AppNav.SettingsPages.AI) }
+        SettingEntry(s["settings.aiManage.label"], icon = AppIcon.Ai) { onOpen(AppNav.SettingsPages.AI) }
         // 通知与后台：已合并为一个二级菜单，归入「通用」大类
-        SettingEntry(s["settings.group.notifyBackground"]) { onOpen(AppNav.SettingsPages.NOTIFY) }
+        SettingEntry(s["settings.group.notifyBackground.label"], icon = AppIcon.Bell) { onOpen(AppNav.SettingsPages.NOTIFY) }
 
         Spacer(Modifier.height(14.dp))
         // ── 个性化 ──
         SettingGroupTitle(s["settings.group.personalize"])
-        SettingEntry(s["settings.theme"]) { onOpen(AppNav.SettingsPages.THEME) }
-        SettingEntry(s["settings.lang"]) { onOpen(AppNav.SettingsPages.LANG) }
+        SettingEntry(s["settings.theme.label"], icon = AppIcon.Theme) { onOpen(AppNav.SettingsPages.THEME) }
+        SettingEntry(s["settings.lang.label"], icon = AppIcon.Language) { onOpen(AppNav.SettingsPages.LANG) }
 
         Spacer(Modifier.height(26.dp))
         // ── 数据管理 / 应用更新 / 关于（分立，不归入大类；上方多留一行） ──
-        SettingEntry(s["settings.data"]) { onOpen(AppNav.SettingsPages.DATA) }
+        SettingEntry(s["settings.data.label"], icon = AppIcon.Data) { onOpen(AppNav.SettingsPages.DATA) }
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
-        SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
-        SettingEntry(s["settings.about"]) { onOpen(AppNav.SettingsPages.ABOUT) }
+        SettingEntry(s["settings.update.label"], icon = AppIcon.Update, badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
+        SettingEntry(s["settings.about.label"], icon = AppIcon.Info) { onOpen(AppNav.SettingsPages.ABOUT) }
     }
     }
 }
@@ -738,15 +738,21 @@ private fun SliderTicks(fmt: (Float) -> String, msToT: (Float) -> Float, values:
 }
 
 @Composable
-private fun SettingEntry(title: String, badge: Boolean = false, danger: Boolean = false, onClick: () -> Unit) {
+private fun SettingEntry(title: String, badge: Boolean = false, danger: Boolean = false, icon: AppIcon? = null, onClick: () -> Unit) {
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick)) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge,
-                color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified)
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    AppSymbol(icon)
+                    Spacer(Modifier.size(12.dp))
+                }
+                Text(title, style = MaterialTheme.typography.bodyLarge,
+                    color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (badge) {
                     // 红色消息气泡「1」：有可用更新时显示（Canvas 精确居中，见 UpdateBadgeDot）
