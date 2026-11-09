@@ -288,7 +288,7 @@ private fun AboutPage() {
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
     }
     Spacer(Modifier.height(20.dp))
-    AppIconLabel(s["about.features"], style = MaterialTheme.typography.titleMedium)
+    Text(s["about.features"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -302,7 +302,7 @@ private fun AboutPage() {
     // ★ 2026-10-14：新增「数据与隐私」小节 —— 与 README 顶部那两句保持一致
     //   （用户要求：README 的内容更新同步到这里；数据只存本机是本项目对外最重要的一条）
     Spacer(Modifier.height(20.dp))
-    AppIconLabel(s["about.privacy"], style = MaterialTheme.typography.titleMedium)
+    Text(s["about.privacy"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -410,22 +410,22 @@ internal fun SettingsMain(scroll: androidx.compose.foundation.ScrollState = reme
         // ── 通用 ──
         SettingGroupTitle(s["settings.group.general"])
         // API 管理已并入「AI 管理」二级菜单（放在该页最顶端）
-        SettingEntry(s["settings.aiManage.label"], icon = AppIcon.Ai) { onOpen(AppNav.SettingsPages.AI) }
+        SettingEntry(s["settings.aiManage"]) { onOpen(AppNav.SettingsPages.AI) }
         // 通知与后台：已合并为一个二级菜单，归入「通用」大类
-        SettingEntry(s["settings.group.notifyBackground.label"], icon = AppIcon.Bell) { onOpen(AppNav.SettingsPages.NOTIFY) }
+        SettingEntry(s["settings.group.notifyBackground"]) { onOpen(AppNav.SettingsPages.NOTIFY) }
 
         Spacer(Modifier.height(14.dp))
         // ── 个性化 ──
         SettingGroupTitle(s["settings.group.personalize"])
-        SettingEntry(s["settings.theme.label"], icon = AppIcon.Theme) { onOpen(AppNav.SettingsPages.THEME) }
-        SettingEntry(s["settings.lang.label"], icon = AppIcon.Language) { onOpen(AppNav.SettingsPages.LANG) }
+        SettingEntry(s["settings.theme"]) { onOpen(AppNav.SettingsPages.THEME) }
+        SettingEntry(s["settings.lang"]) { onOpen(AppNav.SettingsPages.LANG) }
 
         Spacer(Modifier.height(26.dp))
         // ── 数据管理 / 应用更新 / 关于（分立，不归入大类；上方多留一行） ──
-        SettingEntry(s["settings.data.label"], icon = AppIcon.Data) { onOpen(AppNav.SettingsPages.DATA) }
+        SettingEntry(s["settings.data"]) { onOpen(AppNav.SettingsPages.DATA) }
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
-        SettingEntry(s["settings.update.label"], icon = AppIcon.Update, badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
-        SettingEntry(s["settings.about.label"], icon = AppIcon.Info) { onOpen(AppNav.SettingsPages.ABOUT) }
+        SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
+        SettingEntry(s["settings.about"]) { onOpen(AppNav.SettingsPages.ABOUT) }
     }
     }
 }
@@ -447,7 +447,7 @@ private fun BackupHealthEntry(onOpen: (String) -> Unit) {
     failure?.takeIf { AutoBackup.treeUri(context) != null }?.let {
         Text(s.format("data.autoBackup.healthWarning", "t" to formatCheckTime(it.at), "reason" to s[it.key]),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_BACKUP) }) { AppIconLabel(s["data.backup"]) }
+        TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_BACKUP) }) { Text(s["data.backup"]) }
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -477,7 +477,7 @@ private fun AiCropSwitchSettings(checked: Boolean, onChecked: (Boolean) -> Unit)
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            AppIconLabel(s["settings.aiCrop.enable"], style = MaterialTheme.typography.titleMedium)
+            Text(s["settings.aiCrop.enable"], style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
                 s["settings.aiCrop.enable.desc"],
@@ -516,7 +516,7 @@ private fun AiCropTimeoutSettings() {
     val snapPoints = listOf(100f, 500f, 1000f, 3000f, 5000f)
 
     Column(Modifier.fillMaxWidth()) {
-        AppIconLabel(s["settings.aiCrop.timeout"], style = MaterialTheme.typography.titleMedium)
+        Text(s["settings.aiCrop.timeout"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
             s["settings.aiCrop.desc"],
@@ -555,7 +555,7 @@ private fun AiSolveModelSettings() {
     val s = LocalStrings.current
     val ctx = LocalContext.current
     Spacer(Modifier.height(22.dp))
-    AppIconLabel(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
+    Text(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(4.dp))
     Text(s["settings.solveModel.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(8.dp))
@@ -738,15 +738,14 @@ private fun SliderTicks(fmt: (Float) -> String, msToT: (Float) -> Float, values:
 }
 
 @Composable
-private fun SettingEntry(title: String, badge: Boolean = false, danger: Boolean = false, icon: AppIcon? = null, onClick: () -> Unit) {
+private fun SettingEntry(title: String, badge: Boolean = false, danger: Boolean = false, onClick: () -> Unit) {
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick)) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AppIconLabel(title, modifier = Modifier.weight(1f), icon = icon, iconSize = 24.dp,
-                style = MaterialTheme.typography.bodyLarge,
+            AppIconLabel(title, modifier = Modifier.weight(1f), iconSize = 24.dp, style = MaterialTheme.typography.bodyLarge,
                 color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (badge) {
@@ -964,12 +963,12 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
         CrashLogSettings(vm)
     } else {
         val s = LocalStrings.current
-        AppIconLabel(s["data.manualBackup"], style = MaterialTheme.typography.titleMedium)
+        Text(s["data.manualBackup"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         BackupSettings(vm)
         androidx.compose.material3.HorizontalDivider()
         Spacer(Modifier.height(16.dp))
-        AppIconLabel(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
+        Text(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         AutoBackupSettings(vm)
     }
@@ -1278,7 +1277,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     TextButton(shape = smoothPill(), onClick = { showBackupInfo = !showBackupInfo },
         modifier = Modifier.fillMaxWidth().then(Modifier.semantics {
             stateDescription = s[if (showBackupInfo) "data.autoBackup.expanded" else "data.autoBackup.collapsed"]
-        })) { AppIconLabel(s["data.autoBackup.info"], style = MaterialTheme.typography.bodySmall) }
+        })) { Text(s["data.autoBackup.info"], style = MaterialTheme.typography.bodySmall) }
     androidx.compose.animation.AnimatedVisibility(
         visible = showBackupInfo,
         enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) +
@@ -1471,7 +1470,7 @@ private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
             ) {
                 if (c == AppThemeColor.CUSTOM && !selected) {
                     // 自定义色未选中时，圆点里画一支小画笔提示"可自选"
-                    AppSymbol(AppIcon.Theme, size = 20.dp)
+                    Text("🎨", fontSize = 16.sp)
                 } else if (selected) {
                     Text("✓", color = contrastForeground(face), fontSize = 20.sp)
                 }
@@ -1661,7 +1660,7 @@ private fun NotifyBackgroundSettings() {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
     Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
     if (ignoringBattery) {
-    AppIconLabel(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
     } else {
     TextButton(shape = smoothPill(), onClick = {
     try {
@@ -1773,7 +1772,7 @@ private fun BackgroundSettings() {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
         if (ignoringBattery) {
-            AppIconLabel(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(s["background.on"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         } else {
             TextButton(shape = smoothPill(), onClick = {
                 try {

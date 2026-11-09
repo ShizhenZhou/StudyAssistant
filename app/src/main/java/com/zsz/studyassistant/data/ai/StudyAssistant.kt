@@ -241,7 +241,7 @@ object StudyAssistant {
         JsonPrimitive(
             "你是一名理工科大学解题助手。请给出清晰、分步的解答过程，包含必要的公式推导，" +
                 "数学公式请用 LaTeX 书写（$...$ 或 $$...$$）。" +
-                "\n" + answerLayoutInstruction() +
+                "\n" + answerLayoutInstruction() + diagramInstruction() +
                 "\n" + languageInstruction(lang) +
                 if (customPrompt.isBlank()) "" else "\n\n用户自定义要求（请务必遵守）：\n$customPrompt"
         )
@@ -258,11 +258,20 @@ object StudyAssistant {
      * @param customPrompt 用户自定义要求原文（空串 = 没设置）
      */
     fun languageSystemMessage(lang: AiLang, customPrompt: String = ""): DeepSeekMessage {
-        val langLine = answerLayoutInstruction() + languageInstruction(lang)
+        val langLine = answerLayoutInstruction() + diagramInstruction() + languageInstruction(lang)
         val text = if (customPrompt.isBlank()) langLine
         else "$langLine\n\n用户自定义要求（请务必遵守，与上面的固定格式冲突时以本条为准）：\n$customPrompt"
         return DeepSeekMessage("system", JsonPrimitive(text))
     }
+
+    /** Draw only when useful/requested; one ordinary response, no extra service or code execution. */
+    private fun diagramInstruction(): String = """
+        用户要求画图，或坐标/曲线/几何示意图确实有助于理解时，可在回答中输出完整的 ```svg 代码块，应用会直接显示静态图形。不要用绘图替代文字推导，不需要图时不输出。
+        SVG 使用 xmlns="http://www.w3.org/2000/svg" 和 viewBox（推荐 0 0 640 400），白色画布、深色文字、清晰彩色线条；title 和图中文字跟随回答语言。坐标轴标明方向、刻度、单位和原点，曲线采样符合函数及取值范围；近似示意图须说明。
+        仅使用 svg/g/defs/path/line/polyline/polygon/rect/circle/ellipse/text/tspan/title/desc/marker/linearGradient/radialGradient/stop；基础属性写在元素上，文字用纯文本或 Unicode。箭头可用 marker 或线段，渐变/箭头只可引用本图已有 id。不要使用 style/class、脚本、事件、外部资源、链接、image/use/foreignObject、动画、DOCTYPE、XML声明或注释；defs 内不再互相引用。
+        图形限64KB、512个元素、20层嵌套，viewBox宽高不超过4096、宽高比0.1至10；路径/坐标数值绝对值不超过100000，线宽不超过32，字号1至160。保持简洁，完整闭合 svg 和代码块。公式推导放在图外，用LaTeX；需要列对比项时可用标准Markdown表格（表头下一行为 |---|---|）。
+
+    """.trimIndent() + "\n"
 
     /** 最近一次接口调用返回的 token 用量（调用方负责持久化统计） */
     @Volatile

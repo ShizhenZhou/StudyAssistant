@@ -526,7 +526,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                         }
                     },
                     modifier = Modifier.semantics { contentDescription = s["crop.rotate"] }
-                ) { AppIconLabel("90°", icon = AppIcon.Rotate, iconSize = 18.dp, iconSpacing = 4.dp, maxLines = 1, softWrap = false) }
+                ) { Text("↻ 90°", maxLines = 1, softWrap = false) }
                 // Returning from an attachment batch preserves the original input.
                 TextButton(onClick = { handleBack() }) {
                     Text(if (flow.cropIndex > 0) s["crop.prevImage"] else s[if (attachment) "crop.backToInput" else "crop.backToCamera"], maxLines = 1, softWrap = false)

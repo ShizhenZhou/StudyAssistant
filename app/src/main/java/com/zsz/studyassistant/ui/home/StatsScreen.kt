@@ -59,24 +59,24 @@ fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollSta
             .verticalScroll(scroll)
             .padding(16.dp)
     ) {
-        AppIconLabel(s["stats.title"], style = MaterialTheme.typography.headlineSmall)
+        Text(s["stats.title"], style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(14.dp))
 
         // ── 四张概览卡 ──
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCard(s["stats.today"], "${st.todayReviewed}", AppIcon.Book, Modifier.weight(1f))
-            StatCard(s["stats.week"], "${st.weekReviewed}", AppIcon.Calendar, Modifier.weight(1f))
+            StatCard(s["stats.today"], "${st.todayReviewed}", "📖", Modifier.weight(1f))
+            StatCard(s["stats.week"], "${st.weekReviewed}", "🗓", Modifier.weight(1f))
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCard(s["stats.streak"], "${st.streakDays}", AppIcon.Flame, Modifier.weight(1f))
-            StatCard(s["stats.due"], "${st.dueNow}", AppIcon.Alarm, Modifier.weight(1f))
+            StatCard(s["stats.streak"], "${st.streakDays}", "🔥", Modifier.weight(1f))
+            StatCard(s["stats.due"], "${st.dueNow}", "⏰", Modifier.weight(1f))
         }
 
         Text(s["stats.estimateNotice"], style=MaterialTheme.typography.bodySmall, modifier=Modifier.padding(top=8.dp))
         Spacer(Modifier.height(18.dp))
         // ── 掌握度分布（堆叠条） ──
-        SectionTitle(s["stats.mastery"], AppIcon.Pie)
+        SectionTitle(s["stats.mastery"])
         Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Column(Modifier.padding(14.dp)) {
                 val total = st.mastery.sumOf { it.second }.coerceAtLeast(1)
@@ -130,7 +130,7 @@ fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollSta
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            SectionTitle(if (monthMode) s["stats.last30"] else s["stats.last7"], AppIcon.Trend)
+            SectionTitle(if (monthMode) s["stats.last30"] else s["stats.last7"])
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (monthMode) s["stats.month"] else s["stats.week"],
@@ -211,7 +211,7 @@ fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollSta
 
         Spacer(Modifier.height(18.dp))
         // ── 科目分布 ──
-        SectionTitle(s["stats.subjects"] + "（${s.format("stats.total", "n" to "${st.totalQuestions}")}）", AppIcon.Subjects)
+        SectionTitle(s["stats.subjects"] + "（${s.format("stats.total", "n" to "${st.totalQuestions}")}）")
         Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Column(Modifier.padding(14.dp)) {
                 if (st.subjects.isEmpty()) {
@@ -264,15 +264,15 @@ fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollSta
 }
 
 @Composable
-private fun SectionTitle(text: String, icon: AppIcon) {
-    AppIconLabel(text, icon = icon, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+private fun SectionTitle(text: String) {
+    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
 }
 
 @Composable
-private fun StatCard(label: String, value: String, icon: AppIcon, modifier: Modifier = Modifier) {
+private fun StatCard(label: String, value: String, emoji: String, modifier: Modifier = Modifier) {
     Card(shape = smoothShape(14.dp), modifier = modifier) {
         Column(Modifier.padding(14.dp)) {
-            AppIconLabel(label, icon = icon, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+            Text("$emoji  $label", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
             Spacer(Modifier.height(6.dp))
             Text(value, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
         }

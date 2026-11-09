@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="katex/katex.min.css">
 <script src="katex/katex.min.js"></script>
+<script src="svg_diagrams.js"></script>
 <style>
   /* ── 主题变量：浅色为默认，body.dark 覆盖（深色主题由原生侧注入，见 renderMessages 的 dark 参数） ──
      此前颜色全是写死的浅色 → 深色主题下气泡仍是浅灰、思考块灰字在深底上对比度极低（用户反馈） */
@@ -47,6 +48,13 @@
   @media(prefers-reduced-motion:reduce){.quote-jump-highlight.blink-twice{animation:none;}}
   .bubble{overflow-wrap:anywhere;}
   .bubble pre{max-width:100%;overflow-x:auto;white-space:pre;overflow-wrap:normal;}
+  .table-scroll{max-width:100%;overflow-x:auto;margin:10px 0;padding:2px 0;}
+  .table-scroll table{border-collapse:collapse;width:100%;font-size:inherit;line-height:1.5;}
+  .table-scroll th,.table-scroll td{border:1px solid var(--pick-border);padding:7px 10px;min-width:5em;vertical-align:top;overflow-wrap:break-word;}
+  .table-scroll th{background:var(--quote-bg);font-weight:600;}
+  .ai-diagram{margin:10px 0;max-width:100%;padding:8px;background:#fff;border:1px solid var(--pick-border);border-radius:8px;color:#222;}
+  .ai-diagram img{display:block;width:100%;height:auto;max-height:640px;object-fit:contain;}
+  .ai-diagram figcaption{text-align:center;font-size:.85em;margin-top:6px;}
   .bubble hr{border:0;border-top:1px solid var(--pick-border);margin:16px 0;}
   .msgimg{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:6px;border:1px solid var(--msg-border);}
   .katex{font-size:1.1em;}
@@ -117,10 +125,51 @@ function mdToHtml(s){
     t=t.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
     return t;
   }
+  // Code and formulas are already tokens here, so their literal pipes cannot split cells.
+  // Require a real separator row; a pipe in prose alone is not a table.
+  function cells(line){
+    var text=line.trim(),result=[],cell='',hasPipe=false;
+    for(var pos=0;pos<text.length;pos++){
+      var ch=text[pos];
+      if(ch==='\\' && (text[pos+1]==='|' || text[pos+1]==='\\')){cell+=text[++pos];continue;}
+      if(ch==='|'){result.push(cell.trim());cell='';hasPipe=true;} else cell+=ch;
+    }
+    result.push(cell.trim());
+    if(text[0]==='|') result.shift();
+    // Use the parsed final cell to distinguish an escaped trailing pipe.
+    if(text[text.length-1]==='|' && cell==='') result.pop();
+    return hasPipe ? result : null;
+  }
+  function tableHead(index){
+    if(index+1>=lines.length) return null;
+    var head=cells(lines[index]),sep=cells(lines[index+1]);
+    if(!head || !sep || head.length!==sep.length || !head.length) return null;
+    if(!sep.every(function(cell){return /^:?-{3,}:?$/.test(cell);})) return null;
+    return {head:head,align:sep.map(function(cell){
+      return cell[0]===':' ? (cell.endsWith(':') ? 'center' : 'left') : (cell.endsWith(':') ? 'right' : 'left');
+    })};
+  }
+  function tableRow(row,tag,align){
+    return '<tr>'+align.map(function(a,col){
+      return '<'+tag+' style="text-align:'+a+'">'+inline(row[col] || '')+'</'+tag+'>';
+    }).join('')+'</tr>';
+  }
   for(var i=0;i<lines.length;i++){
     var line=lines[i];
     if(/^\s*```/.test(line)){ if(!pre){pre=true;preBuf=[];} else {pre=false;out+='<pre>'+preBuf.join('\n')+'</pre>';} continue; }
     if(pre){preBuf.push(line);continue;}
+    var table=tableHead(i);
+    if(table){
+      closeList();
+      out+='<div class="table-scroll"><table><thead>'+tableRow(table.head,'th',table.align)+'</thead><tbody>';
+      i++;
+      while(i+1<lines.length){
+        var row=cells(lines[i+1]);
+        if(!row) break;
+        out+=tableRow(row,'td',table.align);i++;
+      }
+      out+='</tbody></table></div>';continue;
+    }
     var t=inline(line);
     var h=t.match(/^(#{1,4})\s+(\S.*)$/); if(h){closeList();var n=h[1].length;out+='<h'+n+'>'+h[2]+'</h'+n+'>';continue;}
     if(/^\s*---+\s*$/.test(t)){closeList();out+='<hr>';continue;}
@@ -135,6 +184,11 @@ function renderOne(raw){
   // Protect literal code before formula/Markdown processing, including unfinished
   // streamed fences. Escaping happens only here for these isolated code tokens.
   if(/^[ \t]*```/.test(raw)){
+    var svg=raw.match(/^[ \t]*```svg[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```[ \t]*$/i);
+    if(svg && window.dshRenderSvg){
+      var diagram=window.dshRenderSvg(svg[1]);
+      if(diagram) return diagram;
+    }
     var lines=raw.split('\n');lines.shift();
     if(lines.length && /^[ \t]*```/.test(lines[lines.length-1])) lines.pop();
     return '<pre>'+esc(lines.join('\n'))+'</pre>';
@@ -376,6 +430,8 @@ function quoteContents(original){
     }
     var value = '';
     for(var child=node.firstChild;child;child=child.nextSibling) value += plain(child);
+    if(node.nodeType === 1 && /^(TD|TH)$/.test(node.tagName)) return value+'\t';
+    if(node.nodeType === 1 && node.tagName==='TR') return value.replace(/\t$/,'')+'\n';
     return node.nodeType === 1 && /^(DIV|P|LI|H[1-6]|PRE|BLOCKQUOTE)$/.test(node.tagName) ? '\n'+value+'\n' : value;
   }
   return {text:plain(contents).replace(/\n{3,}/g,'\n\n').trim(),partial:partial};

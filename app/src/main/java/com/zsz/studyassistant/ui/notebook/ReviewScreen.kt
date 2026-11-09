@@ -1,7 +1,5 @@
 package com.zsz.studyassistant.ui
 
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
@@ -56,6 +54,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -162,14 +162,14 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                                             text = { Text(s["review.filter.allSubjects"]) },
                                             onClick = { filterCat = null; catMenu = false },
                                             modifier = Modifier.semantics { this.selected = filterCat == null },
-                                            trailingIcon = { if (filterCat == null) AppSymbol(AppIcon.Check, size = 16.dp) }
+                                            trailingIcon = { if (filterCat == null) Text("✓") }
                                         )
                                         categories.forEach { c ->
                                             DropdownMenuItem(
                                                 text = { Text(c.name) },
                                                 onClick = { filterCat = c.id; catMenu = false },
                                                 modifier = Modifier.semantics { this.selected = filterCat == c.id },
-                                                trailingIcon = { if (filterCat == c.id) AppSymbol(AppIcon.Check, size = 16.dp) }
+                                                trailingIcon = { if (filterCat == c.id) Text("✓") }
                                             )
                                         }
                                     }

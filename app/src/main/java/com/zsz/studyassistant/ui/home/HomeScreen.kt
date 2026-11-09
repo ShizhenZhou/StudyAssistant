@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
@@ -37,14 +37,24 @@ import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.ApiKeyStore
 
-/** Fixed icon metrics replace font-dependent emoji spacing; center the icon and label together. */
+/**
+ * 首页按钮标签的**居中策略**（用户 2026-10-13 第三版定稿，分长短两种按钮）。
+ *
+ * 长按钮（拍照搜题 / 图文提问 / 搜题记录）：整串居中后**再整体往左偏半个字**。
+ *   （用户三版对比下来定的：v1 整串居中 → emoji 把文字顶右；v2 只让文字居中 → 偏左太多；
+ *     v3 = 中间值，整串居中 + 左移 `fontSize / 2`。）
+ * 短按钮（错题本 / 复习，半宽格子）：**整串严格居中，不做偏移**（名字短，居中即可）。
+ *
+ * `Modifier.offset` 只影响绘制、不影响测量，所以按钮内的裁切/换行逻辑不受影响。
+ */
 @Composable
-private fun HomeButtonLabel(icon: AppIcon, label: String, fontSize: TextUnit, onPrimary: Boolean = false) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-        AppSymbol(icon, size = 25.dp, onPrimary = onPrimary)
-        Spacer(Modifier.width(10.dp))
-        Text(label, fontSize = fontSize, maxLines = 1)
-    }
+private fun HomeButtonLabel(label: String, fontSize: TextUnit, shiftHalfCharLeft: Boolean = false) {
+    Text(
+        label,
+        fontSize = fontSize,
+        maxLines = 1,
+        modifier = if (shiftHalfCharLeft) Modifier.offset(x = (-fontSize.value / 2f).dp) else Modifier
+    )
 }
 
 @Composable
@@ -101,7 +111,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
                 onClick = { nav.navigate(AppNav.CAMERA) },
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             ) {
-                HomeButtonLabel(AppIcon.Camera, s["home.camera"], 20.sp, onPrimary = true)
+                HomeButtonLabel(s["home.camera"], 20.sp, shiftHalfCharLeft = true)
             }
             Spacer(Modifier.height(gap))
             // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
@@ -109,7 +119,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
                 onClick = { vm.startAskSession(); AppNav.openSolve(nav, AppNav.Origin.HOME) },
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             ) {
-                HomeButtonLabel(AppIcon.Edit, s["home.ask"], 20.sp, onPrimary = true)
+                HomeButtonLabel(s["home.ask"], 20.sp, shiftHalfCharLeft = true)
             }
             Spacer(Modifier.height(gap))
             // 错题本 / 复习：名字短，半宽放得下；仍留 maxLines=2 兜底 —— **任何情况都不出「…」**
@@ -119,14 +129,14 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
                 ) {
-                    HomeButtonLabel(AppIcon.Notebook, s["home.notebook"], 19.sp)
+                    HomeButtonLabel(s["home.notebook"], 19.sp)
                 }
                 AppOutlinedButton(shape = smoothPill(),
                     onClick = { nav.navigate(AppNav.REVIEW) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.weight(1f).height(64.dp)
                 ) {
-                    HomeButtonLabel(AppIcon.Book, s["home.review"], 19.sp)
+                    HomeButtonLabel(s["home.review"], 19.sp)
                 }
             }
             Spacer(Modifier.height(gap))
@@ -137,7 +147,7 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
                     .fillMaxWidth()
                     .height(64.dp)
             ) {
-                HomeButtonLabel(AppIcon.History, s["home.history"], 20.sp)
+                HomeButtonLabel(s["home.history"], 20.sp, shiftHalfCharLeft = true)
             }
         }
     }

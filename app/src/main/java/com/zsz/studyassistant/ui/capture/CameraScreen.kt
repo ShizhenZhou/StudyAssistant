@@ -586,7 +586,7 @@ internal fun CaptureProgress(step: Int, hint: String, firstPath: String?, enable
             }
             if (firstPath != null) TextButton(onClick = onRestart, enabled = enabled,
                 colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = Color.White)) {
-                AppIconLabel(s["camera.restart"], icon = AppIcon.Retake, iconSize = 18.dp, style = MaterialTheme.typography.labelMedium, iconBackground = Color.Black)
+                Text(s["camera.restart"], style = MaterialTheme.typography.labelMedium)
             }
         }
     }

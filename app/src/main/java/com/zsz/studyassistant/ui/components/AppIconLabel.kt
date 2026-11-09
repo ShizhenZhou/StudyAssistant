@@ -59,19 +59,5 @@ internal fun AppIconLabel(
 }
 
 private val labelIcons = listOf(
-    "📊" to AppIcon.Chart, "🗓" to AppIcon.Calendar, "⏰" to AppIcon.Alarm,
-    "⇅" to AppIcon.Sort, "↩" to AppIcon.Restore, "🔍" to AppIcon.Search,
-    "📷" to AppIcon.Camera, "✏" to AppIcon.Edit, "✍" to AppIcon.Edit,
-    "📚" to AppIcon.Notebook, "📖" to AppIcon.Book, "🕘" to AppIcon.History,
-    "🤖" to AppIcon.Ai, "🧠" to AppIcon.Brain, "🔔" to AppIcon.Bell,
-    "🎨" to AppIcon.Theme, "🌐" to AppIcon.Language, "💾" to AppIcon.Data,
-    "⬆" to AppIcon.Update, "ℹ" to AppIcon.Info, "ⓘ" to AppIcon.Info,
-    "🔑" to AppIcon.Key, "✂" to AppIcon.Crop, "⏱" to AppIcon.Timer,
-    "🗑" to AppIcon.Trash, "🗂" to AppIcon.Folder, "📁" to AppIcon.Folder,
-    "🛠" to AppIcon.Tools, "🐞" to AppIcon.Bug, "🗄" to AppIcon.Backup,
-    "✋" to AppIcon.Backup, "📋" to AppIcon.List, "🔒" to AppIcon.Shield,
-    "🖼" to AppIcon.Gallery, "🔄" to AppIcon.Refresh, "⏸" to AppIcon.Pause,
-    "⚠" to AppIcon.Warning, "🌱" to AppIcon.Leaf, "🌤" to AppIcon.Cloud,
-    "🔥" to AppIcon.Flame, "➕" to AppIcon.Plus, "👁" to AppIcon.Eye,
-    "🙈" to AppIcon.EyeOff, "✅" to AppIcon.Check, "🏷" to AppIcon.Tag
+    "🤖" to AppIcon.Ai, "🖼" to AppIcon.Gallery
 )

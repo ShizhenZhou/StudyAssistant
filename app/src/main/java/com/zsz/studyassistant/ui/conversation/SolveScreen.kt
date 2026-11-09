@@ -85,7 +85,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
@@ -99,7 +98,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -355,8 +353,6 @@ fun SolveScreen(
             }
         },
         topBar = {
-            // Compact visual buttons; Compose still expands their touch targets to at least 48dp.
-            // Keep room for a two-line subject name and grow with accessibility font scaling.
             val actionHeight = with(LocalDensity.current) {
                 (MaterialTheme.typography.labelLarge.lineHeight * 2).toDp()
             }.coerceAtLeast(40.dp)
@@ -411,7 +407,7 @@ fun SolveScreen(
                 },
                 navigationIcon = {
                     if (editMode) {
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = PaddingValues(horizontal = 4.dp)) { AppSymbol(AppIcon.Close, size = 18.dp, contentDescription = s["common.cancel"]) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("✕", fontSize = 18.sp) }
                     } else {
                         // 返回箭头：全应用统一样式（见 SubPageBackArrow）；**去处由页面树决定**（AppNav）
                         SubPageBackArrow(onClick = {
@@ -423,12 +419,11 @@ fun SolveScreen(
                     val smallPad = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                     // 顶栏右侧这几个按钮**字号统一**（用户要求）：一律用 BTN_LABEL_SOLVE（13sp）。
                     // 2026-10-07 用户要求「默认字号再缩小一些」（14 → 13），同栏里的按钮一起改，避免大小不一。
-                    // Both action slots use the same compact height without a measurement/recomposition loop.
                     val actionModifier = Modifier.height(actionHeight)
                     if (cfg.showPracticeSimilar) {
-                        TextButton(onClick = { vm.startSimilar(); nav.navigate(AppNav.SIMILAR) }, contentPadding = smallPad, modifier = Modifier.height(actionHeight)) { AppIconLabel(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
+                        TextButton(onClick = { vm.startSimilar(); nav.navigate(AppNav.SIMILAR) }, contentPadding = smallPad, modifier = actionModifier) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad, modifier = Modifier.height(actionHeight)) { AppIconLabel(s["solve.delete"], fontSize = BTN_LABEL_SOLVE) }
+                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad, modifier = actionModifier) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
                         //   右侧 = [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
@@ -438,7 +433,7 @@ fun SolveScreen(
                                 onClick = { vm.abortGeneration() },
                                 contentPadding = smallPad,
                                 modifier = actionModifier
-                            ) { AppIconLabel(s["solve.abort"], iconSize = 18.dp, fontSize = BTN_LABEL_SOLVE) }
+                            ) { Text(s["solve.abort"], fontSize = BTN_LABEL_SOLVE) }
                         } else {
                             TextButton(
                                 onClick = { if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
@@ -448,60 +443,104 @@ fun SolveScreen(
                                     vm.streamInterrupted || vm.streamingText != null,
                                 contentPadding = smallPad,
                                 modifier = actionModifier
-                            ) { AppIconLabel(s["solve.regen"], iconSize = 18.dp, fontSize = BTN_LABEL_SOLVE) }
+                            ) { Text(s["solve.regen"], fontSize = BTN_LABEL_SOLVE) }
                         }
                         // ★ 2026-10-13（用户要求）：「📚 存错题本」与「📁 分类」是同一个位置的两种状态，
-                        //   **占位必须完全一致** —— 所以两者共用同一份宽度：都按「18dp 图标 + 6dp 间距 + 5 个汉字」的宽度，
-                        //   高度共用 actionHeight；文字**左对齐**、多余宽度留白在右侧。
+                        //   **占位必须完全一致** —— 所以两者共用同一份宽度：都按「📁 + 空格 + 5 个汉字」的实测宽，
+                        //   高度统一为紧凑的 actionHeight；文字**左对齐**、多余宽度留白在右侧。
                         //   这样「存错题本 → 分类」切换时右侧按钮组一动不动。
                         val density = LocalDensity.current
                         val measurer = rememberTextMeasurer()
+                        // 必须用**按钮内容真正渲染用的样式**（M3 的 TextButton 内容样式 = labelLarge）来测：
+                        // 曾用裸 `TextStyle(fontSize = 13.sp)` 测（字距 0），与渲染不一致 → 实测偏窄 →
+                        // 5 个汉字被 Clip 掉最后一个字（用户实测「信号与系统」只显示「信号与系」）。
                         val baseTextStyle = MaterialTheme.typography.labelLarge.copy(fontSize = BTN_LABEL_SOLVE)
-                        val sampleWidthPx = remember(measurer, density, baseTextStyle) {
-                            measurer.measure("汉".repeat(CATEGORY_FULL_CHARS), baseTextStyle).size.width
+                        // 样本要**带上 emoji 后面那个空格**（标签形如「📁 名字」，少算空格会短一个字宽）
+                        val sampleWidthPx = remember(measurer, density, vm.fontScale.factor) {
+                            measurer.measure(
+                                buildAnnotatedString {
+                                    withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("📁 ") }
+                                    append("汉".repeat(CATEGORY_FULL_CHARS))
+                                },
+                                baseTextStyle
+                            ).size.width
                         }
-                        // Measure words only; the vector and fixed gap have independent metrics.
-                        val iconAndGapPx = with(density) { 24.dp.roundToPx() } // 18dp icon + 6dp gap
-                        val horizontalPadPx = with(density) { 6.dp.roundToPx() }
-                        val slackPx = with(density) { 1.dp.roundToPx() }
+                        val horizontalPadPx = with(density) { 6.dp.roundToPx() }   // = smallPad 的左右各 6dp
+                        val slackPx = with(density) { 1.dp.roundToPx() }           // 测量与排版之间 1px 级差异的余量
+                        // 最后一个按钮的固定占位（宽度 = 5 个汉字 + emoji + 两侧内边距）
                         val lastSlotModifier = with(density) {
-                            Modifier.width((sampleWidthPx + iconAndGapPx + 2 * horizontalPadPx + slackPx).toDp())
-                                .height(actionHeight)
+                            Modifier.width((sampleWidthPx + 2 * horizontalPadPx + slackPx).toDp()).height(actionHeight)
                         }
 
                         if (vm.isDeleted) {
                             // 已删除状态：保留「恢复」入口（删除入口已移入分类对话框）
                             Text(s["delete.removed"], fontSize = BTN_LABEL_SOLVE)
                         } else if (vm.savedToNotebook || vm.savedQuestionId != null) {
-                            val noneLabel = appLabelIcon(s["solve.category.none"]).second
+                            // ★ 「📁 分类」按钮（用户 2026-10-11 提出、2026-10-12 修订）：
+                            //   ① 占位固定：**宽 = 「📁 + 5 个汉字」的实测宽**（比旁边的「⏸/🔄」宽一个汉字 ⇒
+                            //      右侧按钮组整体往左挪一个汉字），**高 = 「⏸ 中止 / 🔄 重新生成」的实测高**；
+                            //   ② **emoji 字号任何时候都不变**（永远 BTN_LABEL_SOLVE=13sp），只有分类名缩放/换行；
+                            //   ③ 名字 ≤5 字用基准字号单行；多于 5 字**不出「…」**，先逐档调小字号，实在不行才换第二行。
+                            //   决策逻辑在 `categoryLabelStyle()`（纯函数、可单测），能否放下由 TextMeasurer 实测。
+                            val noneLabel = s["solve.category.none"]        // 形如「📁 暂不分类」
                             val curCat = categories.firstOrNull { it.id == vm.currentQuestionCategoryId }
-                            val catName = curCat?.name ?: noneLabel
-                            val realLabelWidthPx = remember(catName, measurer, baseTextStyle, density) {
-                                measurer.measure(catName, baseTextStyle).size.width
+                            val catName = curCat?.name ?: noneLabel.substringAfter(" ", noneLabel)
+                            val emoji = if (curCat != null) "📁" else noneLabel.substringBefore(" ", "📁")
+                            // **实际标签**（📁 + 空格 + 真名字）在基准字号下的宽度
+                            val realLabelWidthPx = remember(catName, emoji, measurer, density, vm.fontScale.factor) {
+                                measurer.measure(
+                                    buildAnnotatedString {
+                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
+                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append(catName) }
+                                    },
+                                    baseTextStyle
+                                ).size.width
                             }
-                            val contentWidthPx = if (catName.length <= CATEGORY_FULL_CHARS)
-                                maxOf(sampleWidthPx, realLabelWidthPx) else sampleWidthPx
-                            val (labelSp, labelMaxLines) = remember(catName, contentWidthPx, density, baseTextStyle) {
+                            // 内容宽：至少给「5 个汉字」的位置；名字 ≤5 字时若实测更宽就按实测 —— **绝不裁字**。
+                            // （>5 字不能按 13sp 的真宽给，否则按钮会被撑爆；那些名字交给下面的自适应缩字号）
+                            val contentWidthPx =
+                                if (catName.length <= CATEGORY_FULL_CHARS) maxOf(sampleWidthPx, realLabelWidthPx)
+                                else sampleWidthPx
+                            // 自适应：挑一个能完整放下的字号（>5 字先在单行里缩字号，仍不行才两行）
+                            val (labelSp, labelMaxLines) = remember(catName, contentWidthPx, density, vm.fontScale.factor) {
                                 categoryLabelStyle(catName.length) { sp, lines ->
-                                    !measurer.measure(catName, baseTextStyle.copy(fontSize = sp.sp),
-                                        maxLines = lines, constraints = Constraints(maxWidth = contentWidthPx))
-                                        .hasVisualOverflow
+                                    val r = measurer.measure(
+                                        buildAnnotatedString {
+                                            withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
+                                            withStyle(SpanStyle(fontSize = sp.sp)) { append(catName) }
+                                        },
+                                        baseTextStyle,
+                                        maxLines = lines,
+                                        constraints = Constraints(maxWidth = contentWidthPx)
+                                    )
+                                    !r.hasVisualOverflow
                                 }
                             }
                             TextButton(
-                                onClick = { categoryDialogFor = "change" }, contentPadding = smallPad,
+                                onClick = { categoryDialogFor = "change" },
+                                contentPadding = smallPad,
                                 modifier = with(density) {
-                                    Modifier.width((contentWidthPx + iconAndGapPx + 2 * horizontalPadPx + slackPx).toDp())
-                                        .height(actionHeight)
+                                    Modifier.width((contentWidthPx + 2 * horizontalPadPx + slackPx).toDp()).height(actionHeight)
                                 }
                             ) {
-                                AppIconLabel(catName, icon = AppIcon.Folder, iconSize = 18.dp,
-                                    fontSize = labelSp.sp, maxLines = labelMaxLines,
-                                    textAlign = TextAlign.Start, modifier = Modifier.fillMaxWidth())
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(SpanStyle(fontSize = BTN_LABEL_SOLVE)) { append("$emoji ") }
+                                        withStyle(SpanStyle(fontSize = labelSp.sp)) { append(catName) }
+                                    },
+                                    fontSize = labelSp.sp,
+                                    maxLines = labelMaxLines,
+                                    // ★ 不再用 Ellipsis：用户明确要求"多于 5 字不要出现…，宁可把字号调小"
+                                    overflow = TextOverflow.Clip,
+                                    textAlign = TextAlign.Start,
+                                    softWrap = true,
+                                    // 撑满按钮内容区 + 左对齐：emoji 永远贴在同一个位置，剩余宽度留白在右侧
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         } else {
                             // ★ 与「📁 分类」**完全同占位**（见上面 lastSlotModifier）：宽度按「5 个汉字」给，
-                            //   文字左对齐 → 图标与「分类」状态时落在同一个 x，多余宽度留白在右侧（用户 2026-10-13 要求）。
+                            //   文字左对齐 → emoji 与「分类」状态时落在同一个 x，多余宽度留白在右侧（用户 2026-10-13 要求）。
                             TextButton(
                                 // ★ 2026-10-14（用户要求）：点「存错题本」**不再**触发 AI 实时判断 ——
                                 //   预置分类/标签在"解答完成"时就已经拿好了（建议只影响还没存的题）。
@@ -510,8 +549,8 @@ fun SolveScreen(
                                 contentPadding = smallPad,
                                 modifier = lastSlotModifier
                             ) {
-                                AppIconLabel(
-                                    s["solve.saveToNotebook"], iconSize = 18.dp,
+                                Text(
+                                    s["solve.saveToNotebook"],
                                     fontSize = BTN_LABEL_SOLVE,
                                     maxLines = 1,
                                     textAlign = TextAlign.Start,
@@ -535,7 +574,7 @@ fun SolveScreen(
                         // 从错题本移除（硬删除）：右上角按钮随即变回「📚 存错题本」，界面留在当前题目会话
                         vm.unsaveFromNotebook()
                         showDeleteConfirm = false
-                    }) { AppIconLabel(s["common.delete"], icon = AppIcon.Trash, color = Color(0xFFE53935)) }
+                    }) { Text(s["common.delete"], color = Color(0xFFE53935)) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text(s["common.cancel"]) }
@@ -556,7 +595,7 @@ fun SolveScreen(
                         showEditDelete = false
                         editMode = false
                         selectedIndices = emptySet()
-                    }) { AppIconLabel(s["common.delete"], icon = AppIcon.Trash) }
+                    }) { Text(s["common.delete"]) }
                 },
                 dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text(s["common.cancel"]) } }
             )
@@ -662,7 +701,7 @@ fun SolveScreen(
             if (!hasKey) {
                 Card(Modifier.fillMaxWidth().padding(12.dp)) {
                     Column(Modifier.padding(12.dp)) {
-                        AppIconLabel(s["solve.noKey"], color = MaterialTheme.colorScheme.error)
+                        Text(s["solve.noKey"], color = MaterialTheme.colorScheme.error)
                         TextButton(onClick = { AppNav.switchTab(nav, AppNav.SETTINGS) }) { Text(s["solve.goSettings"]) }
                     }
                 }
@@ -840,8 +879,21 @@ fun SolveScreen(
                                 modifier = Modifier.size(44.dp).semantics { contentDescription = s["solve.returnToFollowUp"] }
                             ) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    AppSymbol(AppIcon.Return, size = 28.dp,
-                                        backgroundColor = if (darkTheme) Color(0xFF34465E) else Color(0xFFDCE6F8))
+                                    val arrowColor = androidx.compose.material3.LocalContentColor.current
+                                    androidx.compose.foundation.Canvas(Modifier.size(28.dp)) {
+                                        val unit = size.width / 24f
+                                        val path = androidx.compose.ui.graphics.Path().apply {
+                                            moveTo(20f * unit, 4f * unit)
+                                            lineTo(20f * unit, 14f * unit)
+                                            lineTo(4f * unit, 14f * unit)
+                                            moveTo(10f * unit, 8f * unit)
+                                            lineTo(4f * unit, 14f * unit)
+                                            lineTo(10f * unit, 20f * unit)
+                                        }
+                                        drawPath(path, arrowColor, style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                            join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                                    }
                                 }
                             }
                             if (scrollable) Surface(
@@ -921,7 +973,7 @@ fun SolveScreen(
                             answerRevealed = true
                         }
                     }) {
-                        AppIconLabel(if (answerRevealed) s["review.hideAnswer"] else s["review.showAnswer"])
+                        Text(if (answerRevealed) s["review.hideAnswer"] else s["review.showAnswer"])
                     }
                 }
                 // B6 重做：先在纸上自己写一遍 → 拍一张 → AI 批改并**自动**更新掌握度
@@ -932,7 +984,7 @@ fun SolveScreen(
                     },
                     shape = smoothPill(),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(46.dp)
-                ) { AppIconLabel(s["redo.entry"]) }
+                ) { Text(s["redo.entry"]) }
                 Row(
                     Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -941,24 +993,21 @@ fun SolveScreen(
                     Button(
                         onClick = { vm.reviewNext(2, onReviewFinished) },
                         enabled = !vm.reviewBusy && !vm.isDeleted,
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-                    ) { AppIconLabel(s["solve.familiar"], iconBackground = Color(0xFF4CAF50)) }
+                    ) { Text(s["solve.familiar"]) }
                     Button(
                         onClick = { vm.reviewNext(1, onReviewFinished) },
                         enabled = !vm.reviewBusy && !vm.isDeleted,
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
-                    ) { AppIconLabel(s["solve.vague"], iconBackground = Color(0xFFFFB300)) }
+                    ) { Text(s["solve.vague"]) }
                     Button(
                         onClick = { vm.reviewNext(0, onReviewFinished) },
                         enabled = !vm.reviewBusy && !vm.isDeleted,
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
-                    ) { AppIconLabel(s["solve.forgot"], iconBackground = Color(0xFFE53935)) }
+                    ) { Text(s["solve.forgot"]) }
                 }
             } else if (vm.chatItems.isNotEmpty() || vm.busy) {
                 // 输入栏（与同类题页共用组件：附图 + 公式键盘 + 图库 + 发送）
@@ -1036,7 +1085,7 @@ internal fun CategoryDialog(
                 FilterChip(
                     selected = newMode,
                     onClick = { newMode = true },
-                    label = { AppIconLabel(s["solve.cat.new"]) }
+                    label = { Text(s["solve.cat.new"]) }
                 )
                 if (newMode) {
                     Spacer(Modifier.height(8.dp))
@@ -1082,8 +1131,8 @@ private fun EditMsgRow(item: ChatItem, selected: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            AppIconLabel(
-                item.content.replace('\n', ' '), icon = if (isAssistant) AppIcon.Ai else AppIcon.Person,
+            Text(
+                (if (isAssistant) "🤖 " else "🧑 ") + item.content.replace('\n', ' '),
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodySmall,
@@ -1174,7 +1223,7 @@ internal fun SaveDialog(
                         }
                     }
                 }
-                FilterChip(selected = newCatMode, onClick = { newCatMode = true }, label = { AppIconLabel(s["solve.cat.new"]) })
+                FilterChip(selected = newCatMode, onClick = { newCatMode = true }, label = { Text(s["solve.cat.new"]) })
                 if (newCatMode) {
                     OutlinedTextField(value = newCatName, onValueChange = { newCatName = it }, label = { Text(s["solve.cat.name"]) }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                 }
@@ -1282,7 +1331,7 @@ internal fun SaveDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = { onDelete() }) {
-                        AppIconLabel(s["common.delete"], icon = AppIcon.Trash, color = Color(0xFFE53935))
+                        Text(s["common.delete"], color = Color(0xFFE53935))
                     }
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
@@ -1301,7 +1350,7 @@ internal fun SaveDialog(
     if (dupWarn && duplicateOf != null) {
         AlertDialog(
             onDismissRequest = { dupWarn = false },
-            title = { AppIconLabel(s["dup.title"]) },
+            title = { Text(s["dup.title"]) },
             text = {
                 Column {
                     Text(s["dup.text"])

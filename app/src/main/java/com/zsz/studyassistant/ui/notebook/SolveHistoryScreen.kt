@@ -140,7 +140,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                         TextButton(
                             onClick = { exitSelection() },
                             contentPadding = PaddingValues(horizontal = 6.dp)
-                        ) { AppSymbol(AppIcon.Close, size = 18.dp, contentDescription = s["common.cancel"]) }
+                        ) { Text("✕", fontSize = 18.sp) }
                     } else {
                         SubPageBackArrow(onClick = { nav.popBackStack() })
                     }
@@ -152,7 +152,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             onClick = { showDeleteConfirm = true },
                             enabled = selectedIds.isNotEmpty(),
                             contentPadding = compact
-                        ) { AppIconLabel(s["solve.delete"], iconSize = 16.dp, iconSpacing = 4.dp, fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
+                        ) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
                     }
                 }
             )
@@ -239,7 +239,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                     if (ids.isNotEmpty()) {
                         vm.deleteHistoryRecords(ids)
                     }
-                }) { AppIconLabel(s["common.delete"], icon = AppIcon.Trash) }
+                }) { Text(s["common.delete"]) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text(s["common.cancel"]) }

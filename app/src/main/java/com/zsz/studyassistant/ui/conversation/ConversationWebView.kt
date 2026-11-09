@@ -489,7 +489,7 @@ internal fun configureConversationWebView(view: WebView) {
 }
 
 internal open class ConversationAssetClient : WebViewClient() {
-    private val assets = Regex("file:///android_asset/(conversation_render\\.html|quote_navigation\\.js|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
+    private val assets = Regex("file:///android_asset/(conversation_render\\.html|quote_navigation\\.js|svg_diagrams\\.js|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
     private fun resource(url: String): WebResourceResponse? = if (assets.matches(url)) null else
         WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(), java.io.ByteArrayInputStream(byteArrayOf()))
 

@@ -50,7 +50,7 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
         Button(onClick = {
             if (model.drafts.isNotEmpty()) replaceConfirm = true else model.analyze(language)
         }, enabled = !model.busy && (base?.tags?.size ?: 0) >= 2, modifier = Modifier.weight(1f)) { AppIconLabel(s["tagMerge.analyze"], icon = AppIcon.Ai, iconSize = 18.dp, onPrimary = true) }
-        AppOutlinedButton(onClick = { model.load() }, enabled = !model.busy, modifier = Modifier.weight(1f)) { AppIconLabel(s["tagMerge.reload"], icon = AppIcon.Refresh, iconSize = 18.dp) }
+        AppOutlinedButton(onClick = { model.load() }, enabled = !model.busy, modifier = Modifier.weight(1f)) { Text(s["tagMerge.reload"]) }
     }
     model.draftStatusKey?.let { key ->
         Text(s[key], style = MaterialTheme.typography.bodySmall,
@@ -82,8 +82,8 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
     }
     HorizontalDivider()
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = { model.addGroup() }, enabled = !model.busy && (base?.tags?.size ?: 0) >= 2, modifier = Modifier.weight(1f)) { AppIconLabel(s["tagMerge.addGroup"], icon = AppIcon.Plus, iconSize = 18.dp) }
-        TextButton(onClick = { model.selectAll() }, enabled = !model.busy && model.drafts.isNotEmpty(), modifier = Modifier.weight(1f)) { AppIconLabel(s["tagMerge.selectAll"], icon = AppIcon.SelectAll, iconSize = 18.dp) }
+        TextButton(onClick = { model.addGroup() }, enabled = !model.busy && (base?.tags?.size ?: 0) >= 2, modifier = Modifier.weight(1f)) { Text(s["tagMerge.addGroup"]) }
+        TextButton(onClick = { model.selectAll() }, enabled = !model.busy && model.drafts.isNotEmpty(), modifier = Modifier.weight(1f)) { Text(s["tagMerge.selectAll"]) }
     }
     if (model.drafts.isEmpty()) Text(s["tagMerge.empty"], style = MaterialTheme.typography.bodySmall)
     model.drafts.forEach { draft ->
@@ -112,11 +112,11 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
     }
     Spacer(Modifier.height(12.dp))
     Button(onClick = { model.preview() }, enabled = !model.busy && model.drafts.any { it.selected }, modifier = Modifier.fillMaxWidth()) {
-        AppIconLabel(s["tagMerge.preview"], icon = AppIcon.Merge, iconSize = 18.dp, onPrimary = true)
+        Text(s["tagMerge.preview"])
     }
     Spacer(Modifier.height(12.dp))
     AppOutlinedButton(onClick = { undoConfirm = true }, enabled = !model.busy && model.undoAllowed, modifier = Modifier.fillMaxWidth()) {
-        AppIconLabel(s["tagMerge.undo"], icon = AppIcon.Undo, iconSize = 18.dp)
+        Text(s["tagMerge.undo"])
     }
     Text(s[if (!model.undoPresent) "tagMerge.undoNone" else if (!model.undoAllowed) "tagMerge.undoUnavailable" else "tagMerge.undoHint"],
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)

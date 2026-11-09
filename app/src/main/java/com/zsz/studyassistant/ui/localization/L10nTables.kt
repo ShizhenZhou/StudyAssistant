@@ -59,7 +59,7 @@ private val B14_ZH = mapOf(
     "back.exit.pressAgain" to "再按返回桌面",
     "back.exit.swipeAgain" to "再划返回桌面",
     "catManage.customOrder" to "自定义排列顺序",
-    "catManage.dragHint" to "长按拖动手柄调整科目排序，拖到列表边缘可滚动；松手后自动保存。关闭开关后恢复按题数排序。",
+    "catManage.dragHint" to "长按 ≡ 拖动科目排序，拖到列表边缘可滚动；松手后自动保存。关闭开关后恢复按题数排序。",
     "catManage.count" to "{n} 题",
     "catManage.drag" to "拖动排序：{name}",
     "catManage.moveUp" to "上移",
@@ -160,7 +160,7 @@ private val B14_EN = mapOf(
     "back.exit.pressAgain" to "Press back again to go home",
     "back.exit.swipeAgain" to "Swipe back again to go home",
     "catManage.customOrder" to "Custom order",
-    "catManage.dragHint" to "Hold the drag handle to reorder; move to an edge to scroll. Release to save. Turn this off to sort by problem count.",
+    "catManage.dragHint" to "Hold ≡ and drag to reorder; move to an edge to scroll. Release to save. Turn this off to sort by problem count.",
     "catManage.count" to "{n} problems",
     "catManage.drag" to "Drag to reorder: {name}",
     "catManage.moveUp" to "Move up",
@@ -261,7 +261,7 @@ private val B14_JA = mapOf(
     "back.exit.pressAgain" to "もう一度戻るボタンを押すとホームに戻ります",
     "back.exit.swipeAgain" to "もう一度戻るスワイプでホームに戻ります",
     "catManage.customOrder" to "並び順をカスタマイズ",
-    "catManage.dragHint" to "ドラッグハンドルを長押しすると並べ替えできます。端でスクロールし、離すと保存します。オフにすると問題数順に戻ります。",
+    "catManage.dragHint" to "≡ を長押ししてドラッグすると並べ替えできます。端でスクロールし、離すと保存します。オフにすると問題数順に戻ります。",
     "catManage.count" to "{n} 問",
     "catManage.drag" to "ドラッグして並べ替え：{name}",
     "catManage.moveUp" to "上へ移動",
@@ -362,7 +362,7 @@ private val B14_KO = mapOf(
     "back.exit.pressAgain" to "뒤로 버튼을 한 번 더 누르면 홈으로 돌아갑니다",
     "back.exit.swipeAgain" to "한 번 더 뒤로 스와이프하면 홈으로 돌아갑니다",
     "catManage.customOrder" to "순서 직접 지정",
-    "catManage.dragHint" to "이동 핸들을 길게 눌러 드래그하면 순서를 바꿉니다. 가장자리에서 스크롤하며, 놓으면 저장합니다. 끄면 문제 수순으로 돌아갑니다.",
+    "catManage.dragHint" to "≡ 를 길게 눌러 드래그하면 순서를 바꿉니다. 가장자리에서 스크롤하며, 놓으면 저장합니다. 끄면 문제 수순으로 돌아갑니다.",
     "catManage.count" to "{n}문제",
     "catManage.drag" to "드래그하여 순서 변경: {name}",
     "catManage.moveUp" to "위로 이동",
@@ -521,17 +521,17 @@ private val B0_ZH = mapOf(
     "nav.settings" to "设置",
 
     "home.subtitle" to "拍照解题 · AI 解答 · 错题整理",
-    "home.camera" to "拍照解题",
-    "home.ask" to "图文提问",
+    "home.camera" to "📷  拍照解题",
+    "home.ask" to "✏️  图文提问",
     "camera.gradeToggle" to "批改",
     "home.grade" to "✏️  批改题目",
-    "home.notebook" to "错题本",
-    "home.review" to "复习",
+    "home.notebook" to "📚  错题本",
+    "home.review" to "📖  复习",
     // ── 解题记录（2026-10-13）──
-    "home.history" to "解题记录",
+    "home.history" to "🕘  解题记录",
     "history.empty" to "还没有解题记录。首次拍题或提交图文提问后会留下记录，按首次提问时间排序；从错题本打开不会新增记录。",
     "history.count" to "当前共 {n} 条",
-    // 顶栏使用纯文字标题；首页图标与多语言标签分开绘制。
+    // ★ 2026-10-18：顶栏标题**不带 emoji**（emoji 只留在主页那个按钮的 home.history 上）
     "history.title" to "解题记录",
     "history.saveFailed" to "{n} 条解题记录尚未保存。请在关闭应用前重试。",
     "history.saveRetry" to "重试保存",
@@ -555,7 +555,6 @@ private val B0_ZH = mapOf(
     "settings.group.general" to "通用",
     "settings.group.personalize" to "个性化",
     "settings.group.notifyBackground" to "🔔 通知与后台",
-    "settings.group.notifyBackground.label" to "通知与后台",
     "settings.aiCrop" to "🤖 AI 配置",
     "settings.aiCrop.enable" to "✂️ 自动 AI 切图",
     "settings.aiCrop.enable.desc" to "开启后，进入框选页面会自动运行 AI 切图。无论开关状态如何，都可以点击框选页面的 AI 切图按钮手动识别。",
@@ -569,9 +568,7 @@ private val B0_ZH = mapOf(
     "settings.aiCrop.desc" to "滑到最右端，越过 5 秒后的阻尼即可选择 ∞。手动调框、换图或离开可结束等待。",
     "settings.aiCrop.snapHint" to "磁吸点：500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 语言设置",
-    "settings.lang.label" to "语言设置",
     "settings.theme" to "🎨 应用主题",
-    "settings.theme.label" to "应用主题",
     "settings.theme.mode" to "主题模式",
     "settings.theme.color" to "主题配色",
     "settings.theme.custom" to "自定义颜色",
@@ -588,7 +585,6 @@ private val B0_ZH = mapOf(
     "settings.background" to "🔋 后台运行",
     "settings.changelog" to "📝 更新内容",
     "settings.about" to "ℹ️ 关于",
-    "settings.about.label" to "关于",
 
     "lang.title" to "🌐 语言设置",
     "lang.ui" to "应用语言",
@@ -648,14 +644,14 @@ private val B0_EN = mapOf(
     "nav.settings" to "Settings",
 
     "home.subtitle" to "Photo solving · AI solutions · Mistake notebook",
-    "home.camera" to "Solve by photo",
-    "home.ask" to "Ask with text/image",
+    "home.camera" to "📷  Solve by photo",
+    "home.ask" to "✏️  Ask with text/image",
     "camera.gradeToggle" to "Grade",
     "home.grade" to "✏️  Grade my work",
-    "home.notebook" to "Notebook",
-    "home.review" to "Review",
+    "home.notebook" to "📚  Notebook",
+    "home.review" to "📖  Review",
     // ── 解题记录（2026-10-13）──
-    "home.history" to "Solution history",
+    "home.history" to "🕘  Solution history",
     "history.empty" to "No search records yet. Photo and text submissions appear here in first-question order. Opening a notebook problem does not add a record.",
     "history.count" to "{n} records",
     "history.title" to "Solution history",
@@ -681,7 +677,6 @@ private val B0_EN = mapOf(
     "settings.group.general" to "General",
     "settings.group.personalize" to "Personalization",
     "settings.group.notifyBackground" to "🔔 Notifications & background",
-    "settings.group.notifyBackground.label" to "Notifications & background",
     "settings.aiCrop" to "🤖 AI settings",
     "settings.aiCrop.enable" to "✂️ Automatic AI cropping",
     "settings.aiCrop.enable.desc" to "Automatically run AI cropping when the crop screen opens. The AI crop button remains available for manual use.",
@@ -695,9 +690,7 @@ private val B0_EN = mapOf(
     "settings.aiCrop.desc" to "Slide past the stop after 5 s to select ∞. Adjust the crop, switch images or leave to stop waiting.",
     "settings.aiCrop.snapHint" to "Snap points: 500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 Language",
-    "settings.lang.label" to "Language",
     "settings.theme" to "🎨 App theme",
-    "settings.theme.label" to "App theme",
     "settings.theme.mode" to "Theme mode",
     "settings.theme.color" to "Theme colour",
     "settings.theme.custom" to "Custom colour",
@@ -714,7 +707,6 @@ private val B0_EN = mapOf(
     "settings.background" to "🔋 Background running",
     "settings.changelog" to "📝 What's new",
     "settings.about" to "ℹ️ About",
-    "settings.about.label" to "About",
 
     "lang.title" to "🌐 Language",
     "lang.ui" to "App language",
@@ -774,14 +766,14 @@ private val B0_JA = mapOf(
     "nav.settings" to "設定",
 
     "home.subtitle" to "撮影して解答 · AI 解答 · 間違いノート",
-    "home.camera" to "撮影して解答",
-    "home.ask" to "文字/画像で質問",
+    "home.camera" to "📷  撮影して解答",
+    "home.ask" to "✏️  文字/画像で質問",
     "camera.gradeToggle" to "添削",
     "home.grade" to "✏️  添削",
-    "home.notebook" to "間違いノート",
-    "home.review" to "復習",
+    "home.notebook" to "📚  間違いノート",
+    "home.review" to "📖  復習",
     // ── 解题记录（2026-10-13）──
-    "home.history" to "解答履歴",
+    "home.history" to "🕘  解答履歴",
     "history.empty" to "解答履歴はまだありません。撮影・質問の初回送信時に記録し、その日時で並びます。ノートから開いても追加しません。",
     "history.count" to "現在 {n} 件",
     "history.title" to "解答履歴",
@@ -807,7 +799,6 @@ private val B0_JA = mapOf(
     "settings.group.general" to "一般",
     "settings.group.personalize" to "パーソナライズ",
     "settings.group.notifyBackground" to "🔔 通知とバックグラウンド",
-    "settings.group.notifyBackground.label" to "通知とバックグラウンド",
     "settings.aiCrop" to "🤖 AI 設定",
     "settings.aiCrop.enable" to "✂️ 自動 AI 切り抜き",
     "settings.aiCrop.enable.desc" to "オンにすると切り抜き画面で AI が自動実行されます。手動の AI 切り抜きボタンは常に利用できます。",
@@ -821,9 +812,7 @@ private val B0_JA = mapOf(
     "settings.aiCrop.desc" to "5秒の先の段差を越えると ∞ になります。手動調整、画像の切り替え、終了で待機を中止できます。",
     "settings.aiCrop.snapHint" to "スナップ点：500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 言語設定",
-    "settings.lang.label" to "言語設定",
     "settings.theme" to "🎨 アプリテーマ",
-    "settings.theme.label" to "アプリテーマ",
     "settings.theme.mode" to "テーマモード",
     "settings.theme.color" to "テーマカラー",
     "settings.theme.custom" to "カスタムカラー",
@@ -840,7 +829,6 @@ private val B0_JA = mapOf(
     "settings.background" to "🔋 バックグラウンド実行",
     "settings.changelog" to "📝 更新内容",
     "settings.about" to "ℹ️ このアプリについて",
-    "settings.about.label" to "このアプリについて",
 
     "lang.title" to "🌐 言語設定",
     "lang.ui" to "アプリの言語",
@@ -900,14 +888,14 @@ private val B0_KO = mapOf(
     "nav.settings" to "설정",
 
     "home.subtitle" to "사진으로 풀이 · AI 풀이 · 오답 노트",
-    "home.camera" to "사진으로 풀이",
-    "home.ask" to "글/이미지 질문",
+    "home.camera" to "📷  사진으로 풀이",
+    "home.ask" to "✏️  글/이미지 질문",
     "camera.gradeToggle" to "첨삭",
     "home.grade" to "✏️  채점",
-    "home.notebook" to "오답 노트",
-    "home.review" to "복습",
+    "home.notebook" to "📚  오답 노트",
+    "home.review" to "📖  복습",
     // ── 解题记录（2026-10-13）──
-    "home.history" to "풀이 기록",
+    "home.history" to "🕘  풀이 기록",
     "history.empty" to "풀이 기록이 없습니다. 촬영 또는 질문을 처음 제출한 시간순으로 기록하며, 오답 노트에서 열어도 새 기록을 추가하지 않습니다.",
     "history.count" to "현재 {n}건",
     "history.title" to "풀이 기록",
@@ -933,7 +921,6 @@ private val B0_KO = mapOf(
     "settings.group.general" to "일반",
     "settings.group.personalize" to "개인 설정",
     "settings.group.notifyBackground" to "🔔 알림 및 백그라운드",
-    "settings.group.notifyBackground.label" to "알림 및 백그라운드",
     "settings.aiCrop" to "🤖 AI 설정",
     "settings.aiCrop.enable" to "✂️ 자동 AI 자르기",
     "settings.aiCrop.enable.desc" to "켜면 자르기 화면을 열 때 AI가 자동으로 실행됩니다. AI 자르기 버튼은 언제든 수동으로 사용할 수 있습니다.",
@@ -947,9 +934,7 @@ private val B0_KO = mapOf(
     "settings.aiCrop.desc" to "5초 뒤의 걸림 구간을 지나 오른쪽 끝으로 밀면 ∞를 선택합니다. 영역 조정, 이미지 전환 또는 화면 종료로 대기를 끝낼 수 있습니다.",
     "settings.aiCrop.snapHint" to "스냅 지점: 500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 언어 설정",
-    "settings.lang.label" to "언어 설정",
     "settings.theme" to "🎨 앱 테마",
-    "settings.theme.label" to "앱 테마",
     "settings.theme.mode" to "테마 모드",
     "settings.theme.color" to "테마 색상",
     "settings.theme.custom" to "사용자 지정 색",
@@ -966,7 +951,6 @@ private val B0_KO = mapOf(
     "settings.background" to "🔋 백그라운드 실행",
     "settings.changelog" to "📝 업데이트 내역",
     "settings.about" to "ℹ️ 정보",
-    "settings.about.label" to "정보",
 
     "lang.title" to "🌐 언어 설정",
     "lang.ui" to "앱 언어",
@@ -1824,7 +1808,6 @@ private val B7_ZH = mapOf(
     "data.autoBackup.permissionFailed" to "备份文件夹的访问权限已失效，请重新选择文件夹。",
     "data.autoBackup.healthWarning" to "最近一次备份失败（{t}）：{reason} 成功备份后此警示会消失。",
     "settings.data" to "💾 数据管理",
-    "settings.data.label" to "数据管理",
     "about.changelog" to "更新内容",
     "about.info" to "应用信息",
 
@@ -1959,7 +1942,6 @@ private val B7_EN = mapOf(
     "data.autoBackup.permissionFailed" to "Backup folder access was denied. Please select the folder again.",
     "data.autoBackup.healthWarning" to "Last backup attempt failed ({t}): {reason} This warning clears after a successful backup.",
     "settings.data" to "💾 Data",
-    "settings.data.label" to "Data",
     "about.changelog" to "What's new",
     "about.info" to "App info",
 
@@ -2094,7 +2076,6 @@ private val B7_JA = mapOf(
     "data.autoBackup.permissionFailed" to "バックアップ先へのアクセスが拒否されました。フォルダーを選び直してください。",
     "data.autoBackup.healthWarning" to "直近のバックアップに失敗しました（{t}）：{reason} 成功するとこの警告は消えます。",
     "settings.data" to "💾 データ管理",
-    "settings.data.label" to "データ管理",
     "about.changelog" to "更新内容",
     "about.info" to "アプリ情報",
 
@@ -2228,7 +2209,6 @@ private val B7_KO = mapOf(
     "data.autoBackup.permissionFailed" to "백업 폴더 접근이 거부되었습니다. 폴더를 다시 선택하세요.",
     "data.autoBackup.healthWarning" to "최근 백업 실패({t}): {reason} 백업에 성공하면 이 경고가 사라집니다.",
     "settings.data" to "💾 데이터 관리",
-    "settings.data.label" to "데이터 관리",
     "about.changelog" to "업데이트 내역",
     "about.info" to "앱 정보",
 
@@ -2516,14 +2496,12 @@ private val B9_KO = mapOf(
 // ===========================================================================
 private val B10_ZH = mapOf(
     "settings.aiManage" to "🤖 AI 管理",
-    "settings.aiManage.label" to "AI 管理",
     "settings.update" to "⬆️ 应用更新",
-    "settings.update.label" to "应用更新",
     "about.features" to "📋 功能",
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
         "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
-        "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式显示。\n" +
+        "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
         "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
@@ -2579,14 +2557,12 @@ private val B10_ZH = mapOf(
 
 private val B10_EN = mapOf(
     "settings.aiManage" to "🤖 AI management",
-    "settings.aiManage.label" to "AI management",
     "settings.update" to "⬆️ App update",
-    "settings.update.label" to "App update",
     "about.features" to "📋 Features",
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
         "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
-        "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Formulas are supported.\n" +
+        "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
         "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
@@ -2642,14 +2618,12 @@ private val B10_EN = mapOf(
 
 private val B10_JA = mapOf(
     "settings.aiManage" to "🤖 AI 管理",
-    "settings.aiManage.label" to "AI 管理",
     "settings.update" to "⬆️ アプリ更新",
-    "settings.update.label" to "アプリ更新",
     "about.features" to "📋 機能",
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
         "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
-        "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式表示に対応。\n" +
+        "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・簡単な SVG 図に対応。\n" +
         "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
         "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
@@ -2705,14 +2679,12 @@ private val B10_JA = mapOf(
 
 private val B10_KO = mapOf(
     "settings.aiManage" to "🤖 AI 관리",
-    "settings.aiManage.label" to "AI 관리",
     "settings.update" to "⬆️ 앱 업데이트",
-    "settings.update.label" to "앱 업데이트",
     "about.features" to "📋 기능",
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
         "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
-        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식 표시를 지원합니다.\n" +
+        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표와 간단한 SVG 그림을 지원합니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
         "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
