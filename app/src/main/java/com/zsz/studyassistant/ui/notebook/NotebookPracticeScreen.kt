@@ -125,11 +125,11 @@ internal fun NotebookPracticeScreen(nav: NavHostController, vm: MainViewModel) {
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
                         if (revealed) {
-                            Button(onClick = { advance { forgot++ } }) { Text(s["solve.forgot"]) }
-                            Button(onClick = { advance { vague++ } }) { Text(s["solve.vague"]) }
-                            Button(onClick = { advance { familiar++ } }) { Text(s["solve.familiar"]) }
+                            Button(onClick = { advance { forgot++ } }) { AppIconLabel(s["solve.forgot"], iconSize = 16.dp, iconSpacing = 4.dp, onPrimary = true) }
+                            Button(onClick = { advance { vague++ } }) { AppIconLabel(s["solve.vague"], iconSize = 16.dp, iconSpacing = 4.dp, onPrimary = true) }
+                            Button(onClick = { advance { familiar++ } }) { AppIconLabel(s["solve.familiar"], iconSize = 16.dp, iconSpacing = 4.dp, onPrimary = true) }
                         } else {
-                            Button(onClick = { revealed = true }) { Text(s["review.showAnswer"]) }
+                            Button(onClick = { revealed = true }) { AppIconLabel(s["review.showAnswer"], iconSize = 16.dp, iconSpacing = 4.dp, onPrimary = true) }
                             TextButton(onClick = { advance() }) { Text(s["practice.skip"]) }
                         }
                     }

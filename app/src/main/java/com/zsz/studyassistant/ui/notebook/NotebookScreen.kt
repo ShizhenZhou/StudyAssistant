@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.ui.semantics.selected
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.animation.animateContentSize
@@ -224,7 +225,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         selectionMode -> TextButton(
                             onClick = { exitSelection() },
                             contentPadding = PaddingValues(horizontal = 6.dp)
-                        ) { Text("✕", fontSize = 18.sp) }
+                        ) { AppSymbol(AppIcon.Close, size = 18.dp, contentDescription = s["common.cancel"]) }
                         // 返回箭头也用紧凑 TextButton：宽度只有"箭头 + 4dp"，标题因此更靠近 ←（用户要求）
                         page == "manage" -> SubPageBackArrow(onClick = { page = "list"; searchOpen = false })
                         else -> SubPageBackArrow(onClick = { nav.popBackStack() })
@@ -237,13 +238,13 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                                 if (!vm.customCategoryOrderEnabled && vm.customCategoryOrder.isEmpty()) vm.updateCustomCategoryOrder(chipOrder)
                                 vm.updateCustomCategoryOrderEnabled(!vm.customCategoryOrderEnabled)
                             }, label = { Text(s["catManage.customOrder"], fontSize = BTN_LABEL_SOLVE) },
-                                trailingIcon = { if (vm.customCategoryOrderEnabled) Text("✓") })
+                                trailingIcon = { if (vm.customCategoryOrderEnabled) AppSymbol(AppIcon.Check, size = 16.dp) })
                         }
                         selectionMode -> {
                             // 三个按钮紧凑摆放（缩小左右内边距），给标题让出空间
                             val compact = PaddingValues(horizontal = 4.dp)
-                            TextButton(onClick = { showBatchCategory = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { Text(s["notebook.category"], maxLines = 1, softWrap = false) }
-                            TextButton(onClick = { showBatchDelete = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { Text(s["solve.delete"], maxLines = 1, softWrap = false) }
+                            TextButton(onClick = { showBatchCategory = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { AppIconLabel(s["notebook.category"], iconSize = 16.dp, iconSpacing = 4.dp, maxLines = 1, softWrap = false) }
+                            TextButton(onClick = { showBatchDelete = true }, enabled = selectedIds.isNotEmpty(), contentPadding = compact) { AppIconLabel(s["solve.delete"], iconSize = 16.dp, iconSpacing = 4.dp, maxLines = 1, softWrap = false) }
                         }
                         else -> {
                             // 🔍 搜索：点开才出现搜索框，再点别处关闭
@@ -252,25 +253,26 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             TextButton(
                                 onClick = { if (searchOpen) closeSearch() else { searchOpen = true; requestSearchFocus = true } },
                                 contentPadding = PaddingValues(horizontal = 6.dp)
-                            ) { Text("🔍", fontSize = BTN_LABEL_SOLVE) }
+                            ) { AppSymbol(AppIcon.Search, size = 20.dp, contentDescription = s["notebook.search"]) }
                             // ⇅ 排序（A5）：最近添加 / 最早添加 / 下次复习 / 复习次数 / 最不熟
                             Box {
                                 TextButton(onClick = { sortMenu = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                                    Text(s["notebook.sort"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false)
+                                    AppIconLabel(s["notebook.sort"], iconSize = 16.dp, iconSpacing = 4.dp, fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false)
                                 }
                                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                     NotebookSortMode.menuOrder.forEach { m ->
                                         DropdownMenuItem(
                                             text = { Text(s["notebook.sort.${m.id}"]) },
                                             onClick = { vm.setNotebookSort(m); sortMenu = false },
-                                            trailingIcon = { if (m == sortMode) Text("✓") }
+                                            modifier = Modifier.semantics { this.selected = m == sortMode },
+                                            trailingIcon = { if (m == sortMode) AppSymbol(AppIcon.Check, size = 16.dp) }
                                         )
                                     }
                                 }
                             }
                             // 管理：科目（分类）管理
                             TextButton(onClick = { page = "manage"; searchOpen = false }) {
-                                Text(s["notebook.manage"], fontSize = BTN_LABEL_SOLVE)
+                                AppIconLabel(s["notebook.manage"], icon = AppIcon.Manage, iconSize = 16.dp, iconSpacing = 4.dp, fontSize = BTN_LABEL_SOLVE)
                             }
                         }
                     }
@@ -316,7 +318,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                         singleLine = true,
                         trailingIcon = {
                             if (query.isNotEmpty()) {
-                                TextButton(onClick = { query = "" }) { Text("✕") }
+                                TextButton(onClick = { query = "" }) { AppSymbol(AppIcon.Close, size = 18.dp, contentDescription = s["common.cancel"]) }
                             }
                         },
                         shape = RoundedCornerShape(12.dp)
@@ -364,7 +366,8 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                                         onClick = {
                                             filterTagIds = if (filterTagIds.contains(tag.id)) filterTagIds - tag.id else filterTagIds + tag.id
                                         },
-                                        trailingIcon = { if (filterTagIds.contains(tag.id)) Text("✓") }
+                                        modifier = Modifier.semantics { this.selected = filterTagIds.contains(tag.id) },
+                                        trailingIcon = { if (filterTagIds.contains(tag.id)) AppSymbol(AppIcon.Check, size = 16.dp) }
                                     )
                                 }
                             }
@@ -377,7 +380,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             practice.ids = filtered.map { it.id }
                             nav.navigate(AppNav.NOTEBOOK_PRACTICE) { launchSingleTop = true }
                         }
-                    ) { Text(s["practice.title"]) }
+                    ) { AppIconLabel(s["practice.title"], icon = AppIcon.Target) }
                     Text(
                         s.format("notebook.listCount", "n" to "${filtered.size}"),
                         modifier = Modifier.weight(1f),
@@ -471,7 +474,7 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                     vm.batchDelete(selectedIds.toList())
                     showBatchDelete = false
                     exitSelection()
-                }) { Text(s["common.delete"]) }
+                }) { AppIconLabel(s["common.delete"], icon = AppIcon.Trash) }
             },
             dismissButton = { TextButton(onClick = { showBatchDelete = false }) { Text(s["common.cancel"]) } }
         )
@@ -667,7 +670,7 @@ private fun CategoryManagePage(
                             Text(s.format("catManage.count", "n" to "${counts[id] ?: 0}"),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (c != null) TextButton(onClick = { renaming = c; renameText = c.name }) { Text("✏️") }
+                        if (c != null) TextButton(onClick = { renaming = c; renameText = c.name }) { AppSymbol(AppIcon.Edit, size = 20.dp, contentDescription = s["catManage.renameTitle"]) }
                         if (vm.customCategoryOrderEnabled) Box(
                             Modifier.size(48.dp).semantics {
                                 contentDescription = s.format("catManage.drag", "name" to name)
@@ -695,7 +698,7 @@ private fun CategoryManagePage(
                                     onDragCancel = { endDrag(false) }
                                 ) { change, amount -> change.consume(); dragDistance += amount.y }
                             }, contentAlignment = Alignment.Center
-                        ) { Text("≡", fontSize = 24.sp) }
+                        ) { AppSymbol(AppIcon.Drag, size = 24.dp) }
                     }
                     Spacer(
                         Modifier

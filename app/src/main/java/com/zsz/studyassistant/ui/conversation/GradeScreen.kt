@@ -229,7 +229,7 @@ fun GradeScreen(nav: NavHostController, vm: MainViewModel) {
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 20.dp, bottom = 28.dp).size(60.dp)
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FlowerIcon(size = 34.dp) }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { GalleryIcon(size = 34.dp) }
         }
 
         // 快门（严格横向居中，拍题页同款）

@@ -515,7 +515,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                         if (dispBase.width > 1f) selection.bounds = dispBase
                         flow.detectCrop(p, selection.bounds, true, aiCropMs, manual = true)
                     }
-                ) { Text(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"], maxLines = 1, softWrap = false) }
+                ) { AppIconLabel(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"], iconSize = 16.dp, iconSpacing = 4.dp, maxLines = 1, softWrap = false) }
                 TextButton(
                     enabled = !submitting && !flow.rotating,
                     onClick = {
@@ -526,7 +526,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                         }
                     },
                     modifier = Modifier.semantics { contentDescription = s["crop.rotate"] }
-                ) { Text("↻ 90°", maxLines = 1, softWrap = false) }
+                ) { AppIconLabel("90°", icon = AppIcon.Rotate, iconSize = 18.dp, iconSpacing = 4.dp, maxLines = 1, softWrap = false) }
                 // Returning from an attachment batch preserves the original input.
                 TextButton(onClick = { handleBack() }) {
                     Text(if (flow.cropIndex > 0) s["crop.prevImage"] else s[if (attachment) "crop.backToInput" else "crop.backToCamera"], maxLines = 1, softWrap = false)

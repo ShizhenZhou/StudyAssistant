@@ -424,7 +424,7 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 .semantics { contentDescription = s["camera.gallery"] }
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                FlowerIcon(size = 34.dp)
+                GalleryIcon(size = 34.dp)
             }
         }
 
@@ -586,7 +586,7 @@ internal fun CaptureProgress(step: Int, hint: String, firstPath: String?, enable
             }
             if (firstPath != null) TextButton(onClick = onRestart, enabled = enabled,
                 colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = Color.White)) {
-                Text(s["camera.restart"], style = MaterialTheme.typography.labelMedium)
+                AppIconLabel(s["camera.restart"], icon = AppIcon.Retake, iconSize = 18.dp, style = MaterialTheme.typography.labelMedium, iconBackground = Color.Black)
             }
         }
     }
@@ -704,29 +704,8 @@ internal fun ShutterIcon(size: androidx.compose.ui.unit.Dp, color: Color) {
     }
 }
 
-/** 花瓣图标：6 片花瓣环绕中心，粉→紫渐变，中心黄色花蕊（图库） */
+/** Shared gallery symbol for camera and grading image pickers. */
 @Composable
-internal fun FlowerIcon(size: androidx.compose.ui.unit.Dp) {
-    Canvas(Modifier.size(size)) {
-        val c = center
-        val r = this.size.minDimension / 5.2f
-        // 花瓣：由中心向外 粉→紫 径向渐变
-        val brush = Brush.radialGradient(
-            colors = listOf(Color(0xFFF48FB1), Color(0xFFAB47BC)),
-            center = c,
-            radius = this.size.minDimension * 0.55f
-        )
-        for (i in 0 until 6) {
-            rotate(i * 60f, c) {
-                drawOval(
-                    brush = brush,
-                    topLeft = Offset(c.x - r * 0.52f, c.y - r * 2.2f),
-                    size = Size(r, r * 2.2f)
-                )
-            }
-        }
-        // 花蕊：黄色圆心 + 白色描边
-        drawCircle(color = Color(0xFFFFD54F), radius = r * 0.55f, center = c)
-        drawCircle(color = Color.White, radius = r * 0.55f, center = c, style = Stroke(2f))
-    }
+internal fun GalleryIcon(size: androidx.compose.ui.unit.Dp) {
+    AppSymbol(AppIcon.Gallery, size = size)
 }

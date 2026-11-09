@@ -188,7 +188,7 @@ private fun FeedbackHost(state: AppFeedbackState) {
                     data.visuals.actionLabel?.let { label ->
                         Spacer(Modifier.width(12.dp))
                         val detailsLink = visuals?.source == "backup" && failure
-                        Text(label,
+                        AppIconLabel(label, icon = if (visuals?.undo == true) AppIcon.Undo else null,
                             modifier = Modifier.clickable(onClick = data::performAction)
                                 .widthIn(min = 48.dp).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically),
                             color = if (detailsLink) {

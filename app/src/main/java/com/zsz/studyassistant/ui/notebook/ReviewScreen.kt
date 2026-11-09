@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
@@ -159,13 +161,15 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                                         DropdownMenuItem(
                                             text = { Text(s["review.filter.allSubjects"]) },
                                             onClick = { filterCat = null; catMenu = false },
-                                            trailingIcon = { if (filterCat == null) Text("✓") }
+                                            modifier = Modifier.semantics { this.selected = filterCat == null },
+                                            trailingIcon = { if (filterCat == null) AppSymbol(AppIcon.Check, size = 16.dp) }
                                         )
                                         categories.forEach { c ->
                                             DropdownMenuItem(
                                                 text = { Text(c.name) },
                                                 onClick = { filterCat = c.id; catMenu = false },
-                                                trailingIcon = { if (filterCat == c.id) Text("✓") }
+                                                modifier = Modifier.semantics { this.selected = filterCat == c.id },
+                                                trailingIcon = { if (filterCat == c.id) AppSymbol(AppIcon.Check, size = 16.dp) }
                                             )
                                         }
                                     }

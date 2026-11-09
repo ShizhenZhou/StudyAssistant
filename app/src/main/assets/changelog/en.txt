@@ -1,3 +1,7 @@
+v0.7.1_beta3
+· 🎨 Make icon colors more vibrant while keeping fine outlines and light/dark theme support.
+· 🧩 Extend action icons across the notebook, multi-selection and deletion, statistics, tag management, and camera/crop screens.
+
 v0.7.1_beta2
 · 🎨 Introduce more varied, slightly richer icon colors and extend them to the solution screen and Settings subpages.
 · 📐 Make the solution toolbar and actions more compact while preserving wrapped subject names and large-text support.

@@ -411,7 +411,7 @@ fun SolveScreen(
                 },
                 navigationIcon = {
                     if (editMode) {
-                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("✕", fontSize = 18.sp) }
+                        TextButton(onClick = { editMode = false; selectedIndices = emptySet() }, contentPadding = PaddingValues(horizontal = 4.dp)) { AppSymbol(AppIcon.Close, size = 18.dp, contentDescription = s["common.cancel"]) }
                     } else {
                         // 返回箭头：全应用统一样式（见 SubPageBackArrow）；**去处由页面树决定**（AppNav）
                         SubPageBackArrow(onClick = {
@@ -535,7 +535,7 @@ fun SolveScreen(
                         // 从错题本移除（硬删除）：右上角按钮随即变回「📚 存错题本」，界面留在当前题目会话
                         vm.unsaveFromNotebook()
                         showDeleteConfirm = false
-                    }) { Text(s["common.delete"], color = Color(0xFFE53935)) }
+                    }) { AppIconLabel(s["common.delete"], icon = AppIcon.Trash, color = Color(0xFFE53935)) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text(s["common.cancel"]) }
@@ -556,7 +556,7 @@ fun SolveScreen(
                         showEditDelete = false
                         editMode = false
                         selectedIndices = emptySet()
-                    }) { Text(s["common.delete"]) }
+                    }) { AppIconLabel(s["common.delete"], icon = AppIcon.Trash) }
                 },
                 dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text(s["common.cancel"]) } }
             )
@@ -840,21 +840,8 @@ fun SolveScreen(
                                 modifier = Modifier.size(44.dp).semantics { contentDescription = s["solve.returnToFollowUp"] }
                             ) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    val arrowColor = androidx.compose.material3.LocalContentColor.current
-                                    androidx.compose.foundation.Canvas(Modifier.size(28.dp)) {
-                                        val unit = size.width / 24f
-                                        val path = androidx.compose.ui.graphics.Path().apply {
-                                            moveTo(20f * unit, 4f * unit)
-                                            lineTo(20f * unit, 14f * unit)
-                                            lineTo(4f * unit, 14f * unit)
-                                            moveTo(10f * unit, 8f * unit)
-                                            lineTo(4f * unit, 14f * unit)
-                                            lineTo(10f * unit, 20f * unit)
-                                        }
-                                        drawPath(path, arrowColor, style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                            width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                                            join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                                    }
+                                    AppSymbol(AppIcon.Return, size = 28.dp,
+                                        backgroundColor = if (darkTheme) Color(0xFF34465E) else Color(0xFFDCE6F8))
                                 }
                             }
                             if (scrollable) Surface(
@@ -1295,7 +1282,7 @@ internal fun SaveDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = { onDelete() }) {
-                        Text(s["common.delete"], color = Color(0xFFE53935))
+                        AppIconLabel(s["common.delete"], icon = AppIcon.Trash, color = Color(0xFFE53935))
                     }
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text(s["common.cancel"]) }
