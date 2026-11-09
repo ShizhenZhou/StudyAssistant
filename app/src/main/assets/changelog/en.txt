@@ -1,3 +1,8 @@
+v0.7.1_beta4
+· 🎨 Keep the new gallery and AI icons, restore other emoji, and retain the compact solve toolbar.
+· 📊 Render answer tables with formulas and fix source navigation for quotes spanning cells.
+· 📈 Add simple SVG diagrams, including coordinate plots, arrows and illustrations.
+
 v0.7.1_beta3
 · 🎨 Make icon colors more vibrant while keeping fine outlines and light/dark theme support.
 · 🧩 Extend action icons across the notebook, multi-selection and deletion, statistics, tag management, and camera/crop screens.

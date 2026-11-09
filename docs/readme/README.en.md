@@ -50,6 +50,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.1_beta4
+
+- 🎨 Keep the new gallery and AI icons, restore other emoji, and retain the compact solve toolbar.
+- 📊 Render answer tables with formulas and fix source navigation for quotes spanning cells.
+- 📈 Add simple SVG diagrams, including coordinate plots, arrows and illustrations.
+- 📌 `versionCode` **111**.
+
 ### v0.7.1_beta3
 
 - 🎨 Make icon colors more vibrant while keeping fine outlines and light/dark theme support.

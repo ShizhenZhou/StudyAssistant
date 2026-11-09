@@ -28,7 +28,8 @@
         var atom = {a:boundary(node,false), b:boundary(node,true)};
         add(node.getAttribute('data-tex') || '', function(){ return atom; }); return;
       }
-      var block = /^(DIV|P|LI|H[1-6]|PRE|BLOCKQUOTE)$/.test(node.tagName);
+      // Match quoteContents' cell/row separators after Markdown table rendering.
+      var block = /^(DIV|P|LI|H[1-6]|PRE|BLOCKQUOTE|TD|TH|TR)$/.test(node.tagName);
       if(block || node.tagName === 'BR') add(' ', function(){ return {a:[node,0],b:[node,0]}; });
       for(var child=node.firstChild;child;child=child.nextSibling) walk(child);
       if(block) add(' ', function(){ return {a:[node,node.childNodes.length],b:[node,node.childNodes.length]}; });
