@@ -87,7 +87,9 @@ object UpdateChecker {
         val channel: Channel = Channel.STABLE,
         /** Explicit verified metadata, or inherited from a missed, installable stable release. */
         val mandatory: Boolean = false,
-        val deltas: List<UpdateDeltaInfo> = emptyList()
+        val deltas: List<UpdateDeltaInfo> = emptyList(),
+        /** In-memory graph from already fetched, compatible official release manifests. */
+        val deltaHistory: List<UpdateDeltaStep> = emptyList()
     ) {
         /** Display the published suffix; keep numeric normalization for compatibility/comparison only. */
         val displayVersion: String get() = tagName.removePrefix("v").removePrefix("V").ifBlank { version }
@@ -169,6 +171,16 @@ object UpdateChecker {
         data object Invalid : ManifestFetch
     }
 
+    /** A manifest edge is usable only while its exact official attachment is actually listed. */
+    private fun withAvailableDeltas(release: ReleaseInfo, assets: List<JsonObject>): ReleaseInfo =
+        release.copy(deltas = release.deltas.filter { delta ->
+            fun JsonObject.field(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull
+            val asset = assets.filter { it.field("name") == delta.patchName }.singleOrNull()
+            asset != null && asset.field("size")?.toLongOrNull() == delta.patchSize &&
+                asset.field("browser_download_url") == delta.patchUrl &&
+                (asset.field("digest").isNullOrBlank() || asset.field("digest").equals("sha256:" + delta.patchSha256, true))
+        })
+
     /** Pure resolver: all supported sources bind the exact same APK identity. */
     internal fun resolveManifest(release: ReleaseInfo, assets: List<JsonObject>,
                                  read: (ManifestEndpoint) -> ManifestFetch): ReleaseInfo {
@@ -176,7 +188,7 @@ object UpdateChecker {
         val markerCount = Regex(Regex.escape(MANIFEST_MARKER)).findAll(release.notes).count()
         var invalid = markerCount > 0
         if (inline.size == 1 && markerCount == 1) {
-            withManifest(release, inline.single().groupValues[1])?.let { return it }
+            withManifest(release, inline.single().groupValues[1])?.let { return withAvailableDeltas(it, assets) }
         }
         val entries = assets.filter { (it["name"] as? JsonPrimitive)?.contentOrNull == "update-manifest.json" }
         fun failed(issue: String) = release.copy(minSdk = null, compatibilityIssue = issue)
@@ -195,7 +207,7 @@ object UpdateChecker {
         for (endpoint in endpoints) {
             when (val result = read(endpoint)) {
                 is ManifestFetch.Body -> {
-                    withManifest(release, result.text)?.let { return it }
+                    withManifest(release, result.text)?.let { return withAvailableDeltas(it, assets) }
                     invalid = true
                 }
                 ManifestFetch.Invalid -> invalid = true
@@ -499,7 +511,7 @@ object UpdateChecker {
                 }?.let { withManifest(candidate.first, it.groupValues[1]) }
                 when {
                     resolved.containsKey(candidate.first.assetUrl) -> resolved[candidate.first.assetUrl]
-                    embedded != null -> embedded.copy(notes = visibleReleaseNotes(embedded.notes))
+                    embedded != null -> withAvailableDeltas(embedded, candidate.second).copy(notes = visibleReleaseNotes(embedded.notes))
                     compareVersions(candidate.first.displayVersion, installed) >= 0 ||
                         candidate.first.assetName.endsWith("-ENF.apk") -> once(candidate)
                     else -> null
@@ -510,7 +522,19 @@ object UpdateChecker {
             result = result.copy(stable = stableUpdate(history, Build.VERSION.SDK_INT) { hasUpdate(context, it) }
                 ?: result.stable)
         }
-        result.copy(historyComplete = complete).takeIf { it.stable != null || it.beta != null }
+        // Reuse inline manifests from the same release listing; no requests per intermediate version.
+        val deltaReleases = parsed.mapNotNull { candidate ->
+            resolved[candidate.first.assetUrl] ?: inlineManifest.findAll(candidate.first.notes).toList().singleOrNull()
+                ?.takeIf { Regex(Regex.escape(MANIFEST_MARKER)).findAll(candidate.first.notes).count() == 1 }
+                ?.let { withManifest(candidate.first, it.groupValues[1])?.let { value -> withAvailableDeltas(value, candidate.second) } }
+        }.filter { compatibilityError(it) == null }
+        fun withDeltaHistory(target: ReleaseInfo?) = target?.copy(deltaHistory = deltaReleases
+            .filter { compareReleases(it, target) <= 0 }
+            .flatMap { source -> source.deltas.mapNotNull { delta -> source.assetSha256?.let {
+                UpdateDeltaStep(delta, it, source.assetSize, source.tagName)
+            } } }.distinct())
+        result.copy(stable = withDeltaHistory(result.stable), beta = withDeltaHistory(result.beta),
+            historyComplete = complete).takeIf { it.stable != null || it.beta != null }
     }
 
     /** 下载到 [dest]，[onProgress] 回调 0..100（-1 表示总长度未知） */

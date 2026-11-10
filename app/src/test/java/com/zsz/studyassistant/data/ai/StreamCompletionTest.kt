@@ -4,6 +4,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class StreamCompletionTest {
+    @org.junit.Test fun boundedReaderPreservesUtf8AndRejectsOversizedLines() {
+        val input = okio.Buffer().writeUtf8("你好\r\n末行")
+        org.junit.Assert.assertEquals("你好", readStreamLine(input, 8))
+        org.junit.Assert.assertEquals("末行", readStreamLine(input, 8))
+        org.junit.Assert.assertNull(readStreamLine(input, 8))
+        org.junit.Assert.assertThrows(StreamIncompleteException::class.java) { readStreamLine(okio.Buffer().writeUtf8("123456789"), 8) }
+        val completion = StreamCompletion(maxCharacters = 3)
+        completion.accept("""{"choices":[{"delta":{"content":"abc"}}]}""")
+        org.junit.Assert.assertThrows(StreamIncompleteException::class.java) {
+            completion.accept("""{"choices":[{"delta":{"reasoning_content":"x"}}]}""")
+        }
+    }
     private fun expect(key: String, tracker: StreamCompletion) {
         try { tracker.requireComplete(); fail("Incomplete answer was accepted") }
         catch (e: StreamIncompleteException) { assertEquals(key, e.messageKey) }

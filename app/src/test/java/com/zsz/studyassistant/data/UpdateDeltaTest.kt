@@ -10,6 +10,38 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class UpdateDeltaTest {
+    @Test fun directDeltaWinsOtherwiseChooseCheapestExactChainBelowFullSize() {
+        fun hash(c: Char) = c.toString().repeat(64)
+        fun edge(from: Char, to: Char, bytes: Long) = UpdateDeltaStep(
+            UpdateDeltaInfo(UpdateDelta.FORMAT, hash(from), 100, "$from-$to.gdiff.gz",
+                "https://github.com/${UpdateChecker.REPO}/releases/download/v1.0.0/$from-$to.gdiff.gz", hash('e'), bytes),
+            hash(to), 100, "v1.0.0")
+        val chain = listOf(edge('a', 'b', 20), edge('b', 'd', 30), edge('a', 'c', 40), edge('c', 'd', 40))
+        fun plan(edges: List<UpdateDeltaStep>) = UpdateDeltaPlanner.find(hash('a'), 100, hash('d'), 100, edges)
+        org.junit.Assert.assertEquals(50L, plan(chain)!!.downloadSize)
+        org.junit.Assert.assertEquals(90L, plan(chain + edge('a', 'd', 90))!!.downloadSize)
+        org.junit.Assert.assertNull(plan(listOf(edge('a', 'b', 50), edge('b', 'd', 50))))
+        org.junit.Assert.assertNull(plan(listOf(edge('b', 'd', 30))))
+        org.junit.Assert.assertNull(plan(listOf(edge('a', 'b', 20), edge('b', 'd', 30).let {
+            it.copy(delta = it.delta.copy(baseSize = 101))
+        })))
+        org.junit.Assert.assertEquals(50L, plan(chain + edge('b', 'a', 1))!!.downloadSize)
+    }
+
+    @Test fun cancellationInterruptsReconstructionAndHashing() = withFiles { base, file, out ->
+        base.writeBytes(ByteArray(256 * 1024))
+        file.writeBytes(patch { writeByte(254); writeInt(0); writeInt(256 * 1024); writeByte(0) })
+        var checks = 0
+        assertThrows(java.util.concurrent.CancellationException::class.java) {
+            UpdateDelta.applyGdiff(base, file, out, base.length()) {
+                if (++checks == 3) throw java.util.concurrent.CancellationException()
+            }
+        }
+        org.junit.Assert.assertTrue(out.length() < base.length())
+        assertThrows(java.util.concurrent.CancellationException::class.java) {
+            UpdateDelta.matches(base, base.length(), "0".repeat(64)) { throw java.util.concurrent.CancellationException() }
+        }
+    }
     private fun patch(commands: DataOutputStream.() -> Unit): ByteArray {
         val bytes = ByteArrayOutputStream()
         DataOutputStream(GZIPOutputStream(bytes)).use {

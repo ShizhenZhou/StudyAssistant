@@ -133,6 +133,8 @@ fun ConversationWebView(
     val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
     val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
     val currentOnScrollableChange by rememberUpdatedState(onScrollableChange)
+    var rendererGeneration by remember { mutableStateOf(0) }
+    var rendererFailed by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
     val payload = remember { ConversationPayload() }
     var zoomImage by remember { mutableStateOf<String?>(null) }
@@ -202,6 +204,10 @@ fun ConversationWebView(
     }
 
     Box(modifier) {
+        if (rendererFailed) {
+            androidx.compose.material3.TextButton(onClick = { rendererFailed = false; rendererGeneration++ },
+                modifier = Modifier.align(Alignment.Center)) { Text(s["solve.reloadConversation"]) }
+        } else androidx.compose.runtime.key(rendererGeneration) {
         AndroidView(
             factory = { ctx ->
                 ResetOnFocusWebView(ctx).apply {
@@ -299,6 +305,19 @@ fun ConversationWebView(
                         }
                     }, "Android")
                     webViewClient = object : ConversationAssetClient() {
+                        override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                            if (webRef === view) {
+                                webRef = null
+                                loaded = false
+                                payload.reset()
+                                bridgeHandler.removeCallbacksAndMessages(null)
+                                currentOnQuoteReturn(false)
+                                // One automatic rebuild; repeated renderer failures offer an explicit retry.
+                                if (rendererGeneration == 0) rendererGeneration++ else rendererFailed = true
+                            }
+                            bridgeView.release(rendererGone = true)
+                            return true
+                        }
                         override fun onPageFinished(view: WebView?, url: String?) {
                             if (view !== webRef || url != CONVERSATION_ASSET_URL) return
                             loaded = true
@@ -311,6 +330,7 @@ fun ConversationWebView(
                 }
             },
             update = { v ->
+                if (!v.released) {
                 v.quoteLabel = s["solve.quoteAction"]
                 v.selectionHint = s["solve.quoteSelectionHint"]
                 v.quoteEnabled = onQuoteText != null && !selectionMode
@@ -318,22 +338,21 @@ fun ConversationWebView(
                     payload.javascript(currentMessages, selectionJson(), thinkLabelsJson(),
                         currentDark, currentScale, currentThinkPref)?.let { v.evaluateJavascript(it, null) }
                 }
+                }
             },
             onRelease = { view ->
-                if (webRef === view) currentOnQuoteReturn(false)
-                view.quoteEnabled = false
-                view.onQuote = { _, _, _, _ -> }
-                webRef = null
-                loaded = false
-                payload.reset()
-                bridgeHandler.removeCallbacksAndMessages(null)
-                view.removeJavascriptInterface("Android")
-                view.setOnTouchListener(null)
-                view.stopLoading()
-                view.destroy()
+                if (webRef === view) {
+                    currentOnQuoteReturn(false)
+                    webRef = null
+                    loaded = false
+                    payload.reset()
+                    bridgeHandler.removeCallbacksAndMessages(null)
+                }
+                view.release()
             },
             modifier = Modifier.fillMaxSize()
         )
+        }
 
         zoomImage?.let { b64 -> ImageZoomView(b64) { zoomImage = null } }
     }
@@ -438,8 +457,21 @@ private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
  *   这里在窗口重新聚焦时补一个 ACTION_CANCEL 并通知网页复位（`window.dshResetGestures()`），两头一起清干净。
  */
 private class ResetOnFocusWebView(context: android.content.Context) : ConversationTextSelection(context) {
+    var released = false
+        private set
+    fun release(rendererGone: Boolean = false) {
+        if (released) return
+        released = true
+        quoteEnabled = false
+        onQuote = { _, _, _, _ -> }
+        setOnTouchListener(null)
+        if (!rendererGone) { removeJavascriptInterface("Android"); stopLoading() }
+        (parent as? android.view.ViewGroup)?.removeView(this)
+        destroy()
+    }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        if (released) return
         super.onWindowFocusChanged(hasWindowFocus)
         if (!hasWindowFocus) return
         val now = android.os.SystemClock.uptimeMillis()

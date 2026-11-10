@@ -26,6 +26,15 @@ object BackupRetention {
     private data class Set(val id: String, val at: Long, val parts: List<VerifiedDocument>, val name: String, val automatic: Boolean = true)
     private data class Probe(val header: BackupArchive.PartInfo, val document: VerifiedDocument, val fixed: File?)
     private const val PROBE_CACHE_BYTES = 128L * 1024 * 1024
+    // Display-only reuse, bound to the exact bytes just copied and hashed. Never used for deletion/import.
+    private val summaryTimes = object : LinkedHashMap<String, Long>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean = size > 64
+    }
+    private fun summaryKey(parts: List<VerifiedDocument>) = parts.map { "${it.length}:${it.sha}" }.sorted().joinToString(";")
+    private fun cachedTime(parts: List<VerifiedDocument>): Long? = synchronized(summaryTimes) { summaryTimes[summaryKey(parts)] }
+    private fun rememberTime(parts: List<VerifiedDocument>, at: Long) {
+        synchronized(summaryTimes) { summaryTimes[summaryKey(parts)] = at }
+    }
     private fun prefs(c: Context) = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
     internal fun uri(tree: Uri, id: String): Uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
     internal fun list(context: Context, tree: Uri): List<Document> {
@@ -83,7 +92,7 @@ object BackupRetention {
         return names
     }
 
-    /** Blocking IO API. Always scans current documents; ledger/cache state cannot hide valid backups. */
+    /** Scans and hashes current documents; only identical validated contents can reuse parsing. */
     fun folderSummary(context: Context, tree: Uri, check: () -> Unit = {}): FolderSummary =
         folderSummary(context, tree, check, BackupTree::space)
 
@@ -164,14 +173,26 @@ object BackupRetention {
                         }
                     } else {
                         // The progressive legacy reader enforces Bak3 and validates all records/resources, without merge.
-                        val prepared = formatOrNull { BackupRepository(context).prepareImportFiles(listOf(fixed), File(probeDir, "validated"), check) } ?: continue
-                        if (prepared.snapshotAt > 0) eligible["legacy:${document.id}"] = Set("legacy:${document.id}", prepared.snapshotAt,
+                        val parts = listOf(verified)
+                        val at = (if (includeManual) cachedTime(parts) else null) ?: run {
+                            val prepared = formatOrNull { BackupRepository(context).prepareImportFiles(listOf(fixed), File(probeDir, "validated"), check) }
+                            prepared?.snapshotAt?.also { if (includeManual) rememberTime(parts, it) }
+                        } ?: continue
+                        if (at > 0) eligible["legacy:${document.id}"] = Set("legacy:${document.id}", at,
                             listOf(verified), document.name, automatic = !includeManual || automaticName(document.name))
                     }
                 } finally { if (!retained) probeDir.deleteRecursively() }
             }
             for ((id, probes) in groups) {
                 check()
+                val documents = probes.map { it.document }
+                val cachedAt = if (includeManual) cachedTime(documents) else null
+                if (cachedAt != null) {
+                    val automatic = probes.all { automaticName(it.document.name) }
+                    eligible[id] = Set(id, cachedAt, documents, BackupNames.fileName(cachedAt, automatic), automatic)
+                    probes.forEach { it.fixed?.parentFile?.deleteRecursively() }
+                    continue
+                }
                 val groupDir = File(work, UUID.randomUUID().toString()).apply { if (!mkdir()) throw IOException("retention set") }
                 try {
                     val parts = probes.mapIndexed { i, probe ->
@@ -184,6 +205,7 @@ object BackupRetention {
                     }
                     // Includes missing/duplicate/mixed-index/root/content validation; a header probe alone never qualifies a set.
                     val prepared = formatOrNull { BackupRepository(context).prepareImportFiles(parts, File(groupDir, "validated"), check) } ?: continue
+                    if (includeManual) rememberTime(documents, prepared.snapshotAt)
                     // A set with any custom/manual volume name is manual. Retention still probes
                     // only its original automatic candidates, never newly recognized custom names.
                     val automatic = !includeManual || probes.all { automaticName(it.document.name) }

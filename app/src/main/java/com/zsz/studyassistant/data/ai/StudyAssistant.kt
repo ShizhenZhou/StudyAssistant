@@ -354,7 +354,7 @@ object StudyAssistant {
                 while (true) {
                     // 支持「中止生成」：协程被取消时在这里抛出，且关闭响应体后阻塞读也会立刻失败
                     currentCoroutineContext().ensureActive()
-                    val line = src.readUtf8Line() ?: break
+                    val line = readStreamLine(src) ?: break
                     if (line.isEmpty() || !line.startsWith("data:")) continue
                     val payload = line.substring(5).trim()
                     val chunk = completion.accept(payload)

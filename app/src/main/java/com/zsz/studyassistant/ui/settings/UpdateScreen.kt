@@ -193,7 +193,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     }
     // Observing the task belongs to the page; the actual transfer belongs to Android.
     LaunchedEffect(downloads, lifecycleOwner, s["update.background"], promptRelease) {
-        if (promptRelease != null && latest?.assetSha256 != promptRelease.assetSha256 &&
+        if (promptRelease != null && (latest?.assetSha256 != promptRelease.assetSha256 ||
+                (phase in setOf(Phase.RESTORING, Phase.IDLE, Phase.UP_TO_DATE, Phase.FOUND, Phase.FAILED) && latest != promptRelease)) &&
             (promptRelease.mandatory || phase in setOf(Phase.RESTORING, Phase.IDLE, Phase.UP_TO_DATE, Phase.FOUND, Phase.FAILED))) {
             operationGeneration++
             downloadActionJob?.cancel()
@@ -318,7 +319,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         }
     }
 
-    fun startDownload(target: UpdateChecker.ReleaseInfo? = latest) {
+    fun startDownload(target: UpdateChecker.ReleaseInfo? = latest, forceFull: Boolean? = null) {
         // Ignore a second offer's stale click before Compose removes the old buttons.
         if (phase != Phase.FOUND && phase != Phase.FAILED) return
         val rel = target ?: return
@@ -329,7 +330,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         observingDownload = false
         val notification = UpdateDownloadMonitor.request(context)
         val handoff = downloads.enqueue(rel, notification = notification,
-            forceFull = fullPackageChoices[packageKey(rel)] == true)
+            forceFull = forceFull ?: (fullPackageChoices[packageKey(rel)] == true))
         downloadActionJob = handoff
         scope.launch {
             try {
@@ -411,14 +412,19 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         if (rel.displayVersion == installed) {
                             Text(s["update.sameVersion"], style = MaterialTheme.typography.bodySmall)
                         }
-                        val delta by produceState<com.zsz.studyassistant.data.UpdateDeltaInfo?>(null, downloads, rel) {
-                            value = null
-                            value = downloads.matchingDelta(rel)
+                        val planPreview by produceState<Pair<Boolean, com.zsz.studyassistant.data.UpdateDeltaPlan?>>(true to null, downloads, rel) {
+                            value = true to null
+                            value = false to downloads.matchingPlan(rel)
                         }
+                        val (planning, plan) = planPreview
                         val sizeText = s.format("update.fullSize", "size" to formatUpdateSize(rel.assetSize)) +
-                            (delta?.let { " · " + s.format("update.deltaSize", "size" to formatUpdateSize(it.patchSize)) } ?: "")
-                        Text(rel.assetName + "\n" + sizeText,
+                            (plan?.let { " · " + if (it.steps.size == 1)
+                                s.format("update.deltaSize", "size" to formatUpdateSize(it.downloadSize))
+                            else s.format("update.chainSize", "count" to it.steps.size.toString(), "size" to formatUpdateSize(it.downloadSize)) } ?: "")
+                        val names = rel.assetName + (plan?.steps?.singleOrNull()?.let { "\n" + it.delta.patchName } ?: "")
+                        Text(names + "\n" + sizeText,
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                        if (planning) Text(s["update.deltaPlanning"], style = MaterialTheme.typography.bodySmall)
                         val notes = UpdateChecker.prettyReleaseNotes(rel.notes)
                         if (notes.isNotBlank()) {
                             Spacer(Modifier.height(10.dp))
@@ -429,16 +435,17 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         error?.let { Text(it, color = BADGE_RED, style = MaterialTheme.typography.bodySmall) }
                         Spacer(Modifier.height(10.dp))
                         val choiceKey = packageKey(rel)
-                        val forceFull = fullPackageChoices[choiceKey] == true
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = forceFull, enabled = error == null,
+                        val canUseDelta = !planning && plan != null
+                        val forceFull = !canUseDelta || fullPackageChoices[choiceKey] == true
+                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = forceFull, enabled = error == null && canUseDelta,
                             role = Role.Checkbox, onValueChange = { fullPackageChoices[choiceKey] = it }),
                             verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = forceFull, onCheckedChange = null, enabled = error == null)
+                            Checkbox(checked = forceFull, onCheckedChange = null, enabled = error == null && canUseDelta)
                             Text(s["update.forceFull"], style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(start = 8.dp).weight(1f))
                         }
                         Spacer(Modifier.height(6.dp))
-                        Button(onClick = { startDownload(rel) }, enabled = error == null,
+                        Button(onClick = { startDownload(rel, forceFull) }, enabled = error == null && !planning,
                             shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                             Text(s[if (beta) "update.downloadBeta" else "update.downloadStable"])
                         }

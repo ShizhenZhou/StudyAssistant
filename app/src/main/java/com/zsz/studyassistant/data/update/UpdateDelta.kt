@@ -24,14 +24,15 @@ internal object UpdateDelta {
     const val FORMAT = "gdiff4-gzip"
     const val MAX_APK_SIZE = 512L * 1024 * 1024
 
-    fun matches(file: File, size: Long, sha256: String): Boolean =
-        file.isFile && file.length() == size && digest(file).equals(sha256, ignoreCase = true)
+    fun matches(file: File, size: Long, sha256: String, check: () -> Unit = {}): Boolean =
+        file.isFile && file.length() == size && digest(file, check).equals(sha256, ignoreCase = true)
 
-    private fun digest(file: File): String {
+    fun digest(file: File, check: () -> Unit = {}): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().buffered().use { input ->
             val buffer = ByteArray(64 * 1024)
             while (true) {
+                check()
                 val count = input.read(buffer)
                 if (count < 0) break
                 digest.update(buffer, 0, count)
@@ -40,7 +41,8 @@ internal object UpdateDelta {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    fun applyGdiff(base: File, patch: File, output: File, targetSize: Long) {
+    fun applyGdiff(base: File, patch: File, output: File, targetSize: Long, check: () -> Unit = {}) {
+        check()
         require(targetSize in 1..MAX_APK_SIZE)
         RandomAccessFile(base, "r").use { source ->
             DataInputStream(GZIPInputStream(patch.inputStream().buffered(), 64 * 1024)).use { input ->
@@ -50,6 +52,7 @@ internal object UpdateDelta {
                     var written = 0L
                     var commands = 0
                     while (true) {
+                        check()
                         val command = input.readUnsignedByte()
                         if (command == 0) {
                             require(written == targetSize && input.read() == -1)
@@ -75,6 +78,7 @@ internal object UpdateDelta {
                         }
                         var remaining = length
                         while (remaining > 0) {
+                            check()
                             val count = minOf(remaining, buffer.size)
                             if (command >= 249) source.readFully(buffer, 0, count) else input.readFully(buffer, 0, count)
                             target.write(buffer, 0, count)
