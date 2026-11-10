@@ -95,7 +95,7 @@ schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时
 
 需要差分包时，在首次 `start` 显式指定 `--delta-base history_apk/StudyAssistant-<版本>-<构建时间>.apk`。脚本核对旁边的 `<APK文件名去扩展名>-update-manifest.json` 与原始完整签名 APK 的 SHA256、尺寸和正式渠道，并固定这份基线；最终候选原证书签名后生成 `.gdiff.gz`。格式采用 [GDIFF v4](https://www.w3.org/TR/NOTE-gdiff-19970901) 的复制/字面数据命令再 gzip 压缩，客户端不需要 native ABI 库。发布前本地重建并逐字节核对最终 APK；不重新压缩 APK、不重新签名。差分不小于完整包时停止该步骤，不发布无收益的差分。
 
-更新清单的可选 `deltas` 数组记录 `format: "gdiff4-gzip"`、`baseSha256`、`baseSize`、`baseVersionCode`、`patchName`、`patchSha256`、`patchSize`；最终结果沿用顶层 `apkSha256` / `apkSize`，下载地址由同 Release 的完整包地址与安全的补丁文件名派生。当前工具每次生成一份指定基线差分。新客户端仅在已安装 APK 的原始 SHA256 和尺寸完全匹配时尝试差分；失败后回退完整包，用户取消则停止。旧客户端继续使用完整 APK。完整包、清单和差分一起上传，并分别真实下载 SHA 核验和归档到 `history_apk`；恢复发布复用已验证差分，不变更基线或既有资产。
+更新清单的可选 `deltas` 数组记录 `format: "gdiff4-gzip"`、`baseSha256`、`baseSize`、`baseVersionCode`、`patchName`、`patchSha256`、`patchSize`；最终结果沿用顶层 `apkSha256` / `apkSize`，下载地址由同 Release 的完整包地址与安全的补丁文件名派生。可重复传入 `--delta-base`，为不同 versionCode 的指定基准各生成一份直达目标的差分；每个 versionCode 只接收一个精确构建，全部基准在首次 start 时固定。新客户端仅在已安装 APK 的原始 SHA256 和尺寸完全匹配时尝试差分；失败后回退完整包，用户取消则停止。旧客户端继续使用完整 APK。完整包、清单和差分一起上传，并分别真实下载 SHA 核验和归档到 `history_apk`；恢复发布复用已验证差分，不变更基线或既有资产。
 
 明确使用 `start --replace` 同版本替换时，差分基准可选择原构建，允许 `versionCode` 相同；普通新版本仍要求基准 `versionCode` 更低，禁止降级或生成相同字节的补丁。应用按安装包 SHA 和构建时间区分同版本的新构建，版本号不变不会绕过差分及完整包的校验。
 

@@ -524,10 +524,14 @@ class Release:
             raise ReleaseError("Resume with the original release channel")
         bind_mandatory(self.state, mandatory)
         if delta_base is not None:
-            base = apk_delta.read_base(delta_base)
-            if (self.state.get("dispatchAttempted") or self.state.get("signedPath") or "deltaBase" in self.state) and self.state.get("deltaBase") != base:
-                raise ReleaseError("Cannot change delta base of an existing release state")
-            self.state["deltaBase"] = base
+            paths = delta_base if isinstance(delta_base, (list, tuple)) else [delta_base]
+            bases = sorted((apk_delta.read_base(path) for path in paths), key=lambda base: base["baseVersionCode"])
+            if len({base["baseVersionCode"] for base in bases}) != len(bases):
+                raise ReleaseError("Specify only one exact delta base per versionCode")
+            previous = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
+            if (self.state.get("dispatchAttempted") or self.state.get("signedPath") or previous) and previous != bases:
+                raise ReleaseError("Cannot change delta bases of an existing release state")
+            self.state["deltaBases"] = bases
         if self.state.get("replacementRequested") and not replacement:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
         if self.state.get("dispatchAttempted"): return self.status()
@@ -683,7 +687,7 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","mandatory","deltaBase","dispatchBranch","fullVerification") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","mandatory","deltaBase","deltaBases","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
             branch = run.get("head_branch")
             if numeric_version(manifest["version"]) != manifest["version"] and self.state.get("channel") != "beta":
@@ -743,17 +747,22 @@ class Release:
             self.signed_identity(signed, manifest)
             self.state.update(signedPath=str(signed.relative_to(self.root)), signedSha256=sha256(signed), phase="signed")
             self.save()
-        if self.state.get("deltaBase"):
+        bases = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
+        if bases:
             if not self.state.get("deltas"):
-                self.state["deltas"] = [apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent,
-                    allow_same_version=bool(self.state.get("replacementRequested")))]
+                self.state["deltas"] = [apk_delta.build(base, signed, manifest["versionCode"], signed.parent,
+                    allow_same_version=bool(self.state.get("replacementRequested"))) for base in bases]
                 self.save()
             paths = delta_files(signed, self.state)
-            for delta in self.state["deltas"]:
+            if len(self.state["deltas"]) != len(bases):
+                raise ReleaseError("Delta artifacts differ from frozen bases")
+            for base, delta in zip(bases, self.state["deltas"]):
+                if any(delta.get(key) != base[key] for key in ("baseSha256", "baseSize", "baseVersionCode")):
+                    raise ReleaseError("Delta artifact differs from its frozen base")
                 path = paths[delta["patchName"]]
                 if not path.exists():
-                    # A recovered signing directory also needs its exact original delta.
-                    apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent, expected=delta,
+                    # A recovered signing directory also needs each exact original delta.
+                    apk_delta.build(base, signed, manifest["versionCode"], signed.parent, expected=delta,
                         allow_same_version=bool(self.state.get("replacementRequested")))
                 if path.stat().st_size != delta["patchSize"] or sha256(path) != delta["patchSha256"]:
                     raise ReleaseError("Local delta artifact changed")
@@ -879,7 +888,7 @@ def main():
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
         if operation == "start": item.add_argument("--mandatory", action="store_true", default=None, help="Explicit stable-only forced update; adds -ENF to the APK filename")
-        if operation == "start": item.add_argument("--delta-base", type=Path, help="Exact archived stable APK with companion update manifest; creates a verified optional delta")
+        if operation == "start": item.add_argument("--delta-base", type=Path, action="append", help="Exact archived stable APK with companion manifest; repeat for multiple versionCodes")
         if operation == "status": item.add_argument("--run",type=int,help="Select an exact build when a version has multiple states")
     for operation in ("verify", "publish", "replace"):
         item = sub.add_parser(operation,help="Explicitly replace the same version's public assets; never moves its tag" if operation=="replace" else None)
