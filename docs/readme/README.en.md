@@ -54,6 +54,7 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 - ⬆️ Show the package name once and display full and available delta package sizes.
 - ☑️ Add a “Download full package” option to bypass delta downloads.
+- ℹ️ Refine About and update prompts, and explain why mandatory updates cannot be dismissed with Back.
 - 📌 `versionCode` **113**.
 
 ### v0.7.1
