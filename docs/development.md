@@ -91,6 +91,12 @@ schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时
 
 同版本替换仍须用户明确安排，使用start --replace与replace --run，保留原标签；不默认替换既有Release。历史精确来源检查仅用于此类替换和历史恢复，不作为每次新版本前置。
 
+普通正式更新仍是默认值。只有用户明确指定强制更新时，才在首次 `start` 加 `--mandatory`；该选项只允许 stable，写入更新清单的 JSON 布尔 `mandatory: true`，并在最终 APK 的 `.apk` 前添加 `-ENF`，不改 applicationId、versionName 或签名字节。Release 最后一条在最低系统要求与正式版属性之后追加“本次更新极其重要，是强制更新”。决定保存在本地发布状态中；恢复同一 run 时沿用，不能给既有发布状态补改强制属性。旧清单缺省为普通更新，Beta 不强制。
+
+需要差分包时，在首次 `start` 显式指定 `--delta-base history_apk/StudyAssistant-<版本>-<构建时间>.apk`。脚本核对旁边的 `<APK文件名去扩展名>-update-manifest.json` 与原始完整签名 APK 的 SHA256、尺寸和正式渠道，并固定这份基线；最终候选原证书签名后生成 `.gdiff.gz`。格式采用 [GDIFF v4](https://www.w3.org/TR/NOTE-gdiff-19970901) 的复制/字面数据命令再 gzip 压缩，客户端不需要 native ABI 库。发布前本地重建并逐字节核对最终 APK；不重新压缩 APK、不重新签名。差分不小于完整包时停止该步骤，不发布无收益的差分。
+
+更新清单的可选 `deltas` 数组记录 `format: "gdiff4-gzip"`、`baseSha256`、`baseSize`、`baseVersionCode`、`patchName`、`patchSha256`、`patchSize`；最终结果沿用顶层 `apkSha256` / `apkSize`，下载地址由同 Release 的完整包地址与安全的补丁文件名派生。当前工具每次生成一份指定基线差分。新客户端仅在已安装 APK 的原始 SHA256 和尺寸完全匹配时尝试差分；失败后回退完整包，用户取消则停止。旧客户端继续使用完整 APK。完整包、清单和差分一起上传，并分别真实下载 SHA 核验和归档到 `history_apk`；恢复发布复用已验证差分，不变更基线或既有资产。
+
 ## 网络与隐私
 
 源码/分支用Git；状态/日志/Release优先GitHub连接器，能力不足用gh/API。网络失败先检查远端是否已成功；必要时仅一次进程级HTTP/1.1重试，不修改全局代理、不强推。测试/签名/发布状态均存.local-notes；真实题库、Key、签名材料、手机日志不得提交或上传CI。普通状态查询不高频轮询。

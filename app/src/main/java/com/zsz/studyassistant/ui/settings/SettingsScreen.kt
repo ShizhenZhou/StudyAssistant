@@ -346,7 +346,7 @@ private val SHELL_BOTTOM_BAR_HEIGHT = 80.dp
  *   会自动贴在键盘上方** —— 「自定义要求」的保存按钮放进去后，不用先收起键盘就能点到。
  */
 @Composable
-private fun SettingsSubPage(
+internal fun SettingsSubPage(
     title: String,
     onBack: () -> Unit,
     bottomBar: (@Composable () -> Unit)? = null,

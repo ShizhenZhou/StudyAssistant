@@ -50,7 +50,8 @@ object UpdateChecker {
 
     enum class Channel { STABLE, BETA }
 
-    data class AvailableReleases(val stable: ReleaseInfo? = null, val beta: ReleaseInfo? = null) {
+    data class AvailableReleases(val stable: ReleaseInfo? = null, val beta: ReleaseInfo? = null,
+                                 val historyComplete: Boolean = true) {
         fun updates(eligible: (ReleaseInfo) -> Boolean): List<ReleaseInfo> {
             val release = stable?.takeIf(eligible)
             val preview = beta?.takeIf(eligible)
@@ -83,7 +84,10 @@ object UpdateChecker {
         val versionCode: Long? = null,
         /** Transient diagnosis only; downloaded records retain their existing schema. */
         val compatibilityIssue: String? = null,
-        val channel: Channel = Channel.STABLE
+        val channel: Channel = Channel.STABLE,
+        /** Explicit verified metadata, or inherited from a missed, installable stable release. */
+        val mandatory: Boolean = false,
+        val deltas: List<UpdateDeltaInfo> = emptyList()
     ) {
         /** Display the published suffix; keep numeric normalization for compatibility/comparison only. */
         val displayVersion: String get() = tagName.removePrefix("v").removePrefix("V").ifBlank { version }
@@ -118,13 +122,37 @@ object UpdateChecker {
         require(value("schema") == "1" && value("version") == release.version)
         val channel = root["channel"]?.jsonPrimitive?.content
         require(channel == null || channel in setOf("stable", "beta"))
+        val mandatory = root["mandatory"]?.let {
+            val flag = it as? JsonPrimitive ?: error("Invalid mandatory flag")
+            require(!flag.isString)
+            flag.booleanOrNull ?: error("Invalid mandatory flag")
+        } ?: false
         val min = value("minSdk").toInt().also { require(it > 0) }
         val code = value("versionCode").toLong().also { require(it > 0) }
         val digest = value("apkSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
         require(value("apkName") == release.assetName && value("apkSize").toLong() == release.assetSize && release.assetSize > 0)
         require(release.assetSha256 == null || release.assetSha256.equals(digest, true))
+        // Optional transport metadata cannot invalidate an otherwise usable full APK.
+        val deltas = (root["deltas"] as? JsonArray)?.takeIf { it.size <= 8 }?.mapNotNull { entry ->
+            runCatching {
+                val delta = entry.jsonObject
+                fun field(key: String) = delta[key]!!.jsonPrimitive.content
+                require(field("format") == "gdiff4-gzip")
+                val baseSha = field("baseSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
+                val patchSha = field("patchSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
+                val baseSize = field("baseSize").toLong().also { require(it in 1..536870912L) }
+                val patchSize = field("patchSize").toLong().also { require(it in 1..536870912L && it < release.assetSize) }
+                val name = field("patchName").also {
+                    require(it.length <= 180 && Regex("[A-Za-z0-9][A-Za-z0-9_.-]*\\.gdiff\\.gz").matches(it))
+                }
+                val url = release.assetUrl.substringBeforeLast('/') + "/" + name
+                require(isReleaseAssetUrl(url, release.tagName))
+                UpdateDeltaInfo("gdiff4-gzip", baseSha, baseSize, name, url, patchSha, patchSize)
+            }.getOrNull()
+        }.orEmpty().distinctBy { it.baseSha256 }
         release.copy(minSdk = min, versionCode = code, assetSha256 = digest, compatibilityIssue = null,
-            channel = if (channel == "beta" || release.channel == Channel.BETA) Channel.BETA else Channel.STABLE)
+            channel = if (channel == "beta" || release.channel == Channel.BETA) Channel.BETA else Channel.STABLE,
+            mandatory = mandatory && channel != "beta" && release.channel == Channel.STABLE, deltas = deltas)
     }.getOrNull()
 
     private const val MANIFEST_MARKER = "<!-- studyassistant-update-manifest"
@@ -310,7 +338,7 @@ object UpdateChecker {
 
     /** 这个发布物是否正是用户跳过的那一版 */
     fun isSkipped(context: Context, rel: ReleaseInfo): Boolean =
-        skipIdentity(rel.displayVersion) == skippedVersion(context, rel.channel)
+        !rel.mandatory && skipIdentity(rel.displayVersion) == skippedVersion(context, rel.channel)
 
     internal fun skipIdentity(version: String): String =
         version.trim().removePrefix("v").removePrefix("V").removeSuffix("_beta")
@@ -429,18 +457,60 @@ object UpdateChecker {
         return AvailableReleases(stable,previews.maxWithOrNull(::compareReleases))
     }
 
-    suspend fun fetchAvailable(): AvailableReleases? = withContext(Dispatchers.IO) {
-        val document = releaseDocument("https://api.github.com/repos/$REPO/releases?per_page=30") as? JsonArray
-            ?: return@withContext fetchLatest()?.let {
-                AvailableReleases(stable = it.takeIf { r -> r.channel == Channel.STABLE }, beta = it.takeIf { r -> r.channel == Channel.BETA })
-            }
-        val parsed = document.mapNotNull { (it as? JsonObject)?.let(::parseRelease) }
-        var result=resolveAvailable(parsed,::hydrate)
-        if (result.stable==null) fetchLatest()?.let { fallback ->
-            result=if (fallback.channel==Channel.STABLE) result.copy(stable=fallback)
-            else result.copy(beta=listOfNotNull(result.beta,fallback).maxWithOrNull(::compareReleases))
+    /** A missed required release applies to the latest *installable* stable, never to a beta. */
+    internal fun stableUpdate(candidates: List<ReleaseInfo>, deviceSdk: Int,
+                              eligible: (ReleaseInfo) -> Boolean): ReleaseInfo? {
+        val updates = candidates.filter { it.channel == Channel.STABLE &&
+            compatibilityError(it, deviceSdk) == null && eligible(it) }
+        return updates.maxWithOrNull(::compareReleases)?.let { latest ->
+            latest.copy(mandatory = updates.any { it.mandatory })
         }
-        result.takeIf { it.stable!=null || it.beta!=null }
+    }
+
+    suspend fun fetchAvailable(context: Context? = null): AvailableReleases? = withContext(Dispatchers.IO) {
+        // Releases are ordered by creation date, not version. Read every page so an old
+        // installation cannot miss an ENF release beyond the first 30/100 entries.
+        val parsed = mutableListOf<Pair<ReleaseInfo, List<JsonObject>>>()
+        var complete = false
+        for (page in 1..100) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val document = releaseDocument("https://api.github.com/repos/$REPO/releases?per_page=100&page=$page") as? JsonArray
+                ?: break
+            parsed += document.mapNotNull { (it as? JsonObject)?.let(::parseRelease) }
+            if (document.size < 100) { complete = true; break }
+        }
+        val resolved = mutableMapOf<String, ReleaseInfo>()
+        fun once(candidate: Pair<ReleaseInfo, List<JsonObject>>) =
+            resolved.getOrPut(candidate.first.assetUrl) { hydrate(candidate) }
+        var result = resolveAvailable(parsed, ::once)
+        if (result.stable == null) fetchLatest()?.let { fallback ->
+            result = if (fallback.channel == Channel.STABLE) result.copy(stable = fallback)
+            else result.copy(beta = listOfNotNull(result.beta, fallback).maxWithOrNull(::compareReleases))
+        }
+        if (context != null) {
+            val installed = installedVersion(context)
+            val history = parsed.filter { it.first.channel == Channel.STABLE }.mapNotNull { candidate ->
+                // Modern releases carry verified inline metadata: no per-release request.
+                // Older unrelated releases need no attachment fetch. ENF names are a hint
+                // to fetch metadata, never sufficient authority to require an update.
+                val inline = inlineManifest.findAll(candidate.first.notes).toList()
+                val embedded = inline.singleOrNull()?.takeIf {
+                    Regex(Regex.escape(MANIFEST_MARKER)).findAll(candidate.first.notes).count() == 1
+                }?.let { withManifest(candidate.first, it.groupValues[1]) }
+                when {
+                    resolved.containsKey(candidate.first.assetUrl) -> resolved[candidate.first.assetUrl]
+                    embedded != null -> embedded.copy(notes = visibleReleaseNotes(embedded.notes))
+                    compareVersions(candidate.first.displayVersion, installed) >= 0 ||
+                        candidate.first.assetName.endsWith("-ENF.apk") -> once(candidate)
+                    else -> null
+                }
+            } + listOfNotNull(result.stable)
+            // An unavailable manifest must not revoke a previously confirmed requirement.
+            if (history.any { it.compatibilityIssue != null }) complete = false
+            result = result.copy(stable = stableUpdate(history, Build.VERSION.SDK_INT) { hasUpdate(context, it) }
+                ?: result.stable)
+        }
+        result.copy(historyComplete = complete).takeIf { it.stable != null || it.beta != null }
     }
 
     /** 下载到 [dest]，[onProgress] 回调 0..100（-1 表示总长度未知） */

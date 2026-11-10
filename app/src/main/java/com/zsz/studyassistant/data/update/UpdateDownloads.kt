@@ -19,6 +19,7 @@ import org.json.JSONObject
 internal class UpdateDownloads(
     context: Context,
     private val backend: Backend = SystemBackend(context.applicationContext),
+    private val installedApk: () -> File = { File(context.applicationInfo.sourceDir) },
     private val verifier: (File, UpdateChecker.ReleaseInfo) -> UpdateChecker.VerifyResult = { file, release ->
         UpdateChecker.verify(context.applicationContext, file, release.assetSha256, release.displayVersion, release.minSdk, release.versionCode)
     },
@@ -38,7 +39,8 @@ internal class UpdateDownloads(
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
         val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false)
     private data class Record(val token: String, val release: UpdateChecker.ReleaseInfo,
-        val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false)
+        val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false,
+        val delta: UpdateDeltaInfo? = null, val transferToken: String = token, val enqueuePending: Boolean = false)
     companion object {
         private val mutex = Mutex()
         private val handoffScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
@@ -61,27 +63,49 @@ internal class UpdateDownloads(
         }
         require(UpdateChecker.isReleaseAssetUrl(release.assetUrl, release.tagName))
         val previous = read()
+        val target = release.copy(mandatory = release.mandatory ||
+            (previous != null && sameAsset(previous.release, release) && previous.release.mandatory))
         // Notes may change without replacing the asset; only transfer identity determines reuse.
         if (previous != null && sameAsset(previous.release, release)) {
-            val existing = snapshotLocked(previous)
+            // A subsequently discovered mandatory requirement must survive process recreation too.
+            val updated = previous.copy(release = previous.release.copy(mandatory = target.mandatory))
+            write(updated)
+            val existing = snapshotLocked(updated)
             if (existing.phase != Phase.FAILED) return@locked existing
         }
         cancelLocked()
-        var pending = Record(UUID.randomUUID().toString(), release, appNotification = appNotification)
+        val selected = runCatching {
+            val base = installedApk()
+            target.deltas.firstOrNull { eligible(it, target) && UpdateDelta.matches(base, it.baseSize, it.baseSha256) }
+        }.getOrNull()
+        val pending = Record(UUID.randomUUID().toString(), target, appNotification = appNotification,
+            delta = selected, enqueuePending = true)
+        try { enqueueLocked(pending) }
+        catch (error: Exception) {
+            if (pending.delta == null) throw error
+            fail(pending, "update.downloadInterrupted")
+        }
+    }
+
+    private fun enqueueLocked(initial: Record): Snapshot {
+        var pending = initial
         write(pending) // A crash around enqueue can recover by this exact destination token.
         val destination = partial(pending)
         destination.parentFile?.mkdirs()
-        val id = try { backend.enqueue(release, destination, pending.appNotification) }
+        // The caller has already established that this transfer token has no OS row.
+        // An interrupted enqueue may leave our own destination behind.
+        if (destination.exists()) check(destination.delete())
+        val id = try { backend.enqueue(transferRelease(pending), destination, pending.appNotification) }
         catch (error: SecurityException) {
             if (!pending.appNotification) throw error
             pending = pending.copy(appNotification = false); write(pending)
-            backend.enqueue(release, destination, false)
+            backend.enqueue(transferRelease(pending), destination, false)
         }
         require(id >= 0)
-        val record = pending.copy(id = id)
+        val record = pending.copy(id = id, enqueuePending = false)
         try { write(record) }
         catch (error: Exception) { backend.remove(id); throw error }
-        status(record, Phase.DOWNLOADING, 0)
+        return status(record, Phase.DOWNLOADING, 0)
     }
 
     suspend fun snapshot(): Snapshot? = locked {
@@ -113,14 +137,23 @@ internal class UpdateDownloads(
         initial.error?.let { return status(initial, Phase.FAILED, errorKey = it) }
         var record = initial
         val transfer = if (record.id < 0) {
-            backend.find(record.release.assetUrl, partial(record))?.also {
-                if (owns(it, record)) { record = record.copy(id = it.id); write(record) }
+            backend.find(transferRelease(record).assetUrl, partial(record))?.also {
+                if (owns(it, record)) { record = record.copy(id = it.id, enqueuePending = false); write(record) }
             }
         } else backend.query(record.id)
         if (transfer == null || !owns(transfer, record)) {
+            if (transfer == null && record.id < 0 && record.enqueuePending) {
+                return try { enqueueLocked(record) } catch (error: Exception) {
+                    if (record.delta == null) throw error
+                    fail(record, "update.downloadInterrupted")
+                }
+            }
             return fail(record, "update.downloadMissing", removeTransfer = false)
         }
-        val total = transfer.total.takeIf { it > 0 } ?: record.release.assetSize
+        val expectedSize = transferRelease(record).assetSize
+        if (expectedSize > 0 && (transfer.bytes > expectedSize || transfer.total > expectedSize))
+            return fail(record, "update.verifyFailed")
+        val total = transfer.total.takeIf { it > 0 } ?: expectedSize
         val percent = if (total > 0) (transfer.bytes.coerceAtLeast(0).toDouble() / total * 100).toInt().coerceIn(0, 100) else -1
         return when (transfer.status) {
             TransferPhase.QUEUED, TransferPhase.RUNNING -> status(record, Phase.DOWNLOADING, percent)
@@ -132,20 +165,55 @@ internal class UpdateDownloads(
 
     private fun complete(record: Record): Snapshot {
         val candidate = checking(record)
-        try {
+        val result = try {
             val source = partial(record)
-            if (!source.isFile) return fail(record, "update.downloadMissing")
-            if (record.release.assetSize > 0 && source.length() != record.release.assetSize) return fail(record, "update.verifyFailed")
-            source.copyTo(candidate, overwrite = true)
+            require(source.isFile)
+            val delta = record.delta
+            if (delta != null) {
+                // Freeze the patch in private storage before checking it; external files may change.
+                require(source.length() == delta.patchSize)
+                val patch = patchChecking(record)
+                copyCandidate(source, patch, delta.patchSize)
+                val base = installedApk()
+                require(eligible(delta, record.release) && UpdateDelta.matches(patch, delta.patchSize, delta.patchSha256) &&
+                    UpdateDelta.matches(base, delta.baseSize, delta.baseSha256))
+                UpdateDelta.applyGdiff(base, patch, candidate, record.release.assetSize)
+                require(UpdateDelta.matches(candidate, record.release.assetSize, checkNotNull(record.release.assetSha256)))
+            } else {
+                require(record.release.assetSize <= 0 || source.length() == record.release.assetSize)
+                copyCandidate(source, candidate, record.release.assetSize)
+            }
             // Verify the private copy, never a mutable external path that will later be copied again.
-            if (!valid(candidate, record.release)) return fail(record, "update.verifyFailed")
+            require(valid(candidate, record.release))
             val output = ready(record)
             check(candidate.renameTo(output))
             write(record.copy(ready = true, error = null))
             // Failure to tidy an OS row must not invalidate a verified package.
             runCatching { backend.remove(record.id) }
-            return status(record, Phase.READY, 100, output)
-        } finally { candidate.delete() }
+            status(record, Phase.READY, 100, output)
+        } catch (_: Exception) { null }
+        finally { candidate.delete(); patchChecking(record).delete() }
+        // Outside the reconstruction catch: never restart fallback if its OS handoff itself fails.
+        return result ?: fail(record, "update.verifyFailed")
+    }
+
+    private fun copyCandidate(source: File, destination: File, expectedSize: Long) {
+        val limit = if (expectedSize > 0) expectedSize else UpdateDelta.MAX_APK_SIZE
+        require(limit <= UpdateDelta.MAX_APK_SIZE)
+        source.inputStream().buffered().use { input ->
+            destination.outputStream().buffered().use { output ->
+                val buffer = ByteArray(64 * 1024)
+                var copied = 0L
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    require(count.toLong() <= limit - copied)
+                    output.write(buffer, 0, count)
+                    copied += count
+                }
+                require(expectedSize <= 0 || copied == expectedSize)
+            }
+        }
     }
 
     private fun valid(file: File, release: UpdateChecker.ReleaseInfo): Boolean =
@@ -153,21 +221,28 @@ internal class UpdateDownloads(
 
     private fun fail(record: Record, key: String, removeTransfer: Boolean = true): Snapshot {
         if (removeTransfer) removeOwned(record)
-        partial(record).delete(); ready(record).delete(); checking(record).delete()
+        partial(record).delete(); ready(record).delete(); checking(record).delete(); patchChecking(record).delete()
+        if (record.delta != null && key !in setOf("update.incompatible", "update.compatibilityUnknown")) {
+            // Keep the public task token for notifications/cancel; never reuse the patch transfer identity.
+            val fallback = record.copy(delta = null, id = -1, ready = false, error = null,
+                transferToken = UUID.randomUUID().toString(), enqueuePending = true)
+            write(fallback) // Persist the one-way transition before performing the new OS handoff.
+            return enqueueLocked(fallback)
+        }
         write(record.copy(ready = false, error = key))
         return status(record, Phase.FAILED, errorKey = key)
     }
     private fun cancelLocked() {
         val record = read() ?: return
         removeOwned(record)
-        partial(record).delete(); ready(record).delete(); checking(record).delete()
+        partial(record).delete(); ready(record).delete(); checking(record).delete(); patchChecking(record).delete()
         check(prefs.edit().remove("session").commit())
     }
     private fun removeOwned(record: Record) {
-        val current = if (record.id >= 0) backend.query(record.id) else backend.find(record.release.assetUrl, partial(record))
+        val current = if (record.id >= 0) backend.query(record.id) else backend.find(transferRelease(record).assetUrl, partial(record))
         if (current != null && owns(current, record)) backend.remove(current.id)
     }
-    private fun owns(transfer: Transfer, record: Record): Boolean = transfer.url == record.release.assetUrl && transfer.token == record.token &&
+    private fun owns(transfer: Transfer, record: Record): Boolean = transfer.url == transferRelease(record).assetUrl && transfer.token == record.transferToken &&
         (transfer.localUri == null || runCatching {
             val uri = Uri.parse(transfer.localUri)
             uri.scheme == "file" && File(checkNotNull(uri.path)).canonicalFile == partial(record).canonicalFile
@@ -178,10 +253,21 @@ internal class UpdateDownloads(
 
     private fun partial(record: Record): File {
         val root = checkNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))
-        return File(root, "updates/${record.token}.part")
+        return File(root, "updates/${record.transferToken}.part")
     }
     private fun ready(record: Record) = File(UpdateChecker.downloadDir(context), "${record.token}.apk")
     private fun checking(record: Record) = File(UpdateChecker.downloadDir(context), "${record.token}.checking")
+    private fun patchChecking(record: Record) = File(UpdateChecker.downloadDir(context), "${record.token}.patch-checking")
+    private fun transferRelease(record: Record): UpdateChecker.ReleaseInfo = record.delta?.let {
+        record.release.copy(assetName = it.patchName, assetUrl = it.patchUrl, assetSha256 = it.patchSha256, assetSize = it.patchSize)
+    } ?: record.release
+    private fun eligible(delta: UpdateDeltaInfo, release: UpdateChecker.ReleaseInfo): Boolean =
+        delta.format == UpdateDelta.FORMAT && delta.baseSize in 1..UpdateDelta.MAX_APK_SIZE &&
+            release.assetSize in 1..UpdateDelta.MAX_APK_SIZE && delta.patchSize in 1 until release.assetSize &&
+            listOf(delta.baseSha256, delta.patchSha256, release.assetSha256.orEmpty()).all { Regex("[0-9a-fA-F]{64}").matches(it) } &&
+            Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,199}").matches(delta.patchName) &&
+            UpdateChecker.isReleaseAssetUrl(delta.patchUrl, release.tagName) &&
+            runCatching { java.net.URI(delta.patchUrl).path.substringAfterLast('/') == delta.patchName }.getOrDefault(false)
     private fun sameAsset(a: UpdateChecker.ReleaseInfo, b: UpdateChecker.ReleaseInfo) =
         a.tagName == b.tagName && a.version == b.version && a.assetName == b.assetName && a.assetUrl == b.assetUrl &&
             a.assetSha256 == b.assetSha256 && a.assetSize == b.assetSize && a.assetUploadedAt == b.assetUploadedAt &&
@@ -192,14 +278,25 @@ internal class UpdateDownloads(
         val obj = JSONObject(stored)
         val token = obj.getString("token")
         require(UUID.fromString(token).toString() == token)
-        Record(token, UpdateChecker.ReleaseInfo(obj.getString("tag"), obj.getString("version"), obj.getString("notes"),
+        val transferToken = obj.optString("transferToken", token)
+        require(UUID.fromString(transferToken).toString() == transferToken)
+        val release = UpdateChecker.ReleaseInfo(obj.getString("tag"), obj.getString("version"), obj.getString("notes"),
             obj.getString("name"), obj.getString("url"), obj.optString("sha").takeIf { it.isNotBlank() },
             obj.getLong("size"), obj.getLong("uploaded"),
             if (obj.has("minSdk")) obj.optInt("minSdk").takeIf { it > 0 } else UpdateChecker.legacyMinSdk(obj.getString("version")),
             obj.optLong("versionCode").takeIf { it > 0 },
-            channel = if (obj.optString("channel") == "beta") UpdateChecker.Channel.BETA else UpdateChecker.Channel.STABLE), obj.getLong("id"), obj.optBoolean("ready"),
+            channel = if (obj.optString("channel") == "beta") UpdateChecker.Channel.BETA else UpdateChecker.Channel.STABLE,
+            mandatory = obj.optBoolean("mandatory", false))
+        require(UpdateChecker.isReleaseAssetUrl(release.assetUrl, release.tagName))
+        val delta = obj.optJSONObject("delta")?.let {
+            UpdateDeltaInfo(it.getString("format"), it.getString("baseSha256"), it.getLong("baseSize"),
+                it.getString("patchName"), it.getString("patchUrl"), it.getString("patchSha256"), it.getLong("patchSize"))
+                .also { info -> require(eligible(info, release)) }
+        }
+        Record(token, release, obj.getLong("id"), obj.optBoolean("ready"),
             obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted",
-                "update.incompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false))
+                "update.incompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false),
+            delta, transferToken, obj.optBoolean("enqueuePending", false))
     }.getOrNull()
     private fun write(record: Record) {
         val rel = record.release
@@ -209,6 +306,11 @@ internal class UpdateDownloads(
             .put("size", rel.assetSize).put("uploaded", rel.assetUploadedAt)
             .put("minSdk", rel.minSdk ?: 0).put("versionCode", rel.versionCode ?: 0)
             .put("channel", if (rel.channel == UpdateChecker.Channel.BETA) "beta" else "stable")
+            .put("mandatory", rel.mandatory).put("transferToken", record.transferToken).put("enqueuePending", record.enqueuePending)
+        record.delta?.let {
+            obj.put("delta", JSONObject().put("format", it.format).put("baseSha256", it.baseSha256).put("baseSize", it.baseSize)
+                .put("patchName", it.patchName).put("patchUrl", it.patchUrl).put("patchSha256", it.patchSha256).put("patchSize", it.patchSize))
+        }
         check(prefs.edit().putString("session", obj.toString()).commit())
     }
 

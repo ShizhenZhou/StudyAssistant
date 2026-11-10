@@ -11,6 +11,7 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import local_checks
 import release
+import apk_delta
 from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
 
 
@@ -86,6 +87,74 @@ class DeliveryTest(unittest.TestCase):
         jobs = [dict(id=1, name="build", conclusion="success"),
                 dict(id=2, name="build", conclusion="failure")]
         with self.assertRaises(release.ReleaseError): release.required_jobs(jobs, [])
+
+    def test_mandatory_is_explicit_stable_and_immutable_on_resume(self):
+        state = {"channel": "stable"}
+        release.bind_mandatory(state, True)
+        release.bind_mandatory(state, None)
+        self.assertTrue(state["mandatory"])
+        with self.assertRaises(release.ReleaseError): release.bind_mandatory(state, False)
+        legacy = {"dispatchAttempted": True}
+        release.bind_mandatory(legacy, None)
+        self.assertNotIn("mandatory", legacy)
+        with self.assertRaises(release.ReleaseError): release.bind_mandatory(legacy, True)
+        for value in ("true", 1, None):
+            with self.assertRaises(release.ReleaseError): release.mandatory_release({"mandatory": value})
+        with self.assertRaises(release.ReleaseError): release.mandatory_release({"channel": "beta", "mandatory": True})
+        notes = "- 最低支持 Android 16+。 本版本为正式版。"
+        body = release.release_body(notes, state)
+        self.assertTrue(body.split("\n\n")[0].endswith("本版本为正式版。本次更新极其重要，是强制更新"))
+        self.assertEqual(1, body.count("本次更新极其重要，是强制更新"))
+        self.assertNotIn("本次更新极其重要", release.release_body(notes, {"channel": "stable", "mandatory": False}))
+
+    def test_gdiff_reconstructs_bytes_and_rejects_out_of_bounds_or_truncation(self):
+        import gzip
+        import struct
+        base = bytes(range(256)) * 400
+        target = b"new header" + base[100:] + b"changed signing block" + base[:150]
+        delta = apk_delta.encode(base, target)
+        self.assertEqual(target, apk_delta.apply(base, delta, len(target)))
+        # W3C's independently specified example: ABCDEFG -> ABXYCDBCDE.
+        example = apk_delta.MAGIC + bytes([249, 0, 0, 2, 2, 88, 89, 249, 0, 2, 2, 249, 0, 1, 4, 0])
+        self.assertEqual(b"ABXYCDBCDE", apk_delta.apply(b"ABCDEFG", gzip.compress(example), 10))
+        for stream in (apk_delta.MAGIC + b"\xfe" + struct.pack(">ii", len(base), 1) + b"\x00",
+                       apk_delta.MAGIC + b"\xfe" + struct.pack(">ii", 0, -1) + b"\x00",
+                       apk_delta.MAGIC + b"\x02a", apk_delta.MAGIC + b"\x01a\x00trailing"):
+            with self.assertRaises(ValueError): apk_delta.apply(base, gzip.compress(stream), 1)
+        with self.assertRaises(ValueError): apk_delta.apply(base, delta, len(target) - 1)
+
+    def test_optional_delta_assets_keep_full_apk_and_manifest_integrity_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            files = {name: folder / name for name in ("target.apk", "update-manifest.json", "target-from-1.gdiff.gz")}
+            for name, path in files.items(): path.write_bytes(name.encode())
+            assets = [dict(name=name, size=path.stat().st_size, digest="sha256:" + sha256(path)) for name, path in files.items()]
+            release.validate_release_assets(assets, files, complete=True)
+            with self.assertRaises(release.ReleaseError): release.validate_release_assets(assets[:-1], files, complete=True)
+            assets[-1]["digest"] = "sha256:" + "0" * 64
+            with self.assertRaises(release.ReleaseError): release.validate_release_assets(assets, files, complete=True)
+            with self.assertRaises(release.ReleaseError):
+                release.delta_files(folder / "target.apk", {"deltas": [{"format": apk_delta.FORMAT, "patchName": "../private.gdiff.gz"}]})
+
+    def test_missing_delta_recovers_only_the_frozen_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            base = folder / "base.apk"; base.write_bytes(bytes(range(256)) * 100)
+            record = dict(path=str(base), baseSha256=sha256(base), baseSize=base.stat().st_size, baseVersionCode=1)
+            original = folder / "sign-old"; original.mkdir()
+            target = original / "target.apk"; target.write_bytes(base.read_bytes() + b"signed target")
+            metadata = apk_delta.build(record, target, 2, original)
+            frozen = dict(metadata)
+            recovered = folder / "sign-new"; recovered.mkdir()
+            restored = recovered / target.name; restored.write_bytes(target.read_bytes())
+            self.assertEqual(metadata, apk_delta.build(record, restored, 2, recovered, expected=metadata))
+            self.assertEqual((original / metadata["patchName"]).read_bytes(), (recovered / metadata["patchName"]).read_bytes())
+            changed = folder / "sign-changed"; changed.mkdir()
+            wrong = changed / target.name; wrong.write_bytes(target.read_bytes() + b"different")
+            with self.assertRaisesRegex(ValueError, "frozen release metadata"):
+                apk_delta.build(record, wrong, 2, changed, expected=metadata)
+            self.assertFalse((changed / metadata["patchName"]).exists())
+            self.assertEqual(frozen, metadata)
 
     def test_start_requires_merged_main_and_dispatches_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:

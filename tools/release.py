@@ -16,6 +16,7 @@ import uuid
 import io
 import zipfile
 import tempfile
+import apk_delta
 from release_common import VERSION, apk_identity, apk_payload, extract_candidate, numeric_version, sha256, validate_manifest
 from verification import (make_plan, validate_ci_evidence,
                           validate_promotion, pre_main_gate)
@@ -65,17 +66,62 @@ def release_body(notes, metadata):
     if "<!-- studyassistant-update-manifest" in notes:
         raise ReleaseError("Release notes must not contain a pre-existing update metadata block")
     channel = metadata.get("channel")
+    mandatory = mandatory_release(metadata)
     if channel is not None:
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
         label = "本版本为测试版，功能可能不稳定。" if channel == "beta" else "本版本为正式版。"
         lines = notes.rstrip().splitlines()
         if not lines: raise ReleaseError("Release notes are empty")
-        requirement = re.sub(r"\s*本版本为(?:正式版。|测试版，功能可能不稳定。)\s*$", "", lines[-1])
+        requirement = re.sub(r"\s*本版本为(?:正式版。|测试版，功能可能不稳定。)(?:\s*本次更新极其重要，是强制更新。?)?\s*$", "", lines[-1])
         lines[-1] = requirement.rstrip() + " " + label
+        if mandatory: lines[-1] += "本次更新极其重要，是强制更新"
         notes = "\n".join(lines)
     encoded = json.dumps(metadata, ensure_ascii=True, separators=(",", ":"))
     encoded = encoded.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     return notes.rstrip() + "\n\n" + marker + encoded + "\n-->"
+
+
+def mandatory_release(state):
+    value = state.get("mandatory", False)
+    if type(value) is not bool: raise ReleaseError("Mandatory flag must be a JSON boolean")
+    if value and state.get("channel", "stable") != "stable":
+        raise ReleaseError("Only stable releases may be mandatory")
+    return value
+
+
+def bind_mandatory(state, requested):
+    """An omitted flag resumes the original decision; historical states stay unchanged."""
+    current = mandatory_release(state)
+    if requested is not None and type(requested) is not bool:
+        raise ReleaseError("Mandatory flag must be a boolean")
+    if "mandatory" in state or state.get("dispatchAttempted") or state.get("signedPath") or state.get("published"):
+        if requested is not None and requested != current:
+            raise ReleaseError("Cannot change the mandatory flag of an existing release state")
+        return
+    state["mandatory"] = bool(requested)
+    mandatory_release(state)
+
+
+def distribution_metadata(metadata, state):
+    if "channel" in state: metadata["channel"] = state["channel"]
+    if "mandatory" in state: metadata["mandatory"] = mandatory_release(state)
+    if state.get("deltas"): metadata["deltas"] = state["deltas"]
+    return metadata
+
+
+def published_asset_names(metadata):
+    names = {"update-manifest.json", metadata["apkName"]}
+    for delta in metadata.get("deltas", []):
+        if delta.get("format") != apk_delta.FORMAT or not re.fullmatch(r"[A-Za-z0-9_.-]+\.gdiff\.gz", delta.get("patchName", "")):
+            raise ReleaseError("Unexpected published delta format or name")
+        if delta["patchName"] in names: raise ReleaseError("Duplicate published delta asset")
+        names.add(delta["patchName"])
+    return names
+
+
+def delta_files(signed, state):
+    names = published_asset_names(dict(apkName=signed.name, deltas=state.get("deltas", [])))
+    return {name: signed.parent / name for name in names - {signed.name, "update-manifest.json"}}
 
 def validate_release_assets(assets, files, complete=False):
     names = [asset["name"] for asset in assets]
@@ -269,8 +315,12 @@ class Release:
             raise ReleaseError("Replacement APK name collides with the original")
         assets = refresh()
         if inspect_only: return assets
-        if apk.name not in {a["name"] for a in assets}: upload(apk); assets=refresh()
-        check_download(next(a for a in assets if a["name"] == apk.name))
+        for name, path in files.items():
+            if name == "update-manifest.json": continue
+            if name in old and old[name]["digest"] != "sha256:" + sha256(path):
+                raise ReleaseError("Replacement asset name collides with the original")
+            if name not in {a["name"] for a in assets}: upload(path); assets=refresh()
+            check_download(next(a for a in assets if a["name"] == name))
         metadata = files["update-manifest.json"]
         current = next((a for a in assets if a["name"] == metadata.name),None)
         if same(current,old.get(metadata.name)) or current is None:
@@ -349,6 +399,9 @@ class Release:
             return data
         if metadata_assets[0]["size"] > 65536: raise ReleaseError("Oversized public metadata")
         metadata = json.loads(asset_bytes(metadata_assets[0]))
+        asset_names = [a["name"] for a in assets]
+        if len(asset_names) != len(set(asset_names)) or set(asset_names) != published_asset_names(metadata):
+            raise ReleaseError("Unexpected original release layout")
         apk_assets = [a for a in assets if a["name"] == metadata["apkName"]]
         if (len(apk_assets) != 1 or metadata.get("schema") != 1 or
             numeric_version(published["tag_name"].removeprefix("v")) != metadata["version"] or
@@ -419,10 +472,12 @@ class Release:
             if sha256(signed)!=self.state['signedSha256']:raise ReleaseError('Local signed package changed')
             metadata=self.signed_identity(signed,self.state['manifest'])
             metadata['provenance']=dict(sourceCommit=self.state['commit'],runId=self.state['runId'])
-            if 'channel' in self.state: metadata['channel']=self.state['channel']
+            distribution_metadata(metadata, self.state)
             path=signed.parent/'update-manifest.json'
             if json.loads(path.read_text(encoding='utf-8'))!=metadata:raise ReleaseError('Replacement update manifest changed')
-            self.replace_assets(published,{signed.name:signed,path.name:path},inspect_only=True)
+            files = {signed.name:signed,path.name:path}
+            files.update(delta_files(signed, self.state))
+            self.replace_assets(published,files,inspect_only=True)
             # Public assets can now be absent/replaced. The original exact APK is still
             # checked against freshly queried successful CI and its candidate/evidence.
             return self.proven_published_source(proof['published'],frozen=proof['files'])
@@ -438,7 +493,7 @@ class Release:
         self.state['verificationBaselineReleaseId']=published['id'];self.save()
         return commit
 
-    def start(self, version, replacement=False, channel="stable"):
+    def start(self, version, replacement=False, channel="stable", mandatory=None, delta_base=None):
         # Merge/review happens before this command; it never starts tests or merges branches.
         if self.git("status", "--porcelain").stdout.strip():
             raise ReleaseError("Commit/review local changes first.")
@@ -449,6 +504,7 @@ class Release:
         if self.remote(branch) != commit:
             raise ReleaseError("Push the reviewed source branch before requesting its build.")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
+        mandatory_release(dict(channel=channel, mandatory=False if mandatory is None else mandatory))
         if numeric_version(version) != version and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
         source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
         if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
@@ -458,6 +514,12 @@ class Release:
             raise ReleaseError("Retired staged-release state; do not resume its promotion workflow.")
         if self.state.get("channel", channel) != channel:
             raise ReleaseError("Resume with the original release channel")
+        bind_mandatory(self.state, mandatory)
+        if delta_base is not None:
+            base = apk_delta.read_base(delta_base)
+            if (self.state.get("dispatchAttempted") or self.state.get("signedPath") or "deltaBase" in self.state) and self.state.get("deltaBase") != base:
+                raise ReleaseError("Cannot change delta base of an existing release state")
+            self.state["deltaBase"] = base
         if self.state.get("replacementRequested") and not replacement:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
         if self.state.get("dispatchAttempted"): return self.status()
@@ -613,7 +675,7 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","dispatchBranch","fullVerification") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","mandatory","deltaBase","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
             branch = run.get("head_branch")
             if numeric_version(manifest["version"]) != manifest["version"] and self.state.get("channel") != "beta":
@@ -657,6 +719,8 @@ class Release:
         signed = local_artifact(self.root, self.state["signedPath"]) if self.state.get("signedPath") else None
         if signed and signed.exists():
             if sha256(signed) != self.state["signedSha256"]: raise ReleaseError("Local signed package changed.")
+            if signed.name.endswith("-ENF.apk") != mandatory_release(self.state):
+                raise ReleaseError("Signed APK filename differs from mandatory release state")
             self.signed_identity(signed, manifest)
         else:
             folder = work / ("sign-" + uuid.uuid4().hex)
@@ -664,9 +728,25 @@ class Release:
             command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/sign-release.ps1",
                 "-InApk", candidate, "-OutDir", folder], root=self.root, log=folder / "signing.log", timeout=120)
             signed = folder / f"StudyAssistant-{manifest['version']}-{manifest['buildUtc']}.apk"
+            if mandatory_release(self.state):
+                enforced = signed.with_name(signed.stem + "-ENF.apk")
+                signed.rename(enforced)
+                signed = enforced
             self.signed_identity(signed, manifest)
             self.state.update(signedPath=str(signed.relative_to(self.root)), signedSha256=sha256(signed), phase="signed")
             self.save()
+        if self.state.get("deltaBase"):
+            if not self.state.get("deltas"):
+                self.state["deltas"] = [apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent)]
+                self.save()
+            paths = delta_files(signed, self.state)
+            for delta in self.state["deltas"]:
+                path = paths[delta["patchName"]]
+                if not path.exists():
+                    # A recovered signing directory also needs its exact original delta.
+                    apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent, expected=delta)
+                if path.stat().st_size != delta["patchSize"] or sha256(path) != delta["patchSha256"]:
+                    raise ReleaseError("Local delta artifact changed")
         return dict(version=manifest["version"], commit=commit, runId=run_id, phase=self.state.get("phase"), apk=signed.name,
             sha256=self.state["signedSha256"], payloadUnchanged=True, published=bool(self.state.get("published")))
     def publish(self, run_id, notes=None, replacement=False):
@@ -686,6 +766,7 @@ class Release:
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
         # Persist exact metadata before any durable replacement ownership marker.
         files = {signed.name: signed}
+        files.update(delta_files(signed, self.state))
         # Previously published legacy releases retain their single-APK layout.
         if tuple(map(int, numeric_version(version).split("."))) > (0, 6, 7, 8):
             metadata = self.signed_identity(signed, manifest)
@@ -694,7 +775,7 @@ class Release:
             legacy = update_path.exists() and json.loads(update_path.read_text(encoding="utf-8")) == metadata
             if manifest["schema"] in (2, 3) and (replacement or not legacy):
                 metadata["provenance"] = dict(sourceCommit=manifest["commit"], runId=self.state["runId"])
-            if "channel" in self.state: metadata["channel"] = channel
+            distribution_metadata(metadata, self.state)
             encoded = (json.dumps(metadata, indent=2) + "\n").encode("utf-8")
             if update_path.exists() and update_path.read_bytes() != encoded:
                 raise ReleaseError("Local update manifest changed; nothing was overwritten.")
@@ -723,8 +804,7 @@ class Release:
                 # Validate exact old APK/CI provenance before retaining its immutable snapshot.
                 if not self.proven_published_source(found[0], allow_beta=channel == "beta"): raise ReleaseError("Original release provenance is unavailable")
                 old_assets=found[0]["assets"]
-                if len(old_assets)!=2 or sum(a["name"]=="update-manifest.json" for a in old_assets)!=1 or sum(a["name"].endswith(".apk") for a in old_assets)!=1:
-                    raise ReleaseError("Unexpected original release layout")
+                # proven_published_source already checked the complete APK/manifest/delta layout.
                 self.state["replacement"]=dict(releaseId=found[0]["id"],oldAssets=json.loads(json.dumps(old_assets)),tagCommit=tag_commit)
                 self.state["releaseId"]=found[0]["id"]; self.save()
             if self.state["replacement"]["tagCommit"]!=tag_commit: raise ReleaseError("Immutable tag changed")
@@ -751,7 +831,7 @@ class Release:
         assets = release["assets"]
         if replacement:
             assets=self.replace_assets(release,files)
-            # Body changes only after both new public assets have passed download verification.
+            # Body changes only after all new public assets have passed download verification.
             release=self.github.api(f"releases/{release['id']}",{"body":body},method="PATCH")
         else:
             validate_release_assets(assets, files)
@@ -772,7 +852,7 @@ class Release:
             public = self.github.download(f"repos/{REPO}/releases/assets/{asset['id']}?download=1", binary=True)
             if len(public) != path.stat().st_size or hashlib.sha256(public).hexdigest() != sha256(path):
                 raise ReleaseError("Public download differs from the local release asset.")
-            archive_name = path.name if path == signed else signed.stem + "-update-manifest.json"
+            archive_name = signed.stem + "-update-manifest.json" if path.name == "update-manifest.json" else path.name
             archive = self.root / "history_apk" / archive_name
             archive.parent.mkdir(parents=True, exist_ok=True)
             if archive.exists() and sha256(archive) != sha256(path): raise ReleaseError("Archive collision; existing file was not changed.")
@@ -788,6 +868,8 @@ def main():
         item = sub.add_parser(operation); item.add_argument("--version", required=True)
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
+        if operation == "start": item.add_argument("--mandatory", action="store_true", default=None, help="Explicit stable-only forced update; adds -ENF to the APK filename")
+        if operation == "start": item.add_argument("--delta-base", type=Path, help="Exact archived stable APK with companion update manifest; creates a verified optional delta")
         if operation == "status": item.add_argument("--run",type=int,help="Select an exact build when a version has multiple states")
     for operation in ("verify", "publish", "replace"):
         item = sub.add_parser(operation,help="Explicitly replace the same version's public assets; never moves its tag" if operation=="replace" else None)
@@ -796,7 +878,7 @@ def main():
     args = parser.parse_args()
     coordinator = Release()
     try:
-        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel)
+        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel,mandatory=args.mandatory,delta_base=args.delta_base)
         elif args.operation == "status":
             result=coordinator.load_status(args.version,args.run)
         elif args.operation == "verify": result = coordinator.verify(args.run)

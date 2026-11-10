@@ -391,6 +391,10 @@ BAIDU_SECRET_KEY=
 系统 DownloadManager 使用应用专属 externalFiles/Download/updates/<UUID>.part；唯一任务 MIME 标签用于在入队崩溃窗口恢复尚无本地 URI 的系统任务。下载成功后流式复制至私有 cache/updates/<UUID>.checking，大小/摘要/签名/包名/版本校验成功才改为 .apk；安装前再验。网络等待由系统保留任务；系统永久失败可重下，不伪称始终可续传。只删除明确属于该任务的文件和下载 ID。
 这些文件和公开任务元数据不属于错题库或备份，不包含 API Key；不修改数据库和备份格式。旧更新缓存不因本次升级被批量删除。
 
+v0.7.1 在同一 session 中增加 `mandatory`（缺省 false）、`transferToken`（缺省沿用原任务 UUID）、`enqueuePending`（缺省 false）及可选 `delta` 公开补丁元数据。业务任务 UUID 继续绑定通知和取消；差分失败转完整包时保留该 UUID，另换传输 UUID，先持久化单向回退再入队，避免重启重复选择失败补丁或误认旧下载行。旧 session 不含差分时继续原完整包流程，不改写学习数据。
+
+差分仅匹配当前已安装 APK 的精确长度与 SHA-256，补丁经私有副本长度/摘要校验后按有界 GDIFF v4 + gzip 还原；合成结果须与完整签名 APK 的长度/SHA-256 一致，再做既有包名、版本、平台和证书校验，安装前仍重新核验。任何差分传输或还原失败自动转一次完整包；完整包失败保留失败状态，用户主动取消不会触发回退。`.patch-checking` 与 `.checking` 仅为该 UUID 的临时缓存，不含题库、凭据或备份；DB v10 / Bak v4 不变。
+
 
 ## 更新通知归属（v0.6.7.4）
 
@@ -435,6 +439,8 @@ BAIDU_SECRET_KEY=
 
 
 ## 完成通知确认（v0.6.8.7）
+
+v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已确认且本机可安装的强制正式更新目标（完整 APK 身份、最低系统、说明和 `mandatory=true`）。缺失默认为无强制要求；冷启动重新核对已安装版本/构建，已更新即清理。检查到当前版本之后任一可安装的强制正式版时，要求安装最新可安装正式版；完整有效历史可更新或撤销该要求，网络失败或不完整结果保留已确认的要求。此元数据不进入学习数据备份，不改变 DB v10 / Bak v4。
 
 独立私有偏好 `SharedPreferences("update_download_notices")/acknowledged_tokens` 保存最近最多16个已确认更新任务 UUID，以逗号分隔。缺失时按空集合读取，无需迁移。点击完成通知或安装按钮后按 UUID 确认，防止监控服务再次显示同任务的完成提示；旧任务确认不影响新下载，也不改变任务 READY 状态或删除 APK。此元数据不进入学习数据备份，DB v10 / Bak v4 保持不变。
 

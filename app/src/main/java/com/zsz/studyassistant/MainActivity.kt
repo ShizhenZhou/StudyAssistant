@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.navigationBars
@@ -32,6 +33,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -244,6 +246,9 @@ class MainActivity : ComponentActivity() {
                     }
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
+                    val updatePrompt by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState()
+                    val requiredUpdate = updatePrompt?.mandatory == true
+                    var updatePolicyReady by remember { mutableStateOf(false) }
                     LaunchedEffect(viewModel.openBackupManagementPage) {
                         if (viewModel.openBackupManagementPage && nav.currentDestination?.route != AppNav.SETTINGS) {
                             AppNav.switchTab(nav, AppNav.SETTINGS)
@@ -262,7 +267,7 @@ class MainActivity : ComponentActivity() {
                         // Keep the completed gesture transition stable while its destination is active.
                         if (swipeTransition?.second != current) swipeTransition = null
                     }
-                    val showBottomBar = AppNav.showsBottomBar(current)
+                    val showBottomBar = AppNav.showsBottomBar(current) && !requiredUpdate
                     var settingsAtRoot by remember { mutableStateOf(true) }
                     var settingsRootRequest by remember { mutableStateOf(0) }
                     val tabScope = rememberCoroutineScope()
@@ -285,9 +290,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // 启动时**静默**查一次更新：网络失败或已是最新 → 什么都不做；
-                    // 查到新版本 → UpdateBadgeState 置位，设置入口与底栏「设置」显示红色气泡①
-                    LaunchedEffect(Unit) { silentUpdateCheck(this@MainActivity) }
+                    LaunchedEffect(Unit) {
+                        try { com.zsz.studyassistant.data.UpdatePromptStore.restore(this@MainActivity) }
+                        finally { updatePolicyReady = true }
+                        silentUpdateCheck(this@MainActivity)
+                    }
 
                     // No replay: a background completion must not become a stale notice on return.
                     LaunchedEffect(feedback, strings) {
@@ -369,7 +376,7 @@ class MainActivity : ComponentActivity() {
                         // Pass that ownership to child Scaffolds, keeping top/side insets intact.
                         RootTabSwipeHost(
                             route = current,
-                            enabled = !navBlocking.value && current in AppNav.rootTabs &&
+                            enabled = updatePolicyReady && !requiredUpdate && !navBlocking.value && current in AppNav.rootTabs &&
                                 (current != AppNav.SETTINGS || settingsAtRoot),
                             modifier = Modifier.weight(1f).then(if (showBottomBar)
                                 Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
@@ -422,6 +429,14 @@ class MainActivity : ComponentActivity() {
                                     composable(AppNav.STATS) { StatsScreen(viewModel, statsScroll) }
                                     composable(AppNav.SETTINGS) {
                                         SettingsTab(viewModel, settingsRootRequest, settingsScroll) { settingsAtRoot = it }
+                                    }
+                                    composable(AppNav.REQUIRED_UPDATE) {
+                                        Box(Modifier.padding(WindowInsets.navigationBars.asPaddingValues())) {
+                                            com.zsz.studyassistant.ui.SettingsSubPage(strings["settings.update"],
+                                                { AppNav.switchTab(nav, AppNav.SETTINGS) }) {
+                                                com.zsz.studyassistant.ui.UpdatePage()
+                                            }
+                                        }
                                     }
                                 }
 
@@ -497,10 +512,23 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     com.zsz.studyassistant.ui.RootBackExitHandler(
-                        enabled = current in AppNav.rootTabs && (current != AppNav.SETTINGS || settingsAtRoot),
+                        enabled = !requiredUpdate && current in AppNav.rootTabs && (current != AppNav.SETTINGS || settingsAtRoot),
                         pageKey = current,
                         onExit = { moveTaskToBack(true) }
                     )
+                    androidx.activity.compose.BackHandler(enabled = requiredUpdate && current == AppNav.REQUIRED_UPDATE) {
+                        moveTaskToBack(true)
+                    }
+                    if (!updatePolicyReady) {
+                        // Restore local required policy before the first business interaction.
+                        androidx.compose.ui.window.Dialog(onDismissRequest = {}, properties =
+                            androidx.compose.ui.window.DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
+                            androidx.compose.material3.CircularProgressIndicator()
+                        }
+                    } else com.zsz.studyassistant.ui.StableUpdatePrompt(updatePrompt, current == AppNav.REQUIRED_UPDATE) { required ->
+                        if (required) AppNav.openRequiredUpdate(nav)
+                        else viewModel.openUpdatePage = true
+                    }
                 }
             }
             }   // CompositionLocalProvider(LocalDensity)

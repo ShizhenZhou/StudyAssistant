@@ -109,8 +109,10 @@ class UpdateNotificationWorker(context: Context, parameters: WorkerParameters) :
         val context = applicationContext
         UpdateNotifications.ensureChannel(context)
         if (!UpdateNotifications.isEnabled(context) || !UpdateNotifications.canNotify(context)) return Result.success()
-        // Only fetch the official stable endpoint, never the optional beta feed.
-        val release = UpdateChecker.fetchLatest() ?: return Result.success()
+        // The same history policy as the foreground check; notifications remain stable-only.
+        val releases = UpdateChecker.fetchAvailable(context) ?: return Result.success()
+        UpdatePromptStore.accept(context, releases)
+        val release = UpdatePromptStore.release.value ?: return Result.success()
         currentCoroutineContext().ensureActive()
         UpdateChecker.markChecked(context)
         UpdateNotifications.postIfNeeded(context, release)

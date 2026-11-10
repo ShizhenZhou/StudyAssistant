@@ -53,6 +53,12 @@ object AppNav {
     const val SIMILAR = "similar"
     const val STATS = "stats"
     const val SETTINGS = "settings"
+    const val REQUIRED_UPDATE = "requiredUpdate"
+
+    /** Same update UI, without access to business pages until a required update is installed. */
+    fun openRequiredUpdate(nav: NavHostController) {
+        nav.navigate(REQUIRED_UPDATE) { launchSingleTop = true }
+    }
 
     val rootTabs = listOf(HOME, STATS, SETTINGS)
     fun adjacentRootTab(route: String?, next: Boolean): String? {

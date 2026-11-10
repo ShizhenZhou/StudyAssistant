@@ -10,6 +10,44 @@ class UpdateCompatibilityTest {
         "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.8/fixture.apk", null, 7)
     private fun manifest(min: Int = 36) = """{"schema":1,"version":"0.6.8","versionCode":78,"minSdk":$min,"apkName":"fixture.apk","apkSha256":"${"a".repeat(64)}","apkSize":7}"""
 
+    @Test fun mandatoryNeedsAnExplicitBooleanAndStableChannel() {
+        assertFalse(UpdateChecker.withManifest(release, manifest())!!.mandatory)
+        val required = manifest().dropLast(1) + """, "mandatory":true}"""
+        assertTrue(UpdateChecker.withManifest(release, required)!!.mandatory)
+        assertFalse(UpdateChecker.withManifest(release.copy(channel = UpdateChecker.Channel.BETA), required)!!.mandatory)
+        assertFalse(UpdateChecker.withManifest(release,
+            required.dropLast(1) + """, "channel":"beta"}""")!!.mandatory)
+        for (invalid in listOf("\"true\"", "1", "null", "{}")) {
+            assertNull(UpdateChecker.withManifest(release, manifest().dropLast(1) + ",\"mandatory\":$invalid}"))
+        }
+    }
+
+    @Test fun missedMandatoryStableRequiresLatestInstallableStableOnly() {
+        val old = release.copy(tagName = "v0.7.1", version = "0.7.1", versionCode = 112, minSdk = 36, mandatory = true)
+        val latest = old.copy(tagName = "v0.7.3", version = "0.7.3", versionCode = 114, mandatory = false)
+        val future = latest.copy(tagName = "v0.8.0", versionCode = 120, minSdk = 37)
+        val preview = future.copy(minSdk = 36, channel = UpdateChecker.Channel.BETA, mandatory = true)
+        val history = listOf(preview, future, latest, old)
+        assertEquals(latest.copy(mandatory = true), UpdateChecker.stableUpdate(history, 36) { it.versionCode!! > 111 })
+        assertEquals(latest, UpdateChecker.stableUpdate(history, 36) { it.versionCode!! > 112 })
+        assertNull(UpdateChecker.stableUpdate(history, 35) { true })
+        assertNull(UpdateChecker.stableUpdate(history, 36) { false })
+    }
+
+    @Test fun malformedDeltaFallsBackToFullApkWithoutDroppingCompatibility() {
+        val base = manifest().dropLast(1)
+        val valid = """{"format":"gdiff4-gzip","baseSha256":"${"b".repeat(64)}","baseSize":10,"patchName":"fixture.gdiff.gz","patchSha256":"${"c".repeat(64)}","patchSize":3}"""
+        val parsed = UpdateChecker.withManifest(release, "$base,\"deltas\":[$valid]}")!!
+        assertEquals(1, parsed.deltas.size)
+        assertTrue(parsed.deltas.single().patchUrl.startsWith(release.assetUrl.substringBeforeLast('/') + "/"))
+        for (bad in listOf(valid.replace("fixture.gdiff.gz", "../fixture.gdiff.gz"),
+            valid.replace("\"patchSize\":3", "\"patchSize\":7"), valid.replace("gdiff4-gzip", "script"))) {
+            val full = UpdateChecker.withManifest(release, "$base,\"deltas\":[$bad]}")!!
+            assertTrue(full.deltas.isEmpty())
+            assertEquals(36, full.minSdk)
+        }
+    }
+
     @Test fun unrecognizedExplicitReleaseChannelCannotBeAcceptedAsStable() {
         val text = manifest().dropLast(1) + """, "channel":"canary"}"""
         assertNull(UpdateChecker.withManifest(release, text))

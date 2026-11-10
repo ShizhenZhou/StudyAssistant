@@ -30,7 +30,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 - 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.
 - 📦 Manual and daily automatic backups, restore, and split archives for large backups.
 - 💾 Retry failed saves, recover interrupted conversations and undo deletions.
-- ⬆️ Check stable and optional beta updates, receive stable-release alerts, download in the background and verify before installation.
+- ⬆️ Check stable and optional beta updates, view update prompts, use delta and background downloads, and verify before installation.
 - 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
 - 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords.
 
@@ -49,6 +49,14 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.7.1
+
+- 🎨 Keep the new gallery and AI icons, restore other emoji, and retain the compact solve toolbar.
+- 📈 Add simple SVG diagrams and fix table formulas, source navigation for quotes spanning cells, and excess indentation of text, formulas and diagrams after lists.
+- 🔔 Stable update dialogs show the full version, build time and release notes. Important updates can require installation before continuing, including when an earlier important stable release was skipped.
+- ⬆️ Support delta updates with an exact match to the installed APK; automatically download the full APK if reconstruction or verification fails.
+- 📌 `versionCode` **112**.
 
 ### v0.7.1_beta4
 

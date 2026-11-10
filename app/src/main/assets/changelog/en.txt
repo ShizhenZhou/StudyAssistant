@@ -1,3 +1,9 @@
+v0.7.1
+· 🎨 Keep the new gallery and AI icons, restore other emoji, and retain the compact solve toolbar.
+· 📈 Add simple SVG diagrams and fix table formulas, source navigation for quotes spanning cells, and excess indentation of text, formulas and diagrams after lists.
+· 🔔 Stable update dialogs show the full version, build time and release notes. Important updates can require installation before continuing, including when an earlier important stable release was skipped.
+· ⬆️ Support delta updates with an exact match to the installed APK; automatically download the full APK if reconstruction or verification fails.
+
 v0.7.1_beta4
 · 🎨 Keep the new gallery and AI icons, restore other emoji, and retain the compact solve toolbar.
 · 📊 Render answer tables with formulas and fix source navigation for quotes spanning cells.

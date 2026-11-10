@@ -54,6 +54,12 @@ private val V688_KO = mapOf(
 
 
 private val B14_ZH = mapOf(
+    "update.prompt.title" to "发现新版本",
+    "update.prompt.build" to "构建时间：{time}",
+    "update.prompt.unknownTime" to "未知",
+    "update.prompt.required" to "本次更新极其重要，请更新后继续使用。",
+    "update.prompt.later" to "稍后",
+    "update.prompt.start" to "开始下载",
     "camera.unavailable" to "相机暂不可用，仍可从图库选择图片。",
     "camera.gallery" to "从图库选择",
     "back.exit.pressAgain" to "再按返回桌面",
@@ -155,6 +161,12 @@ private val B14_ZH = mapOf(
     "data.autoBackup.count" to "手动备份：{manual} 套 · 自动备份：{automatic} 套"
 )
 private val B14_EN = mapOf(
+    "update.prompt.title" to "New version available",
+    "update.prompt.build" to "Build time: {time}",
+    "update.prompt.unknownTime" to "Unknown",
+    "update.prompt.required" to "This update is critically important. Update before continuing.",
+    "update.prompt.later" to "Later",
+    "update.prompt.start" to "Start download",
     "camera.unavailable" to "Camera unavailable. You can still choose images from the gallery.",
     "camera.gallery" to "Choose from gallery",
     "back.exit.pressAgain" to "Press back again to go home",
@@ -256,6 +268,12 @@ private val B14_EN = mapOf(
     "data.autoBackup.count" to "Manual: {manual} sets · Automatic: {automatic} sets"
 )
 private val B14_JA = mapOf(
+    "update.prompt.title" to "新しいバージョンがあります",
+    "update.prompt.build" to "ビルド時刻：{time}",
+    "update.prompt.unknownTime" to "不明",
+    "update.prompt.required" to "この更新は非常に重要です。更新してから利用を続けてください。",
+    "update.prompt.later" to "後で",
+    "update.prompt.start" to "ダウンロードを開始",
     "camera.unavailable" to "カメラを利用できません。ギャラリーから画像を選択できます。",
     "camera.gallery" to "ギャラリーから選択",
     "back.exit.pressAgain" to "もう一度戻るボタンを押すとホームに戻ります",
@@ -357,6 +375,12 @@ private val B14_JA = mapOf(
     "data.autoBackup.count" to "手動：{manual} セット · 自動：{automatic} セット"
 )
 private val B14_KO = mapOf(
+    "update.prompt.title" to "새 버전이 있습니다",
+    "update.prompt.build" to "빌드 시간: {time}",
+    "update.prompt.unknownTime" to "알 수 없음",
+    "update.prompt.required" to "이번 업데이트는 매우 중요합니다. 업데이트 후 계속 사용해 주세요.",
+    "update.prompt.later" to "나중에",
+    "update.prompt.start" to "다운로드 시작",
     "camera.unavailable" to "카메라를 사용할 수 없습니다. 갤러리에서 이미지를 선택할 수 있습니다.",
     "camera.gallery" to "갤러리에서 선택",
     "back.exit.pressAgain" to "뒤로 버튼을 한 번 더 누르면 홈으로 돌아갑니다",
@@ -2510,7 +2534,7 @@ private val B10_ZH = mapOf(
         "· 🌐 五种界面语言，可调整主题、壁纸背景和字号。\n" +
         "· 📦 手动备份、每日自动备份与恢复，支持大备份分卷。\n" +
         "· 💾 保存失败可重试，中断对话可恢复，删除操作支持撤销。\n" +
-        "· ⬆️ 应用内检查正式版和可选测试版，支持正式版更新提醒、后台下载与安装前校验。\n" +
+        "· ⬆️ 应用内检查正式版和可选测试版，支持更新提示、差分与后台下载、安装前校验。\n" +
         "· 📥 从其他应用分享 1～2 张图片，选择解题或批改并按顺序框选。\n" +
         "· 🔎 错题本搜索显示题干或答案的命中片段，并高亮关键词。"
         ),
@@ -2571,7 +2595,7 @@ private val B10_EN = mapOf(
         "· 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.\n" +
         "· 📦 Manual and daily automatic backups, restore, and split archives for large backups.\n" +
         "· 💾 Retry failed saves, recover interrupted conversations and undo deletions.\n" +
-        "· ⬆️ Check stable and optional beta updates, receive stable-release alerts, download in the background and verify before installation.\n" +
+        "· ⬆️ Check stable and optional beta updates, view update prompts, use delta and background downloads, and verify before installation.\n" +
         "· 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.\n" +
         "· 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords."
         ),
@@ -2632,7 +2656,7 @@ private val B10_JA = mapOf(
         "· 🌐 5言語の画面表示、テーマ・壁紙背景・文字サイズの調整。\n" +
         "· 📦 手動・毎日の自動バックアップと復元。大きなバックアップは分割可能。\n" +
         "· 💾 保存失敗の再試行、中断した会話の復元、削除の取り消し。\n" +
-        "· ⬆️ 正式版と任意のテスト版の更新確認、正式版の更新通知、バックグラウンドダウンロードとインストール前の検証。\n" +
+        "· ⬆️ 正式版と任意のテスト版の更新確認、更新ダイアログ、差分・バックグラウンドダウンロードとインストール前の検証。\n" +
         "· 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取り。\n" +
         "· 🔎 ノート検索で問題文・解答の一致箇所とキーワードの強調を表示。"
         ),
@@ -2693,7 +2717,7 @@ private val B10_KO = mapOf(
         "· 🌐 5개 화면 언어, 테마·배경화면·글자 크기 조절.\n" +
         "· 📦 수동·매일 자동 백업과 복원, 대용량 백업 분할.\n" +
         "· 💾 저장 실패 재시도, 중단된 대화 복구와 삭제 실행 취소.\n" +
-        "· ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 정식판 업데이트 알림, 백그라운드 다운로드와 설치 전 검증.\n" +
+        "· ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 업데이트 안내, 차등·백그라운드 다운로드와 설치 전 검증.\n" +
         "· 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자릅니다.\n" +
         "· 🔎 오답노트 검색에서 문제·답변의 일치 구절과 강조된 키워드를 표시합니다."
         ),

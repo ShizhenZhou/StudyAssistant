@@ -20,6 +20,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -97,14 +98,15 @@ object UpdateBadgeState {
 }
 
 /**
- * 启动时的静默检查：**网络失败或没有新版本 → 什么都不做**（不弹提示）；
- * 查到更新 → 置上标记，让设置入口/底栏显示红点①。
+ * 启动检查：普通失败不打扰；保留已确认的强制更新要求。
+ * 查到更新后更新红点，正式版提示由全局 StableUpdatePrompt 负责。
  *
  * 注意：用户在更新页点过「跳过此版本」的版本**不再提示**（仍可手动检查/下载）；
  * 只有**成功**查到（含"已是最新"）才记录"上次检查时间"，失败不记。
  */
 suspend fun silentUpdateCheck(context: Context) {
-    val releases = UpdateChecker.fetchAvailable() ?: return     // 失败：静默
+    val releases = UpdateChecker.fetchAvailable(context) ?: return     // 失败：保留已确认的强制更新
+    com.zsz.studyassistant.data.UpdatePromptStore.accept(context, releases)
     UpdateChecker.markChecked(context)
     // 版本更高，或同一版本但发布物是更晚的新构建（替换过同名附件）→ 都算有更新
     val version = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -132,7 +134,7 @@ internal fun formatCheckTime(ms: Long): String {
 /** ⬆️ 应用更新：当前版本 + 检查更新按钮 + 灰字提示 + 下载/校验/安装 + 更新历史 */
 @Composable
 internal fun UpdatePage(taskStore: UpdateDownloads? = null,
-    fetchReleases: suspend () -> UpdateChecker.AvailableReleases? = { UpdateChecker.fetchAvailable() }) {
+    fetchReleases: (suspend () -> UpdateChecker.AvailableReleases?)? = null) {
     val context = LocalContext.current
     val s = LocalStrings.current
     val scope = rememberCoroutineScope()
@@ -145,8 +147,9 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     var phase by remember { mutableStateOf(Phase.RESTORING) }
     var operationGeneration by remember { mutableIntStateOf(0) }
     var downloadActionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var latest by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
-    var offers by remember { mutableStateOf<List<UpdateChecker.ReleaseInfo>>(emptyList()) }
+    val promptRelease = com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState().value
+    var latest by remember { mutableStateOf(promptRelease) }
+    var offers by remember { mutableStateOf(listOfNotNull(promptRelease)) }
     var progress by remember { mutableIntStateOf(-1) }
     var message by remember { mutableStateOf<String?>(null) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
@@ -175,7 +178,15 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         }
     }
     // Observing the task belongs to the page; the actual transfer belongs to Android.
-    LaunchedEffect(downloads, lifecycleOwner, s["update.background"]) {
+    LaunchedEffect(downloads, lifecycleOwner, s["update.background"], promptRelease) {
+        if (promptRelease != null && latest?.assetSha256 != promptRelease.assetSha256 &&
+            (promptRelease.mandatory || phase in setOf(Phase.RESTORING, Phase.IDLE, Phase.UP_TO_DATE, Phase.FOUND, Phase.FAILED))) {
+            operationGeneration++
+            downloadActionJob?.cancel()
+            latest = promptRelease; offers = listOf(promptRelease)
+            displayedTaskToken = null; observingDownload = true; phase = Phase.RESTORING
+            message = null; progress = -1; verifiedSha = null
+        }
         lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (kotlinx.coroutines.currentCoroutineContext().isActive) {
                 notificationsAllowed = UpdateDownloadNotifications.canPost(context)
@@ -191,6 +202,12 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                                 verifiedSha = null
                                 message = latest?.let(::compatibilityMessage)
                             }
+                        } else if (promptRelease?.mandatory == true &&
+                            task.release.assetSha256 != promptRelease.assetSha256) {
+                            // A pre-existing optional/older task must not hide the required target.
+                            downloads.cancel(task.token)
+                            latest = promptRelease; offers = listOf(promptRelease)
+                            displayedTaskToken = null; phase = Phase.FOUND
                         } else {
                             // Upgrading can turn a legacy installed task into FAILED because its
                             // record predates compatibility metadata. Retire obsolete tasks in any phase.
@@ -250,17 +267,20 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         phase = Phase.CHECKING
         message = null
         scope.launch {
-            val releases = fetchReleases()
+            val releases = if (fetchReleases != null) fetchReleases() else UpdateChecker.fetchAvailable(context)
             if (generation != operationGeneration) return@launch
             if (releases == null) {
                 phase = Phase.FAILED
                 message = s["update.netError"]
                 return@launch
             }
+            com.zsz.studyassistant.data.UpdatePromptStore.accept(context, releases)
             // Same-version comparison may hash the installed APK. Keep disk/package
             // reads off the UI thread, and reject a result superseded while suspended.
             val eligible = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                releases.updates { UpdateChecker.hasUpdate(context, it) }
+                val required = com.zsz.studyassistant.data.UpdatePromptStore.release.value?.takeIf { it.mandatory }
+                if (required != null) listOf(required)
+                else releases.updates { UpdateChecker.hasUpdate(context, it) }
             }
             if (generation != operationGeneration) return@launch
             // 成功查到（含"已是最新"）才记「上次检查时间」；失败不记
@@ -392,9 +412,12 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                             Text(s[if (beta) "update.downloadBeta" else "update.downloadStable"])
                         }
                         Spacer(Modifier.height(12.dp))
+                        val required = rel.mandatory || promptRelease?.mandatory == true
+                        if (required) Text(s["update.prompt.required"], style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary)
                         val skipped = remember(skipRevision, rel) { UpdateChecker.isSkipped(context, rel) }
                         if (skipped) Text(s.format("update.skipped", "v" to rel.displayVersion), style = MaterialTheme.typography.bodySmall)
-                        AppOutlinedButton(onClick = {
+                        if (!required) AppOutlinedButton(onClick = {
                             if (skipped) UpdateChecker.clearSkippedVersion(context, rel.channel)
                             else UpdateChecker.skipVersion(context, rel.displayVersion, rel.channel)
                             skipRevision++

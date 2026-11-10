@@ -47,6 +47,7 @@
   .quote-jump-highlight.blink-twice{animation:quote-blink 420ms ease-in-out 2;}
   @media(prefers-reduced-motion:reduce){.quote-jump-highlight.blink-twice{animation:none;}}
   .bubble{overflow-wrap:anywhere;}
+  .bubble ul,.bubble ol{padding-inline-start:1.5em;}
   .bubble pre{max-width:100%;overflow-x:auto;white-space:pre;overflow-wrap:normal;}
   .table-scroll{max-width:100%;overflow-x:auto;margin:10px 0;padding:2px 0;}
   .table-scroll table{border-collapse:collapse;width:100%;font-size:inherit;line-height:1.5;}
@@ -115,8 +116,8 @@ function tokenize(t){
   return {text:out,store:store,marker:marker};
 }
 function mdToHtml(s){
-  var lines=s.split('\n'),out='',ol=false,ul=false,pre=false,preBuf=[];
-  function closeList(){ if(ol){out+='</ol>';ol=false;} if(ul){out+='</ul>';ul=false;} }
+  var lines=s.split('\n'),out='',ol=false,ul=false,listIndent=0,pre=false,preBuf=[];
+  function closeList(){ if(ol){out+='</li></ol>';ol=false;} if(ul){out+='</li></ul>';ul=false;} }
   function inline(t){
     // ★ 2026-10-13 修复「有时候会错误地加粗一些字」：原来 /\*\*([^*]+)\*\*/g 只要同一行出现两个 ** 就加粗，
     //   于是 python 风格幂运算 `2**10 与 3**5` 会被渲染成 2<strong>10 与 3</strong>5（跨词误加粗）。
@@ -173,8 +174,17 @@ function mdToHtml(s){
     var t=inline(line);
     var h=t.match(/^(#{1,4})\s+(\S.*)$/); if(h){closeList();var n=h[1].length;out+='<h'+n+'>'+h[2]+'</h'+n+'>';continue;}
     if(/^\s*---+\s*$/.test(t)){closeList();out+='<hr>';continue;}
-    if(/^\s*[-*]\s+/.test(t)){ if(!ul){closeList();out+='<ul>';ul=true;} out+='<li>'+t.replace(/^\s*[-*]\s+/,'')+'</li>';continue; }
-    if(/^\s*\d+\.\s+/.test(t)){ if(!ol){closeList();out+='<ol>';ol=true;} const number=t.match(/^\s*(\d+)\.\s+/)[1]; out+='<li value="'+number+'">'+t.replace(/^\s*\d+\.\s+/,'')+'</li>';continue; }
+    var item=line.match(/^[ \t]*(?:([-*])|(\d+)\.)[ \t]+/);
+    if(item){
+      var ordered=!!item[2];
+      if((ordered && ol) || (!ordered && ul)) out+='</li>';
+      else {closeList();out+=ordered ? '<ol>' : '<ul>';ol=ordered;ul=!ordered;}
+      listIndent=item[0].replace(/\t/g,'    ').length;
+      out+='<li'+(ordered ? ' value="'+item[2]+'"' : '')+'>'+inline(line.slice(item[0].length));continue;
+    }
+    // Only indented continuation lines belong to a list item. Leaving the list
+    // open around ordinary prose also indents every later formula and diagram.
+    if((ol || ul) && line.trim() && line.match(/^[ \t]*/)[0].replace(/\t/g,'    ').length<listIndent) closeList();
     out+=t+'<br>';
   }
   if(pre){out+='<pre>'+preBuf.join('\n')+'</pre>';}
