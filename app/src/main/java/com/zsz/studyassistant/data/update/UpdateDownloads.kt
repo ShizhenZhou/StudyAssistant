@@ -49,15 +49,28 @@ internal class UpdateDownloads(
     private suspend fun <T> locked(block: () -> T): T = withContext(Dispatchers.IO) { mutex.withLock { block() } }
 
     /** The request handoff itself also survives a page disappearing immediately after the tap. */
-    fun enqueue(release: UpdateChecker.ReleaseInfo, notification: UpdateDownloadMonitor.Request? = null): kotlinx.coroutines.Deferred<Snapshot> =
+    fun enqueue(release: UpdateChecker.ReleaseInfo, notification: UpdateDownloadMonitor.Request? = null,
+        forceFull: Boolean = false): kotlinx.coroutines.Deferred<Snapshot> =
         handoffScope.async {
             try {
                 val ownsNotification = notification != null && kotlinx.coroutines.withTimeoutOrNull(3000) { notification.ready.await() } == true
-                start(release, ownsNotification).also { notification?.bound(it) }
+                start(release, ownsNotification, forceFull).also { notification?.bound(it) }
             } catch (error: Throwable) { notification?.aborted(); throw error }
         }
 
-    suspend fun start(release: UpdateChecker.ReleaseInfo, appNotification: Boolean = false): Snapshot = locked {
+    /** Shared by the size preview and transfer selection; APK hashing never runs on the UI thread. */
+    suspend fun matchingDelta(release: UpdateChecker.ReleaseInfo): UpdateDeltaInfo? = withContext(Dispatchers.IO) {
+        selectDelta(release)
+    }
+
+    private fun selectDelta(release: UpdateChecker.ReleaseInfo): UpdateDeltaInfo? = runCatching {
+        if (UpdateChecker.compatibilityError(release) != null || release.deltas.isEmpty()) return@runCatching null
+        val base = installedApk()
+        release.deltas.firstOrNull { eligible(it, release) && UpdateDelta.matches(base, it.baseSize, it.baseSha256) }
+    }.getOrNull()
+
+    suspend fun start(release: UpdateChecker.ReleaseInfo, appNotification: Boolean = false,
+        forceFull: Boolean = false): Snapshot = locked {
         UpdateChecker.compatibilityError(release)?.let { key ->
             return@locked status(Record(UUID.randomUUID().toString(), release), Phase.FAILED, errorKey = key)
         }
@@ -66,7 +79,7 @@ internal class UpdateDownloads(
         val target = release.copy(mandatory = release.mandatory ||
             (previous != null && sameAsset(previous.release, release) && previous.release.mandatory))
         // Notes may change without replacing the asset; only transfer identity determines reuse.
-        if (previous != null && sameAsset(previous.release, release)) {
+        if (previous != null && sameAsset(previous.release, release) && (!forceFull || previous.delta == null)) {
             // A subsequently discovered mandatory requirement must survive process recreation too.
             val updated = previous.copy(release = previous.release.copy(mandatory = target.mandatory))
             write(updated)
@@ -74,10 +87,7 @@ internal class UpdateDownloads(
             if (existing.phase != Phase.FAILED) return@locked existing
         }
         cancelLocked()
-        val selected = runCatching {
-            val base = installedApk()
-            target.deltas.firstOrNull { eligible(it, target) && UpdateDelta.matches(base, it.baseSize, it.baseSha256) }
-        }.getOrNull()
+        val selected = if (forceFull) null else selectDelta(target)
         val pending = Record(UUID.randomUUID().toString(), target, appNotification = appNotification,
             delta = selected, enqueuePending = true)
         try { enqueueLocked(pending) }

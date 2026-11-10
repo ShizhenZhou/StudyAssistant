@@ -9,13 +9,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.drawText
@@ -118,6 +124,12 @@ suspend fun silentUpdateCheck(context: Context) {
 /** 页面阶段 */
 private enum class Phase { RESTORING, IDLE, CHECKING, UP_TO_DATE, FOUND, DOWNLOADING, WAITING, VERIFYING, READY, FAILED }
 
+private fun formatUpdateSize(bytes: Long): String = when {
+    bytes >= 1024 * 1024 -> String.format("%.1f MB", bytes / 1024.0 / 1024.0)
+    bytes >= 1024 -> String.format("%.1f KB", bytes / 1024.0)
+    else -> "$bytes B"
+}
+
 /** 是否已允许「安装未知应用」 */
 internal fun canInstallApk(context: Context): Boolean = try {
     context.packageManager.canRequestPackageInstalls()
@@ -150,6 +162,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     val promptRelease = com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState().value
     var latest by remember { mutableStateOf(promptRelease) }
     var offers by remember { mutableStateOf(listOfNotNull(promptRelease)) }
+    val fullPackageChoices = remember { mutableStateMapOf<String, Boolean>() }
+    fun packageKey(rel: UpdateChecker.ReleaseInfo) = rel.assetUrl + "|" + rel.assetSha256
     var progress by remember { mutableIntStateOf(-1) }
     var message by remember { mutableStateOf<String?>(null) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
@@ -314,7 +328,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         phase = Phase.DOWNLOADING; progress = 0; message = null
         observingDownload = false
         val notification = UpdateDownloadMonitor.request(context)
-        val handoff = downloads.enqueue(rel, notification = notification)
+        val handoff = downloads.enqueue(rel, notification = notification,
+            forceFull = fullPackageChoices[packageKey(rel)] == true)
         downloadActionJob = handoff
         scope.launch {
             try {
@@ -394,9 +409,15 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         Text(s[channelKey] + " v" + rel.displayVersion, fontWeight = FontWeight.SemiBold)
                         if (beta) Text(s["update.betaWarning"], style = MaterialTheme.typography.bodySmall, color = BADGE_RED)
                         if (rel.displayVersion == installed) {
-                            Text(s.format("update.sameVersion", "name" to rel.assetName), style = MaterialTheme.typography.bodySmall)
+                            Text(s["update.sameVersion"], style = MaterialTheme.typography.bodySmall)
                         }
-                        Text(rel.assetName + "\n" + String.format("%.1f MB", rel.assetSize / 1024.0 / 1024.0),
+                        val delta by produceState<com.zsz.studyassistant.data.UpdateDeltaInfo?>(null, downloads, rel) {
+                            value = null
+                            value = downloads.matchingDelta(rel)
+                        }
+                        val sizeText = s.format("update.fullSize", "size" to formatUpdateSize(rel.assetSize)) +
+                            (delta?.let { " · " + s.format("update.deltaSize", "size" to formatUpdateSize(it.patchSize)) } ?: "")
+                        Text(rel.assetName + "\n" + sizeText,
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                         val notes = UpdateChecker.prettyReleaseNotes(rel.notes)
                         if (notes.isNotBlank()) {
@@ -407,6 +428,16 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         val error = compatibilityMessage(rel)
                         error?.let { Text(it, color = BADGE_RED, style = MaterialTheme.typography.bodySmall) }
                         Spacer(Modifier.height(10.dp))
+                        val choiceKey = packageKey(rel)
+                        val forceFull = fullPackageChoices[choiceKey] == true
+                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = forceFull, enabled = error == null,
+                            role = Role.Checkbox, onValueChange = { fullPackageChoices[choiceKey] = it }),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = forceFull, onCheckedChange = null, enabled = error == null)
+                            Text(s["update.forceFull"], style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 8.dp).weight(1f))
+                        }
+                        Spacer(Modifier.height(6.dp))
                         Button(onClick = { startDownload(rel) }, enabled = error == null,
                             shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                             Text(s[if (beta) "update.downloadBeta" else "update.downloadStable"])
