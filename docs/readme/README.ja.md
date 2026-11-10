@@ -13,7 +13,7 @@ zsz が DeepSeek と GPT の支援で開発。
 
 ## APK のダウンロード
 
-- **Android 16 以降** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
+- **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [最終対応版 v0.6.7.9 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)

@@ -13,7 +13,7 @@
 
 ## 下载 APK
 
-- **Android 16 及以上** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
+- **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [下载最后兼容版 v0.6.7.9](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
 
 [全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)

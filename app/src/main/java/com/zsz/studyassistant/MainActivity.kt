@@ -248,6 +248,16 @@ class MainActivity : ComponentActivity() {
                     val current = backStack?.destination?.route
                     val updatePrompt by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState()
                     val requiredUpdate = updatePrompt?.mandatory == true
+                    var requiredBackToast by remember { mutableStateOf<android.widget.Toast?>(null) }
+                    fun showRequiredBackHint() {
+                        requiredBackToast?.cancel()
+                        // A system text bubble remains visible above the update dialog's window.
+                        requiredBackToast = android.widget.Toast.makeText(applicationContext,
+                            strings["update.prompt.cannotSkip"], android.widget.Toast.LENGTH_SHORT).also { it.show() }
+                    }
+                    androidx.compose.runtime.DisposableEffect(requiredUpdate) {
+                        onDispose { requiredBackToast?.cancel(); requiredBackToast = null }
+                    }
                     var updatePolicyReady by remember { mutableStateOf(false) }
                     LaunchedEffect(viewModel.openBackupManagementPage) {
                         if (viewModel.openBackupManagementPage && nav.currentDestination?.route != AppNav.SETTINGS) {
@@ -517,7 +527,7 @@ class MainActivity : ComponentActivity() {
                         onExit = { moveTaskToBack(true) }
                     )
                     androidx.activity.compose.BackHandler(enabled = requiredUpdate && current == AppNav.REQUIRED_UPDATE) {
-                        moveTaskToBack(true)
+                        showRequiredBackHint()
                     }
                     if (!updatePolicyReady) {
                         // Restore local required policy before the first business interaction.
@@ -525,7 +535,8 @@ class MainActivity : ComponentActivity() {
                             androidx.compose.ui.window.DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
                             androidx.compose.material3.CircularProgressIndicator()
                         }
-                    } else com.zsz.studyassistant.ui.StableUpdatePrompt(updatePrompt, current == AppNav.REQUIRED_UPDATE) { required ->
+                    } else com.zsz.studyassistant.ui.StableUpdatePrompt(updatePrompt, current == AppNav.REQUIRED_UPDATE,
+                        onRequiredBack = { showRequiredBackHint() }) { required ->
                         if (required) AppNav.openRequiredUpdate(nav)
                         else viewModel.openUpdatePage = true
                     }

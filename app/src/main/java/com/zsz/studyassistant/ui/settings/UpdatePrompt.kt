@@ -32,6 +32,7 @@ import com.zsz.studyassistant.data.UpdatePromptStore
 /** Shown after compatibility and installed-build checks, independently of notification permission. */
 @Composable
 fun StableUpdatePrompt(release: UpdateChecker.ReleaseInfo?, atRequiredPage: Boolean,
+                       onRequiredBack: () -> Unit,
                        onOpenUpdate: (required: Boolean) -> Unit) {
     val context = LocalContext.current
     val s = LocalStrings.current
@@ -55,8 +56,9 @@ fun StableUpdatePrompt(release: UpdateChecker.ReleaseInfo?, atRequiredPage: Bool
     if (required && atRequiredPage && allowedRequiredPage) return
     if (!required && (dismissed == key || UpdateChecker.isSkipped(context, release))) return
     AlertDialog(
-        onDismissRequest = { if (!required) dismissed = key },
-        properties = DialogProperties(dismissOnBackPress = !required, dismissOnClickOutside = !required),
+        // Let committed Back reach the callback, but never dismiss a required update.
+        onDismissRequest = { if (required) onRequiredBack() else dismissed = key },
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = !required),
         title = { Text(s["update.prompt.title"]) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),

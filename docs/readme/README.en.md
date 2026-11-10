@@ -13,7 +13,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 ## Download the APK
 
-- **Android 16 and later** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
+- **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [Download the last compatible release (v0.6.7.9)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
