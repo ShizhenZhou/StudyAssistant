@@ -50,6 +50,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.1.1
+
+- ⬆️ Show the package name once and display full and available delta package sizes.
+- ☑️ Add a “Download full package” option to bypass delta downloads.
+- 📌 `versionCode` **113**.
+
 ### v0.7.1
 
 - 🎨 Update AI management and gallery icons, unify gallery controls across camera and solution screens, and support light and dark themes.
