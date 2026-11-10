@@ -52,36 +52,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ### v0.7.1
 
-- 🎨 Keep the new gallery and AI icons, restore other emoji, and retain the compact solve toolbar.
-- 📈 Add simple SVG diagrams and fix table formulas, source navigation for quotes spanning cells, and excess indentation of text, formulas and diagrams after lists.
-- 🔔 Stable update dialogs show the full version, build time and release notes. Important updates can require installation before continuing, including when an earlier important stable release was skipped.
-- ⬆️ Support delta updates with an exact match to the installed APK; automatically download the full APK if reconstruction or verification fails.
+- 🎨 Update AI management and gallery icons, unify gallery controls across camera and solution screens, and support light and dark themes.
+- 📐 Make the solution toolbar and action buttons more compact, with improved large-text and subject-name layout.
+- 📈 Support simple SVG diagrams such as coordinate plots, and improve tables, formulas, quote navigation and answer indentation.
+- 🔔 Add stable-update prompts showing the full version, build time and release notes, with support for required important updates.
+- ⬆️ Add delta updates with verified APK reconstruction and automatic fallback to the full APK on failure.
 - 📌 `versionCode` **112**.
-
-### v0.7.1_beta4
-
-- 🎨 Keep the new gallery and AI icons, restore other emoji, and retain the compact solve toolbar.
-- 📊 Render answer tables with formulas and fix source navigation for quotes spanning cells.
-- 📈 Add simple SVG diagrams, including coordinate plots, arrows and illustrations.
-- 📌 `versionCode` **111**.
-
-### v0.7.1_beta3
-
-- 🎨 Make icon colors more vibrant while keeping fine outlines and light/dark theme support.
-- 🧩 Extend action icons across the notebook, multi-selection and deletion, statistics, tag management, and camera/crop screens.
-- 📌 `versionCode` **110**.
-
-### v0.7.1_beta2
-
-- 🎨 Introduce more varied, slightly richer icon colors and extend them to the solution screen and Settings subpages.
-- 📐 Make the solution toolbar and actions more compact while preserving wrapped subject names and large-text support.
-- 📌 `versionCode` **109**.
-
-### v0.7.1_beta
-
-- 🎨 Try unified soft-fill icons with fine outlines, replacing selected emoji on Home, the bottom navigation and the main Settings page.
-- 🌓 Icons adapt to light and dark themes and button backgrounds, with localized text labels.
-- 📌 `versionCode` **108**.
 
 ### v0.7.0.5
 
@@ -630,7 +606,6 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 🔍 Images in conversations (solve / grading / similar problems) can be **tapped to view full screen**: pinch to zoom, drag to pan, close with ✕ or Back
 - 🛡 "Erase all data" now requires **typing a confirmation phrase** and the confirm button is red; the "API Key stored encrypted" note is green
 
-### v0.5.0_beta
 - 🌐 New "App language": Settings → 🌐 Language, choose Follow system / 简体中文 / 繁體中文 / English / 日本語 / 한국어 — applies instantly, no restart
 - 🌐 The whole interface is now multilingual: home, camera, direct questions, solving, grading, notebook, review, settings, notifications
 - 🧩 "AI answer language" and "App language" are now two separate settings: one controls what language the AI answers in, the other the app's own text

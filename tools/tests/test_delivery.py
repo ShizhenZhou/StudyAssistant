@@ -16,6 +16,25 @@ from release_common import apk_identity, apk_payload, extract_candidate, sha256,
 
 
 class DeliveryTest(unittest.TestCase):
+    def test_public_asset_failure_uses_one_official_alternate(self):
+        from types import SimpleNamespace
+        github = release.GitHub()
+        url = "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.7.1/fixture.apk"
+        failed = SimpleNamespace(returncode=22, stdout=b"")
+        ok = SimpleNamespace(returncode=0, stdout=b"verified by caller")
+        with patch.object(release.shutil, "which", return_value="curl.exe"), \
+             patch.object(github, "api", return_value={"browser_download_url": url}), \
+             patch.object(release, "command", side_effect=[failed, ok]) as command:
+            self.assertEqual(ok.stdout, github.download("repos/ShizhenZhou/StudyAssistant/releases/assets/123?download=1", binary=True))
+            self.assertEqual(2, command.call_count)
+            self.assertEqual(url, command.call_args.args[0][-1])
+        with patch.object(release.shutil, "which", return_value="curl.exe"), \
+             patch.object(github, "api", return_value={"browser_download_url": "https://example.com/private"}), \
+             patch.object(release, "command", return_value=failed) as command:
+            with self.assertRaises(release.ReleaseError):
+                github.download("repos/ShizhenZhou/StudyAssistant/releases/assets/123?download=1", binary=True)
+            self.assertEqual(1, command.call_count)
+
     def manifest(self):
         return dict(schema=3, package="com.zsz.studyassistant", version="0.6.8.7", versionCode=88,
                     minSdk=36, targetSdk=37, commit="a"*40, buildUtc="20261030120000",
@@ -144,6 +163,12 @@ class DeliveryTest(unittest.TestCase):
             original = folder / "sign-old"; original.mkdir()
             target = original / "target.apk"; target.write_bytes(base.read_bytes() + b"signed target")
             metadata = apk_delta.build(record, target, 2, original)
+            with self.assertRaises(ValueError): apk_delta.build(record, target, 1, original)
+            self.assertEqual(metadata, apk_delta.build(record, target, 1, original, allow_same_version=True))
+            with self.assertRaises(ValueError):
+                apk_delta.build(dict(record, baseVersionCode=3), target, 2, original, allow_same_version=True)
+            with self.assertRaises(ValueError):
+                apk_delta.build(record, base, 1, original, allow_same_version=True)
             frozen = dict(metadata)
             recovered = folder / "sign-new"; recovered.mkdir()
             restored = recovered / target.name; restored.write_bytes(target.read_bytes())

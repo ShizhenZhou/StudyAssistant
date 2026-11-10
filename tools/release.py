@@ -163,10 +163,18 @@ class GitHub:
         if binary and re.fullmatch(r"repos/" + re.escape(REPO) + r"/releases/assets/[1-9][0-9]*\?download=1", path):
             curl = shutil.which("curl.exe") or shutil.which("curl")
             if curl:
-                return command([curl, "--disable", "--silent", "--show-error", "--http1.1", "--ipv4",
+                args = [curl, "--disable", "--silent", "--show-error", "--http1.1", "--ipv4",
                     "--fail", "--location", "--connect-timeout", "15", "--max-time", "120",
-                    "--proto", "=https", "--proto-redir", "=https", "-H", "Accept: application/octet-stream",
-                    "https://api.github.com/" + path], root=self.root, timeout=130).stdout
+                    "--proto", "=https", "--proto-redir", "=https", "-H", "Accept: application/octet-stream"]
+                result = command(args + ["https://api.github.com/" + path], root=self.root, timeout=130, check=False)
+                if result.returncode == 0: return result.stdout
+                # The public API redirect can fail while the release's browser URL works.
+                # Resolve one official alternate; callers still verify exact size and SHA.
+                asset = self.api("releases/assets/" + path.split("/assets/", 1)[1].split("?", 1)[0])
+                url = asset.get("browser_download_url", "")
+                if not re.fullmatch(r"https://github\.com/" + re.escape(REPO) + r"/releases/download/[^/?#]+/[^/?#]+", url):
+                    raise ReleaseError("Unexpected public asset download URL")
+                return command(args + [url], root=self.root, timeout=130).stdout
         return self.call("api", path, "-H", "Accept: " + ("application/octet-stream" if binary else "application/json"))
 
 def update_notes(text):
@@ -737,14 +745,16 @@ class Release:
             self.save()
         if self.state.get("deltaBase"):
             if not self.state.get("deltas"):
-                self.state["deltas"] = [apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent)]
+                self.state["deltas"] = [apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent,
+                    allow_same_version=bool(self.state.get("replacementRequested")))]
                 self.save()
             paths = delta_files(signed, self.state)
             for delta in self.state["deltas"]:
                 path = paths[delta["patchName"]]
                 if not path.exists():
                     # A recovered signing directory also needs its exact original delta.
-                    apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent, expected=delta)
+                    apk_delta.build(self.state["deltaBase"], signed, manifest["versionCode"], signed.parent, expected=delta,
+                        allow_same_version=bool(self.state.get("replacementRequested")))
                 if path.stat().st_size != delta["patchSize"] or sha256(path) != delta["patchSha256"]:
                     raise ReleaseError("Local delta artifact changed")
         return dict(version=manifest["version"], commit=commit, runId=run_id, phase=self.state.get("phase"), apk=signed.name,

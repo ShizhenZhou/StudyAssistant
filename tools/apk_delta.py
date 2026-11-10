@@ -105,13 +105,16 @@ def read_base(apk):
     return dict(path=str(apk), baseSha256=digest(data), baseSize=len(data), baseVersionCode=metadata["versionCode"])
 
 
-def build(base_record, target_apk, target_version_code, output_dir, expected=None):
+def build(base_record, target_apk, target_version_code, output_dir, expected=None, allow_same_version=False):
     base = Path(base_record["path"]).read_bytes()
     target_apk, output_dir = Path(target_apk), Path(output_dir)
     target = target_apk.read_bytes()
     if digest(base) != base_record["baseSha256"] or len(base) != base_record["baseSize"]:
         raise ValueError("Base APK changed since release start")
-    if base_record["baseVersionCode"] >= target_version_code: raise ValueError("Delta base must be older than target")
+    base_code = base_record["baseVersionCode"]
+    if base_code > target_version_code or (base_code == target_version_code and not allow_same_version):
+        raise ValueError("Delta base must be older than target unless explicitly replacing the same version")
+    if base == target: raise ValueError("Delta target is identical to its base")
     patch = encode(base, target)
     if apply(base, patch, len(target)) != target: raise ValueError("Delta did not exactly reconstruct signed APK")
     if len(patch) >= len(target): raise ValueError("Delta is not smaller than the complete APK; omit --delta-base")

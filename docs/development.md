@@ -97,6 +97,8 @@ schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时
 
 更新清单的可选 `deltas` 数组记录 `format: "gdiff4-gzip"`、`baseSha256`、`baseSize`、`baseVersionCode`、`patchName`、`patchSha256`、`patchSize`；最终结果沿用顶层 `apkSha256` / `apkSize`，下载地址由同 Release 的完整包地址与安全的补丁文件名派生。当前工具每次生成一份指定基线差分。新客户端仅在已安装 APK 的原始 SHA256 和尺寸完全匹配时尝试差分；失败后回退完整包，用户取消则停止。旧客户端继续使用完整 APK。完整包、清单和差分一起上传，并分别真实下载 SHA 核验和归档到 `history_apk`；恢复发布复用已验证差分，不变更基线或既有资产。
 
+明确使用 `start --replace` 同版本替换时，差分基准可选择原构建，允许 `versionCode` 相同；普通新版本仍要求基准 `versionCode` 更低，禁止降级或生成相同字节的补丁。应用按安装包 SHA 和构建时间区分同版本的新构建，版本号不变不会绕过差分及完整包的校验。
+
 ## 网络与隐私
 
 源码/分支用Git；状态/日志/Release优先GitHub连接器，能力不足用gh/API。网络失败先检查远端是否已成功；必要时仅一次进程级HTTP/1.1重试，不修改全局代理、不强推。测试/签名/发布状态均存.local-notes；真实题库、Key、签名材料、手机日志不得提交或上传CI。普通状态查询不高频轮询。
