@@ -55,8 +55,7 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - ⬆️ Prefer direct deltas, or choose the smallest chained download, with improved verification, cancellation and full-package fallback.
 - 📦 Show delta filenames and chained download totals; use the full package when no suitable delta is available.
 - 🛠️ Improve conversation renderer recovery, reuse verified backup parsing, and protect AI stream reception.
-- ❗ This update is critically important and mandatory.
-- 📌 `versionCode` **114**.
+- 📌 `versionCode` **114**. ❗ This update is critically important and mandatory.
 
 ### v0.7.1.1
 
