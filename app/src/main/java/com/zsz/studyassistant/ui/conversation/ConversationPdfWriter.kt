@@ -6,7 +6,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
-import org.json.JSONArray
+import org.json.JSONObject
 
 /** A4, with a selectable prose layer over the separately rendered formulas and decorations. */
 internal class ConversationPdfWriter : AutoCloseable {
@@ -14,16 +14,23 @@ internal class ConversationPdfWriter : AutoCloseable {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
     private val fonts = mutableMapOf<Pair<Boolean, Int>, Typeface>()
 
-    fun append(graphics: Bitmap, runs: JSONArray, number: Int, total: Int) {
+    fun append(graphics: Bitmap, snapshot: JSONObject, number: Int, total: Int) {
+        val width = snapshot.getDouble("width").toFloat()
+        val height = snapshot.getDouble("height").toFloat()
+        check(width.isFinite() && height.isFinite() && width > 0f && height > 0f)
+        val runs = snapshot.getJSONArray("runs")
+        val clip = snapshot.getJSONObject("clip")
         val page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, number).create())
         try {
             val canvas = page.canvas
             canvas.drawColor(Color.WHITE)
-            canvas.drawBitmap(graphics, null, RectF(0f, 0f, 595f, 842f), null)
             canvas.save()
-            canvas.scale(595f / 794f, 595f / 794f)
-            // Match the fixed HTML content bounds, including the last fragment of a bubble.
-            canvas.clipRect(32f, 32f, 762f, 1084f)
+            // Graphics, glyph positions and font sizes share ONE viewport-to-paper transform.
+            // Do not fit the bitmap to the paper separately from the selectable text layer.
+            canvas.scale(595f / width, 842f / height)
+            canvas.drawBitmap(graphics, null, RectF(0f, 0f, width, height), null)
+            canvas.clipRect(clip.getDouble("left").toFloat(), clip.getDouble("top").toFloat(),
+                clip.getDouble("right").toFloat(), clip.getDouble("bottom").toFloat())
             for (i in 0 until runs.length()) {
                 val run = runs.getJSONObject(i)
                 val text = run.getString("text")

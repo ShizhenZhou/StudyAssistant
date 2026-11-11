@@ -49,8 +49,8 @@
       selectionMode = false; following = false; window.thinkForced = 'closed';
       var style = document.createElement('style');
       style.textContent = 'html,body{height:100%;overflow:hidden!important;background:#fff!important;margin:0;padding:0;}' +
-        'body{font-family:sans-serif;font-size:16px;line-height:1.6;}' +
-        '#export-page{position:fixed;top:0;left:0;transform-origin:top left;}' +
+        'body{font-family:sans-serif;font-size:16px;line-height:1.6;text-size-adjust:none;-webkit-text-size-adjust:none;}' +
+        '#export-page{position:absolute;top:0;left:0;}' +
         '#export-window{position:absolute;top:32px;left:32px;right:32px;overflow:hidden;}' +
         '#out{display:block!important;position:relative;width:100%;margin:0;padding:0;}' +
         '.bubble{box-sizing:border-box;width:100%;max-width:none;margin:0 0 12px;padding:10px 12px;font-size:' + (format === 'PDF' ? 16 : 14) + 'px;box-shadow:none!important;}' +
@@ -71,7 +71,9 @@
       output.querySelectorAll('details').forEach(function (el) { el.open = true; });
       var sheet = document.createElement('div'); sheet.id = 'export-page';
       sheet.style.width = layoutWidth + 'px'; sheet.style.height = layoutHeight + 'px';
-      sheet.style.transform = 'scale(' + pageScale + ')'; document.body.appendChild(sheet);
+      // Use layout zoom, not a composited transform: native PDF text and software
+      // WebView drawing must observe the same already-scaled layout coordinates.
+      sheet.style.zoom = String(pageScale); document.body.appendChild(sheet);
       viewport = document.createElement('div'); viewport.id = 'export-window';
       sheet.appendChild(viewport); viewport.appendChild(output);
       footer = document.createElement('div'); footer.id = 'export-footer'; sheet.appendChild(footer);
@@ -121,7 +123,7 @@
       });
       await document.fonts.ready;
       void output.offsetHeight;
-      if (format === 'PDF') collectPdfText();
+      if (format === 'PDF') await collectPdfText();
       var origin = bounds(output).top, intervals = [];
       function add(rect) {
         rect = logicalRect(rect);
@@ -154,19 +156,26 @@
   };
   // Prose is drawn as native PDF text; math/SVG/images remain in the graphics layer.
   // Wrap text nodes only, never math internals. Inline spans do not change line breaking.
-  function collectPdfText() {
+  async function collectPdfText() {
     pdfText = [];
     var walker = document.createTreeWalker(output, NodeFilter.SHOW_TEXT), nodes = [];
     while (walker.nextNode()) {
       var node = walker.currentNode;
       if (node.textContent.trim() && !node.parentElement.closest('.katex,script,style,.think,summary,.pick,.continue')) nodes.push(node);
     }
+    nodes.forEach(function (node) {
+      var span = document.createElement('span'); span.className = 'pdf-text';
+      node.parentNode.insertBefore(span, node); span.appendChild(node);
+    });
+    // Finish all DOM changes/font discovery before measuring; mobile WebView can relayout later.
+    void output.offsetHeight;
+    await document.fonts.ready;
+    await new Promise(function (resolve) { requestAnimationFrame(function () { requestAnimationFrame(resolve); }); });
     var context = document.createElement('canvas').getContext('2d');
     var segmenter = new Intl.Segmenter(undefined, {granularity:'grapheme'});
     var origin = bounds(output).top, characters = 0;
     nodes.forEach(function (node) {
-      var span = document.createElement('span'); span.className = 'pdf-text';
-      node.parentNode.insertBefore(span, node); span.appendChild(node);
+      var span = node.parentElement;
       var css = getComputedStyle(span);
       if (css.visibility !== 'visible' || !span.getClientRects().length) return;
       context.font = css.fontStyle + ' ' + css.fontWeight + ' ' + css.fontSize + ' ' + css.fontFamily;
@@ -182,11 +191,13 @@
         var baseline = r.bottom - origin - metrics.fontBoundingBoxDescent * ratio;
         if (run && Math.abs(run.y - baseline) < .25 && Math.abs(run.x + run.width - r.left) < 1) {
           run.text += part.segment; run.width = r.left + r.width - run.x;
+          run.range.setEnd(node, part.index + part.segment.length);
         } else {
           run = {text:part.segment, x:r.left, y:baseline, top:r.top-origin, bottom:r.bottom-origin,
             width:r.width, size:parseFloat(css.fontSize)*ratio, color:css.color,
             bold:parseInt(css.fontWeight,10)>=600, italic:css.fontStyle!=='normal',
-            mono:css.fontFamily.indexOf('monospace')>=0};
+            mono:css.fontFamily.indexOf('monospace')>=0, range:range.cloneRange(),
+            fontHeight:fontHeight, descent:metrics.fontBoundingBoxDescent, fontSize:parseFloat(css.fontSize)};
           pdfText.push(run);
         }
       }
@@ -195,8 +206,18 @@
   window.conversationExportTextPage = function (index) {
     var page = pages[index];
     if (!page) throw new Error('Invalid page');
-    return pdfText.filter(function (r) { return r.top >= page[0]-.2 && r.bottom <= page[1]+.2; })
-      .map(function (r) { return Object.assign({}, r, {y:r.y-page[0]+32}); });
+    var clip = viewport.getBoundingClientRect();
+    var runs = pdfText.filter(function (r) { return r.top >= page[0]-.2 && r.bottom <= page[1]+.2; })
+      .map(function (r) {
+        // Snapshot the final page in viewport CSS pixels, the same coordinates captured by WebView.draw.
+        var rect = r.range.getBoundingClientRect(), ratio = rect.height / r.fontHeight;
+        if (rect.top < clip.top-.2 || rect.bottom > clip.bottom+.2 ||
+            rect.left < clip.left-.2 || rect.right > clip.right+.2) throw new Error('Export layout changed');
+        return {text:r.text, x:rect.left, y:rect.bottom-r.descent*ratio,
+          width:rect.width, size:r.fontSize*ratio, color:r.color, bold:r.bold, italic:r.italic, mono:r.mono};
+      });
+    return {width:window.visualViewport.width, height:window.visualViewport.height,
+      clip:{left:clip.left, top:clip.top, right:clip.right, bottom:clip.bottom}, runs:runs};
   };
   window.conversationExportGraphicsOnly = function (enabled) {
     document.body.classList.toggle('export-graphics', enabled);

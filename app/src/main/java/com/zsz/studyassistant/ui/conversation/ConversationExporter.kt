@@ -12,7 +12,6 @@ import java.util.UUID
 import kotlin.coroutines.resume
 import kotlinx.coroutines.*
 import org.json.JSONObject
-import org.json.JSONArray
 
 internal enum class ConversationExportFormat(val width: Int, val height: Int) {
     PDF(1190, 1684), PNG(1080, 1920)
@@ -74,17 +73,21 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
             check(view.width == width && view.height == height && view.isAttachedToWindow)
             progress(page + 1, count)
             withTimeout(15_000) { check(view.exportScript("showConversationExportPage($page)") == "true") }
-            val text = if (pdf != null) withTimeout(15_000) {
-                val runs = JSONArray(view.exportScript("conversationExportTextPage($page)"))
+            if (pdf != null) withTimeout(15_000) {
                 check(view.exportScript("conversationExportGraphicsOnly(true)") == "true")
-                runs
-            } else null
+            }
             view.awaitExportPaint()
-            val bitmap = Bitmap.createBitmap(format.width, format.height, Bitmap.Config.ARGB_8888)
+            val text = if (pdf != null) withTimeout(15_000) {
+                JSONObject(view.exportScript("conversationExportTextPage($page)"))
+            } else null
+            // Capture the PDF graphics at the actual View size. Scaling a software WebView canvas
+            // adds a second coordinate conversion that does not belong to the DOM text snapshot.
+            val bitmap = Bitmap.createBitmap(if (pdf != null) width else format.width,
+                if (pdf != null) height else format.height, Bitmap.Config.ARGB_8888)
             try {
                 val canvas = Canvas(bitmap)
                 canvas.drawColor(android.graphics.Color.WHITE)
-                canvas.scale(format.width.toFloat() / width, format.height.toFloat() / height)
+                if (pdf == null) canvas.scale(format.width.toFloat() / width, format.height.toFloat() / height)
                 view.draw(canvas)
                 if (pdf != null) {
                     withContext(Dispatchers.Default) { pdf.append(bitmap, checkNotNull(text), page + 1, count) }
