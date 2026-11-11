@@ -37,7 +37,7 @@ object ConversationDraftCodec {
         require(value.notebookId==null || value.notebookId==value.id)
         require(value.redoFor==null || QuestionIdentity.valid(value.redoFor))
         require(value.baseline==null || value.baseline.matches(Regex("[0-9a-f]{64}")))
-        require(value.action in setOf("initial","followup","regenerate_initial","regenerate_followup","grade"))
+        require(value.action in setOf("initial","followup","regenerate_initial","regenerate_followup","grade","restore_initial","restore_grade"))
         require(value.images.size<=3)
     }
 }

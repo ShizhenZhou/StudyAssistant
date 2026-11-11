@@ -50,6 +50,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.2_beta
+
+- 📤 Export selected questions and answers as PDF or separate 9:16 PNG pages, with custom filenames, formulas, tables and images.
+- ✅ Green selection outlines keep text layout stable. Original questions can be exported but not deleted; deleted initial answers can be generated again.
+- ↕️ Hold the top arrow for 1 second, then release to reach the bottom; moving outside cancels. The quote-return icon is smaller.
+- 📌 `versionCode` **115**.
+
 ### v0.7.1.2
 
 - ⬆️ Prefer direct deltas, or choose the smallest chained download, with improved verification, cancellation and full-package fallback.

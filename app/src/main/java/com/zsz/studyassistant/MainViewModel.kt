@@ -67,11 +67,11 @@ import kotlinx.serialization.json.JsonPrimitive
 data class ChatItem(val id: Long, val role: String, val content: String, val images: List<String>? = null,
                     val thinking: String? = null, val quote: QuotedFollowUp? = null,
                     val messageKey: String? = null, val gradePart: String? = null,
-                    val notebookSuggestions: com.zsz.studyassistant.data.NotebookSuggestions? = null)
+                    val notebookSuggestions: com.zsz.studyassistant.data.NotebookSuggestions? = null,
+                    val answerPending: Boolean = false)
 
 internal fun protectedMessageIndices(items: List<ChatItem>): Set<Int> = buildSet {
-    add(items.indexOfFirst { it.role == "question" })
-    add(items.indexOfFirst { it.role == "assistant" })
+    items.forEachIndexed { index, item -> if (item.role == "question") add(index) }
     items.forEachIndexed { index, item -> if (item.gradePart == "answer") add(index) }
 }
 
@@ -669,6 +669,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     private fun applyRecoveredReply(action: String, output: String) {
         when(action) {
+            "restore_initial", "restore_grade" -> {
+                val result = StudyAssistant.parseVisionOutput(output)
+                suggestedCategory = result.category; suggestedTags = result.tags
+                chatItems = restoreInitialAnswer(chatItems, ChatItem(0, "assistant",
+                    result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)), thinking = thinkingText,
+                    notebookSuggestions = com.zsz.studyassistant.data.NotebookSuggestions(result.category, result.tags)))
+            }
             "grade" -> onGradeReply(output)
             "followup" -> addItem("assistant",StudyAssistant.stripMetaLines(output))
             "regenerate_followup", "regenerate_initial" -> {
@@ -1474,6 +1481,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun chatMessages(items: List<ChatItem>): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
         for (item in items) {
+            if (item.answerPending) continue
             when (item.role) {
                 "assistant" -> msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.content)))
                 "user" -> {
@@ -2430,6 +2438,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 重新生成：**保留提问气泡**，只重做回答 */
     fun regenerate() {
+        if (initialAnswerPending) { generateMissingInitialAnswer(); return }
         if(busy || streamInterrupted) {
             if(streamInterrupted) error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]
             return
@@ -2442,8 +2451,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             repeat={ regenerate() },replyAction=action)
     }
 
+    val initialAnswerPending: Boolean get() = chatItems.any { it.answerPending }
+    val restoringInitialAnswer: Boolean get() = streamingText != null && activeDraft?.action in setOf("restore_initial", "restore_grade")
+
+    /** Refill the original slot; later follow-ups are neither sent as the question nor replaced. */
+    fun generateMissingInitialAnswer() {
+        if (busy || !initialAnswerPending) return
+        if (streamInterrupted) { continueGeneration(); return }
+        val input = gradingInput(gradeMode, questionText, chatItems, questionImages)
+        if (input != null && !input.canGrade) {
+            error = com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.conflict"]
+            return
+        }
+        val action = if (input == null) "restore_initial" else "restore_grade"
+        val model = if (input != null || questionImages.isNotEmpty() || isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        val request = if (input == null && questionImages.isNotEmpty()) listOf(
+            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
+            StudyAssistant.userMessageWithEncodedImages(StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n" + questionText, questionImages))
+        else if (input == null) buildMessages(emptyList()) else listOf(
+            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
+            StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames))
+        busyIsGrade = input != null
+        streamCall(model, request, "", onDone = { applyRecoveredReply(action, it) },
+            repeat = { generateMissingInitialAnswer() }, replyAction = action)
+    }
+
     private fun lastAnswer(): String =
-        chatItems.lastOrNull { it.role == "assistant" }?.content ?: ""
+        chatItems.lastOrNull { it.role == "assistant" && !it.answerPending }?.content ?: ""
 
     /**
      * B9 查重用：**将要落库的题干**（与 [saveToNotebook] 完全一样的取法）。
@@ -2454,10 +2488,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { StudyAssistant.parseVisionOutput(lastAnswer() ?: "").question }
             .getOrNull()?.trim().orEmpty()
     }
-
-    // ---- B7 导出（长图/PDF）已在 v0.6.4 **取消并移除**：相关只读访问器（exportQuestion /
-    //      exportAnswer / exportImageBytes）与 ui/QuestionExporter.kt、ui/ExportDialog.kt、
-    //      assets/export_render.html 一并删除，不要再往回加。----
 
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
     fun saveToNotebook(name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()) {
@@ -3304,11 +3334,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    /** 删除追问消息（按 chatItems 索引）。删除后构建消息仅基于剩余，AI 接续对话 */
+    /** Question inputs cannot be deleted. Removing the initial reply retains an empty refill slot. */
     fun deleteMessages(indices: List<Int>) {
-        if (indices.isEmpty()) return
-        val toRemove = indices.toSet() - protectedMessageIndices(chatItems)
-        chatItems = chatItems.filterIndexed { i, _ -> i !in toRemove }
+        if (busy || indices.isEmpty()) return
+        chatItems = deleteConversationMessages(chatItems, indices.toSet())
     }
 
     /**

@@ -5,6 +5,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PendingSaveCodecTest {
+    @Test fun initialAnswerDeletionKeepsFollowupsAndRestoresTheOriginalSlot() {
+        val items = com.zsz.studyassistant.withStableMessageKeys(listOf(
+            com.zsz.studyassistant.ChatItem(0, "question", "q"),
+            com.zsz.studyassistant.ChatItem(1, "assistant", "old answer", thinking = "old thought"),
+            com.zsz.studyassistant.ChatItem(2, "user", "followup"),
+            com.zsz.studyassistant.ChatItem(3, "assistant", "followup answer")))
+        assertEquals(items, com.zsz.studyassistant.deleteConversationMessages(items, setOf(0, 1)))
+        val deleted = com.zsz.studyassistant.deleteConversationMessages(items, setOf(1))
+        assertTrue(deleted[1].answerPending)
+        assertEquals("", deleted[1].content)
+        assertNull(deleted[1].thinking)
+        assertEquals(items.drop(2), deleted.drop(2))
+        val serializer = kotlinx.serialization.builtins.ListSerializer(com.zsz.studyassistant.ChatItem.serializer())
+        val restored = kotlinx.serialization.json.Json.decodeFromString(serializer,
+            kotlinx.serialization.json.Json.encodeToString(serializer, deleted))
+        val filled = com.zsz.studyassistant.restoreInitialAnswer(restored, com.zsz.studyassistant.ChatItem(9, "assistant", "new answer"))
+        assertEquals(listOf("q", "new answer", "followup", "followup answer"), filled.map { it.content })
+        assertFalse(filled[1].answerPending)
+        assertNotEquals(items[1].messageKey, filled[1].messageKey)
+        assertEquals(items.drop(2), filled.drop(2))
+    }
     @Test fun unsavedDraftCannotOverwriteLaterNotebookEdits() {
         val base = listOf(com.zsz.studyassistant.ChatItem(0, "question", "q"),
             com.zsz.studyassistant.ChatItem(1, "assistant", "a"))
@@ -30,7 +51,7 @@ class PendingSaveCodecTest {
         val restored = kotlinx.serialization.json.Json.decodeFromString(serializer,
             kotlinx.serialization.json.Json.encodeToString(serializer, items))
         assertEquals(items, restored)
-        assertEquals(setOf(0, 1, 2), com.zsz.studyassistant.protectedMessageIndices(restored))
+        assertEquals(setOf(0, 1), com.zsz.studyassistant.protectedMessageIndices(restored))
         assertEquals(listOf("one", "two", "three"), questionImageBase64(
             kotlinx.serialization.json.Json.encodeToString(serializer, restored)))
         val input = gradingInput(false, "conditions", restored, emptyList())!!

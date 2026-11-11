@@ -190,7 +190,8 @@ fun SolveScreen(
         imagePicker.launch(imagePickRequest(maxItems = 3))
     }
 
-    // B7 导出功能已在 v0.6.4 **取消并移除**（长图/PDF 无法保证完整，用户决定不做）
+    // Freeze the selected messages before opening the system destination picker.
+    var exportMessages by remember(draft) { mutableStateOf<List<ChatMsg>?>(null) }
 
     // 退出本页时：若已加入错题本，把当前完整对话更新保存
     DisposableEffect(Unit) {
@@ -251,7 +252,7 @@ fun SolveScreen(
     //    块外的 key 不变时 remember 直接返回**缓存列表** → 思考增长期间 messages 根本不重算 →
     //    WebView 收到的 JSON 一模一样 → 表现成「思考不流式输出（最后一次性蹦出来）」。必须进 key。
     // Stable bubbles retain their lazy source hashes while only the streaming tail changes.
-    val mappedMessages = remember(vm.chatItems, vm.questionImages, sessionMode == SessionMode.REVIEW, answerRevealed, vm.thinkingEnabled) {
+    val mappedMessages = remember(vm.chatItems, vm.questionImages, sessionMode == SessionMode.REVIEW, answerRevealed, vm.thinkingEnabled, s) {
         var items = if (sessionMode == SessionMode.REVIEW && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         // ★ 兜底去重：题干项按内容去重（旧数据/不同入口可能塞进重复题干，表现为"题目出现两遍"）
         run {
@@ -275,7 +276,8 @@ fun SolveScreen(
             val hideAiText = sessionMode == SessionMode.REVIEW && imgs.isNotEmpty()
             ChatMsg(
                 role = if (c.role == "assistant") "assistant" else "user",
-                content = if (hideAiText) "" else c.quote?.question ?: c.content,
+                content = if (c.answerPending) s["solve.answerPending"] + "\n\n[[CONTINUE|" + s["solve.continueGen"] + "]]"
+                    else if (hideAiText) "" else c.quote?.question ?: c.content,
                 quotedText = if (hideAiText) null else c.quote?.text,
                 messageKey = c.messageKey,
                 quoteAnchor = if (hideAiText) null else c.quote?.anchor,
@@ -285,11 +287,13 @@ fun SolveScreen(
             )
         }
     }
-    val messages = remember(mappedMessages, vm.streamingText, vm.streamInterrupted, vm.thinkingText, vm.thinkingDone, vm.thinkingEnabled, s) {
+    val pendingAnswerIndex = mappedMessages.indexOfFirst { message -> vm.chatItems.any { it.answerPending && it.messageKey == message.messageKey } }
+    val restoringAnswer = vm.restoringInitialAnswer && pendingAnswerIndex >= 0
+    val messages = remember(mappedMessages, vm.streamingText, vm.streamInterrupted, vm.thinkingText, vm.thinkingDone, vm.thinkingEnabled, s, restoringAnswer) {
         val mapped = mappedMessages
         // 流式：把已生成的部分作为一条「正在生成」的助手气泡实时渲染（末尾光标提示未完成）
         val live = vm.streamingText
-        when {
+        val rendered = when {
             live == null -> mapped
             // 被中断（网络异常 / 用户中止）：在已生成内容末尾补一行可点的蓝色「继续生成」
             // 注意要排在「空内容」之前：思考期就被中止时，一个字都没有 → 显示「思考中…」+ 继续生成，气泡不消失
@@ -305,13 +309,18 @@ fun SolveScreen(
             // 流式全程 thinkingOpen=true：思考结束不再自动收起（否则"正文一出思考块就被吞"）
             else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList(), thinking = if (vm.thinkingEnabled) vm.thinkingText else null, thinkingOpen = true, thinkingDone = vm.thinkingDone)
         }
+        if (restoringAnswer && live != null) mapped.toMutableList().apply {
+            this[pendingAnswerIndex] = rendered.last().copy(messageKey = mapped[pendingAnswerIndex].messageKey)
+        } else rendered
     }
 
     // ★ 2026-10-13（用户要求）：中止后那条「思考中 / 已中断」的气泡**只在渲染层**（vm.streamingText /
     //   vm.thinkingText），不在 vm.chatItems 里 → 多选的两道守卫（下标必须在 chatItems 内）会拒绝它，
     //   删除也覆盖不到。这里给它一个"虚拟下标"（= 渲染列表的最后一项），并入可选范围；
     //   删除动作对应 vm.discardInterrupted()（丢弃中断态，而不是往 chatItems 里塞一条）。
-    val virtualTailIndex = if (vm.streamInterrupted && messages.isNotEmpty()) messages.lastIndex else -1
+    val virtualTailIndex = if (vm.streamInterrupted && messages.isNotEmpty()) {
+        if (restoringAnswer) pendingAnswerIndex else messages.lastIndex
+    } else -1
     // Rendering may hide duplicate legacy questions or prepend a photo placeholder.
     // Resolve back through stable keys before editing; a rendered position is not a storage index.
     val sourceIndices = remember(vm.chatItems, mappedMessages) {
@@ -322,15 +331,19 @@ fun SolveScreen(
     var selectedIndices by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf<Set<Int>>(emptySet()) }
     var showEditDelete by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf(false) }
     fun isSelectableIndexOf(idx: Int): Boolean =
-        sourceIndices.getOrNull(idx) != null || (virtualTailIndex >= 0 && idx == virtualTailIndex)
+        sourceIndices.getOrNull(idx)?.let { !vm.chatItems[it].answerPending } == true || (virtualTailIndex >= 0 && idx == virtualTailIndex)
 
-    // 多选时禁止删除：题干（第一条 question）与 AI 的第一条回复（答案 / 批改结果）
-    // Legacy grading embeds the answer in question; redo stores a protected, explicitly marked answer.
-    val lockedIndices = remember(vm.chatItems, sourceIndices) {
-        val protected = com.zsz.studyassistant.protectedMessageIndices(vm.chatItems)
+    // Question input is selectable for export, but deletion is rejected as a whole.
+    val lockedIndices = remember(vm.chatItems, sourceIndices, virtualTailIndex) {
         buildSet {
-            sourceIndices.forEachIndexed { visible, source -> if (source == null || source in protected) add(visible) }
+            sourceIndices.forEachIndexed { visible, source ->
+                if (visible != virtualTailIndex && (source == null || vm.chatItems[source].answerPending)) add(visible)
+            }
         }
+    }
+    val questionSelected = selectedIndices.any { sourceIndices.getOrNull(it) in com.zsz.studyassistant.protectedMessageIndices(vm.chatItems) }
+    exportMessages?.let { selected ->
+        ConversationExportDialog(selected, onDismiss = { exportMessages = null }, onFeedback = { feedback.show(it) })
     }
 
     Scaffold(
@@ -423,7 +436,16 @@ fun SolveScreen(
                     if (cfg.showPracticeSimilar) {
                         TextButton(onClick = { vm.startSimilar(); nav.navigate(AppNav.SIMILAR) }, contentPadding = smallPad, modifier = actionModifier) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
-                        TextButton(onClick = { showEditDelete = true }, enabled = selectedIndices.isNotEmpty(), contentPadding = smallPad, modifier = actionModifier) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE) }
+                        TextButton(onClick = { exportMessages = selectedIndices.sorted().mapNotNull(messages::getOrNull) },
+                            enabled = selectedIndices.isNotEmpty() && !vm.busy, contentPadding = smallPad, modifier = actionModifier) {
+                            Text(s["solve.export"], fontSize = BTN_LABEL_SOLVE)
+                        }
+                        TextButton(onClick = {
+                            if (questionSelected) feedback.show(s["solve.cannotDeleteQuestion"]) else showEditDelete = true
+                        }, enabled = selectedIndices.isNotEmpty() && !vm.busy,
+                            colors = ButtonDefaults.textButtonColors(contentColor = if (questionSelected)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.primary),
+                            contentPadding = smallPad, modifier = actionModifier) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE) }
                     } else {
                         // ★ 统一三段式（拍题 / 批改 / 图文提问 / 错题本 完全一致）：
                         //   右侧 = [⏸ 中止 或 🔄 重新生成] [📚 存错题本 或 📁 分类]
@@ -436,14 +458,15 @@ fun SolveScreen(
                             ) { Text(s["solve.abort"], fontSize = BTN_LABEL_SOLVE) }
                         } else {
                             TextButton(
-                                onClick = { if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
+                                onClick = { if (vm.initialAnswerPending) vm.generateMissingInitialAnswer()
+                                    else if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
                                 // ★ 中止后 chatItems 可能还是空的（题干/答案要流式结束才进），
                                 //   但仍有流式气泡/已中断状态 → 「重新生成」必须可用
                                 enabled = vm.chatItems.isNotEmpty() ||
                                     vm.streamInterrupted || vm.streamingText != null,
                                 contentPadding = smallPad,
                                 modifier = actionModifier
-                            ) { Text(s["solve.regen"], fontSize = BTN_LABEL_SOLVE) }
+                            ) { Text(s[if (vm.initialAnswerPending) "solve.continueGen" else "solve.regen"], fontSize = BTN_LABEL_SOLVE) }
                         }
                         // ★ 2026-10-13（用户要求）：「📚 存错题本」与「📁 分类」是同一个位置的两种状态，
                         //   **占位必须完全一致** —— 所以两者共用同一份宽度：都按「📁 + 空格 + 5 个汉字」的实测宽，
@@ -590,11 +613,14 @@ fun SolveScreen(
                 confirmButton = {
                     TextButton(onClick = {
                         // 虚拟尾气泡（中止后的「思考中/已中断」那条）走"丢弃中断态"，它不在 chatItems 里
+                        if (questionSelected) { feedback.show(s["solve.cannotDeleteQuestion"]); showEditDelete = false }
+                        else {
                         if (virtualTailIndex >= 0 && virtualTailIndex in selectedIndices) vm.discardInterrupted()
-                        vm.deleteMessages(selectedIndices.filter { it !in lockedIndices }.mapNotNull { sourceIndices.getOrNull(it) })
+                        vm.deleteMessages(selectedIndices.mapNotNull { sourceIndices.getOrNull(it) })
                         showEditDelete = false
                         editMode = false
                         selectedIndices = emptySet()
+                        }
                     }) { Text(s["common.delete"]) }
                 },
                 dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text(s["common.cancel"]) } }
@@ -810,13 +836,13 @@ fun SolveScreen(
                     ConversationWebView(
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
-                        onContinue = { vm.continueGeneration() },
+                        onContinue = { if (vm.initialAnswerPending) vm.generateMissingInitialAnswer() else vm.continueGeneration() },
                         onQuoteText = if (sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { selection ->
                             draft.quote = selection
                             quoteFocusSignal++
                         } else null,
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择，JS 侧已拦截，这里再兜一层）
-                        // 受保护的消息（题干 / AI 首条回复）：从普通态长按进入多选时**不选中它**（显示灰色虚线圈）
+                        // Real question/answer bubbles may be selected; pending placeholders cannot.
                         onLongPressMessage = { idx ->
                             // 允许的条目：chatItems 里的 + （中止后的）虚拟尾气泡（见 isSelectableIndexOf）
                             if (!editMode && sessionMode != SessionMode.REVIEW && !vm.busy && isSelectableIndexOf(idx)) {
@@ -880,7 +906,7 @@ fun SolveScreen(
                             ) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     val arrowColor = androidx.compose.material3.LocalContentColor.current
-                                    androidx.compose.foundation.Canvas(Modifier.size(28.dp)) {
+                                    androidx.compose.foundation.Canvas(Modifier.size(24.dp)) {
                                         val unit = size.width / 24f
                                         val path = androidx.compose.ui.graphics.Path().apply {
                                             moveTo(20f * unit, 4f * unit)
@@ -896,17 +922,8 @@ fun SolveScreen(
                                     }
                                 }
                             }
-                            if (scrollable) Surface(
-                                onClick = { if (atTop) scrollBottomTick++ else scrollTopTick++ },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .92f),
-                                shadowElevation = 3.dp, modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text(if (atTop) "↓" else "↑", fontSize = 19.sp,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                }
-                            }
+                            if (scrollable) ConversationScrollButton(atTop,
+                                onTop = { scrollTopTick++ }, onBottom = { scrollBottomTick++ })
                         }
                     }
                 }

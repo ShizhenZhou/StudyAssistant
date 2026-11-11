@@ -296,11 +296,14 @@ data class ChatItem(
     val quote: QuotedFollowUp? = null, // v0.6.9_beta：含 text（引用全文）和 question（追问正文）
     val messageKey: String? = null,   // v0.6.9.1：独立稳定消息标识；不复用旧 id 序号
     val gradePart: String? = null,    // 可选 question / answer：手写重做的原题与独立作答角色
-    val notebookSuggestions: NotebookSuggestions? = null // 首次回答的原始科目与知识点建议
+    val notebookSuggestions: NotebookSuggestions? = null, // 首次回答的原始科目与知识点建议
+    val answerPending: Boolean = false // 删除初始答案后保留空槽；不发送给 AI、不参与导出
 )
 ```
 
 > **v0.7.0.2：存题建议**：首条助手消息新增可选 `notebookSuggestions` 对象，包含 `category` 和 `tags`，在解答清理元信息前保存，并随会话、草稿及备份保留。重新存题时优先读取首次建议，后续追问及错题本人工分类不会替换原始建议。旧消息缺字段时读取首条回答保留的分类行与四语知识点提示，缺失内容沿用当前可用预选。DB v10 / Bak v4 无表结构变化，不需要迁移或批量重写历史数据。
+
+> **选中内容导出与初始答案删除（待发布）**：允许选择题目和初始答案导出；任何包含题目/初始手写作答的删除请求整体拒绝。删除首条助手答案时仅保留 `answerPending=true` 的空助手槽和原始存题建议，清除正文、思考、图片与引用，换用新的消息键；界面根据当前语言显示临时提示，不把提示写入内容字段。补答只替换该槽、再次分配新键并保留后续问答；占位不进入 AI 上下文或导出。字段缺省为 false，沿用现有会话 JSON/备份读写，不批量改写历史数据、无需 Room 或 Bak 格式迁移；旧客户端忽略该字段但不能执行占位恢复。私有草稿增加 `restore_initial` / `restore_grade` 动作，恢复时也只补回原槽。
 
 > **v0.6.9_beta 引用展示**：新增可选 `quote` 对象，供提问气泡分框显示引用与正文；`content` 仍保存完整引用和问题，API 与旧客户端沿用原读取方式。旧消息缺字段时为 `null`，保留原文显示；保存、草稿和备份均保留该对象。DB v10 / Bak v4 不变，无表结构迁移，也不重写已有记录。
 
