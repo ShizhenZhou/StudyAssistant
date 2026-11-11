@@ -83,15 +83,30 @@ class AppFeedbackState(private val scope: CoroutineScope) {
         }
         publish(FeedbackVisuals(message, source="delete", actionLabel=label, undo=true), action)
     }
-    private fun publish(visuals: FeedbackVisuals, action: (() -> Unit)?) {
+    fun showMessageDeletion(message: String, label: String, action: () -> Unit) {
+        val previous = activeVisuals
+        val previousAction = activeAction
+        if (previous?.isError == true) afterUndo = {
+            show(previous.message, true, previous.source, previous.actionLabel, previousAction)
+        }
+        publish(FeedbackVisuals(message, source="message-delete", actionLabel=label, undo=true), action, 2_000)
+    }
+    private fun publish(visuals: FeedbackVisuals, action: (() -> Unit)?, timeoutMillis: Long? = null) {
         val previousJob = displayJob
         activeVisuals = visuals
         activeAction = action
         previousJob?.cancel()
         displayJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val expiry = timeoutMillis?.let { android.os.SystemClock.uptimeMillis() + it }
+            val timer = timeoutMillis?.let { launch {
+                kotlinx.coroutines.delay(it)
+                hostState.currentSnackbarData?.takeIf { data -> data.visuals === visuals }?.dismiss()
+            } }
             try {
-                if (hostState.showSnackbar(visuals) == SnackbarResult.ActionPerformed) action?.invoke()
+                if (hostState.showSnackbar(visuals) == SnackbarResult.ActionPerformed &&
+                    (expiry == null || android.os.SystemClock.uptimeMillis() < expiry)) action?.invoke()
             } finally {
+                timer?.cancel()
                 if (activeVisuals === visuals) {
                     activeVisuals = null
                     activeAction = null

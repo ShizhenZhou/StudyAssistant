@@ -888,7 +888,7 @@ def main():
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
         if operation == "start": item.add_argument("--mandatory", action="store_true", default=None, help="Explicit stable-only forced update; adds -ENF to the APK filename")
-        if operation == "start": item.add_argument("--delta-base", type=Path, action="append", help="Exact archived stable APK with companion manifest; repeat for multiple versionCodes")
+        if operation == "start": item.add_argument("--delta-base", type=Path, action="append", help="Exact archived stable/beta APK with companion manifest; repeat for multiple versionCodes")
         if operation == "status": item.add_argument("--run",type=int,help="Select an exact build when a version has multiple states")
     for operation in ("verify", "publish", "replace"):
         item = sub.add_parser(operation,help="Explicitly replace the same version's public assets; never moves its tag" if operation=="replace" else None)

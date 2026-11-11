@@ -50,6 +50,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.2_beta2
+
+- ↩️ Undo deletion of selected messages within 2 seconds; original questions remain protected.
+- 📤 Smaller PDF/PNG export text, with a fixed A4 layout for PDF pages and consistent typography across screen sizes.
+- 📌 `versionCode` **116**.
+
 ### v0.7.2_beta
 
 - 📤 Export selected questions and answers as PDF or separate 9:16 PNG pages, with custom filenames, formulas, tables and images.

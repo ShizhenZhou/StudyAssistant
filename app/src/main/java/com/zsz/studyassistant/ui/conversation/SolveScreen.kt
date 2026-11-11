@@ -195,7 +195,7 @@ fun SolveScreen(
 
     // 退出本页时：若已加入错题本，把当前完整对话更新保存
     DisposableEffect(Unit) {
-        onDispose { vm.saveSessionOnExit() }
+        onDispose { feedback.dismiss("message-delete"); vm.saveSessionOnExit() }
     }
 
     // 一键回到顶部 / 滚到底部：每次自增向 WebView 发一次信号
@@ -329,7 +329,6 @@ fun SolveScreen(
     val visibleKeys = remember(mappedMessages) { mappedMessages.map { it.messageKey } }
     var editMode by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf(false) }
     var selectedIndices by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf<Set<Int>>(emptySet()) }
-    var showEditDelete by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf(false) }
     fun isSelectableIndexOf(idx: Int): Boolean =
         sourceIndices.getOrNull(idx)?.let { !vm.chatItems[it].answerPending } == true || (virtualTailIndex >= 0 && idx == virtualTailIndex)
 
@@ -441,7 +440,14 @@ fun SolveScreen(
                             Text(s["solve.export"], fontSize = BTN_LABEL_SOLVE)
                         }
                         TextButton(onClick = {
-                            if (questionSelected) feedback.show(s["solve.cannotDeleteQuestion"]) else showEditDelete = true
+                            if (questionSelected) feedback.show(s["solve.cannotDeleteQuestion"])
+                            else {
+                                val undo = vm.deleteMessagesWithUndo(
+                                    selectedIndices.mapNotNull { sourceIndices.getOrNull(it) },
+                                    virtualTailIndex >= 0 && virtualTailIndex in selectedIndices)
+                                editMode = false; selectedIndices = emptySet()
+                                if (undo != null) feedback.showMessageDeletion(s["solve.deletedMessages"], s["delete.undo"], undo)
+                            }
                         }, enabled = selectedIndices.isNotEmpty() && !vm.busy,
                             colors = ButtonDefaults.textButtonColors(contentColor = if (questionSelected)
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.primary),
@@ -602,28 +608,6 @@ fun SolveScreen(
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) { Text(s["common.cancel"]) }
                 }
-            )
-        }
-        // 编辑模式：删除选中消息确认
-        if (showEditDelete) {
-            AlertDialog(
-                onDismissRequest = { showEditDelete = false },
-                title = { Text(s["solve.deleteMessages.title"]) },
-                text = { Text(s.format("solve.deleteMessages.text", "n" to "${selectedIndices.size}")) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        // 虚拟尾气泡（中止后的「思考中/已中断」那条）走"丢弃中断态"，它不在 chatItems 里
-                        if (questionSelected) { feedback.show(s["solve.cannotDeleteQuestion"]); showEditDelete = false }
-                        else {
-                        if (virtualTailIndex >= 0 && virtualTailIndex in selectedIndices) vm.discardInterrupted()
-                        vm.deleteMessages(selectedIndices.mapNotNull { sourceIndices.getOrNull(it) })
-                        showEditDelete = false
-                        editMode = false
-                        selectedIndices = emptySet()
-                        }
-                    }) { Text(s["common.delete"]) }
-                },
-                dismissButton = { TextButton(onClick = { showEditDelete = false }) { Text(s["common.cancel"]) } }
             )
         }
         // ★ 2026-10-16：读到**旧格式数据**时警示一次（[确认] → 去数据升级；[跳过] → 继续查看）

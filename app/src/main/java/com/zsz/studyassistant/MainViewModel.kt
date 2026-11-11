@@ -1595,6 +1595,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun discardInterrupted() {
         activeDraft?.let { value -> viewModelScope.launch { conversationDrafts.clear(value.id,value.generation); refreshDrafts() } }
+        clearInterruptedState()
+    }
+    private fun clearInterruptedState() {
         activeDraft=null
         streamInterrupted = false
         streamingText = null
@@ -3338,6 +3341,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteMessages(indices: List<Int>) {
         if (busy || indices.isEmpty()) return
         chatItems = deleteConversationMessages(chatItems, indices.toSet())
+    }
+
+    /** One short-lived undo; never replace a different session or subsequent edits. */
+    fun deleteMessagesWithUndo(indices: List<Int>, discardPartial: Boolean): (() -> Unit)? {
+        if (busy || indices.any { it in protectedMessageIndices(chatItems) }) return null
+        val before = chatItems
+        val after = deleteConversationMessages(before, indices.toSet())
+        val removePartial = discardPartial && streamInterrupted
+        if (before == after && !removePartial) return null
+        val owner = sessionRecordBinding
+        val sequence = callSeq
+        val draft = activeDraft
+        val partial = streamingText
+        val thinking = thinkingText
+        val thoughtDone = thinkingDone
+        val interrupted = streamInterrupted
+        val continuation = contMessages
+        val completion = contOnDone
+        val prefix = contPrefix
+        chatItems = after
+        if (removePartial) clearInterruptedState()
+        val expectedItems = chatItems
+        var available = true
+        val expiry = android.os.SystemClock.uptimeMillis() + 2_000
+        // Keep the interrupted draft recoverable during undo; clear only its exact generation on expiry.
+        val cleanup = viewModelScope.launch {
+            kotlinx.coroutines.delay(2_000)
+            available = false
+            if (removePartial && draft != null) {
+                conversationDrafts.clear(draft.id, draft.generation)
+                refreshDrafts()
+            }
+        }
+        return {
+            if (available && android.os.SystemClock.uptimeMillis() < expiry && !busy &&
+                owner === sessionRecordBinding && sequence == callSeq && chatItems === expectedItems &&
+                (!removePartial || (activeDraft == null && streamingText == null))) {
+                available = false; cleanup.cancel()
+                chatItems = before
+                if (removePartial) {
+                    activeDraft = draft; streamingText = partial; thinkingText = thinking
+                    thinkingDone = thoughtDone; streamInterrupted = interrupted
+                    contMessages = continuation; contOnDone = completion; contPrefix = prefix
+                }
+            }
+        }
     }
 
     /**

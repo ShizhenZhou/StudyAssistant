@@ -1,7 +1,12 @@
 /* Local, bounded-page export. Uses the same sanitized Markdown/KaTeX/SVG as the conversation. */
 (function () {
   'use strict';
-  var pages = [], viewport, output, pageHeight, footer;
+  var pages = [], viewport, output, pageHeight, footer, pageScale = 1;
+  function logicalRect(rect) {
+    return {top:rect.top/pageScale, bottom:rect.bottom/pageScale,
+      width:rect.width/pageScale, height:rect.height/pageScale};
+  }
+  function bounds(el) { return logicalRect(el.getBoundingClientRect()); }
   window.conversationExportState = {status: 'idle'};
 
   // Every source interval is covered exactly once. Move cuts above overlapping ink/atomic blocks.
@@ -30,24 +35,29 @@
   }
   window.conversationExportPaginate = paginate;
 
-  window.prepareConversationExport = function (messages) {
+  window.prepareConversationExport = function (messages, format) {
     window.conversationExportState = {status: 'working'};
     (async function () {
       if (!Array.isArray(messages) || !messages.length) throw new Error('No messages');
       document.body.className = 'export-mode';
       document.documentElement.style.setProperty('--k', '1');
+      // Fixed document layout, scaled only for the preview/capture. A4 body text is 12pt.
+      var layoutWidth = format === 'PDF' ? 794 : 540;
+      pageScale = window.innerWidth / layoutWidth;
+      var layoutHeight = window.innerHeight / pageScale;
       selectionMode = false; following = false; window.thinkForced = 'closed';
       var style = document.createElement('style');
       style.textContent = 'html,body{height:100%;overflow:hidden!important;background:#fff!important;margin:0;padding:0;}' +
         'body{font-size:16px;line-height:1.6;}' +
-        '#export-window{position:fixed;top:16px;left:16px;right:16px;overflow:hidden;}' +
+        '#export-page{position:fixed;top:0;left:0;transform-origin:top left;}' +
+        '#export-window{position:absolute;top:32px;left:32px;right:32px;overflow:hidden;}' +
         '#out{display:block!important;position:relative;width:100%;margin:0;padding:0;}' +
-        '.bubble{box-sizing:border-box;width:100%;max-width:none;margin:0 0 12px;padding:10px 12px;box-shadow:none!important;}' +
+        '.bubble{box-sizing:border-box;width:100%;max-width:none;margin:0 0 12px;padding:10px 12px;font-size:' + (format === 'PDF' ? 16 : 14) + 'px;box-shadow:none!important;}' +
         '.pick,.think,.continue,summary,.quote-jump-highlight{display:none!important;}' +
         '.msgimg,.ai-diagram img{height:auto;max-width:100%;object-fit:contain;}' +
         '.table-scroll,.katex-display,pre{overflow:visible!important;}' +
         'pre{white-space:pre-wrap!important;overflow-wrap:anywhere!important;}' +
-        '#export-footer{position:fixed;bottom:7px;left:0;right:0;text-align:center;color:#777;font:11px sans-serif;}' +
+        '#export-footer{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#777;font:11px sans-serif;}' +
         '*{animation:none!important;transition:none!important;pointer-events:none!important;}';
       document.head.appendChild(style);
       output = document.getElementById('out');
@@ -55,10 +65,13 @@
         return bubbleHtml(Object.assign({}, m, {thinking:null, thinkingOpen:false}), i);
       }).join('');
       output.querySelectorAll('details').forEach(function (el) { el.open = true; });
+      var sheet = document.createElement('div'); sheet.id = 'export-page';
+      sheet.style.width = layoutWidth + 'px'; sheet.style.height = layoutHeight + 'px';
+      sheet.style.transform = 'scale(' + pageScale + ')'; document.body.appendChild(sheet);
       viewport = document.createElement('div'); viewport.id = 'export-window';
-      output.parentNode.insertBefore(viewport, output); viewport.appendChild(output);
-      footer = document.createElement('div'); footer.id = 'export-footer'; document.body.appendChild(footer);
-      pageHeight = window.innerHeight - 48;
+      sheet.appendChild(viewport); viewport.appendChild(output);
+      footer = document.createElement('div'); footer.id = 'export-footer'; sheet.appendChild(footer);
+      pageHeight = layoutHeight - 72;
       if (window.innerWidth < 150 || pageHeight < 150) throw new Error('Export viewport too small');
       output.querySelectorAll('img').forEach(function (img) {
         img.style.maxHeight = (pageHeight - 40) + 'px'; img.loading = 'eager';
@@ -74,7 +87,7 @@
         var parent = math.closest('td,th,.quoted-text,.message-text') || output;
         var padding = getComputedStyle(parent);
         var available = parent.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight) - 2;
-        var rect = math.getBoundingClientRect();
+        var rect = bounds(math);
         var scale = Math.min(1, available / Math.max(1, rect.width), (pageHeight - 24) / Math.max(1, rect.height));
         if (scale < 1) { math.style.display = 'inline-block'; math.style.whiteSpace = 'nowrap'; math.style.zoom = String(scale); }
       });
@@ -93,7 +106,7 @@
       });
       // A diagram's caption/border belongs to the same atomic block as its image.
       output.querySelectorAll('.ai-diagram').forEach(function (figure) {
-        var rect = figure.getBoundingClientRect();
+        var rect = bounds(figure);
         if (rect.height > pageHeight - 8) {
           figure.style.boxSizing = 'border-box'; figure.style.width = rect.width + 'px';
           figure.style.zoom = String((pageHeight - 8) / rect.height);
@@ -101,8 +114,9 @@
       });
       await document.fonts.ready;
       void output.offsetHeight;
-      var origin = output.getBoundingClientRect().top, intervals = [];
+      var origin = bounds(output).top, intervals = [];
       function add(rect) {
+        rect = logicalRect(rect);
         if (rect.width > 0 && rect.height > 0) intervals.push([Math.max(0, rect.top - origin), rect.bottom - origin]);
       }
       var atomic = '.katex-display,.katex, tr,img,pre,.ai-diagram';
@@ -112,7 +126,7 @@
       output.querySelectorAll('table').forEach(function (table) {
         var rows = table.querySelectorAll('tr');
         if (rows.length < 2) return;
-        var first = rows[0].getBoundingClientRect(), second = rows[1].getBoundingClientRect();
+        var first = bounds(rows[0]), second = bounds(rows[1]);
         if (second.bottom - first.top < pageHeight) intervals.push([first.top - origin, second.bottom - origin]);
       });
       var walker = document.createTreeWalker(output, NodeFilter.SHOW_TEXT);
@@ -122,7 +136,7 @@
         var range = document.createRange(); range.selectNodeContents(node);
         Array.from(range.getClientRects()).forEach(add);
       }
-      var height = Math.ceil(output.getBoundingClientRect().height);
+      var height = Math.ceil(bounds(output).height);
       if (height <= 0 || intervals.length === 0) throw new Error('Empty export');
       pages = paginate(height, pageHeight, intervals);
       window.showConversationExportPage(0);

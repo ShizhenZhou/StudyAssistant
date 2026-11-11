@@ -98,10 +98,10 @@ def read_base(apk):
     apk = Path(apk).resolve()
     metadata = json.loads(apk.with_name(apk.stem + "-update-manifest.json").read_text(encoding="utf-8"))
     data = apk.read_bytes()
-    if (metadata.get("schema") != 1 or metadata.get("channel", "stable") != "stable" or
+    if (metadata.get("schema") != 1 or metadata.get("channel", "stable") not in ("stable", "beta") or
         metadata.get("apkName") != apk.name or metadata.get("apkSha256") != digest(data) or
         metadata.get("apkSize") != len(data) or type(metadata.get("versionCode")) is not int):
-        raise ValueError("Base APK differs from its archived stable release manifest")
+        raise ValueError("Base APK differs from its archived release manifest")
     return dict(path=str(apk), baseSha256=digest(data), baseSize=len(data), baseVersionCode=metadata["versionCode"])
 
 

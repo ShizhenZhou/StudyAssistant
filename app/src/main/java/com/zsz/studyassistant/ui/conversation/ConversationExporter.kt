@@ -49,7 +49,7 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
         check(width > 0 && height > 0 && view.isAttachedToWindow)
         val count = withTimeout(60_000) {
             view.exportScript(script)
-            check(view.exportScript("prepareConversationExport($payload)") == "true")
+            check(view.exportScript("prepareConversationExport($payload, '${format.name}')") == "true")
             var total = 0
             while (total == 0) {
                 ensureActive()
