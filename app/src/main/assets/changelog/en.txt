@@ -1,11 +1,8 @@
-v0.7.2_beta2
-· ↩️ Undo deletion of selected messages within 2 seconds; original questions remain protected.
-· 📤 Smaller PDF/PNG export text, with a fixed A4 layout for PDF pages and consistent typography across screen sizes.
-
-v0.7.2_beta
-· 📤 Export selected questions and answers as PDF or separate 9:16 PNG pages, with custom filenames, formulas, tables and images.
-· ✅ Green selection outlines keep text layout stable. Original questions can be exported but not deleted; deleted initial answers can be generated again.
-· ↕️ Hold the top arrow for 1 second, then release to reach the bottom; moving outside cancels. The quote-return icon is smaller.
+v0.7.2
+· 📤 Export selected messages as an A4 text PDF or paged 9:16 PNG, with custom filenames, formulas, tables and images.
+· ✅ Green selection outlines preserve text layout. Original questions can be exported but not deleted; other deletions can be undone within 2 seconds.
+· 💬 Regenerate a deleted initial answer in its original position while keeping later follow-ups.
+· ↕️ Hold the scroll-to-top button for 1 second and release to jump to the bottom, or slide out to cancel; refined quote-return icon.
 
 v0.7.1.2
 · ⬆️ Prefer direct deltas, or choose the smallest chained download, with improved verification, cancellation and full-package fallback.

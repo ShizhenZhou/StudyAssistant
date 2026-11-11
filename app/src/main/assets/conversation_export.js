@@ -73,8 +73,10 @@
       footer = document.createElement('div'); footer.id = 'export-footer'; sheet.appendChild(footer);
       pageHeight = layoutHeight - 72;
       if (window.innerWidth < 150 || pageHeight < 150) throw new Error('Export viewport too small');
+      // Native printing also repeats bubble/quote padding at a page break; leave room for it.
+      var blockHeight = format === 'PDF' ? pageHeight - 128 : pageHeight - 24;
       output.querySelectorAll('img').forEach(function (img) {
-        img.style.maxHeight = (pageHeight - 40) + 'px'; img.loading = 'eager';
+        img.style.maxHeight = Math.min(pageHeight - 40, blockHeight) + 'px'; img.loading = 'eager';
       });
       await Promise.all(Array.from(output.querySelectorAll('img')).map(function (img) {
         return img.decode().then(function () { if (!img.naturalWidth) throw new Error('Image unavailable'); });
@@ -88,7 +90,7 @@
         var padding = getComputedStyle(parent);
         var available = parent.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight) - 2;
         var rect = bounds(math);
-        var scale = Math.min(1, available / Math.max(1, rect.width), (pageHeight - 24) / Math.max(1, rect.height));
+        var scale = Math.min(1, available / Math.max(1, rect.width), blockHeight / Math.max(1, rect.height));
         if (scale < 1) { math.style.display = 'inline-block'; math.style.whiteSpace = 'nowrap'; math.style.zoom = String(scale); }
       });
       // Scale wide math/tables to include their entire horizontal extent; retain math padding.
@@ -98,22 +100,45 @@
         box.appendChild(inner);
         var width = Math.max(available, inner.scrollWidth);
         var scale = Math.min(1, available / width);
-        if (box.matches('.katex-display,pre')) scale = Math.min(scale, (pageHeight - 24) / Math.max(1, inner.offsetHeight));
+        if (box.matches('.katex-display,pre')) scale = Math.min(scale, blockHeight / Math.max(1, inner.offsetHeight));
         if (box.matches('.table-scroll')) {
-          inner.querySelectorAll('tr').forEach(function (row) { scale = Math.min(scale, (pageHeight - 24) / Math.max(1, row.offsetHeight)); });
+          inner.querySelectorAll('tr').forEach(function (row) { scale = Math.min(scale, blockHeight / Math.max(1, row.offsetHeight)); });
         }
         if (scale < 1) { inner.style.width = width + 'px'; inner.style.zoom = String(scale); }
       });
       // A diagram's caption/border belongs to the same atomic block as its image.
       output.querySelectorAll('.ai-diagram').forEach(function (figure) {
         var rect = bounds(figure);
-        if (rect.height > pageHeight - 8) {
+        var figureHeight = format === 'PDF' ? blockHeight : pageHeight - 8;
+        if (rect.height > figureHeight) {
           figure.style.boxSizing = 'border-box'; figure.style.width = rect.width + 'px';
-          figure.style.zoom = String((pageHeight - 8) / rect.height);
+          figure.style.zoom = String(figureHeight / rect.height);
         }
       });
       await document.fonts.ready;
       void output.offsetHeight;
+      if (format === 'PDF') {
+        // Native printing paginates real text. Never duplicate/translate whole bubbles per page:
+        // visually clipped copies would still duplicate text in the PDF's selectable text layer.
+        var printStyle = document.createElement('style');
+        printStyle.textContent = '@media print {' +
+          'html,body{height:auto!important;overflow:visible!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;}' +
+          '#export-page{position:static!important;transform:none!important;width:auto!important;height:auto!important;}' +
+          '#export-window{position:static!important;height:auto!important;overflow:visible!important;}' +
+          '#out{transform:none!important;width:100%!important;}' +
+          '#export-footer{display:none!important;}' +
+          '.bubble{font-size:12pt;break-inside:auto;orphans:3;widows:3;box-decoration-break:clone;}' +
+          '.katex-display,.ai-diagram,img,tr,pre{break-inside:avoid;page-break-inside:avoid;}' +
+          'h1,h2,h3,h4,h5,h6{break-after:avoid;page-break-after:avoid;}' +
+          'thead{display:table-header-group;}tfoot{display:table-footer-group;}' +
+          '}';
+        document.head.appendChild(printStyle);
+        viewport.style.height = pageHeight + 'px';
+        if (!output.textContent.trim() && !output.querySelector('img')) throw new Error('Empty export');
+        if (bounds(output).height > pageHeight * 200) throw new Error('Export page limit');
+        window.conversationExportState = {status:'ready', pages:1};
+        return;
+      }
       var origin = bounds(output).top, intervals = [];
       function add(rect) {
         rect = logicalRect(rect);

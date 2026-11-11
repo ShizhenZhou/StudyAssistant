@@ -6,7 +6,6 @@ import android.graphics.Canvas
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.webkit.WebView
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
@@ -35,6 +34,28 @@ private suspend fun WebView.awaitExportPaint() = withTimeout(15_000) {
     }
 }
 
+internal suspend fun prepareConversationExport(context: Context, view: WebView, messages: List<ChatMsg>,
+    format: ConversationExportFormat): Int {
+    check(messages.sumOf { m -> m.content.length.toLong() + (m.quotedText?.length ?: 0) + m.images.sumOf { it.length.toLong() } } <= 16L * 1024 * 1024)
+    val payload = withContext(Dispatchers.Default) { buildMessagesJson(messages) }
+    val script = withContext(Dispatchers.IO) { context.assets.open("conversation_export.js").bufferedReader().use { it.readText() } }
+    return withTimeout(60_000) {
+        view.exportScript(script)
+        check(view.exportScript("prepareConversationExport($payload, '${format.name}')") == "true")
+        var total = 0
+        while (total == 0) {
+            ensureActive()
+            val state = JSONObject(view.exportScript("window.conversationExportState"))
+            when (state.getString("status")) {
+                "error" -> error("Cannot paginate export")
+                "ready" -> total = state.getInt("pages").also { check(it in 1..200) }
+                else -> delay(100)
+            }
+        }
+        total
+    }
+}
+
 /** Capture only the attached, visible viewport, one page at a time; never draw a tall WebView. */
 internal suspend fun renderConversationExport(context: Context, view: WebView, messages: List<ChatMsg>,
     format: ConversationExportFormat, name: String, progress: (Int, Int) -> Unit): ConversationExportResult {
@@ -42,59 +63,31 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
     check(directory.mkdirs())
     var delivered = false
     try {
-        check(messages.sumOf { m -> m.content.length.toLong() + (m.quotedText?.length ?: 0) + m.images.sumOf { it.length.toLong() } } <= 16L * 1024 * 1024)
-        val payload = withContext(Dispatchers.Default) { buildMessagesJson(messages) }
-        val script = withContext(Dispatchers.IO) { context.assets.open("conversation_export.js").bufferedReader().use { it.readText() } }
+        check(format == ConversationExportFormat.PNG)
         val width = view.width; val height = view.height
         check(width > 0 && height > 0 && view.isAttachedToWindow)
-        val count = withTimeout(60_000) {
-            view.exportScript(script)
-            check(view.exportScript("prepareConversationExport($payload, '${format.name}')") == "true")
-            var total = 0
-            while (total == 0) {
-                ensureActive()
-                val state = JSONObject(view.exportScript("window.conversationExportState"))
-                when (state.getString("status")) {
-                    "error" -> error("Cannot paginate export")
-                    "ready" -> total = state.getInt("pages").also { check(it in 1..200) }
-                    else -> delay(100)
-                }
-            }
-            total
-        }
+        val count = prepareConversationExport(context, view, messages, format)
         val files = mutableListOf<File>()
-        val pdfFile = File(directory, "$name.pdf")
-        val pdf = if (format == ConversationExportFormat.PDF) withContext(Dispatchers.IO) { ConversationImagePdf(pdfFile) } else null
-        try {
-            for (page in 0 until count) {
-                currentCoroutineContext().ensureActive()
-                check(view.width == width && view.height == height && view.isAttachedToWindow)
-                progress(page + 1, count)
-                withTimeout(15_000) { check(view.exportScript("showConversationExportPage($page)") == "true") }
-                view.awaitExportPaint()
-                val bitmap = Bitmap.createBitmap(format.width, format.height, Bitmap.Config.ARGB_8888)
-                try {
-                    val canvas = Canvas(bitmap)
-                    canvas.drawColor(android.graphics.Color.WHITE)
-                    canvas.scale(format.width.toFloat() / width, format.height.toFloat() / height)
-                    view.draw(canvas)
-                    withContext(Dispatchers.IO) {
-                        if (pdf != null) {
-                            val jpeg = ByteArrayOutputStream().use { out ->
-                                check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)); out.toByteArray()
-                            }
-                            pdf.addPage(jpeg, format.width, format.height)
-                        } else {
-                            val file = File(directory, "${name}_${(page + 1).toString().padStart(3, '0')}.png")
-                            file.outputStream().buffered().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-                            files.add(file)
-                        }
-                    }
-                } finally { bitmap.recycle() }
-                yield()
-            }
-            if (pdf != null) withContext(Dispatchers.IO) { pdf.finish(); files.add(pdfFile) }
-        } finally { withContext(NonCancellable + Dispatchers.IO) { pdf?.close() } }
+        for (page in 0 until count) {
+            currentCoroutineContext().ensureActive()
+            check(view.width == width && view.height == height && view.isAttachedToWindow)
+            progress(page + 1, count)
+            withTimeout(15_000) { check(view.exportScript("showConversationExportPage($page)") == "true") }
+            view.awaitExportPaint()
+            val bitmap = Bitmap.createBitmap(format.width, format.height, Bitmap.Config.ARGB_8888)
+            try {
+                val canvas = Canvas(bitmap)
+                canvas.drawColor(android.graphics.Color.WHITE)
+                canvas.scale(format.width.toFloat() / width, format.height.toFloat() / height)
+                view.draw(canvas)
+                withContext(Dispatchers.IO) {
+                    val file = File(directory, "${name}_${(page + 1).toString().padStart(3, '0')}.png")
+                    file.outputStream().buffered().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                    files.add(file)
+                }
+            } finally { bitmap.recycle() }
+            yield()
+        }
         currentCoroutineContext().ensureActive()
         delivered = true
         return ConversationExportResult(directory, files, name, format)
@@ -103,7 +96,7 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
     }
 }
 
-/** Only writes the user-picked PDF or brand-new files in our uniquely created PNG folder. */
+/** Only writes brand-new PNG files in our uniquely created folder. */
 internal suspend fun saveConversationExport(context: Context, result: ConversationExportResult, destination: Uri) = withContext(Dispatchers.IO) {
     val resolver = context.contentResolver
     suspend fun copy(file: File, uri: Uri) {
@@ -130,12 +123,8 @@ internal suspend fun saveConversationExport(context: Context, result: Conversati
         }
         check(expected.contentEquals(actual.digest()))
     }
-    if (result.format == ConversationExportFormat.PDF) {
-        resolver.query(destination, arrayOf(DocumentsContract.Document.COLUMN_SIZE), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst() && !cursor.isNull(0)) check(cursor.getLong(0) == 0L) { "Refuse to overwrite existing PDF" }
-        }
-        copy(result.files.single(), destination)
-    } else {
+    check(result.format == ConversationExportFormat.PNG)
+    run {
         val treeId = DocumentsContract.getTreeDocumentId(destination)
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(destination, treeId)
         val existingIds = mutableSetOf<String>(); val names = mutableSetOf<String>()

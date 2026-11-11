@@ -22,6 +22,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 - 📷 Ask with photos or text and images, crop images and grade handwritten work.
 - 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.
+- 📤 Export selected messages as a text PDF or paged PNG images.
 - 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.
 - 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.
 - 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.
@@ -50,18 +51,13 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
-### v0.7.2_beta2
+### v0.7.2
 
-- ↩️ Undo deletion of selected messages within 2 seconds; original questions remain protected.
-- 📤 Smaller PDF/PNG export text, with a fixed A4 layout for PDF pages and consistent typography across screen sizes.
-- 📌 `versionCode` **116**.
-
-### v0.7.2_beta
-
-- 📤 Export selected questions and answers as PDF or separate 9:16 PNG pages, with custom filenames, formulas, tables and images.
-- ✅ Green selection outlines keep text layout stable. Original questions can be exported but not deleted; deleted initial answers can be generated again.
-- ↕️ Hold the top arrow for 1 second, then release to reach the bottom; moving outside cancels. The quote-return icon is smaller.
-- 📌 `versionCode` **115**.
+- 📤 Export selected messages as an A4 text PDF or paged 9:16 PNG, with custom filenames, formulas, tables and images.
+- ✅ Green selection outlines preserve text layout. Original questions can be exported but not deleted; other deletions can be undone within 2 seconds.
+- 💬 Regenerate a deleted initial answer in its original position while keeping later follow-ups.
+- ↕️ Hold the scroll-to-top button for 1 second and release to jump to the bottom, or slide out to cancel; refined quote-return icon.
+- 📌 `versionCode` **117**.
 
 ### v0.7.1.2
 

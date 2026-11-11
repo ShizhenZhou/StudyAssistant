@@ -52,14 +52,13 @@ internal fun ConversationExportDialog(messages: List<ChatMsg>, onDismiss: () -> 
             finally { saving = false; onDismiss() }
         }
     }
-    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { save(it) }
     val pngPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { save(it) }
 
     if (rendering) {
         ConversationExportRenderer(messages, format, safeName, onDismiss, onReady = { result ->
             prepared = result; rendering = false
             try {
-                if (format == ConversationExportFormat.PDF) pdfPicker.launch("${result.name}.pdf") else pngPicker.launch(null)
+                pngPicker.launch(null)
             } catch (_: Exception) { onFeedback(s["export.failed"]); onDismiss() }
         }, onError = { onFeedback(s["export.failed"]); onDismiss() })
     } else if (saving) {
@@ -95,21 +94,31 @@ private fun ConversationExportRenderer(messages: List<ChatMsg>, format: Conversa
     var failed by remember { mutableStateOf(false) }
     var page by remember { mutableIntStateOf(0) }
     var count by remember { mutableIntStateOf(0) }
+    var printing by remember { mutableStateOf(false) }
+    var printSession by remember { mutableStateOf<ConversationPdfPrint?>(null) }
     LaunchedEffect(view, loaded, failed) {
         if (failed) { onError(); return@LaunchedEffect }
         val web = view ?: return@LaunchedEffect
         if (!loaded) return@LaunchedEffect
         try {
             withTimeout(15_000) { while (web.width <= 0 || web.height <= 0 || !web.isAttachedToWindow) delay(32) }
-            onReady(renderConversationExport(context, web, messages, format, name) { current, total -> page = current; count = total })
+            if (format == ConversationExportFormat.PDF) {
+                prepareConversationExport(context, web, messages, format)
+                printing = true
+                val session = ConversationPdfPrint(web, name, onDismiss)
+                printSession = session
+                session.start(context, name)
+            } else {
+                onReady(renderConversationExport(context, web, messages, format, name) { current, total -> page = current; count = total })
+            }
         } catch (error: CancellationException) {
             if (error is TimeoutCancellationException) onError() else throw error
         } catch (_: Exception) { onError() }
     }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = { if (!printing) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.padding(16.dp).widthIn(max = 340.dp)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (count == 0) s["export.preparing"] else s.format("export.progress", "i" to "$page", "n" to "$count"))
+                Text(if (printing) s["export.pdfSaving"] else if (count == 0) s["export.preparing"] else s.format("export.progress", "i" to "$page", "n" to "$count"))
                 BoxWithConstraints(Modifier.weight(1f, fill = false).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     val ratio = format.width.toFloat() / format.height
                     val previewWidth = minOf(maxWidth, maxHeight * ratio)
@@ -128,6 +137,8 @@ private fun ConversationExportRenderer(messages: List<ChatMsg>, format: Conversa
                             loadUrl(CONVERSATION_ASSET_URL)
                         }
                     }, onRelease = { web ->
+                        printSession?.close()
+                        printSession = null
                         if (view === web) view = null
                         if (!failed) web.stopLoading()
                         (web.parent as? android.view.ViewGroup)?.removeView(web)

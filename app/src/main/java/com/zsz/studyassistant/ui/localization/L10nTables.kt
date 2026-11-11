@@ -1193,7 +1193,8 @@ private val B2_ZH = mapOf(
     "export.title" to "导出选中内容",
     "export.action" to "导出",
     "export.filename" to "文件名（留空使用默认名）",
-    "export.pdfHint" to "A4 分页，保留公式与图片；文字作为图像导出。",
+    "export.pdfHint" to "A4 分页，正文可选择、复制和搜索；在系统打印预览中选择“保存为 PDF”。",
+    "export.pdfSaving" to "请在系统打印预览中保存 PDF",
     "export.pngHint" to "竖向 9:16 分张，保存到新建文件夹，文件名自动追加页码。",
     "export.preparing" to "正在准备导出…",
     "export.progress" to "正在生成第 {i}/{n} 页…",
@@ -1269,7 +1270,8 @@ private val B2_EN = mapOf(
     "export.title" to "Export selected messages",
     "export.action" to "Export",
     "export.filename" to "Filename (optional)",
-    "export.pdfHint" to "A4 pages with formulas and images; text is exported as an image.",
+    "export.pdfHint" to "A4 pages with selectable, copyable and searchable text. Choose Save as PDF in the system print preview.",
+    "export.pdfSaving" to "Save the PDF in the system print preview",
     "export.pngHint" to "Portrait 9:16 pages in a new folder, with page numbers appended to filenames.",
     "export.preparing" to "Preparing export…",
     "export.progress" to "Rendering page {i}/{n}…",
@@ -1345,7 +1347,8 @@ private val B2_JA = mapOf(
     "export.title" to "選択した内容を出力",
     "export.action" to "出力",
     "export.filename" to "ファイル名（空欄で既定名）",
-    "export.pdfHint" to "A4 で改ページし、数式と画像を保持します。文字は画像として出力されます。",
+    "export.pdfHint" to "A4 の本文を選択・コピー・検索できます。システムの印刷プレビューで「PDF として保存」を選んでください。",
+    "export.pdfSaving" to "システムの印刷プレビューで PDF を保存してください",
     "export.pngHint" to "縦 9:16 の画像を新しいフォルダに保存し、ファイル名にページ番号を付けます。",
     "export.preparing" to "出力を準備中…",
     "export.progress" to "{i}/{n} ページを生成中…",
@@ -1421,7 +1424,8 @@ private val B2_KO = mapOf(
     "export.title" to "선택한 내용 내보내기",
     "export.action" to "내보내기",
     "export.filename" to "파일명 (비우면 기본 이름)",
-    "export.pdfHint" to "수식과 이미지를 유지한 A4 페이지입니다. 텍스트는 이미지로 내보냅니다.",
+    "export.pdfHint" to "본문 선택·복사·검색이 가능한 A4 문서입니다. 시스템 인쇄 미리보기에서 PDF로 저장을 선택하세요.",
+    "export.pdfSaving" to "시스템 인쇄 미리보기에서 PDF를 저장하세요",
     "export.pngHint" to "세로 9:16 이미지로 나누어 새 폴더에 저장하고 파일명 뒤에 페이지 번호를 붙입니다.",
     "export.preparing" to "내보내기 준비 중…",
     "export.progress" to "{i}/{n}페이지 생성 중…",
@@ -2594,6 +2598,7 @@ private val B10_ZH = mapOf(
     "about.features.body" to (
         "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
         "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。\n" +
+        "· 📤 选中问答可导出为文字型 PDF 或分张 PNG。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
         "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
@@ -2661,6 +2666,7 @@ private val B10_EN = mapOf(
     "about.features.body" to (
         "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
         "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.\n" +
+        "· 📤 Export selected messages as a text PDF or paged PNG images.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
         "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
@@ -2728,6 +2734,7 @@ private val B10_JA = mapOf(
     "about.features.body" to (
         "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
         "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・簡単な SVG 図に対応。\n" +
+        "· 📤 選択した問答をテキスト PDF または分割 PNG に出力。\n" +
         "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
         "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
@@ -2795,6 +2802,7 @@ private val B10_KO = mapOf(
     "about.features.body" to (
         "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
         "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표와 간단한 SVG 그림을 지원합니다.\n" +
+        "· 📤 선택한 문답을 텍스트 PDF 또는 분할 PNG로 내보냅니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
         "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
