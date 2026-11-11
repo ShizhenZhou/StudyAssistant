@@ -1,0 +1,63 @@
+package com.zsz.studyassistant.ui
+
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
+import android.graphics.pdf.PdfDocument
+import org.json.JSONArray
+
+/** A4, with a selectable prose layer over the separately rendered formulas and decorations. */
+internal class ConversationPdfWriter : AutoCloseable {
+    private val document = PdfDocument()
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
+    private val fonts = mutableMapOf<Pair<Boolean, Int>, Typeface>()
+
+    fun append(graphics: Bitmap, runs: JSONArray, number: Int, total: Int) {
+        val page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, number).create())
+        try {
+            val canvas = page.canvas
+            canvas.drawColor(Color.WHITE)
+            canvas.drawBitmap(graphics, null, RectF(0f, 0f, 595f, 842f), null)
+            canvas.save()
+            canvas.scale(595f / 794f, 595f / 794f)
+            // Match the fixed HTML content bounds, including the last fragment of a bubble.
+            canvas.clipRect(32f, 32f, 762f, 1084f)
+            for (i in 0 until runs.length()) {
+                val run = runs.getJSONObject(i)
+                val text = run.getString("text")
+                val style = (if (run.getBoolean("bold")) Typeface.BOLD else 0) or
+                    (if (run.getBoolean("italic")) Typeface.ITALIC else 0)
+                val key = run.getBoolean("mono") to style
+                paint.typeface = fonts.getOrPut(key) { Typeface.create(if (key.first) "monospace" else "sans-serif", style) }
+                paint.textSize = run.getDouble("size").toFloat()
+                paint.textScaleX = 1f
+                paint.color = cssTextColor(run.getString("color"))
+                val measured = paint.measureText(text)
+                if (measured > 0f) {
+                    // Keep each DOM line's horizontal extent; font fallback must not reflow the PDF.
+                    paint.textScaleX = run.getDouble("width").toFloat() / measured
+                    canvas.drawText(text, run.getDouble("x").toFloat(), run.getDouble("y").toFloat(), paint)
+                }
+            }
+            canvas.restore()
+            paint.typeface = Typeface.DEFAULT
+            paint.textScaleX = 1f
+            paint.textSize = 8.25f
+            paint.color = Color.GRAY
+            val label = "$number / $total"
+            canvas.drawText(label, (595f - paint.measureText(label)) / 2f, 831f, paint)
+        } finally { document.finishPage(page) }
+    }
+
+    fun writeTo(output: java.io.OutputStream) = document.writeTo(output)
+    override fun close() = document.close()
+
+    private fun cssTextColor(value: String): Int {
+        val parts = value.substringAfter('(').substringBefore(')').split(',').map { it.trim().toFloatOrNull() }
+        if (parts.size !in 3..4 || parts.any { it == null }) return Color.BLACK
+        return Color.argb(((parts.getOrNull(3) ?: 1f) * 255).toInt().coerceIn(0, 255),
+            parts[0]!!.toInt().coerceIn(0, 255), parts[1]!!.toInt().coerceIn(0, 255), parts[2]!!.toInt().coerceIn(0, 255))
+    }
+}

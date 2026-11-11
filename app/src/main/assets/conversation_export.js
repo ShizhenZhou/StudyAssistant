@@ -2,8 +2,9 @@
 (function () {
   'use strict';
   var pages = [], viewport, output, pageHeight, footer, pageScale = 1;
+  var pdfText = [];
   function logicalRect(rect) {
-    return {top:rect.top/pageScale, bottom:rect.bottom/pageScale,
+    return {left:rect.left/pageScale, top:rect.top/pageScale, bottom:rect.bottom/pageScale,
       width:rect.width/pageScale, height:rect.height/pageScale};
   }
   function bounds(el) { return logicalRect(el.getBoundingClientRect()); }
@@ -48,11 +49,14 @@
       selectionMode = false; following = false; window.thinkForced = 'closed';
       var style = document.createElement('style');
       style.textContent = 'html,body{height:100%;overflow:hidden!important;background:#fff!important;margin:0;padding:0;}' +
-        'body{font-size:16px;line-height:1.6;}' +
+        'body{font-family:sans-serif;font-size:16px;line-height:1.6;}' +
         '#export-page{position:fixed;top:0;left:0;transform-origin:top left;}' +
         '#export-window{position:absolute;top:32px;left:32px;right:32px;overflow:hidden;}' +
         '#out{display:block!important;position:relative;width:100%;margin:0;padding:0;}' +
         '.bubble{box-sizing:border-box;width:100%;max-width:none;margin:0 0 12px;padding:10px 12px;font-size:' + (format === 'PDF' ? 16 : 14) + 'px;box-shadow:none!important;}' +
+        '.bubble.assistant{border:1px solid #b8b8b8;}.bubble.user{border:1px solid #9bc49b;}' +
+        '.export-graphics .pdf-text{color:transparent!important;text-shadow:none!important;text-decoration-color:transparent!important;}' +
+        '.export-graphics #export-footer{visibility:hidden;}' +
         '.pick,.think,.continue,summary,.quote-jump-highlight{display:none!important;}' +
         '.msgimg,.ai-diagram img{height:auto;max-width:100%;object-fit:contain;}' +
         '.table-scroll,.katex-display,pre{overflow:visible!important;}' +
@@ -73,7 +77,7 @@
       footer = document.createElement('div'); footer.id = 'export-footer'; sheet.appendChild(footer);
       pageHeight = layoutHeight - 72;
       if (window.innerWidth < 150 || pageHeight < 150) throw new Error('Export viewport too small');
-      // Native printing also repeats bubble/quote padding at a page break; leave room for it.
+      // Leave space for bubble/quote padding around tall formulas and diagrams.
       var blockHeight = format === 'PDF' ? pageHeight - 128 : pageHeight - 24;
       output.querySelectorAll('img').forEach(function (img) {
         img.style.maxHeight = Math.min(pageHeight - 40, blockHeight) + 'px'; img.loading = 'eager';
@@ -117,28 +121,7 @@
       });
       await document.fonts.ready;
       void output.offsetHeight;
-      if (format === 'PDF') {
-        // Native printing paginates real text. Never duplicate/translate whole bubbles per page:
-        // visually clipped copies would still duplicate text in the PDF's selectable text layer.
-        var printStyle = document.createElement('style');
-        printStyle.textContent = '@media print {' +
-          'html,body{height:auto!important;overflow:visible!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;}' +
-          '#export-page{position:static!important;transform:none!important;width:auto!important;height:auto!important;}' +
-          '#export-window{position:static!important;height:auto!important;overflow:visible!important;}' +
-          '#out{transform:none!important;width:100%!important;}' +
-          '#export-footer{display:none!important;}' +
-          '.bubble{font-size:12pt;break-inside:auto;orphans:3;widows:3;box-decoration-break:clone;}' +
-          '.katex-display,.ai-diagram,img,tr,pre{break-inside:avoid;page-break-inside:avoid;}' +
-          'h1,h2,h3,h4,h5,h6{break-after:avoid;page-break-after:avoid;}' +
-          'thead{display:table-header-group;}tfoot{display:table-footer-group;}' +
-          '}';
-        document.head.appendChild(printStyle);
-        viewport.style.height = pageHeight + 'px';
-        if (!output.textContent.trim() && !output.querySelector('img')) throw new Error('Empty export');
-        if (bounds(output).height > pageHeight * 200) throw new Error('Export page limit');
-        window.conversationExportState = {status:'ready', pages:1};
-        return;
-      }
+      if (format === 'PDF') collectPdfText();
       var origin = bounds(output).top, intervals = [];
       function add(rect) {
         rect = logicalRect(rect);
@@ -167,6 +150,56 @@
       window.showConversationExportPage(0);
       window.conversationExportState = {status:'ready', pages:pages.length, width:window.innerWidth, height:window.innerHeight};
     })().catch(function () { window.conversationExportState = {status:'error'}; });
+    return true;
+  };
+  // Prose is drawn as native PDF text; math/SVG/images remain in the graphics layer.
+  // Wrap text nodes only, never math internals. Inline spans do not change line breaking.
+  function collectPdfText() {
+    pdfText = [];
+    var walker = document.createTreeWalker(output, NodeFilter.SHOW_TEXT), nodes = [];
+    while (walker.nextNode()) {
+      var node = walker.currentNode;
+      if (node.textContent.trim() && !node.parentElement.closest('.katex,script,style,.think,summary,.pick,.continue')) nodes.push(node);
+    }
+    var context = document.createElement('canvas').getContext('2d');
+    var segmenter = new Intl.Segmenter(undefined, {granularity:'grapheme'});
+    var origin = bounds(output).top, characters = 0;
+    nodes.forEach(function (node) {
+      var span = document.createElement('span'); span.className = 'pdf-text';
+      node.parentNode.insertBefore(span, node); span.appendChild(node);
+      var css = getComputedStyle(span);
+      if (css.visibility !== 'visible' || !span.getClientRects().length) return;
+      context.font = css.fontStyle + ' ' + css.fontWeight + ' ' + css.fontSize + ' ' + css.fontFamily;
+      var metrics = context.measureText('Mg'), fontHeight = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
+      if (!(fontHeight > 0)) throw new Error('Unavailable text metrics');
+      var run = null, range = document.createRange();
+      for (var part of segmenter.segment(node.textContent)) {
+        if (++characters > 500000) throw new Error('Export text limit');
+        range.setStart(node, part.index); range.setEnd(node, part.index + part.segment.length);
+        var r = logicalRect(range.getBoundingClientRect());
+        if (r.width <= 0 || r.height <= 0) continue;
+        var ratio = r.height / fontHeight;
+        var baseline = r.bottom - origin - metrics.fontBoundingBoxDescent * ratio;
+        if (run && Math.abs(run.y - baseline) < .25 && Math.abs(run.x + run.width - r.left) < 1) {
+          run.text += part.segment; run.width = r.left + r.width - run.x;
+        } else {
+          run = {text:part.segment, x:r.left, y:baseline, top:r.top-origin, bottom:r.bottom-origin,
+            width:r.width, size:parseFloat(css.fontSize)*ratio, color:css.color,
+            bold:parseInt(css.fontWeight,10)>=600, italic:css.fontStyle!=='normal',
+            mono:css.fontFamily.indexOf('monospace')>=0};
+          pdfText.push(run);
+        }
+      }
+    });
+  }
+  window.conversationExportTextPage = function (index) {
+    var page = pages[index];
+    if (!page) throw new Error('Invalid page');
+    return pdfText.filter(function (r) { return r.top >= page[0]-.2 && r.bottom <= page[1]+.2; })
+      .map(function (r) { return Object.assign({}, r, {y:r.y-page[0]+32}); });
+  };
+  window.conversationExportGraphicsOnly = function (enabled) {
+    document.body.classList.toggle('export-graphics', enabled);
     return true;
   };
   window.showConversationExportPage = function (index) {

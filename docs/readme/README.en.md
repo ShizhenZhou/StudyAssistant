@@ -53,6 +53,7 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ### v0.7.2
 
+- 📄 Save PDFs directly to a chosen location, with selectable body text, proper page margins and bubble borders.
 - 📤 Export selected messages as an A4 text PDF or paged 9:16 PNG, with custom filenames, formulas, tables and images.
 - ✅ Green selection outlines preserve text layout. Original questions can be exported but not deleted; other deletions can be undone within 2 seconds.
 - 💬 Regenerate a deleted initial answer in its original position while keeping later follow-ups.

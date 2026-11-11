@@ -12,6 +12,7 @@ import java.util.UUID
 import kotlin.coroutines.resume
 import kotlinx.coroutines.*
 import org.json.JSONObject
+import org.json.JSONArray
 
 internal enum class ConversationExportFormat(val width: Int, val height: Int) {
     PDF(1190, 1684), PNG(1080, 1920)
@@ -62,8 +63,8 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
     val directory = File(context.cacheDir, "conversation-export/${UUID.randomUUID()}")
     check(directory.mkdirs())
     var delivered = false
+    val pdf = if (format == ConversationExportFormat.PDF) ConversationPdfWriter() else null
     try {
-        check(format == ConversationExportFormat.PNG)
         val width = view.width; val height = view.height
         check(width > 0 && height > 0 && view.isAttachedToWindow)
         val count = prepareConversationExport(context, view, messages, format)
@@ -73,6 +74,11 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
             check(view.width == width && view.height == height && view.isAttachedToWindow)
             progress(page + 1, count)
             withTimeout(15_000) { check(view.exportScript("showConversationExportPage($page)") == "true") }
+            val text = if (pdf != null) withTimeout(15_000) {
+                val runs = JSONArray(view.exportScript("conversationExportTextPage($page)"))
+                check(view.exportScript("conversationExportGraphicsOnly(true)") == "true")
+                runs
+            } else null
             view.awaitExportPaint()
             val bitmap = Bitmap.createBitmap(format.width, format.height, Bitmap.Config.ARGB_8888)
             try {
@@ -80,23 +86,32 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
                 canvas.drawColor(android.graphics.Color.WHITE)
                 canvas.scale(format.width.toFloat() / width, format.height.toFloat() / height)
                 view.draw(canvas)
-                withContext(Dispatchers.IO) {
+                if (pdf != null) {
+                    withContext(Dispatchers.Default) { pdf.append(bitmap, checkNotNull(text), page + 1, count) }
+                } else withContext(Dispatchers.IO) {
                     val file = File(directory, "${name}_${(page + 1).toString().padStart(3, '0')}.png")
                     file.outputStream().buffered().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     files.add(file)
                 }
             } finally { bitmap.recycle() }
+            if (pdf != null) withTimeout(15_000) { view.exportScript("conversationExportGraphicsOnly(false)") }
             yield()
+        }
+        if (pdf != null) withContext(Dispatchers.IO) {
+            val file = File(directory, "$name.pdf")
+            file.outputStream().buffered().use(pdf::writeTo)
+            files.add(file)
         }
         currentCoroutineContext().ensureActive()
         delivered = true
         return ConversationExportResult(directory, files, name, format)
     } finally {
+        pdf?.close()
         if (!delivered) withContext(NonCancellable + Dispatchers.IO) { directory.deleteRecursively() }
     }
 }
 
-/** Only writes brand-new PNG files in our uniquely created folder. */
+/** PDF uses the user's CreateDocument destination; PNG gets a uniquely created folder. */
 internal suspend fun saveConversationExport(context: Context, result: ConversationExportResult, destination: Uri) = withContext(Dispatchers.IO) {
     val resolver = context.contentResolver
     suspend fun copy(file: File, uri: Uri) {
@@ -123,7 +138,11 @@ internal suspend fun saveConversationExport(context: Context, result: Conversati
         }
         check(expected.contentEquals(actual.digest()))
     }
-    check(result.format == ConversationExportFormat.PNG)
+    if (result.format == ConversationExportFormat.PDF) {
+        check(result.files.size == 1)
+        copy(result.files.single(), destination)
+        return@withContext
+    }
     run {
         val treeId = DocumentsContract.getTreeDocumentId(destination)
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(destination, treeId)
