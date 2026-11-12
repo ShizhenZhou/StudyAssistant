@@ -87,7 +87,7 @@ foreach ($f in @($ksFile, $lineage, $oldKs)) {
     if (-not (Test-Path $f)) { Write-Err2 "文件不存在：$f"; exit 1 }
 }
 
-# ── 定位 apksigner（取 build-tools 里版本号最大的那个） ──────────────────────
+# ── 定位与 Gradle 相同版本的 apksigner ───────────────────────────────
 $sdk = $env:ANDROID_HOME
 if (-not $sdk) { $sdk = $env:ANDROID_SDK_ROOT }
 if (-not $sdk) {
@@ -98,9 +98,11 @@ if (-not $sdk) {
     }
 }
 if (-not $sdk -or -not (Test-Path $sdk)) { Write-Err2 '找不到 Android SDK（设 ANDROID_HOME 或在 local.properties 写 sdk.dir）'; exit 1 }
-$bt = Get-ChildItem (Join-Path $sdk 'build-tools') -Directory |
-      Sort-Object { try { [version]$_.Name } catch { [version]'0.0' } } -Descending | Select-Object -First 1
-$apksigner = Join-Path $bt.FullName 'apksigner.bat'
+$catalog = Get-Content -LiteralPath (Join-Path $repoRoot 'gradle/libs.versions.toml') -Raw -Encoding UTF8
+$toolVersion = [regex]::Match($catalog, '(?m)^androidBuildTools\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"\s*$')
+if (-not $toolVersion.Success) { Write-Err2 '版本目录缺少 androidBuildTools'; exit 1 }
+$buildToolsPath = Join-Path (Join-Path $sdk 'build-tools') $toolVersion.Groups[1].Value
+$apksigner = Join-Path $buildToolsPath 'apksigner.bat'
 if (-not (Test-Path $apksigner)) { Write-Err2 "找不到 apksigner：$apksigner"; exit 1 }
 
 # ── 输入/输出 ───────────────────────────────────────────────────────────────
@@ -109,7 +111,7 @@ if (-not (Test-Path $InApk)) { Write-Err2 "找不到输入 APK（先跑 assemble
 if (-not $OutDir) { $OutDir = Split-Path -Parent $InApk }
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
 
-$aapt = Join-Path $bt.FullName 'aapt.exe'
+$aapt = Join-Path $buildToolsPath 'aapt.exe'
 $identity = (& $aapt dump badging $InApk 2>$null) -join "`n"
 if ($LASTEXITCODE -ne 0 -or $identity -cnotmatch "package: name='com\.zsz\.studyassistant'.*versionName='([0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?)'") {
     throw 'Unexpected APK identity; no signature applied.'

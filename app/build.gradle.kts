@@ -63,7 +63,7 @@ logger.lifecycle(if (hasReleaseSigning) "[Signing] Local debug identity availabl
 android {
     namespace = "com.zsz.studyassistant"
     compileSdk = 37
-    buildToolsVersion = "36.0.0"
+    buildToolsVersion = libs.versions.androidBuildTools.get()
 
     defaultConfig {
         applicationId = "com.zsz.studyassistant"

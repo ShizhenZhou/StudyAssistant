@@ -10,13 +10,13 @@
 - `tools/` 保留现有本地检查、发布、签名和可选设备诊断入口，`tools/tests/` 为按需工具用例。`verification.py` 中的历史路径规则只用于旧发布证据读取，不随当前目录改写。
 - `.local-notes/` 保存不入库的本机记录及退役文件归档，`history_apk/` 保存已下载核验的发布包。构建缓存、签名配置和用户数据不参与源码目录整理。
 
-`MainViewModel` 负责页面状态与会话业务协调；`data/conversation/ConversationDraftPersistence` 负责草稿调度和磁盘访问，`ui/capture/CaptureFlowController` 管理拍摄框选状态、检测任务及恢复检查点。控制器沿用 ViewModel 生命周期和既有界面入口，框选恢复不会自动请求解题；完整内容保存的冲突与恢复逻辑继续由 `PendingSaveRepository` 负责。
+`MainViewModel` 负责页面状态与会话业务协调；`data/review/StudyStatistics` 从轻量投影一次汇总统计，按自然日边界分桶；`data/conversation/ConversationDraftPersistence` 负责草稿调度和磁盘访问，`ui/capture/CaptureFlowController` 管理拍摄框选状态、检测任务及恢复检查点。控制器沿用 ViewModel 生命周期和既有界面入口，框选恢复不会自动请求解题；完整内容保存的冲突与恢复逻辑继续由 `PendingSaveRepository` 负责。
 
 ## 日常开发
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.5.1、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
 
-AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 2.8.5 使用 KSP 2.3.12，保留 Java DAO 生成，不改变数据库格式。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。
+AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 2.8.5 使用 KSP 2.3.12，保留 Java DAO 生成，不改变数据库格式。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
 
 Room 结构快照由正常 KSP 编译导出至 `app/schemas/com.zsz.studyassistant.data.AppDatabase/<数据库版本>.json`，随源码提交，从当前 DB v10 开始保留。各构建变体共用相同结构；目录不加入应用资源，不打入正式 APK。以后变更表结构时新增对应版本快照并保留旧文件，不手工编造历史版本；无需为导出单独增加测试或 CI 门禁。
 
@@ -110,3 +110,5 @@ schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时
 JDK 25 的原生访问警告可能写入 stderr。本地 PowerShell 签名脚本按 apksigner 的退出码判断成功，同时保留证书、v3 与内容摘要验证，不把警告误当作签名失败。只修改文档或本地签名脚本时不重建已经核验的应用候选包。
 
 四段正式版的默认差分覆盖上一补丁版和三段基准版；首次补丁重合时只构建一份。每个基准均使用该版本当前公开且已归档的精确签名APK，不能只凭versionCode匹配。客户端优先直补，其次按总字节数寻找最小链；链总量必须严格小于完整包。每个中间APK校验摘要/长度后用于下一步，只有最终APK执行安装校验；失败回退完整包，主动取消不回退。
+
+PDF 导出由 `ui/conversation/ConversationPdfExport` 协调语义读取、公式资源和原生分页；同一公式在一次导出中只传递一次，后续使用资源编号。仅 APK 自带字体/CSS 缓存于进程内，不缓存用户导出内容。

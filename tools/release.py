@@ -1,6 +1,7 @@
 """Build-only release coordinator: reviewed main -> CI build -> local signing -> publication.
 No action runs merely by importing this module. Signing secrets never enter GitHub requests.
 """
+from release_common import android_build_tools
 import argparse
 from datetime import datetime, timezone, timedelta
 import hashlib
@@ -628,7 +629,7 @@ class Release:
             raise ReleaseError("Remote promotion status changed or is missing")
 
     def signed_identity(self, path, manifest):
-        sdk = Path(os.environ.get("ANDROID_HOME", "")) / "build-tools/36.0.0"
+        sdk = android_build_tools(os.environ.get("ANDROID_HOME"), self.root)
         identity = apk_identity(command([sdk / "aapt.exe", "dump", "badging", path], root=self.root).stdout.decode(errors="replace"))
         metadata = update_manifest(path, identity, manifest)
         result = command([os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", sdk / "apksigner.bat", "verify", "--verbose", "--print-certs", "--min-sdk-version", str(manifest["minSdk"]), path], root=self.root)

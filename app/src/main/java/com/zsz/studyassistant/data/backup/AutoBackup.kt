@@ -184,12 +184,6 @@ object AutoBackup {
         }.getOrElse { if (strict) throw it else emptyList() }
     }
 
-    /** 已有的自动备份文件名（新的在前）；文件夹没设置或读不到 → 空 */
-    fun listBackups(context: Context): List<String> {
-        val tree = treeUri(context) ?: return emptyList()
-        // Kept synchronous for legacy callers; live settings already invoke this on IO.
-        return runCatching { BackupRetention.listNames(context, tree) }.getOrDefault(emptyList())
-    }
     /** 该不该现在跑（纯判断，供启动时调用） */
     fun isDue(context: Context, now: Long = System.currentTimeMillis()): Boolean =
         shouldRunToday(isEnabled(context), treeUri(context) != null, lastBackupDay(context), dayKey(now))

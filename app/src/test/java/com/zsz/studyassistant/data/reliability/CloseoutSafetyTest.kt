@@ -32,6 +32,28 @@ class CloseoutSafetyTest {
         assertEquals(2,ReviewPlanning.recordedStreak(listOf(spring.start,spring.start-12*3600000L),spring))
         assertEquals(1,ReviewPlanning.schedule(0,6).second)
         assertEquals(30,ReviewPlanning.schedule(2,6).second)
+        for (day in listOf(spring, fall)) {
+            val rows = (-31..1).flatMap { offset ->
+                listOf(day.after(offset), day.after(offset + 1) - 1).mapIndexed { index, at ->
+                    QuestionStatsRow(QuestionIdentity.create(1000L + (offset + 31) * 2 + index), at, null)
+                }
+            }
+            val excluded = setOf(rows[4].id)
+            val alive = rows.filterNot { it.id in excluded }
+            val active = rows.first { it.createdAt == day.start }
+            val deleted = QuestionIdentity.create(9000)
+            val reviews = listOf(Review(active.id, 3, day.end, day.start, 1), Review(deleted, 3, day.start, day.start, 1))
+            val stats = StudyStatistics.calculate(rows, reviews, emptyList(), day, excluded)
+            val expected = (29 downTo 0).map { back -> alive.count { it.createdAt in day.after(-back) until day.after(1-back) } }
+            assertEquals(expected, stats.last30Days)
+            assertEquals(expected.takeLast(7), stats.last7Days)
+            assertEquals(alive.size, stats.totalQuestions)
+            assertEquals(1, stats.todayReviewed)
+            assertEquals(1, stats.weekReviewed)
+            assertEquals(1, stats.dueNow)
+            assertEquals(1, stats.mastery.last().second)
+            assertEquals(listOf("未分类" to alive.size), stats.subjects)
+        }
     }
     @Test fun selectedReviewQueueRetainsScopeAndOrder() {
         val a=QuestionIdentity.create(1000); val b=QuestionIdentity.create(2000); val c=QuestionIdentity.create(3000)

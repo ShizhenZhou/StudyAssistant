@@ -6,7 +6,6 @@ import android.graphics.Canvas
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.webkit.WebView
-import android.util.Base64
 import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
@@ -99,44 +98,6 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
         return ConversationExportResult(directory, files, name, format)
     } finally {
         if (!delivered) withContext(NonCancellable + Dispatchers.IO) { directory.deleteRecursively() }
-    }
-}
-
-/** WebView only parses sanitized Markdown and rasterizes isolated formulas; native code owns pagination. */
-private suspend fun renderNativeConversationPdf(context: Context, view: WebView, messages: List<ChatMsg>, directory: File, name: String): File {
-    // Screen accessibility zoom must not affect the isolated formula metrics on paper.
-    view.settings.textZoom = 100
-    check(messages.sumOf { it.content.length.toLong() + (it.quotedText?.length ?: 0) + it.images.sumOf { image -> image.length.toLong() } } <= 16L*1024*1024)
-    val payload = withContext(Dispatchers.Default) { buildMessagesJson(messages) }
-    val (script, css) = withContext(Dispatchers.IO) {
-        val css = context.assets.open("katex/katex.min.css").bufferedReader().use { it.readText() }
-        val embedded = Regex("url\\(fonts/([^)]+)\\)").replace(css) { match ->
-            val bytes = context.assets.open("katex/fonts/${match.groupValues[1]}").use { it.readBytes() }
-            "url(data:font/woff2;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)})"
-        } + ".katex{font-size:1.1em;}"
-        context.assets.open("conversation_pdf.js").bufferedReader().use { it.readText() } to embedded
-    }
-    return withTimeout(120_000) {
-        view.exportScript(script)
-        check(view.exportScript("prepareConversationPdf($payload,${JSONObject.quote(css)})") == "true")
-        while (true) {
-            ensureActive()
-            val state = JSONObject(view.exportScript("window.conversationPdfState"))
-            if (state.getString("status") == "error") error("PDF content preparation failed")
-            if (state.getString("status") == "ready") { check(state.getInt("count") == messages.size);break }
-            delay(50)
-        }
-        val writer = ConversationPdfWriter()
-        try {
-            for (index in messages.indices) {
-                ensureActive()
-                val json = view.exportScript("conversationPdfMessage($index)")
-                withContext(Dispatchers.Default) { writer.append(JSONObject(json)) }
-            }
-            val file = File(directory,"$name.pdf")
-            withContext(Dispatchers.IO) { file.outputStream().buffered().use(writer::writeTo) }
-            file
-        } finally { writer.close() }
     }
 }
 

@@ -377,7 +377,7 @@ class SessionOwnershipRegressionTest {
                 model.sendSimilar("queued followup")
             }
             await { !model.similarBusy }
-            main { model.deleteFromNotebook(row) }
+            main { model.deleteFromNotebook(row.toPreview()) }
             await { model.deletionState.value.committing.isNotEmpty() }
         } finally { lock.unlock() }
         await { !model.deletionState.value.active }
@@ -404,7 +404,7 @@ class SessionOwnershipRegressionTest {
                 main {
                     state("chatItems", chats + ChatItem(3, "assistant", "old queued content"))
                     model.saveSessionOnExit()
-                    model.deleteFromNotebook(row)
+                    model.deleteFromNotebook(row.toPreview())
                 }
                 await { model.deletionState.value.committing.isNotEmpty() }
             } finally { lock.unlock() }

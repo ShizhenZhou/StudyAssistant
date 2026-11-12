@@ -38,6 +38,10 @@ internal class ConversationPdfWriter : AutoCloseable {
         override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
         override fun entryRemoved(evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?) { oldValue.recycle() }
     }
+    private val assets = HashMap<String, JSONObject>()
+    private fun resolve(asset: JSONObject): JSONObject =
+        if (asset.has("ref")) checkNotNull(assets[asset.getString("ref")]) { "Missing PDF formula" } else asset
+
     private data class Frame(val top: Float, var bottom: Float, val user: Boolean)
     private val frames = mutableListOf<Frame>()
     private val operations = mutableListOf<(Canvas) -> Unit>()
@@ -74,7 +78,7 @@ internal class ConversationPdfWriter : AutoCloseable {
         for (i in 0 until runs.length()) {
             val run = runs.getJSONObject(i)
             val start = value.length
-            val image = run.optJSONObject("image")
+            val image = run.optJSONObject("image")?.let(::resolve)
             if (image != null) {
                 val scale = min(FONT/16f, (width-2f)/image.getDouble("width").toFloat())
                 val w = image.getDouble("width").toFloat()*scale
@@ -141,14 +145,15 @@ internal class ConversationPdfWriter : AutoCloseable {
         y=min(BOTTOM-PAD,y+3f*U)
     }
     private fun graphic(asset: JSONObject, left: Float, width: Float, formula: Boolean, quoted: Boolean) {
-        val sourceWidth=asset.getDouble("width").toFloat();val sourceHeight=asset.getDouble("height").toFloat()
+        val resolved = resolve(asset)
+        val sourceWidth=resolved.getDouble("width").toFloat();val sourceHeight=resolved.getDouble("height").toFloat()
         require(sourceWidth>0 && sourceHeight>0)
         val scale=min(if(formula) FONT/16 else width/sourceWidth,min(width/sourceWidth,(BOTTOM-M-2*PAD-8f*U)/sourceHeight))
         val w=sourceWidth*scale;val h=sourceHeight*scale;val at=reserve(h+8f*U)
         operations.add { canvas ->
             background(canvas,left,at,width,h+8f*U,quoted)
             val x=left+(width-w)/2
-            canvas.drawBitmap(bitmap(asset.getString("data")),null,RectF(x,at+4f*U,x+w,at+4f*U+h),paint)
+            canvas.drawBitmap(bitmap(resolved.getString("data")),null,RectF(x,at+4f*U,x+w,at+4f*U+h),paint)
         }
     }
     private suspend fun table(rows: JSONArray, left: Float, width: Float, quoted: Boolean) {
@@ -226,6 +231,15 @@ internal class ConversationPdfWriter : AutoCloseable {
     }
     suspend fun append(message: JSONObject) {
         currentCoroutineContext().ensureActive()
+        message.optJSONArray("assets")?.let { incoming ->
+            require(assets.size + incoming.length() <= 1000)
+            for (index in 0 until incoming.length()) {
+                val asset = incoming.getJSONObject(index)
+                val id = asset.getString("id")
+                require(!assets.containsKey(id)) { "Duplicate PDF formula" }
+                assets[id] = asset
+            }
+        }
         user=message.getBoolean("user")
         if(y+2*PAD+FONT > BOTTOM) finishPage()
         beginFrame()
@@ -233,5 +247,5 @@ internal class ConversationPdfWriter : AutoCloseable {
         y+=PAD;frame?.bottom=y;frame=null;y+=8f*U
     }
     fun writeTo(output: OutputStream) { finishPage();check(pageCount>0);document.writeTo(output) }
-    override fun close() { images.evictAll();document.close() }
+    override fun close() { operations.clear();assets.clear();images.evictAll();document.close() }
 }

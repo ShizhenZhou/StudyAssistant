@@ -39,7 +39,8 @@ object BackupJobs {
     internal fun prefs(c: Context) = c.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun setForeground(active: Boolean) { foreground = active }
     /** Folder IO runs without holding the scheduling monitor, so a manual request can take priority. */
-    fun onAppOpened(context: Context) {
+    fun onAppOpened(context: Context,
+        readSummary: (Context, android.net.Uri) -> BackupRetention.FolderSummary = { c, tree -> BackupRetention.folderSummary(c, tree) }) {
         var expectedTree: android.net.Uri? = null
         var expectedGeneration: Long? = null
         try {
@@ -54,7 +55,7 @@ object BackupJobs {
                 expectedGeneration = p.getLong(PREFIX + "generation", 0)
                 tree to expectedGeneration
             }
-            val summary = BackupRetention.folderSummary(context, opening.first)
+            val summary = readSummary(context, opening.first)
             synchronized(this) {
                 val p = prefs(context)
                 if (AutoBackup.treeUri(context) != opening.first || p.getLong(PREFIX + "generation", 0) != opening.second ||
@@ -303,7 +304,7 @@ class BackupWorker(context: Context, parameters: WorkerParameters) : CoroutineWo
             state("data.backupJob.capturing")
             if (BackupJobs.stopAutomaticIfEmpty(c, automatic, check)) return Result.success()
             if (automatic && !manifest.exists()) {
-                val saved = BackupRetention.folderSummary(c, tree, check)
+                val saved = BackupRetention.readFolderSummary(c, tree, check)
                 if (AutoBackup.dayKey(System.currentTimeMillis()) in saved.backupDays) {
                     synchronized(BackupJobs) {
                         check()

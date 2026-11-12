@@ -1,4 +1,5 @@
 """Create an unsigned candidate identity; schema 3 does not claim tests were run."""
+from release_common import android_build_tools
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,7 @@ def main():
             (ref == "refs/heads/Develop" and os.environ.get("RELEASE_CHANNEL") == "beta")):
         raise RuntimeError("Candidate creation is a CI-only operation")
     source = ROOT / "app/build/outputs/apk/release/app-release-unsigned.apk"
-    tools = Path(os.environ["ANDROID_HOME"]) / "build-tools/36.0.0"
+    tools = android_build_tools(os.environ["ANDROID_HOME"], ROOT)
     identity = apk_identity(subprocess.check_output([str(tools / "aapt"), "dump", "badging", str(source)], text=True))
     check = subprocess.run([str(tools / "apksigner"), "verify", str(source)], capture_output=True)
     if check.returncode == 0:

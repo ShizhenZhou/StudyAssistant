@@ -13,6 +13,8 @@ import com.zsz.studyassistant.data.AiLang
 import com.zsz.studyassistant.data.AiLangStore
 import com.zsz.studyassistant.data.AppDatabase
 import com.zsz.studyassistant.data.Category
+import com.zsz.studyassistant.data.StatsSnapshot
+import com.zsz.studyassistant.data.StudyStatistics
 import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.gradingInput
 import com.zsz.studyassistant.data.KeyManager
@@ -323,19 +325,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         dao.tags().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // ───────── 学习统计 ─────────
-    /** 统计快照（全部由现有表计算，不改数据库结构） */
-    data class StatsSnapshot(
-        val totalQuestions: Int = 0,
-        val todayReviewed: Int = 0,
-        val weekReviewed: Int = 0,
-        val streakDays: Int = 0,
-        val dueNow: Int = 0,
-        val mastery: List<Pair<String, Int>> = emptyList(),   // 未开始 / 复习中 / 已掌握
-        val subjects: List<Pair<String, Int>> = emptyList(),  // 科目（分类）→ 题数
-        val last7Days: List<Int> = emptyList(),               // 近 7 天新增（最早 → 今天）
-        val last30Days: List<Int> = emptyList()               // 近 30 天新增
-    )
-
     /** A nullable match map reports an IO failure, not an empty successful search. */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun notebookMatches(query: String): Flow<Pair<String,Map<QuestionId,com.zsz.studyassistant.data.SearchSnippet>?>> = dao.questionSearchChanges().mapLatest {
@@ -347,59 +336,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         kotlinx.coroutines.flow.combine(
             dao.questionStats().distinctUntilChanged(), dao.allReviews(), dao.categories(), calendarDay, deletionState
         ) { allQuestions, rs, cats, day, deletes ->
-            val qs=allQuestions.filterNot { it.id in deletes.questionIds }
-            val todayStart = day.start
-            val weekStart = day.after(-6)
-            val byId = rs.associateBy { it.questionId }
-
-            // ★ 只统计"未被删除"的题：复习记录可能残留在已删除的题上（软删除/移除错题），
-            //   原来直接用 allReviews() 会把它们算进"今日复习/近7天/待复习"，导致数字偏大
-            val aliveIds = qs.map { it.id }.toSet()
-            // 待复习口径与复习会话一致：dueQuestions(endOfToday()) = 未删除 + nextReviewAt <= 今天末
-            val endOfToday = day.end
-            val todayReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt in todayStart..day.end }
-            val weekReviewed = rs.count { it.questionId in aliveIds && it.lastReviewedAt in weekStart..day.end }
-            val dueNow = rs.count { it.questionId in aliveIds && it.nextReviewAt <= endOfToday }
-
-            // 连续复习天数：从今天（或昨天）往前数，哪天有复习记录就 +1
-            val streak = com.zsz.studyassistant.data.ReviewPlanning.recordedStreak(
-                rs.filter { it.questionId in aliveIds }.map { it.lastReviewedAt }, day)
-
-            // 掌握度：无记录 = 未开始；intervalStep <= 2 = 复习中；>= 3 = 已掌握
-            var notStarted = 0; var learning = 0; var mastered = 0
-            qs.forEach { q ->
-                val step = byId[q.id]?.intervalStep
-                when {
-                    step == null -> notStarted++
-                    step >= 3 -> mastered++
-                    else -> learning++
-                }
-            }
-
-            val nameOf = cats.associate { it.id to it.name }
-            val subjects = qs.groupingBy { q -> q.categoryId?.let { nameOf[it] } ?: "未分类" }
-                .eachCount().entries.sortedByDescending { it.value }
-                .map { it.key to it.value }
-
-            fun series(days: Int): List<Int> = ((days - 1) downTo 0).map { back ->
-                val from = day.after(-back)
-                val to = day.after(1 - back)
-                qs.count { it.createdAt in from until to }
-            }
-            val last30 = series(30)
-            val last7 = last30.takeLast(7)
-
-            StatsSnapshot(
-                totalQuestions = qs.size,
-                todayReviewed = todayReviewed,
-                weekReviewed = weekReviewed,
-                streakDays = streak,
-                dueNow = dueNow,
-                mastery = listOf("stats.mastery.notStarted" to notStarted, "stats.mastery.learning" to learning, "stats.mastery.mastered" to mastered),
-                subjects = subjects,
-                last7Days = last7,
-                last30Days = last30
-            )
+            StudyStatistics.calculate(allQuestions, rs, cats, day, deletes.questionIds)
         }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsSnapshot())
     /** 错题↔标签 关联（用于按 tag 筛选） */
     val questionTags: StateFlow<List<QuestionTag>> =

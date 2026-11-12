@@ -1,7 +1,7 @@
 /* PDF semantic input only. No screen coordinates, screenshot layers or PDF page scaling. */
 (function () {
   'use strict';
-  var messages = [], fontCss = '', cache = new Map(), characters = 0;
+  var messages = [], fontCss = '', cache = new Map(), characters = 0, pendingAssets = [];
   window.conversationPdfState = {status:'idle'};
   function imageLoaded(src) {
     return new Promise(function (resolve, reject) {
@@ -38,7 +38,10 @@
       var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+Math.ceil(width*scale)+'" height="'+Math.ceil(height*scale)+'" viewBox="0 0 '+width+' '+height+'"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>'+fontCss.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</style>'+html+'</div></foreignObject></svg>';
       var asset = await raster('data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg))),4096);
       asset.width = width; asset.height = height; asset.baseline = base;
-      cache.set(key,asset); return asset;
+      var id = 'formula-' + cache.size;
+      pendingAssets.push(Object.assign({id:id},asset));
+      var reference = {ref:id, width:width, height:height, baseline:base};
+      cache.set(key,reference); return reference;
     } finally { stage.remove(); }
   }
   async function blocks(root, inherited) {
@@ -91,14 +94,15 @@
   window.prepareConversationPdf = function (input, css) {
     window.conversationPdfState={status:'working'};
     (async function () {
-      fontCss=css;characters=0;cache.clear();messages=[];
+      fontCss=css;characters=0;cache.clear();messages=[];pendingAssets=[];
       document.body.className='';document.body.style.cssText='background:white;color:black;font:16px serif;';
       var style=document.createElement('style');style.textContent=css;document.head.appendChild(style);
       document.getElementById('out').innerHTML='';
       var totalBytes=0;
       for(var message of input) {
         var root=document.createElement('div');root.innerHTML=bubbleHtml(Object.assign({},message,{thinking:null}),0);
-        var converted={user:message.role!=='assistant',blocks:await blocks(root)};
+        var converted={user:message.role!=='assistant',blocks:await blocks(root),assets:pendingAssets};
+        pendingAssets=[];
         totalBytes+=JSON.stringify(converted).length;
         if(totalBytes>64*1024*1024) throw Error('PDF asset limit');
         messages.push(converted);
@@ -107,4 +111,6 @@
     })().catch(function () {window.conversationPdfState={status:'error'};});return true;
   };
   window.conversationPdfMessage=function(index){return messages[index];};
+  // Native pagination consumes messages in order; release JS references immediately afterwards.
+  window.conversationPdfTakeMessage=function(index){var message=messages[index];messages[index]=null;return message;};
 })();

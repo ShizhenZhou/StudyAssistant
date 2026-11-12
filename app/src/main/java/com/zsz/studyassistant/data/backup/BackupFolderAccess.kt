@@ -10,7 +10,8 @@ internal object BackupFolderAccess {
     enum class State { AVAILABLE, INVALID, TEMPORARILY_UNAVAILABLE }
     enum class Reason { MISSING, REVOKED, NOT_DIRECTORY, READ_ONLY, MALFORMED_URI }
     data class Health(val state: State, val reason: Reason? = null)
-    data class Observation(val tree: Uri?, val generation: Long, val health: Health)
+    data class Observation(val tree: Uri?, val generation: Long, val health: Health,
+        val summary: BackupRetention.FolderSummary? = null)
     private val available = Health(State.AVAILABLE)
     private val temporary = Health(State.TEMPORARILY_UNAVAILABLE)
     private fun invalid(reason: Reason) = Health(State.INVALID, reason)
@@ -78,9 +79,13 @@ internal object BackupFolderAccess {
             }
             if (observed != null) {
                 // Inventory IO runs outside the monitor; BackupJobs also checks its generation.
+                var summary: BackupRetention.FolderSummary? = null
                 if (health.state == State.AVAILABLE && scheduleIfAvailable && isCurrent(context, observed))
-                    BackupJobs.onAppOpened(context)
-                return observed
+                    BackupJobs.onAppOpened(context) { c, tree ->
+                        BackupRetention.folderSummary(c, tree).also { summary = it }
+                    }
+                // Reuse only this operation's freshly verified inventory, never a cross-refresh cache.
+                return observed.copy(summary = summary)
             }
         }
         return null

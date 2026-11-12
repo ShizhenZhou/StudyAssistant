@@ -1,4 +1,5 @@
 """Run selected isolated Android tests; existing APKs require matching provenance."""
+from release_common import android_build_tools
 import argparse
 import json
 import os
@@ -107,7 +108,7 @@ def run(serial, expected=None, selectors=(), api=None, force=False, report_path=
     if not sdk: raise RuntimeError("Android SDK is not configured")
     suffix = ".exe" if os.name == "nt" else ""
     adb = Path(sdk) / "platform-tools" / ("adb" + suffix)
-    aapt = Path(sdk) / "build-tools/36.0.0" / ("aapt" + suffix)
+    aapt = android_build_tools(sdk, ROOT) / ("aapt" + suffix)
     if checked([adb, "-s", serial, "shell", "getprop", "ro.kernel.qemu"]).strip() != "1":
         raise RuntimeError("Selected device is not an emulator. No installation performed.")
     target, tests = [ROOT / path for path in APK_PATHS]

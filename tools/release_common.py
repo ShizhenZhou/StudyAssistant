@@ -9,6 +9,17 @@ PACKAGE = "com.zsz.studyassistant"
 VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?")
 SIGNATURE_ENTRY = re.compile(r"META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC))", re.IGNORECASE)
 
+def android_build_tools(sdk, root=None):
+    """Use the same explicit SDK tools as Gradle, never the newest installed directory."""
+    root = Path(root) if root is not None else Path(__file__).resolve().parents[1]
+    catalog = (root / "gradle/libs.versions.toml").read_text(encoding="utf-8")
+    match = re.search(r'^androidBuildTools\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"\s*$', catalog, re.M)
+    if not match:
+        raise ValueError("Missing stable androidBuildTools version in version catalog")
+    if not sdk:
+        raise ValueError("Android SDK directory is not configured")
+    return Path(sdk) / "build-tools" / match.group(1)
+
 def numeric_version(version):
     if not VERSION.fullmatch(version):
         raise ValueError("Invalid release version")

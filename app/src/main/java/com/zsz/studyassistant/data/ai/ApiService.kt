@@ -60,18 +60,7 @@ object ApiClient {
      * readTimeout 只约束「相邻数据块之间的静默」，120s 足够模型思考。
      */
     val deepSeekStream: DeepSeekService by lazy {
-        val client = OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .callTimeout(0, TimeUnit.SECONDS)   // 0 = 不限总时长
-            .build()
-        Retrofit.Builder()
-            .baseUrl("https://api.deepseek.com/")
-            .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
-            .create(DeepSeekService::class.java)
+        // newBuilder shares the connection pool and dispatcher with ordinary requests.
+        service(client.newBuilder().callTimeout(0, TimeUnit.SECONDS).build())
     }
 }

@@ -1,4 +1,5 @@
 [versions]
+androidBuildTools = "36.0.0"
 agp = "9.5.1"
 kotlin = "2.4.21"
 ksp = "2.3.12"

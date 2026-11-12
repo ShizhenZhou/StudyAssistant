@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import android.util.MalformedJsonException
@@ -80,25 +81,21 @@ object BackupRetention {
         val targets = sets.filter { it.id != newSetId }.sortedWith(compareByDescending<Set> { it.at }.thenBy { it.id }).drop(AutoBackup.KEEP - 1)
         remove(context, tree, targets, check)
     }
-    private data class DisplayCache(val tree: String, val signature: String, val names: List<String>)
-    @Volatile private var displayCache: DisplayCache? = null
-    /** Blocking IO API for legacy settings callers. Only display counts use this cache. */
-    fun listNames(context: Context, tree: Uri, check: () -> Unit = {}): List<String> {
-        val signature = list(context, tree).sortedBy { it.id }.joinToString("\n") { "${it.id}:${it.name}:${it.length}" } +
-            prefs(context).getString(LEDGER, "[]")
-        displayCache?.takeIf { it.tree == tree.toString() && it.signature == signature }?.let { return it.names }
-        val names = kotlinx.coroutines.runBlocking(Dispatchers.IO) { catalog(context, tree, check).sortedByDescending { it.at }.map { it.name } }
-        displayCache = DisplayCache(tree.toString(), signature, names)
-        return names
-    }
-
     /** Scans and hashes current documents; only identical validated contents can reuse parsing. */
     fun folderSummary(context: Context, tree: Uri, check: () -> Unit = {}): FolderSummary =
         folderSummary(context, tree, check, BackupTree::space)
 
+    // Compatibility entry for the synchronous app-open scheduler; coroutine callers use readFolderSummary.
     internal fun folderSummary(context: Context, tree: Uri, check: () -> Unit,
-        storageCheck: (File, Long) -> Unit): FolderSummary = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-            val sets = catalog(context, tree, check, includeManual = true, storageCheck = storageCheck)
+        storageCheck: (File, Long) -> Unit): FolderSummary = kotlinx.coroutines.runBlocking {
+            readFolderSummary(context, tree, check, storageCheck)
+        }
+
+    suspend fun readFolderSummary(context: Context, tree: Uri, check: () -> Unit = {},
+        storageCheck: (File, Long) -> Unit = BackupTree::space): FolderSummary = withContext(Dispatchers.IO) {
+            val operation = kotlinx.coroutines.currentCoroutineContext()
+            val stop = { operation.ensureActive(); check() }
+            val sets = catalog(context, tree, stop, includeManual = true, storageCheck = storageCheck)
             FolderSummary(sets.count { !it.automatic }, sets.count { it.automatic }, sets.maxOfOrNull { it.at } ?: 0L,
                 sets.map { AutoBackup.dayKey(it.at) }.toSet())
         }
