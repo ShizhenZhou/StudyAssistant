@@ -1,3 +1,8 @@
+v0.7.2.2
+· 🛠 Update build tools and core dependencies, with consistent build and signing tool versions.
+· ⚡ Streamline study statistics, AI requests and backup reads, reducing repeated work and improving cancellation.
+· 📄 Reuse PDF export fonts and formula resources to reduce duplicate data transfer.
+
 v0.7.2.1
 · 📄 Rebuilt PDF export with consistent text, formula and image layout, corrected scaling and A4 pagination.
 · 📑 Kept selectable body text and direct saving; improved tables, quotes and bubble borders across pages.
