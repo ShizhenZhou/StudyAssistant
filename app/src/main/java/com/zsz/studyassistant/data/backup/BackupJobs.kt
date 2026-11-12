@@ -39,8 +39,9 @@ object BackupJobs {
     internal fun prefs(c: Context) = c.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun setForeground(active: Boolean) { foreground = active }
     /** Folder IO runs without holding the scheduling monitor, so a manual request can take priority. */
-    fun onAppOpened(context: Context,
-        readSummary: (Context, android.net.Uri) -> BackupRetention.FolderSummary = { c, tree -> BackupRetention.folderSummary(c, tree) }) {
+    suspend fun onAppOpened(context: Context,
+        readSummary: (suspend (Context, android.net.Uri) -> BackupRetention.FolderSummary)? = null) {
+        currentCoroutineContext().ensureActive()
         var expectedTree: android.net.Uri? = null
         var expectedGeneration: Long? = null
         try {
@@ -55,7 +56,9 @@ object BackupJobs {
                 expectedGeneration = p.getLong(PREFIX + "generation", 0)
                 tree to expectedGeneration
             }
-            val summary = readSummary(context, opening.first)
+            val summary = readSummary?.invoke(context, opening.first)
+                ?: BackupRetention.folderSummary(context, opening.first)
+            currentCoroutineContext().ensureActive()
             synchronized(this) {
                 val p = prefs(context)
                 if (AutoBackup.treeUri(context) != opening.first || p.getLong(PREFIX + "generation", 0) != opening.second ||
@@ -72,7 +75,8 @@ object BackupJobs {
                         hasActiveQuestions(context), latestDay, canceledDay)) return
                 enqueue(context, automatic = true, delay = 30)
             }
-        } catch (_: Exception) {
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) {
             synchronized(this) {
                 if (expectedGeneration == null || (AutoBackup.treeUri(context) == expectedTree &&
                         prefs(context).getLong(PREFIX + "generation", 0) == expectedGeneration))
@@ -304,7 +308,7 @@ class BackupWorker(context: Context, parameters: WorkerParameters) : CoroutineWo
             state("data.backupJob.capturing")
             if (BackupJobs.stopAutomaticIfEmpty(c, automatic, check)) return Result.success()
             if (automatic && !manifest.exists()) {
-                val saved = BackupRetention.readFolderSummary(c, tree, check)
+                val saved = BackupRetention.folderSummary(c, tree, check)
                 if (AutoBackup.dayKey(System.currentTimeMillis()) in saved.backupDays) {
                     synchronized(BackupJobs) {
                         check()

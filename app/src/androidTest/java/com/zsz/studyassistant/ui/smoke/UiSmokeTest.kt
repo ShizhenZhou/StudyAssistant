@@ -1047,7 +1047,7 @@ class UiSmokeTest {
         preferences.edit().clear().putString("auto_backup_tree", "content://${context.packageName}.fixture.backups/tree/root").commit()
         kotlinx.coroutines.runBlocking { dao.insert(com.zsz.studyassistant.data.Question(id, "background fixture", "answer", 1700000400000L)) }
         try {
-            jobs.onAppOpened(context)
+            kotlinx.coroutines.runBlocking { jobs.onAppOpened(context) }
             val previous = preferences.getString("backup_job_work_id", null)
             provider.writeGate = gate
             launch(openBackup = true).use { tap(s["data.autoBackup.now"]) }
@@ -1059,7 +1059,9 @@ class UiSmokeTest {
             val deadline = android.os.SystemClock.uptimeMillis() + 20000
             while (jobs.status(context).active && android.os.SystemClock.uptimeMillis() < deadline) Thread.sleep(80)
             assertEquals("data.backupJob.success", jobs.status(context).phaseKey)
-            assertEquals(1, com.zsz.studyassistant.data.BackupRetention.folderSummary(context, com.zsz.studyassistant.data.AutoBackup.treeUri(context)!!).manual)
+            assertEquals(1, kotlinx.coroutines.runBlocking {
+                com.zsz.studyassistant.data.BackupRetention.folderSummary(context, com.zsz.studyassistant.data.AutoBackup.treeUri(context)!!).manual
+            })
         } finally {
             gate.countDown(); provider.writeGate = null
             manager.cancelUniqueWork("backup-v4-on-open").result.get()

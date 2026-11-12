@@ -110,7 +110,7 @@ class BackupJobsIntegrationTest {
         assertNull(withTimeoutOrNull(100) { BackupJobs.notices.first() })
         BackupJobs.setForeground(false)
     }
-    @Test fun appOpenRecoversActivePreferenceWithoutDispatchedWork() {
+    @Test fun appOpenRecoversActivePreferenceWithoutDispatchedWork() = runBlocking {
         prefs.edit().putBoolean("backup_job_active", true).putString("backup_job_token", "orphan")
             .putString("backup_job_work_id", java.util.UUID.randomUUID().toString())
             .putString("backup_job_attempt_day", AutoBackup.dayKey(System.currentTimeMillis())).commit()
@@ -119,7 +119,7 @@ class BackupJobsIntegrationTest {
         assertTrue(BackupJobs.status(context).active)
         assertNotEquals("orphan", prefs.getString("backup_job_token", null))
     }
-    @Test fun dispatchExceptionRollsBackActiveAndNextOpenCanRetry() {
+    @Test fun dispatchExceptionRollsBackActiveAndNextOpenCanRetry() = runBlocking {
         BackupJobs.enqueue(context, automatic = true, delay = 60) { throw java.io.IOException("synthetic dispatch failure") }
         assertFalse(BackupJobs.status(context).active)
         assertEquals("data.autoBackup.storageFailed", BackupJobs.status(context).errorKey)
@@ -128,7 +128,7 @@ class BackupJobsIntegrationTest {
         assertTrue(BackupJobs.status(context).active)
         assertEquals(1, works().size)
     }
-    @Test fun terminalErrorDoesNotAutomaticallyRetryOnLaterDay() {
+    @Test fun terminalErrorDoesNotAutomaticallyRetryOnLaterDay() = runBlocking {
         prefs.edit().putString("backup_job_attempt_day", "1900-01-01")
             .putString("backup_job_error", "data.autoBackup.permissionFailed").commit()
         BackupJobs.onAppOpened(context)
@@ -200,7 +200,7 @@ class BackupJobsIntegrationTest {
         val actual = BackupRetention.folderSummary(context, AutoBackup.treeUri(context)!!)
         assertEquals(1, actual.manual); assertEquals(0, actual.automatic)
     }
-    @Test fun automaticPlanWaitsThirtySecondsAndImmediateRequestReplacesIt() {
+    @Test fun automaticPlanWaitsThirtySecondsAndImmediateRequestReplacesIt() = runBlocking {
         BackupJobs.onAppOpened(context)
         val delayed = works().single()
         assertEquals(30_000L, delayed.initialDelayMillis)
@@ -217,14 +217,14 @@ class BackupJobsIntegrationTest {
         assertTrue("The old plan must be canceled or removed", replaced == null || replaced.state == androidx.work.WorkInfo.State.CANCELLED)
         assertFalse(works().any { it.id == delayed.id })
     }
-    @Test fun manualRequestDoesNotInterruptWorkThatHasAlreadyStarted() {
+    @Test fun manualRequestDoesNotInterruptWorkThatHasAlreadyStarted() = runBlocking {
         BackupJobs.onAppOpened(context)
         val token = prefs.getString("backup_job_token", null)
         prefs.edit().putString("backup_job_phase", "data.backupJob.writing").commit()
         BackupJobs.requestNow(context)
         assertEquals(token, prefs.getString("backup_job_token", null))
     }
-    @Test fun cancelingAnOlderPendingPlanSuppressesReschedulingOnTheActualCancellationDay() {
+    @Test fun cancelingAnOlderPendingPlanSuppressesReschedulingOnTheActualCancellationDay() = runBlocking {
         BackupJobs.onAppOpened(context)
         prefs.edit().putString("backup_job_attempt_day", "1900-01-01").commit()
         BackupJobs.cancel(context)
@@ -233,7 +233,7 @@ class BackupJobsIntegrationTest {
         assertTrue(works().isEmpty())
         assertEquals(AutoBackup.dayKey(System.currentTimeMillis()), prefs.getString("backup_job_attempt_day", null))
     }
-    @Test fun repeatedOpensCreateOneTaskAndCancelPersists() {
+    @Test fun repeatedOpensCreateOneTaskAndCancelPersists() = runBlocking {
         BackupJobs.onAppOpened(context)
         val first = works().single().id
         repeat(4) { BackupJobs.onAppOpened(context) }

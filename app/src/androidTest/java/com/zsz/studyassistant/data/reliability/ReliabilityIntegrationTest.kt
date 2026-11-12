@@ -189,10 +189,10 @@ class ReliabilityIntegrationTest {
         val tree = android.provider.DocumentsContract.buildTreeDocumentUri(context.packageName + ".fixture.backups", "root")
         AutoBackup.setTreeUri(context, tree)
         assertTrue(AutoBackup.runBackup(context, "verified original", 10000).ok)
-        val before = AutoBackup.listBackups(context)
+        val before = BackupRetention.listNames(context, tree)
         TestBackupDocumentsProvider.corruptReads = true
         assertFalse(AutoBackup.runBackup(context, "unverified replacement", 20000).ok)
-        assertEquals(before, AutoBackup.listBackups(context))
+        assertEquals(before, BackupRetention.listNames(context, tree))
         assertEquals(10000L, AutoBackup.lastBackupAt(context))
         assertEquals("data.autoBackup.verifyFailed", AutoBackup.lastFailure(context)?.key)
         TestBackupDocumentsProvider.corruptReads = false

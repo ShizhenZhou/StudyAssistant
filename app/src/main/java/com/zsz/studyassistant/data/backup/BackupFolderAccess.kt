@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Read-only directory health checks. No probe files or data modification. Call from IO. */
 internal object BackupFolderAccess {
@@ -63,13 +65,15 @@ internal object BackupFolderAccess {
     /** A stale provider response must never change a newer directory or switch configuration.
      * healthCheck lets integration tests inject configuration changes during an in-flight read.
      */
-    fun refresh(context: Context, scheduleIfAvailable: Boolean = false,
-        healthCheck: (Context, Uri?) -> Health = ::check): Observation? {
+    suspend fun refresh(context: Context, scheduleIfAvailable: Boolean = false,
+        healthCheck: suspend (Context, Uri?) -> Health = ::check): Observation? {
         // Startup and the setup dialog may inspect concurrently. Retry a superseded read rather
         // than letting the losing initial inspection suppress the setup prompt for this launch.
         repeat(3) {
+            currentCoroutineContext().ensureActive()
             val before = synchronized(BackupJobs) { AutoBackup.treeUri(context) to generation(context) }
             val health = healthCheck(context, before.first)
+            currentCoroutineContext().ensureActive()
             val observed = synchronized(BackupJobs) {
                 if (AutoBackup.treeUri(context) != before.first || generation(context) != before.second) null
                 else {
@@ -96,7 +100,7 @@ internal object BackupFolderAccess {
     }
 
     /** A canceled or unusable selection leaves the previous configured directory unchanged. */
-    fun select(context: Context, tree: Uri): Boolean {
+    suspend fun select(context: Context, tree: Uri): Boolean {
         try {
             if (!ownsProvider(context, tree)) context.contentResolver.takePersistableUriPermission(tree,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
@@ -107,7 +111,8 @@ internal object BackupFolderAccess {
     }
 
     /** Called only after a selection has durable access and healthy directory metadata. */
-    internal fun acceptSelection(context: Context, tree: Uri) {
+    internal suspend fun acceptSelection(context: Context, tree: Uri) {
+        currentCoroutineContext().ensureActive()
         synchronized(BackupJobs) {
             // Reauthorizing the same enabled URI is still a new selection. Neither setter would
             // advance the generation, so explicitly invalidate reads started before this grant.

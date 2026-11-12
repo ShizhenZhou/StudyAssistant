@@ -81,24 +81,24 @@ object BackupRetention {
         val targets = sets.filter { it.id != newSetId }.sortedWith(compareByDescending<Set> { it.at }.thenBy { it.id }).drop(AutoBackup.KEEP - 1)
         remove(context, tree, targets, check)
     }
-    /** Scans and hashes current documents; only identical validated contents can reuse parsing. */
-    fun folderSummary(context: Context, tree: Uri, check: () -> Unit = {}): FolderSummary =
+    /** Scans and hashes current documents; cancellation follows the caller's coroutine. */
+    suspend fun folderSummary(context: Context, tree: Uri, check: () -> Unit = {}): FolderSummary =
         folderSummary(context, tree, check, BackupTree::space)
 
-    // Compatibility entry for the synchronous app-open scheduler; coroutine callers use readFolderSummary.
-    internal fun folderSummary(context: Context, tree: Uri, check: () -> Unit,
-        storageCheck: (File, Long) -> Unit): FolderSummary = kotlinx.coroutines.runBlocking {
-            readFolderSummary(context, tree, check, storageCheck)
-        }
+    internal suspend fun folderSummary(context: Context, tree: Uri, check: () -> Unit,
+        storageCheck: (File, Long) -> Unit): FolderSummary = withContext(Dispatchers.IO) {
+        val operation = kotlinx.coroutines.currentCoroutineContext()
+        val stop = { operation.ensureActive(); check() }
+        val sets = catalog(context, tree, stop, includeManual = true, storageCheck = storageCheck)
+        FolderSummary(sets.count { !it.automatic }, sets.count { it.automatic }, sets.maxOfOrNull { it.at } ?: 0L,
+            sets.map { AutoBackup.dayKey(it.at) }.toSet())
+    }
 
-    suspend fun readFolderSummary(context: Context, tree: Uri, check: () -> Unit = {},
-        storageCheck: (File, Long) -> Unit = BackupTree::space): FolderSummary = withContext(Dispatchers.IO) {
-            val operation = kotlinx.coroutines.currentCoroutineContext()
-            val stop = { operation.ensureActive(); check() }
-            val sets = catalog(context, tree, stop, includeManual = true, storageCheck = storageCheck)
-            FolderSummary(sets.count { !it.automatic }, sets.count { it.automatic }, sets.maxOfOrNull { it.at } ?: 0L,
-                sets.map { AutoBackup.dayKey(it.at) }.toSet())
-        }
+    /** Optional retention diagnostics; no display cache or blocking wrapper. */
+    internal suspend fun listNames(context: Context, tree: Uri): List<String> = withContext(Dispatchers.IO) {
+        val operation = kotlinx.coroutines.currentCoroutineContext()
+        catalog(context, tree, { operation.ensureActive() }).sortedByDescending { it.at }.map { it.name }
+    }
 
     /** Only proven format failures in already fixed local inputs may be skipped. Copy/provider,
      * staging, space and unknown failures must abort the entire inventory before any deletion. */

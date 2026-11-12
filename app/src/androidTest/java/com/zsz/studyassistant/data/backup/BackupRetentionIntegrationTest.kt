@@ -222,7 +222,7 @@ class BackupRetentionIntegrationTest {
         } finally { work.deleteRecursively() }
     }
 
-    @Test fun folderSummaryPropagatesFolderAccessFailureAndCancellation() {
+    @Test fun folderSummaryPropagatesFolderAccessFailureAndCancellation() = runBlocking {
         TestBackupDocumentsProvider.denyListing = true
         try {
             BackupRetention.folderSummary(context, tree)
@@ -296,7 +296,7 @@ class BackupRetentionIntegrationTest {
         } finally { work.deleteRecursively() }
     }
 
-    @Test fun localSpaceFailureCannotBecomeAnEmptyOrPartialFolderSummary() {
+    @Test fun localSpaceFailureCannotBecomeAnEmptyOrPartialFolderSummary() = runBlocking {
         val documents = (1L..2L).map { legacy(it) }
         for (failAt in 1..2) {
             var copies = 0
@@ -357,7 +357,7 @@ class BackupRetentionIntegrationTest {
         assertTrue(documents.all { file(it).isFile })
     }
 
-    @Test fun truncatedLegacyIsPreservedAndSkippedWhileValidSummaryStillCounts() {
+    @Test fun truncatedLegacyIsPreservedAndSkippedWhileValidSummaryStillCounts() = runBlocking {
         val valid = legacy(123)
         val truncated = save("study-assistant-auto-truncated.json",
             """{"format":"study-assistant-backup","version":3,"questions":[""".toByteArray())

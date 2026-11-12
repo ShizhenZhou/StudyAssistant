@@ -12,6 +12,8 @@
 
 `MainViewModel` 负责页面状态与会话业务协调；`data/review/StudyStatistics` 从轻量投影一次汇总统计，按自然日边界分桶；`data/conversation/ConversationDraftPersistence` 负责草稿调度和磁盘访问，`ui/capture/CaptureFlowController` 管理拍摄框选状态、检测任务及恢复检查点。控制器沿用 ViewModel 生命周期和既有界面入口，框选恢复不会自动请求解题；完整内容保存的冲突与恢复逻辑继续由 `PendingSaveRepository` 负责。
 
+备份目录摘要使用挂起接口，在 IO 调度器扫描；调用方取消会传递到扫描检查点，不能吞掉取消并记录为备份失败。设置页仅复用同次读取所得摘要，并校验目录与配置世代，避免显示旧目录结果。系统 Provider 的同步 IO 不保证可即时打断。
+
 ## 日常开发
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.5.1、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。

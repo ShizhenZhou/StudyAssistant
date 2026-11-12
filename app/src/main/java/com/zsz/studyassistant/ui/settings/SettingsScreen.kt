@@ -1150,7 +1150,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             if (AutoBackup.treeUri(context) == tree) autoFolder = label
             val summary = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 if (tree == null) com.zsz.studyassistant.data.BackupRetention.FolderSummary()
-                else observed.summary ?: com.zsz.studyassistant.data.BackupRetention.readFolderSummary(context, tree, { operation.ensureActive() })
+                else observed.summary ?: com.zsz.studyassistant.data.BackupRetention.folderSummary(context, tree) { operation.ensureActive() }
             }
             if (AutoBackup.treeUri(context) == tree && com.zsz.studyassistant.data.BackupFolderAccess.isCurrent(context, observed)) {
                 folderSummary = summary

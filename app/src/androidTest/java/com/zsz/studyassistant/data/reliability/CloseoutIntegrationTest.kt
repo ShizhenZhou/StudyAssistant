@@ -35,7 +35,8 @@ class CloseoutIntegrationTest {
         dao.insert(Question(id,"fixture","answer",10000,conversationJson=conversation))
         dao.insertSolveSession(SolveSession(id,createdAt=10000,updatedAt=10000,conversationJson=conversation))
         val light=dao.getAll().first().single()
-        assertNull(light.conversationJson);assertNull(light.imageBytes)
+        assertEquals(id, light.id)
+        assertTrue(light::class.java.declaredFields.none { it.name in setOf("conversationJson", "imageBytes") })
         assertEquals(conversation,dao.heavyOnce(id)!!.conversationJson)
         assertEquals(conversation,dao.solveSessionOnce(id)!!.conversationJson)
     }

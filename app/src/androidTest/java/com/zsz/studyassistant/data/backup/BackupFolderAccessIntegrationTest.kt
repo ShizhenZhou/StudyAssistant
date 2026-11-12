@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.data
 
+import kotlinx.coroutines.runBlocking
 import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
@@ -38,7 +39,7 @@ class BackupFolderAccessIntegrationTest {
         assertFalse(BackupFolderAccess.isUsable(context, tree))
         assertFalse(BackupFolderAccess.isUsable(context, null))
     }
-    @Test fun ungrantedSelectionDoesNotOverwritePriorFolderOrEnableBackup() {
+    @Test fun ungrantedSelectionDoesNotOverwritePriorFolderOrEnableBackup() = runBlocking {
         AutoBackup.setTreeUri(context, tree)
         AutoBackup.setEnabled(context, false)
         val invalid = Uri.parse("content://invalid.synthetic.provider/tree/missing")

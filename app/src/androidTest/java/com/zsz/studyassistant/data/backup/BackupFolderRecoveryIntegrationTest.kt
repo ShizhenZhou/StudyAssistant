@@ -22,7 +22,7 @@ class BackupFolderRecoveryIntegrationTest {
     private fun works() = WorkManager.getInstance(context).getWorkInfosForUniqueWork("backup-v4-on-open")
         .get().filter { !it.state.isFinished }
     // Uses the complete production health check; Android permits access to this app's own UID provider.
-    private fun refresh(schedule: Boolean = true) = BackupFolderAccess.refresh(context, schedule)
+    private suspend fun refresh(schedule: Boolean = true) = BackupFolderAccess.refresh(context, schedule)
 
     @Before fun setup() {
         WorkManager.getInstance(context).cancelUniqueWork("backup-v4-on-open").result.get()
@@ -38,7 +38,7 @@ class BackupFolderRecoveryIntegrationTest {
         TestBackupDocumentsProvider.reset(context)
     }
 
-    @Test fun temporaryProviderFailuresKeepIntentAndRecoveryQueuesRealDailyWork() {
+    @Test fun temporaryProviderFailuresKeepIntentAndRecoveryQueuesRealDailyWork() = runBlocking {
         for (fault in listOf("io", "provider", "missing-file", "null", "empty")) {
             TestBackupDocumentsProvider.metadataFault = fault
             val result = checkNotNull(refresh())
@@ -56,7 +56,7 @@ class BackupFolderRecoveryIntegrationTest {
         assertNull(BackupJobs.status(context).errorKey)
     }
 
-    @Test fun ownProviderHasDurableAccessButUnownedProviderStillNeedsPersistedGrant() {
+    @Test fun ownProviderHasDurableAccessButUnownedProviderStillNeedsPersistedGrant() = runBlocking {
         assertEquals(BackupFolderAccess.State.AVAILABLE, BackupFolderAccess.check(context, tree).state)
         val external = Uri.parse("content://synthetic.unowned.provider/tree/root")
         val revoked = BackupFolderAccess.check(context, external)
@@ -67,7 +67,7 @@ class BackupFolderRecoveryIntegrationTest {
         assertTrue(AutoBackup.isEnabled(context))
     }
 
-    @Test fun deliberateOffRemainsOffThroughFailureAndRecovery() {
+    @Test fun deliberateOffRemainsOffThroughFailureAndRecovery() = runBlocking {
         AutoBackup.setEnabled(context, false)
         TestBackupDocumentsProvider.metadataFault = "io"
         assertEquals(BackupFolderAccess.State.TEMPORARILY_UNAVAILABLE, checkNotNull(refresh()).health.state)
@@ -77,7 +77,7 @@ class BackupFolderRecoveryIntegrationTest {
         assertTrue(works().isEmpty())
     }
 
-    @Test fun explicitPermissionDenialDisablesButPreservesDirectory() {
+    @Test fun explicitPermissionDenialDisablesButPreservesDirectory() = runBlocking {
         TestBackupDocumentsProvider.denyAccess = true
         val result = checkNotNull(refresh())
         assertEquals(BackupFolderAccess.State.INVALID, result.health.state)
@@ -90,7 +90,7 @@ class BackupFolderRecoveryIntegrationTest {
         assertFalse(AutoBackup.isEnabled(context))
     }
 
-    @Test fun missingConfiguredDirectoryIsExplicitlyInvalid() {
+    @Test fun missingConfiguredDirectoryIsExplicitlyInvalid() = runBlocking {
         AutoBackup.setTreeUri(context, null)
         val result = checkNotNull(refresh())
         assertEquals(BackupFolderAccess.State.INVALID, result.health.state)
@@ -98,7 +98,7 @@ class BackupFolderRecoveryIntegrationTest {
         assertFalse(AutoBackup.isEnabled(context))
     }
 
-    @Test fun staleInvalidResponseCannotDisableNewSelection() {
+    @Test fun staleInvalidResponseCannotDisableNewSelection() = runBlocking {
         val newer = Uri.parse("$tree?selection=new")
         var reads = 0
         val observed = BackupFolderAccess.refresh(context, false) { c, uri ->
@@ -113,7 +113,7 @@ class BackupFolderRecoveryIntegrationTest {
         assertTrue(AutoBackup.isEnabled(context))
     }
 
-    @Test fun acceptingSameEnabledUriInvalidatesOldHealthRead() {
+    @Test fun acceptingSameEnabledUriInvalidatesOldHealthRead() = runBlocking {
         val previous = checkNotNull(refresh(schedule = false))
         assertTrue(BackupFolderAccess.isCurrent(context, previous))
         var reads = 0
