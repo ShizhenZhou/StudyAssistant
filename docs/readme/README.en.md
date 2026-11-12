@@ -51,6 +51,12 @@ AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.2.1
+
+- 📄 Rebuilt PDF export with consistent text, formula and image layout, corrected scaling and A4 pagination.
+- 📑 Kept selectable body text and direct saving; improved tables, quotes and bubble borders across pages.
+- 📌 `versionCode` **118**.
+
 ### v0.7.2
 
 - 📄 Save PDFs directly with selectable body text, shared scaling for text, formulas and bubbles, and improved page margins and borders.

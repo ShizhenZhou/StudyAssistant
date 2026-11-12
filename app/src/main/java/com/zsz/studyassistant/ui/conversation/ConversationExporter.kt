@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.webkit.WebView
+import android.util.Base64
 import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
@@ -62,8 +63,13 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
     val directory = File(context.cacheDir, "conversation-export/${UUID.randomUUID()}")
     check(directory.mkdirs())
     var delivered = false
-    val pdf = if (format == ConversationExportFormat.PDF) ConversationPdfWriter() else null
     try {
+        if (format == ConversationExportFormat.PDF) {
+            val file = renderNativeConversationPdf(context, view, messages, directory, name)
+            currentCoroutineContext().ensureActive()
+            delivered = true
+            return ConversationExportResult(directory, listOf(file), name, format)
+        }
         val width = view.width; val height = view.height
         check(width > 0 && height > 0 && view.isAttachedToWindow)
         val count = prepareConversationExport(context, view, messages, format)
@@ -73,44 +79,64 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
             check(view.width == width && view.height == height && view.isAttachedToWindow)
             progress(page + 1, count)
             withTimeout(15_000) { check(view.exportScript("showConversationExportPage($page)") == "true") }
-            if (pdf != null) withTimeout(15_000) {
-                check(view.exportScript("conversationExportGraphicsOnly(true)") == "true")
-            }
             view.awaitExportPaint()
-            val text = if (pdf != null) withTimeout(15_000) {
-                JSONObject(view.exportScript("conversationExportTextPage($page)"))
-            } else null
-            // Capture the PDF graphics at the actual View size. Scaling a software WebView canvas
-            // adds a second coordinate conversion that does not belong to the DOM text snapshot.
-            val bitmap = Bitmap.createBitmap(if (pdf != null) width else format.width,
-                if (pdf != null) height else format.height, Bitmap.Config.ARGB_8888)
+            val bitmap = Bitmap.createBitmap(format.width, format.height, Bitmap.Config.ARGB_8888)
             try {
                 val canvas = Canvas(bitmap)
                 canvas.drawColor(android.graphics.Color.WHITE)
-                if (pdf == null) canvas.scale(format.width.toFloat() / width, format.height.toFloat() / height)
+                canvas.scale(format.width.toFloat() / width, format.height.toFloat() / height)
                 view.draw(canvas)
-                if (pdf != null) {
-                    withContext(Dispatchers.Default) { pdf.append(bitmap, checkNotNull(text), page + 1, count) }
-                } else withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     val file = File(directory, "${name}_${(page + 1).toString().padStart(3, '0')}.png")
                     file.outputStream().buffered().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     files.add(file)
                 }
             } finally { bitmap.recycle() }
-            if (pdf != null) withTimeout(15_000) { view.exportScript("conversationExportGraphicsOnly(false)") }
             yield()
-        }
-        if (pdf != null) withContext(Dispatchers.IO) {
-            val file = File(directory, "$name.pdf")
-            file.outputStream().buffered().use(pdf::writeTo)
-            files.add(file)
         }
         currentCoroutineContext().ensureActive()
         delivered = true
         return ConversationExportResult(directory, files, name, format)
     } finally {
-        pdf?.close()
         if (!delivered) withContext(NonCancellable + Dispatchers.IO) { directory.deleteRecursively() }
+    }
+}
+
+/** WebView only parses sanitized Markdown and rasterizes isolated formulas; native code owns pagination. */
+private suspend fun renderNativeConversationPdf(context: Context, view: WebView, messages: List<ChatMsg>, directory: File, name: String): File {
+    // Screen accessibility zoom must not affect the isolated formula metrics on paper.
+    view.settings.textZoom = 100
+    check(messages.sumOf { it.content.length.toLong() + (it.quotedText?.length ?: 0) + it.images.sumOf { image -> image.length.toLong() } } <= 16L*1024*1024)
+    val payload = withContext(Dispatchers.Default) { buildMessagesJson(messages) }
+    val (script, css) = withContext(Dispatchers.IO) {
+        val css = context.assets.open("katex/katex.min.css").bufferedReader().use { it.readText() }
+        val embedded = Regex("url\\(fonts/([^)]+)\\)").replace(css) { match ->
+            val bytes = context.assets.open("katex/fonts/${match.groupValues[1]}").use { it.readBytes() }
+            "url(data:font/woff2;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)})"
+        } + ".katex{font-size:1.1em;}"
+        context.assets.open("conversation_pdf.js").bufferedReader().use { it.readText() } to embedded
+    }
+    return withTimeout(120_000) {
+        view.exportScript(script)
+        check(view.exportScript("prepareConversationPdf($payload,${JSONObject.quote(css)})") == "true")
+        while (true) {
+            ensureActive()
+            val state = JSONObject(view.exportScript("window.conversationPdfState"))
+            if (state.getString("status") == "error") error("PDF content preparation failed")
+            if (state.getString("status") == "ready") { check(state.getInt("count") == messages.size);break }
+            delay(50)
+        }
+        val writer = ConversationPdfWriter()
+        try {
+            for (index in messages.indices) {
+                ensureActive()
+                val json = view.exportScript("conversationPdfMessage($index)")
+                withContext(Dispatchers.Default) { writer.append(JSONObject(json)) }
+            }
+            val file = File(directory,"$name.pdf")
+            withContext(Dispatchers.IO) { file.outputStream().buffered().use(writer::writeTo) }
+            file
+        } finally { writer.close() }
     }
 }
 

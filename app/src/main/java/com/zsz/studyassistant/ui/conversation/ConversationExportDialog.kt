@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -111,6 +112,7 @@ private fun ConversationExportRenderer(messages: List<ChatMsg>, format: Conversa
         Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.padding(16.dp).widthIn(max = 340.dp)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (count == 0) s["export.preparing"] else s.format("export.progress", "i" to "$page", "n" to "$count"))
+                if (format == ConversationExportFormat.PDF) LinearProgressIndicator(Modifier.fillMaxWidth())
                 BoxWithConstraints(Modifier.weight(1f, fill = false).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     val ratio = format.width.toFloat() / format.height
                     val previewWidth = minOf(maxWidth, maxHeight * ratio)
@@ -133,7 +135,8 @@ private fun ConversationExportRenderer(messages: List<ChatMsg>, format: Conversa
                         if (!failed) web.stopLoading()
                         (web.parent as? android.view.ViewGroup)?.removeView(web)
                         web.destroy()
-                    }, modifier = Modifier.width(previewWidth).aspectRatio(ratio))
+                    }, modifier = if (format == ConversationExportFormat.PDF) Modifier.fillMaxWidth().height(1.dp).alpha(0f)
+                        else Modifier.width(previewWidth).aspectRatio(ratio))
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(s["common.cancel"]) }
             }
