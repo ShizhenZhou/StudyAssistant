@@ -51,6 +51,11 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.2.3
+
+- 🗄 Upgrade local storage to Room 3 and adapt data access, backup restoration, and tag-merge undo.
+- 📌 `versionCode` **120**.
+
 ### v0.7.2.2
 
 - 🛠 Update build tools and core dependencies, with consistent build and signing tool versions.
