@@ -45,9 +45,9 @@ Automatic backups write only to your SAF-selected folder. The app does not initi
 
 ## Technology
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5** (DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.12.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **2.8.5** (DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
 
-AGP **9.4.0**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
+AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
 

@@ -217,7 +217,8 @@ dependencies {
 }
 
 // APK naming: StudyAssistant-<version>-<yyyyMMddHHmm>.apk（debug / release 各自目录）
-tasks.whenTaskAdded {
+// Configure only realized tasks; eager task listeners also realize unused AGP preview tasks.
+tasks.configureEach {
     if (name == "assembleDebug" || name == "assembleRelease") {
         doLast {
             try {

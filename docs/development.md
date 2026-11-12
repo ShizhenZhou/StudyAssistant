@@ -14,13 +14,13 @@
 
 ## 日常开发
 
-构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.4.0、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
+构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.5.1、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
 
 AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 2.8.5 使用 KSP 2.3.12，保留 Java DAO 生成，不改变数据库格式。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。
 
 Room 结构快照由正常 KSP 编译导出至 `app/schemas/com.zsz.studyassistant.data.AppDatabase/<数据库版本>.json`，随源码提交，从当前 DB v10 开始保留。各构建变体共用相同结构；目录不加入应用资源，不打入正式 APK。以后变更表结构时新增对应版本快照并保留旧文件，不手工编造历史版本；无需为导出单独增加测试或 CI 门禁。
 
-当前运行依赖：Compose BOM 2026.09.00、Lifecycle 2.11.0、Navigation Compose 2.10.2、CameraX 1.6.2、Retrofit 3.0.0、OkHttp 5.5.1、kotlinx.serialization 1.12.0、WorkManager 2.12.0（备份与6小时周期更新通知）。离线 KaTeX 0.19.1 的来源与打包说明见 [third-party-assets.md](third-party-assets.md)。版本声明以 `gradle/libs.versions.toml` 为准。
+当前运行依赖：Compose BOM 2026.09.00、Lifecycle 2.11.0、Navigation Compose 2.10.2、CameraX 1.6.2、Retrofit 3.0.0、OkHttp 5.5.1、kotlinx.serialization 1.13.0、WorkManager 2.12.0（备份与6小时周期更新通知）。离线 KaTeX 0.19.1 的来源与打包说明见 [third-party-assets.md](third-party-assets.md)。版本声明以 `gradle/libs.versions.toml` 为准。
 
 GitHub Actions 直接使用官方 Google Maven、Maven Central 与 Gradle Plugin Portal；国内本地开发保留原镜像优先配置。定向 JVM 的实际任务为 `testIntegrationUnitTest`（AGP 9 对应 `testBuildType = integration`），仍由 `-TestClass` 显式选择，不启动设备。
 
