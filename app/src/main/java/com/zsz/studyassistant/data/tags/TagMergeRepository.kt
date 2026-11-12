@@ -1,6 +1,6 @@
 package com.zsz.studyassistant.data
 
-import androidx.room.withTransaction
+import androidx.room3.withWriteTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -10,14 +10,14 @@ import kotlinx.coroutines.withContext
 object TagMergeRepository {
     private val mutex = Mutex()
     suspend fun snapshot(db: AppDatabase): Pair<TagInventory, TagMergeUndo?> = withContext(Dispatchers.IO) {
-        mutex.withLock { db.withTransaction {
+        mutex.withLock { db.withWriteTransaction {
             val base = TagMergeEngine.inventory(db.questionDao())
             base to TagUndoJournal.recover(db.tagUndoStore, base)
         } }
     }
     suspend fun apply(db: AppDatabase, plan: TagMergePreview): Triple<TagMergeResult, TagInventory, TagMergeUndo> = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val committed = db.withTransaction {
+            val committed = db.withWriteTransaction {
                 val dao = db.questionDao()
                 TagUndoJournal.recover(db.tagUndoStore, TagMergeEngine.inventory(dao))
                 var staged: TagMergeUndo? = null
@@ -35,7 +35,7 @@ object TagMergeRepository {
     }
     suspend fun undo(db: AppDatabase): Pair<Int, TagInventory> = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val committed = db.withTransaction {
+            val committed = db.withWriteTransaction {
                 val dao = db.questionDao()
                 val record = TagUndoJournal.recover(db.tagUndoStore, TagMergeEngine.inventory(dao))
                 // Keep the journal until commit. Recovery can recognize the restored state after a crash.

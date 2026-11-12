@@ -1,7 +1,7 @@
 package com.zsz.studyassistant.data
 
 import android.content.Context
-import androidx.room.withTransaction
+import androidx.room3.withWriteTransaction
 import java.io.File
 import java.security.MessageDigest
 import java.util.Base64
@@ -104,9 +104,9 @@ internal class PendingSaveRepository(private val db: AppDatabase, private val st
     private val dao get() = db.questionDao()
     suspend fun saveHistory(row: SolveSession, allowCreate: Boolean, cutoff: Long) = withContext(Dispatchers.IO) {
         var pending: PendingSave? = null
-        try { db.withTransaction {
+        try { db.withWriteTransaction<Unit> {
             val before = dao.solveSessionOnce(row.id)
-            if (before == null && (!allowCreate || row.createdAt < cutoff)) return@withTransaction
+            if (before == null && (!allowCreate || row.createdAt < cutoff)) return@withWriteTransaction
             val payload = SavePayload.history(row.copy(createdAt = QuestionIdentity.earliest(before?.createdAt ?: 0, row.createdAt)))
             pending = PendingSave(SaveTarget.HISTORY, payload, before?.let { PendingSaveCodec.fingerprint(SavePayload.history(it)) })
             store.write(pending!!)
@@ -120,7 +120,7 @@ internal class PendingSaveRepository(private val db: AppDatabase, private val st
     }
     suspend fun saveNotebook(payload: SavePayload) = withContext(Dispatchers.IO) {
         var pending: PendingSave? = null
-        try { db.withTransaction {
+        try { db.withWriteTransaction<Unit> {
             val before = dao.heavyOnce(payload.id)
             if (before == null || before.deleted) {
                 pending = PendingSave(SaveTarget.NOTEBOOK, payload, "unavailable")
@@ -138,22 +138,22 @@ internal class PendingSaveRepository(private val db: AppDatabase, private val st
     }
     suspend fun retryAll(cutoff: Long): PendingSaveScan = withContext(Dispatchers.IO) {
         for (entry in store.scan().entries) {
-            val applied = db.withTransaction {
+            val applied = db.withWriteTransaction {
                 when (entry.target) {
                     SaveTarget.NOTEBOOK -> {
-                        val row = dao.heavyOnce(entry.payload.id) ?: return@withTransaction false
-                        if (row.deleted) return@withTransaction false
+                        val row = dao.heavyOnce(entry.payload.id) ?: return@withWriteTransaction false
+                        if (row.deleted) return@withWriteTransaction false
                         val actual = PendingSaveCodec.fingerprint(SavePayload.notebook(row))
-                        if (actual == PendingSaveCodec.fingerprint(entry.payload)) return@withTransaction true
-                        if (actual != entry.expected) return@withTransaction false
+                        if (actual == PendingSaveCodec.fingerprint(entry.payload)) return@withWriteTransaction true
+                        if (actual != entry.expected) return@withWriteTransaction false
                         dao.updateAnswerContent(row.id, entry.payload.text, entry.payload.answer, entry.payload.conversationJson)
                     }
                     SaveTarget.HISTORY -> {
-                        if (entry.payload.createdAt < cutoff) return@withTransaction true
+                        if (entry.payload.createdAt < cutoff) return@withWriteTransaction true
                         val row = dao.solveSessionOnce(entry.payload.id)
                         val actual = row?.let { PendingSaveCodec.fingerprint(SavePayload.history(it)) }
-                        if (actual == PendingSaveCodec.fingerprint(entry.payload)) return@withTransaction true
-                        if (actual != entry.expected) return@withTransaction false
+                        if (actual == PendingSaveCodec.fingerprint(entry.payload)) return@withWriteTransaction true
+                        if (actual != entry.expected) return@withWriteTransaction false
                         persistHistoryWrite(dao, entry.payload.historyRow(null), entry.expected == null, cutoff)
                     }
                 }

@@ -58,7 +58,8 @@ internal fun legacyPreviewImages(part: (Int, Int) -> String?): List<ByteArray> {
                 }
             }
         }
-    } catch (_: java.io.IOException) { /* Truncated or over the card budget. */ }
+    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+    catch (_: java.io.IOException) { /* Truncated or over the card budget. */ }
     catch (_: IllegalStateException) { /* Unrecognized legacy structure. */ }
     return if (isQuestion) images else emptyList()
 }

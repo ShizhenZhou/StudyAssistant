@@ -1,6 +1,6 @@
 package com.zsz.studyassistant.data
 
-import androidx.room.Room
+import androidx.room3.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.first
@@ -14,7 +14,7 @@ class LargeFieldIntegrationTest {
     @Test fun fullContentAndImagesSurviveWhileListsStayBounded()=runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName=="com.zsz.studyassistant.integration")
-        val db=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).build()
+        val db=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         try {
             val dao=db.questionDao();val id=QuestionIdentity.create(10000)
             val text="汉字🔬".repeat(350000)+"Tail_Ω";val answer="solution".repeat(450000)
@@ -43,7 +43,7 @@ class LargeFieldIntegrationTest {
     @Test fun nullAndEmptyLargeFieldsStayDistinct()=runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName=="com.zsz.studyassistant.integration")
-        val db=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).build()
+        val db=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         try {
             val dao=db.questionDao();val a=QuestionIdentity.create(10000);val b=QuestionIdentity.create(20000)
             dao.insert(Question(a,"","",10000));dao.insert(Question(b,"","",20000,imageBytes=byteArrayOf(),conversationJson=""))

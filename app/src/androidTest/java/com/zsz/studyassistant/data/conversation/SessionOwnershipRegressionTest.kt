@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.support.getSupportWrapper
 import android.app.Application
 import androidx.compose.runtime.MutableState
 import androidx.lifecycle.viewModelScope
@@ -94,14 +95,14 @@ class SessionOwnershipRegressionTest {
         main { model.viewModelScope.cancel() }
         // Join cancellation so no delayed fixture writes reach the following test.
         withTimeout(8000) { model.viewModelScope.coroutineContext[Job]!!.join() }
-        db.openHelper.writableDatabase.execSQL("DROP TRIGGER IF EXISTS fixture_fail_answer")
+        db.getSupportWrapper().execSQL("DROP TRIGGER IF EXISTS fixture_fail_answer")
         pending.discardAll(); db.clearAllTables()
     }
     @Test fun pendingCandidateBlocksAutomaticAdvanceAndRetryDoesNotRepeatReview() = runBlocking {
         val first = question("first", 10000); val next = question("next", 20000)
         val dao = db.questionDao(); dao.insert(first); dao.insert(next)
         val value = SavePayload.notebook(next).copy(answer = "unsaved replacement")
-        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fixture_fail_answer BEFORE UPDATE OF answer ON questions BEGIN SELECT RAISE(ABORT, 'synthetic IO failure'); END")
+        db.getSupportWrapper().execSQL("CREATE TRIGGER fixture_fail_answer BEFORE UPDATE OF answer ON questions BEGIN SELECT RAISE(ABORT, 'synthetic IO failure'); END")
         val failed = runCatching { PendingSaveRepository(db, pending).saveNotebook(value) }
         assertTrue("The injected write failure must leave a recovery journal", failed.isFailure)
         assertEquals(1, pending.scan().entries.size)
@@ -121,7 +122,7 @@ class SessionOwnershipRegressionTest {
         main { model.reviewNext(2) {} }
         await { !model.reviewBusy }
         assertEquals(1, dao.reviewFor(first.id)!!.reviewCount)
-        db.openHelper.writableDatabase.execSQL("DROP TRIGGER fixture_fail_answer")
+        db.getSupportWrapper().execSQL("DROP TRIGGER fixture_fail_answer")
         assertTrue(PendingSaveRepository(db, pending).retryAll(0).entries.isEmpty())
         main { model.reviewNext(2) {} }
         await { !model.reviewBusy && model.savedQuestionId == next.id }

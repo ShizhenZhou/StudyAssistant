@@ -3,7 +3,7 @@ package com.zsz.studyassistant.data
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import androidx.room.Room
+import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.CancellationException
@@ -96,7 +96,7 @@ class BackupRetentionIntegrationTest {
     }
     @Test fun unrecordedValidMultiVolumeArchiveCountsAsOneAndMissingSetIsProtected() = runBlocking {
         val name = "retention-source-${UUID.randomUUID()}.db"
-        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         val work = workspace()
         try {
             val id = QuestionIdentity.create(1700000300000L)
@@ -149,7 +149,7 @@ class BackupRetentionIntegrationTest {
     /** A real repository snapshot, re-packed only to give each synthetic fixture a deterministic time. */
     private suspend fun business(work: File, at: Long, multi: Boolean = false): BackupArchive.ArchiveSet {
         val name = "folder-summary-${UUID.randomUUID()}.db"
-        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         try {
             val created = 1700000300000L
             db.questionDao().insert(Question(QuestionIdentity.create(created),

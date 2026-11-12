@@ -1,7 +1,8 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.support.getSupportWrapper
 import android.content.Context
-import androidx.room.Room
+import androidx.room3.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -19,7 +20,7 @@ class PendingSaveIntegrationTest {
     private lateinit var db: AppDatabase
     private lateinit var store: PendingSaveStore
     private lateinit var name: String
-    private fun open() { db = Room.databaseBuilder(context, AppDatabase::class.java, name).build() }
+    private fun open() { db = Room.databaseBuilder(context, AppDatabase::class.java, name).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build() }
     private fun repository() = PendingSaveRepository(db, store)
     private fun payload() = SavePayload(QuestionIdentity.create(10000), 10000, "synthetic", "new answer", "[]")
     @Before fun setUp() {
@@ -37,11 +38,11 @@ class PendingSaveIntegrationTest {
     @Test fun failedHistoryWriteSurvivesReopenAndRetainsImages() = runBlocking {
         val p = payload()
         val row = p.historyRow(null).copy(imageBytes = byteArrayOf(0, 1, -1))
-        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_history BEFORE INSERT ON solve_sessions BEGIN SELECT RAISE(ABORT, 'fixture'); END")
+        db.getSupportWrapper().execSQL("CREATE TRIGGER fail_history BEFORE INSERT ON solve_sessions BEGIN SELECT RAISE(ABORT, 'fixture'); END")
         expectFailure { repository().saveHistory(row, true, 0) }
         assertEquals(1, store.scan().entries.size)
         assertNull(db.questionDao().solveSessionOnce(p.id))
-        db.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_history")
+        db.getSupportWrapper().execSQL("DROP TRIGGER fail_history")
         db.close(); open()
         assertTrue(repository().retryAll(0).entries.isEmpty())
         val restored = db.questionDao().solveSessionOnce(p.id)!!

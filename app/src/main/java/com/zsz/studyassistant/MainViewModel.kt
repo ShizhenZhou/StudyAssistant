@@ -1,12 +1,13 @@
 package com.zsz.studyassistant
 
+import androidx.room3.support.getSupportWrapper
 import android.app.Application
 import android.os.SystemClock
 import android.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.room.withTransaction
+import androidx.room3.withWriteTransaction
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.zsz.studyassistant.data.AiLang
@@ -255,7 +256,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun commitDeletion(batch: com.zsz.studyassistant.data.DeleteBatch) {
         invalidateSimilarSaves(batch.questions)
         solveSessionWriteMutex.withLock {
-            AppDatabase.get(getApplication()).withTransaction {
+            AppDatabase.get(getApplication()).withWriteTransaction {
                 if(batch.categories.isNotEmpty()) {
                     dao.clearCategoryForCategories(batch.categories.toList())
                     dao.deleteCategories(batch.categories.toList())
@@ -801,7 +802,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 // 保留原有启动清理政策；先恢复可恢复图片，再裁剪搜题记录。
                 val db = AppDatabase.get(getApplication())
-                db.withTransaction {
+                db.withWriteTransaction {
                     dao.purgeDeletedQuestions()
                     dao.purgeOrphanReviews()
                     dao.purgeOrphanQuestionTags()
@@ -846,8 +847,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun repairQuestionImagesFromSessions() {
         val db = AppDatabase.get(getApplication())
         for (row in dao.questionsWithConversationOnce()) {
-            db.withTransaction {
-                val q = dao.heavyOnce(row.id) ?: return@withTransaction
+            db.withWriteTransaction<Unit> {
+                val q = dao.heavyOnce(row.id) ?: return@withWriteTransaction
                 dao.appendMissingImages(q.id, recoverableImages(q, includeSession = true), "repair")
             }
         }
@@ -867,8 +868,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun backfillQuestionImages() {
         val db = AppDatabase.get(getApplication())
         for (row in dao.questionsWithConversationOnce()) {
-            db.withTransaction {
-                val q = dao.heavyOnce(row.id) ?: return@withTransaction
+            db.withWriteTransaction<Unit> {
+                val q = dao.heavyOnce(row.id) ?: return@withWriteTransaction
                 if (q.imageBytes == null) {
                     val main = recoverableImages(q, includeSession = true).firstOrNull { it.isNotEmpty() }
                     if (main != null) dao.setQuestionImage(q.id, main)
@@ -894,8 +895,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun fillImagesTable() {
         val db = AppDatabase.get(getApplication())
         for (row in dao.questionsWithConversationOnce()) {
-            db.withTransaction {
-                val q = dao.heavyOnce(row.id) ?: return@withTransaction
+            db.withWriteTransaction<Unit> {
+                val q = dao.heavyOnce(row.id) ?: return@withWriteTransaction
                 dao.appendMissingImages(q.id, recoverableImages(q, includeSession = false), "upgrade")
             }
         }
@@ -1157,9 +1158,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         stopActiveGeneration()
         val seq = callSeq
         try {
-            val (summary, linked, history) = AppDatabase.get(getApplication()).withTransaction {
+            val (summary, linked, history) = AppDatabase.get(getApplication()).withWriteTransaction<Triple<SolveSessionPreview, Question?, SolveSession?>?> {
                 val question = if (dao.questionPreviewOnce(id)?.deleted == false) dao.heavyOnce(id) else null
-                val summary = dao.sessionLightOnce(id) ?: return@withTransaction null
+                val summary = dao.sessionLightOnce(id) ?: return@withWriteTransaction null
                 Triple(summary, question, if (question == null) dao.solveSessionOnce(id) else null)
             } ?: run {
                 if (seq == callSeq) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["history.readFailed"]
@@ -1825,7 +1826,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private suspend fun readDatabaseVersion(): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        AppDatabase.get(getApplication()).openHelper.readableDatabase.version
+        AppDatabase.get(getApplication()).getSupportWrapper().version
     }
 
     fun refreshDatabaseVersion() {
@@ -2146,7 +2147,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
                 var needed = false
                 var count = 0
-                db.withTransaction {
+                db.withWriteTransaction {
                     needed = needsImageUpgrade()
                     if (needed) {
                         repairQuestionImagesFromSessions()
@@ -2465,15 +2466,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val (convJson, img, allImgBytes) = prepared
                 val db = AppDatabase.get(getApplication())
                 var reusedQuestion: Question? = null
-                val saved = notebookWriteMutex.withLock { db.withTransaction {
-                    if (binding.cancelPending || stableId in deletionState.value.questionIds) return@withTransaction null
+                val saved = notebookWriteMutex.withLock { db.withWriteTransaction {
+                    if (binding.cancelPending || stableId in deletionState.value.questionIds) return@withWriteTransaction null
                     val existingQuestion = dao.heavyOnce(stableId)
                     if (existingQuestion != null) {
                         // Explicit save can restore this ID, but must not replace a newer notebook copy.
                         if (existingQuestion.deleted) dao.restore(stableId)
                         reusedQuestion = existingQuestion.copy(deleted = false)
                         dao.linkExistingSession(stableId)
-                        return@withTransaction Triple(stableId, existingQuestion.categoryId, dao.tagIdsForQuestion(stableId))
+                        return@withWriteTransaction Triple(stableId, existingQuestion.categoryId, dao.tagIdsForQuestion(stableId))
                     }
                     val cid = if (!name.isNullOrBlank()) {
                         dao.insertCategory(Category(name = name.trim()))
@@ -2591,7 +2592,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val binding = sessionRecordBinding
         viewModelScope.launch {
             try {
-                AppDatabase.get(getApplication()).withTransaction {
+                AppDatabase.get(getApplication()).withWriteTransaction {
                     if (!dao.questionExists(id)) throw com.zsz.studyassistant.data.TagMergeException("tagMerge.changed")
                     action(id)
                 }
@@ -2654,7 +2655,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var reviewEpoch = 0L
     private val committedReviewIds = mutableSetOf<QuestionId>()
     private suspend fun commitReview(questionId: QuestionId, level: Int) {
-        AppDatabase.get(getApplication()).withTransaction {
+        AppDatabase.get(getApplication()).withWriteTransaction {
             val question = dao.questionLightOnce(questionId) ?: error("Question no longer exists")
             check(!question.deleted && questionId !in deletionState.value.questionIds)
             val before = dao.reviewFor(questionId) ?: Review(questionId).also { dao.insertReview(it) }
@@ -3215,7 +3216,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val saved = notebookWriteMutex.withLock {
                     if (request.invalidated || id in deletionState.value.questionIds) return@withLock false
-                    AppDatabase.get(getApplication()).withTransaction {
+                    AppDatabase.get(getApplication()).withWriteTransaction {
                         if (!dao.questionExists(id)) {
                             val cid = if (!name.isNullOrBlank()) dao.insertCategory(Category(name=name.trim())) else categoryId
                             dao.insertQuestionWithId(Question(id,title,answerText,created,categoryId=cid,conversationJson=conversationJson))

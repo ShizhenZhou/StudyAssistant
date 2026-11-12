@@ -1,10 +1,11 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.support.getSupportWrapper
 import android.content.Context
 import android.net.Uri
 import android.util.AtomicFile
-import androidx.room.Room
-import androidx.room.withTransaction
+import androidx.room3.Room
+import androidx.room3.withWriteTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -28,7 +29,7 @@ class ReliabilityIntegrationTest {
 
     private fun open() {
         db = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(MIGRATION_9_10).build()
+            .addMigrations(MIGRATION_9_10).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         store = SqliteTagUndoStore(context)
         db.tagUndoStore = store
     }
@@ -85,7 +86,7 @@ class ReliabilityIntegrationTest {
     }
 
     @Test fun failedImportRollsBackPreviouslyWrittenCategoriesAndTags() = runBlocking {
-        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fixture_fail BEFORE INSERT ON questions BEGIN SELECT RAISE(ABORT, 'fixture'); END")
+        db.getSupportWrapper().execSQL("CREATE TRIGGER fixture_fail BEFORE INSERT ON questions BEGIN SELECT RAISE(ABORT, 'fixture'); END")
         val backup = BackupFile(categories = listOf(BackupCategory(1, "category")),
             tags = listOf(BackupTag(1, "tag")),
             questions = listOf(BackupQuestion(id, "fixture", "answer", 10000, categoryId = 1)))
@@ -113,7 +114,7 @@ class ReliabilityIntegrationTest {
     @Test fun committedCandidateIsPromotedAfterReopen() = runBlocking {
         val tags = seed()
         val before = TagMergeRepository.snapshot(db).first
-        db.withTransaction {
+        db.withWriteTransaction {
             TagMergeEngine.apply(db.questionDao(), TagMergeEngine.preview(before,
                 listOf(TagMergeGroup(tags.take(2), "vector"))), stageUndo = store::stage)
         }
@@ -131,7 +132,7 @@ class ReliabilityIntegrationTest {
         val previousUndo = store.read(1)
         val before = TagMergeRepository.snapshot(db).first
         try {
-            db.withTransaction {
+            db.withWriteTransaction {
                 TagMergeEngine.apply(db.questionDao(), TagMergeEngine.preview(before,
                     listOf(TagMergeGroup(tags.drop(2), "matrix"))), stageUndo = store::stage)
                 error("Injected interruption before commit")
@@ -140,6 +141,31 @@ class ReliabilityIntegrationTest {
         reopen()
         assertEquals(before, TagMergeRepository.snapshot(db).first)
         assertEquals(previousUndo, store.read(1)); assertNull(store.read(2))
+    }
+
+    @Test fun room2Schema10OpensWithoutMigrationAndKeepsLegacyPreview() = runBlocking {
+        db.close(); store.close()
+        context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { old ->
+            val sql = InstrumentationRegistry.getInstrumentation().context.assets
+                .open("room2-v10.sql").bufferedReader().use { it.readText() }
+            sql.split(';').map { it.trim() }.filter { it.isNotEmpty() }.forEach(old::execSQL)
+            old.execSQL("INSERT INTO questions (id,text,answer,createdAt,conversationJson,deleted) VALUES (?,?,?,?,?,0)",
+                arrayOf<Any>(id, "Room 2 fixture", "preserved answer", 10000,
+                    """[{"role":"question","images":["AQI=","AwQ="]}]"""))
+            old.version = 10
+        }
+        open()
+        assertEquals("preserved answer", db.questionDao().allQuestionsOnce().single().answer)
+        val images = db.previewImages(id)
+        assertEquals(2, images.size)
+        assertArrayEquals(byteArrayOf(1, 2), images[0])
+        assertArrayEquals(byteArrayOf(3, 4), images[1])
+        db.getSupportWrapper().query("SELECT identity_hash FROM room_master_table WHERE id=42").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("d66e3125b1edecdae1ee701ddbb0c951", it.getString(0))
+        }
+        reopen()
+        assertEquals(id, db.questionDao().allQuestionsOnce().single().id)
     }
 
     @Test fun actualRoomUpgradeKeepsOldQuestionsAndImageBytes() = runBlocking {
@@ -151,7 +177,7 @@ class ReliabilityIntegrationTest {
         }
         open()
         val questions = db.questionDao().allQuestionsOnce()
-        assertEquals(10, db.openHelper.readableDatabase.version)
+        assertEquals(10, db.getSupportWrapper().version)
         assertEquals(3, questions.size)
         assertTrue(questions.all { QuestionIdentity.valid(it.id) })
         val one = questions.first { it.text == "one" }

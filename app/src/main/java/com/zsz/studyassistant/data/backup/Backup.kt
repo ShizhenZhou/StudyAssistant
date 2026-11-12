@@ -3,7 +3,7 @@ package com.zsz.studyassistant.data
 import java.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.room.withTransaction
+import androidx.room3.withWriteTransaction
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -117,7 +117,7 @@ object BackupManager {
     /** A consistent snapshot; expensive encoding is never done on the UI thread. */
     suspend fun export(db: AppDatabase): String = withContext(Dispatchers.IO) {
         val dao = db.questionDao()
-        val file = db.withTransaction {
+        val file = db.withWriteTransaction {
             BackupLimits.checkEstimate(dao.questionBackupSize() + dao.historyBackupSize() + dao.imageBackupSize())
             val cats = dao.allCategoriesOnce()
             val tags = dao.getAllTagsOnce()
@@ -155,13 +155,13 @@ object BackupManager {
     suspend fun import(db: AppDatabase, text: String): ImportResult = withContext(Dispatchers.IO) {
         val file = BackupValidation.decode(text)
         TagMergeRepository.invalidateForImport(db) {
-            db.withTransaction { BackupImporter.merge(db.questionDao(), file) }
+            db.withWriteTransaction { BackupImporter.merge(db.questionDao(), file) }
         }
     }
 
     suspend fun importFile(db: AppDatabase, file: BackupFile): ImportResult = withContext(Dispatchers.IO) {
         TagMergeRepository.invalidateForImport(db) {
-            db.withTransaction { BackupImporter.merge(db.questionDao(), file) }
+            db.withWriteTransaction { BackupImporter.merge(db.questionDao(), file) }
         }
     }
 
@@ -169,7 +169,7 @@ object BackupManager {
     suspend fun clearAll(db: AppDatabase) {
         val dao = db.questionDao()
         TagMergeRepository.invalidateForImport(db) {
-            db.withTransaction {
+            db.withWriteTransaction {
                 dao.clearAllQuestionTags()
                 dao.clear()
                 dao.clearCategories()

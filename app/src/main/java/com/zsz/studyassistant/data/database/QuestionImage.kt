@@ -1,8 +1,8 @@
 package com.zsz.studyassistant.data
 
-import androidx.room.Entity
-import androidx.room.Index
-import androidx.room.PrimaryKey
+import androidx.room3.Entity
+import androidx.room3.Index
+import androidx.room3.PrimaryKey
 
 /**
  * 一道题的**原图**（DB v9 新增，一题多图的正式存储）。

@@ -1,7 +1,9 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.withWriteTransaction
+import androidx.room3.support.getSupportWrapper
 import android.content.Context
-import androidx.room.Room
+import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
@@ -18,9 +20,9 @@ import kotlinx.serialization.json.Json
 class BackupRepositoryIntegrationTest {
     private val context = ApplicationProvider.getApplicationContext<Context>().also { check(it.packageName == "com.zsz.studyassistant.integration") }
     private fun database(): AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java,
-        "backup-fixture-${UUID.randomUUID()}.db").build().also { it.tagUndoStore = SqliteTagUndoStore(context) }
+        "backup-fixture-${UUID.randomUUID()}.db").setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build().also { it.tagUndoStore = SqliteTagUndoStore(context) }
     private fun closeFixture(database:AppDatabase) {
-        val name=database.openHelper.writableDatabase.path?.let { File(it).name }
+        val name=database.getSupportWrapper().path?.let { File(it).name }
         (database.tagUndoStore as? SqliteTagUndoStore)?.close()
         database.close()
         if(name!=null) context.deleteDatabase(name)
@@ -28,7 +30,7 @@ class BackupRepositoryIntegrationTest {
     private fun workspace() = File(context.cacheDir, "backup-fixture-${UUID.randomUUID()}").apply { mkdirs() }
 
     @Test fun inMemoryExportUsesRoomTransactionAndPreservesPermanentIdentity() = runBlocking {
-        val source=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).build()
+        val source=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         val target=database(); val work=workspace()
         try {
             val id=QuestionIdentity.create(1700000000099)
@@ -104,7 +106,7 @@ class BackupRepositoryIntegrationTest {
             val repo=BackupRepository(context,target)
             val prepared=repo.prepareImportFiles(archive.files,File(work,"import"))
             try { repo.merge(prepared) {
-                val inserted=target.openHelper.writableDatabase.query("SELECT count(*) FROM questions").use { it.moveToFirst(); it.getInt(0) }
+                val inserted=target.getSupportWrapper().query("SELECT count(*) FROM questions").use { it.moveToFirst(); it.getInt(0) }
                 if(inserted>0) throw kotlinx.coroutines.CancellationException("fixture after insertion")
             }; fail("Expected cancellation") }
             catch (_: kotlinx.coroutines.CancellationException) { }
@@ -155,7 +157,7 @@ class BackupRepositoryIntegrationTest {
                 if(phase=="data.backupSnapshot" && count==1L && !changed) {
                     changed=true
                     val writer=Thread {
-                        try { source.runInTransaction { source.openHelper.writableDatabase.execSQL("UPDATE questions SET text='new'") } }
+                        try { runBlocking { source.withWriteTransaction { source.getSupportWrapper().execSQL("UPDATE questions SET text='new'") } } }
                         catch(error:Throwable) { failure.set(error) }
                     }
                     writer.start(); writer.join(5000)
@@ -181,12 +183,12 @@ class BackupRepositoryIntegrationTest {
             catch(_:kotlinx.coroutines.CancellationException) { }
             assertTrue(File(export,"capture.ready").isFile)
             val at=File(export,"capture.ready").readLines().first().toLong()
-            source.openHelper.writableDatabase.execSQL("UPDATE questions SET text='later change'")
+            source.getSupportWrapper().execSQL("UPDATE questions SET text='later change'")
             try { repo.export(export,progress={ phase,_ -> if(phase=="data.backupValidate") throw kotlinx.coroutines.CancellationException("normalize complete") }); fail("Expected normalization checkpoint interruption") }
             catch(_:kotlinx.coroutines.CancellationException) { }
             assertTrue(File(export,"normalize.ready").isFile)
             assertFalse(File(export,"capture").exists())
-            source.openHelper.writableDatabase.execSQL("UPDATE questions SET text='even later'")
+            source.getSupportWrapper().execSQL("UPDATE questions SET text='even later'")
             val archive=repo.export(export)
             assertEquals(at,archive.snapshotAt)
             val importer=BackupRepository(context,target)

@@ -1,9 +1,10 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.support.getSupportWrapper
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
-import androidx.room.withTransaction
+import androidx.room3.withWriteTransaction
 import java.io.*
 import java.util.concurrent.Executors
 import kotlinx.coroutines.*
@@ -31,7 +32,9 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
                 snapshotAt=System.currentTimeMillis()
                 progress("data.backupSnapshot",0)
                 // Force Room to open/migrate and validate first. Never copy an active WAL database.
-                val opened=db.openHelper.writableDatabase
+                val opened=db.getSupportWrapper()
+                // Wrapper creation alone does not open/validate the Room database.
+                kotlin.check(opened.version == AppDatabase.SCHEMA_VERSION)
                 val sourcePath=opened.path
                 if (!sourcePath.isNullOrEmpty() && sourcePath != ":memory:") {
                     val dispatcher=Executors.newSingleThreadExecutor { runnable -> Thread(runnable,"backup-read-snapshot") }.asCoroutineDispatcher()
@@ -43,7 +46,7 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
                         }
                     } } finally { dispatcher.close() }
                 } else {
-                    db.withTransaction {
+                    db.withWriteTransaction {
                         BackupTree.capture(raw,{ sql,args -> opened.query(sql,args) },stop) { progress("data.backupSnapshot",it) }
                     }
                 }
@@ -133,8 +136,8 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
                 BackupTree.validate(source,stop)
                 SQLiteDatabase.openOrCreateDatabase(maps,null).use { index ->
                     TagMergeRepository.invalidateForImport(db) {
-                        db.withTransaction {
-                            BackupStagedMerge(source,index,db.openHelper.writableDatabase,stop).merge()
+                        db.withWriteTransaction {
+                            BackupStagedMerge(source,index,db.getSupportWrapper(),stop).merge()
                         }
                     }
                 }

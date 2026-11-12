@@ -1,8 +1,8 @@
 package com.zsz.studyassistant.data
 
 import android.content.Context
-import androidx.room.Room
-import androidx.room.withTransaction
+import androidx.room3.Room
+import androidx.room3.withWriteTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.zsz.studyassistant.ChatItem
@@ -26,7 +26,7 @@ class CloseoutIntegrationTest {
     @Before fun setup() {
         context=InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName=="com.zsz.studyassistant.integration")
-        db=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).build()
+        db=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         store=ConversationDraftStore(context)
     }
     @After fun cleanup() { db.close();store.invalidate(ids) }
@@ -59,7 +59,7 @@ class CloseoutIntegrationTest {
             tags=listOf(BackupTag(1,"merged away"),BackupTag(2,"needed")),
             questions=listOf(BackupQuestion(old,"old","old",10000,categoryId=1),BackupQuestion(fresh,"new","new",20000,categoryId=2)),
             questionTags=listOf(BackupQuestionTag(old,1),BackupQuestionTag(fresh,2)))
-        db.withTransaction { BackupImporter.merge(dao,backup) }
+        db.withWriteTransaction { BackupImporter.merge(dao,backup) }
         assertEquals(listOf("needed"),dao.allCategoriesOnce().map { it.name })
         assertEquals(listOf("needed"),dao.getAllTagsOnce().map { it.name })
         assertEquals("latest",dao.heavyOnce(old)!!.answer)
@@ -67,11 +67,11 @@ class CloseoutIntegrationTest {
     }
     @Test fun reviewInsertAndUpdateRollbackTogetherOnFailure() = runBlocking {
         val dao=db.questionDao();val id=id();dao.insert(Question(id,"fixture","a",10000))
-        try { db.withTransaction {
+        try { db.withWriteTransaction {
             dao.insertReview(Review(id));dao.updateReview(id,2,30000,20000);error("synthetic failure")
         } } catch (_:IllegalStateException) { }
         assertNull(dao.reviewFor(id))
-        db.withTransaction { dao.insertReview(Review(id));dao.updateReview(id,2,30000,20000) }
+        db.withWriteTransaction { dao.insertReview(Review(id));dao.updateReview(id,2,30000,20000) }
         assertEquals(1,dao.reviewFor(id)!!.reviewCount)
     }
 }

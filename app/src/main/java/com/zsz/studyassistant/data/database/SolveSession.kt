@@ -1,7 +1,7 @@
 package com.zsz.studyassistant.data
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
+import androidx.room3.Entity
+import androidx.room3.PrimaryKey
 
 /**
  * Original search record: its primary key is the same permanent ID used by the

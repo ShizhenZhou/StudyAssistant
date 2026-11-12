@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.support.getSupportWrapper
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -246,7 +247,7 @@ object BackupJobs {
     }
     /** Call on IO: bounded EXISTS does not load question text/images or a full ID list. */
     internal fun hasActiveQuestions(context: Context, database: AppDatabase = AppDatabase.get(context)): Boolean =
-        database.openHelper.writableDatabase.query("SELECT EXISTS(SELECT 1 FROM questions WHERE deleted = 0 LIMIT 1)").use {
+        database.getSupportWrapper().query("SELECT EXISTS(SELECT 1 FROM questions WHERE deleted = 0 LIMIT 1)").use {
             it.moveToFirst() && it.getInt(0) != 0
         }
     internal fun stopAutomaticIfEmpty(context: Context, automatic: Boolean, check: () -> Unit = {}): Boolean {

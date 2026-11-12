@@ -154,8 +154,7 @@ class RoomSchemaArgProvider(
 }
 
 ksp {
-    // Preserve Java DAO generation while replacing kapt's Kotlin metadata reader.
-    arg("room.generateKotlin", "false")
+    // Room 3 generates Kotlin DAOs; keep schema snapshots outside packaged assets.
     arg(RoomSchemaArgProvider(layout.projectDirectory.dir("schemas").asFile))
 }
 
@@ -207,7 +206,8 @@ dependencies {
 
     // 本地存储（错题本）
     implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
+    implementation(libs.room.wrapper)
+    implementation(libs.sqlite.framework)
     ksp(libs.room.compiler)
 
     // 单元测试（纯 JVM）：答案解析、版本比较、文案表 —— 见 app/src/test

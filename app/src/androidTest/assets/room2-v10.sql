@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS `questions` (`id` TEXT NOT NULL, `text` TEXT NOT NULL, `answer` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `imageBytes` BLOB, `conversationJson` TEXT, `deleted` INTEGER NOT NULL, `categoryId` INTEGER, PRIMARY KEY(`id`));
+CREATE TABLE IF NOT EXISTS `categories` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `createdAt` INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS `tags` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `createdAt` INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS `question_tags` (`questionId` TEXT NOT NULL, `tagId` INTEGER NOT NULL, PRIMARY KEY(`questionId`, `tagId`));
+CREATE TABLE IF NOT EXISTS `review` (`questionId` TEXT NOT NULL, `intervalStep` INTEGER NOT NULL, `nextReviewAt` INTEGER NOT NULL, `lastReviewedAt` INTEGER NOT NULL, `reviewCount` INTEGER NOT NULL, PRIMARY KEY(`questionId`));
+CREATE TABLE IF NOT EXISTS `solve_sessions` (`id` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `source` TEXT NOT NULL, `text` TEXT NOT NULL, `answer` TEXT NOT NULL, `conversationJson` TEXT, `imageBytes` BLOB, `imagesJson` TEXT, `savedQuestionId` TEXT, PRIMARY KEY(`id`));
+CREATE TABLE IF NOT EXISTS `question_images` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `questionId` TEXT NOT NULL, `position` INTEGER NOT NULL, `bytes` BLOB NOT NULL, `source` TEXT, `createdAt` INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS `index_question_images_questionId_position` ON `question_images` (`questionId`, `position`);
+CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT);
+INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd66e3125b1edecdae1ee701ddbb0c951');

@@ -18,7 +18,7 @@
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.5.1、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
 
-AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 2.8.5 使用 KSP 2.3.12，保留 Java DAO 生成，不改变数据库格式。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
+AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 3.0.3 使用 KSP 2.3.12 生成 Kotlin DAO，通过 AndroidSQLiteDriver 使用系统 SQLite，不改变数据库格式。少量分段读取和备份 SQL 使用官方 room3-sqlite-wrapper 兼容接口；写操作仍在 Room 的 withWriteTransaction 内执行。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
 
 Room 结构快照由正常 KSP 编译导出至 `app/schemas/com.zsz.studyassistant.data.AppDatabase/<数据库版本>.json`，随源码提交，从当前 DB v10 开始保留。各构建变体共用相同结构；目录不加入应用资源，不打入正式 APK。以后变更表结构时新增对应版本快照并保留旧文件，不手工编造历史版本；无需为导出单独增加测试或 CI 门禁。
 

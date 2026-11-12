@@ -1,5 +1,6 @@
 package com.zsz.studyassistant.ui
 
+import com.zsz.studyassistant.data.previewImages
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 
@@ -45,8 +46,8 @@ internal fun questionCardBitmaps(q: com.zsz.studyassistant.data.QuestionPreview,
     val context = androidx.compose.ui.platform.LocalContext.current
     val state = androidx.compose.runtime.produceState<List<android.graphics.Bitmap>?>(null, q.id, width) {
         value = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val dao = com.zsz.studyassistant.data.AppDatabase.get(context).questionDao()
-            dao.previewImages(q.id).mapNotNull { decodeSampledBitmap(it, width) }
+            val database = com.zsz.studyassistant.data.AppDatabase.get(context)
+            database.previewImages(q.id).mapNotNull { decodeSampledBitmap(it, width) }
         } } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (_: Exception) { emptyList() }
     }

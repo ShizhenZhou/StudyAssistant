@@ -1,7 +1,8 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.support.getSupportWrapper
 import android.content.Context
-import androidx.room.Room
+import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
@@ -23,9 +24,9 @@ class BackupLargeLibraryIntegrationTest {
         check(it.packageName=="com.zsz.studyassistant.integration")
     }
     private fun database():AppDatabase=Room.databaseBuilder(context,AppDatabase::class.java,
-        "large-backup-fixture-${UUID.randomUUID()}.db").build().also { it.tagUndoStore=SqliteTagUndoStore(context) }
+        "large-backup-fixture-${UUID.randomUUID()}.db").setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build().also { it.tagUndoStore=SqliteTagUndoStore(context) }
     private fun closeFixture(database:AppDatabase) {
-        val name=database.openHelper.writableDatabase.path?.let { File(it).name }
+        val name=database.getSupportWrapper().path?.let { File(it).name }
         (database.tagUndoStore as? SqliteTagUndoStore)?.close()
         database.close()
         if(name!=null) context.deleteDatabase(name)

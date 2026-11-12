@@ -12,7 +12,8 @@ cameraX = "1.6.2"
 retrofit = "3.0.0"
 okhttp = "5.5.1"
 kotlinxSerialization = "1.13.0"
-room = "2.8.5"
+room = "3.0.3"
+sqlite = "2.7.1"
 work = "2.12.0"
 junit = "4.13.2"
 androidTestRunner = "1.7.0"
@@ -38,10 +39,11 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 retrofit-kotlinx-serialization = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-runtime = { group = "androidx.room3", name = "room3-runtime", version.ref = "room" }
 androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+room-wrapper = { group = "androidx.room3", name = "room3-sqlite-wrapper", version.ref = "room" }
+sqlite-framework = { group = "androidx.sqlite", name = "sqlite-framework", version.ref = "sqlite" }
+room-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "room" }
 # 纯 JVM 单元测试（见 app/src/test）：只测解析/版本比较/文案表这类纯逻辑，不碰 Android 实现
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 

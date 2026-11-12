@@ -1,8 +1,9 @@
 package com.zsz.studyassistant.data
 
+import androidx.room3.support.getSupportWrapper
 import android.app.Application
 import androidx.lifecycle.viewModelScope
-import androidx.room.Room
+import androidx.room3.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.zsz.studyassistant.ChatItem
@@ -31,7 +32,7 @@ class ReliabilityRegressionTest {
         check(context.packageName=="com.zsz.studyassistant.integration")
         app=context.applicationContext as Application
         com.zsz.studyassistant.ui.UiLangStore.save(app,com.zsz.studyassistant.ui.UiLang.EN)
-        db=AppDatabase.get(app);db.clearAllTables();store=ConversationDraftStore(app)
+        db=AppDatabase.get(app);runBlocking { db.clearAllTables() };store=ConversationDraftStore(app)
     }
     private fun model(): MainViewModel {
         InstrumentationRegistry.getInstrumentation().runOnMainSync { vm=MainViewModel(app) }
@@ -176,19 +177,19 @@ class ReliabilityRegressionTest {
     @Test fun failedGradeHistoryKeepsTheDraftUntilRetrySucceeds()=runBlocking {
         val id=id(System.currentTimeMillis());val value=completedGrade(id)
         store.reserve(id,value.generation);store.write(value,null)
-        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fixture_grade_insert BEFORE INSERT ON solve_sessions BEGIN SELECT RAISE(ABORT, 'synthetic IO failure'); END")
+        db.getSupportWrapper().execSQL("CREATE TRIGGER fixture_grade_insert BEFORE INSERT ON solve_sessions BEGIN SELECT RAISE(ABORT, 'synthetic IO failure'); END")
         try {
             val model=model()
             withContext(Dispatchers.Main) { model.resumeDraft(id,"home") }
             awaitCondition { model.draftSolveRequested || model.draftError!=null }
             assertNotNull(store.read(id));assertNull(db.questionDao().solveSessionOnce(id))
             assertTrue(model.failedHistoryWrites>0)
-            db.openHelper.writableDatabase.execSQL("DROP TRIGGER fixture_grade_insert")
+            db.getSupportWrapper().execSQL("DROP TRIGGER fixture_grade_insert")
             withContext(Dispatchers.Main) { model.retryFailedHistoryWrites() }
             awaitCondition { !model.retryingHistoryWrites }
             assertEquals("synthetic grade result",db.questionDao().solveSessionOnce(id)?.answer)
             assertNull(store.read(id))
-        } finally { db.openHelper.writableDatabase.execSQL("DROP TRIGGER IF EXISTS fixture_grade_insert") }
+        } finally { db.getSupportWrapper().execSQL("DROP TRIGGER IF EXISTS fixture_grade_insert") }
     }
     @Test fun managedGradeDoesNotRecreateAnExplicitlyDeletedHistory()=runBlocking {
         val id=id(System.currentTimeMillis());val value=completedGrade(id).copy(historyAllowed=true,gradeHistoryEnabled=true)
@@ -244,7 +245,7 @@ class ReliabilityRegressionTest {
         assertEquals(fresh.generation,store.read(id)!!.generation)
     }
     @Test fun notebookListMustRemainReadableWithALongImportedAnswer()=runBlocking {
-        val isolated=Room.inMemoryDatabaseBuilder(app,AppDatabase::class.java).build()
+        val isolated=Room.inMemoryDatabaseBuilder(app,AppDatabase::class.java).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         try {
             isolated.questionDao().insert(Question(id(),"synthetic question","x".repeat(3*1024*1024),10000))
             assertEquals(1,isolated.questionDao().getAll().first().size)

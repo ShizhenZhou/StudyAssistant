@@ -78,7 +78,7 @@
 
 - 当前 **schema version = 10**（`AppDatabase.SCHEMA_VERSION`），自 App v0.6.6.3 起；v0.6.6.5 保持 v10，v0.6.6.2 使用 DB v9。
 - 已开启 Room 结构导出，编译生成的当前基线保存在 `app/schemas/com.zsz.studyassistant.data.AppDatabase/10.json`，只含结构定义，不含用户数据。从 v10 开始保留快照，不补造旧版本；此配置不改变表结构、迁移链或 Bak v4 格式。
-- Room 库版本与数据格式版本独立：构建使用 Room 2.8.5 / KSP；库或代码生成器更新不自动提升 DB/Bak 版本。现有实体、索引与迁移链保持不变时继续使用 DB v10 / Bak v4。
+- Room 库版本与数据格式版本独立：构建使用 Room 3.0.3 / KSP（Kotlin DAO）及 AndroidSQLiteDriver；库或代码生成器更新不自动提升 DB/Bak 版本。现有实体、索引与迁移链保持不变时继续使用 DB v10 / Bak v4。Room 3 升级保留既有 v10 identity hash；历史迁移改用 SQLiteConnection，SQL 与永久编号规则不变。备份 SQL 经官方 SupportSQLite 包装接口在 withWriteTransaction 内执行，保留事务回滚和变更通知；打开包装对象本身不会打开数据库，快照导出须先读取并确认主库版本，再打开独立只读连接。
 - 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10`，全部用 `Migration` + `addMigrations(...)`。
 - 保留 v9 → v10 的原地升级；历史 migration 链仍保留。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。v0.6.6.5 无主库迁移，不会仅因应用版本更新再次要求升级。
 - 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v<目标版本>-from-v<原版本>-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。此前 `.pre-v9` / `.pre-v10-*` 文件不删除。

@@ -1,19 +1,21 @@
 package com.zsz.studyassistant.data
 
 import android.content.Context
-import androidx.room.Dao
-import androidx.room.Database
-import androidx.room.Delete
-import androidx.room.Entity
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.PrimaryKey
-import androidx.room.Query
-import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.room.Update
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room3.Dao
+import androidx.room3.Database
+import androidx.room3.Delete
+import androidx.room3.Entity
+import androidx.room3.Insert
+import androidx.room3.OnConflictStrategy
+import androidx.room3.PrimaryKey
+import androidx.room3.Query
+import androidx.room3.Room
+import androidx.room3.RoomDatabase
+import androidx.room3.Update
+import androidx.room3.migration.Migration
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
+import androidx.sqlite.driver.AndroidSQLiteDriver
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
@@ -105,7 +107,7 @@ interface QuestionDao {
     @Insert
     suspend fun insert(q: Question): Long
 
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun insertQuestionWithId(q: Question): QuestionId {
         insert(q)
         return q.id
@@ -123,7 +125,7 @@ interface QuestionDao {
     @Query("SELECT COUNT(*) FROM tags WHERE id IN (:ids)")
     suspend fun existingTagCount(ids: List<Long>): Int
 
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun insertQuestionTag(qt: QuestionTag) {
         if (existingTagCount(listOf(qt.tagId)) != 1) throw TagMergeException("tagMerge.changed")
         insertQuestionTagRaw(qt)
@@ -148,7 +150,7 @@ interface QuestionDao {
     fun dueQuestions(until: Long, onlyWeak: Boolean = false): Flow<List<QuestionPreview>>
 
     /** 按 id 取完整一行（含图片 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun heavyOnce(id: QuestionId): Question? {
         val row = questionLightOnce(id) ?: return null
         return row.copy(imageBytes = questionImageOnce(id), conversationJson =
@@ -158,7 +160,7 @@ interface QuestionDao {
     suspend fun questionImageSize(id: QuestionId): Int?
     @Query("SELECT substr(imageBytes,:offset,:count) FROM questions WHERE id=:id")
     suspend fun questionImagePart(id: QuestionId, offset: Int, count: Int): ByteArray?
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun questionImageOnce(id: QuestionId): ByteArray? =
         readChunkedBlob(questionImageSize(id)) { a,b -> questionImagePart(id,a,b) }
     @Query("SELECT LENGTH(conversationJson) FROM questions WHERE id=:id")
@@ -173,7 +175,7 @@ interface QuestionDao {
     @Query("SELECT substr(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END,:offset,:count) FROM questions WHERE id=:id")
     suspend fun questionTextPart(id: QuestionId, field: String, offset: Int, count: Int): String?
     /** Full text, no images: duplicate checks and content saves must never use list previews. */
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun questionLightOnce(id: QuestionId): Question? {
         val row=questionPreviewOnce(id) ?: return null
         return Question(id = row.id, createdAt = row.createdAt, deleted = row.deleted, categoryId = row.categoryId,
@@ -237,7 +239,7 @@ interface QuestionDao {
     // ---- 备份 / 恢复 / 数据管理 ----
     @Query("SELECT id FROM questions ORDER BY id ASC")
     suspend fun allQuestionIdsOnce(): List<QuestionId>
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun allQuestionsOnce(): List<Question> = allQuestionIdsOnce().mapNotNull { heavyOnce(it) }
 
     @Query("SELECT COALESCE(SUM(LENGTH(text)+LENGTH(answer)+COALESCE(LENGTH(conversationJson),0)+COALESCE(LENGTH(imageBytes),0)),0) FROM questions")
@@ -250,11 +252,11 @@ interface QuestionDao {
     /** 轻查询（不含图片 BLOB / 会话 JSON）：查重（B9）等只要题干的场景用，避免大字段进出 */
     @Query("SELECT id FROM questions WHERE deleted = 0")
     suspend fun activeQuestionIdsOnce(): List<QuestionId>
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun allLightOnce(): List<Question> = activeQuestionIdsOnce().mapNotNull { questionLightOnce(it) }
 
     /** Full-content Unicode search; only bounded hit snippets leave the IO reader. */
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun matchingQuestionSnippets(query: String): Map<QuestionId, SearchSnippet> {
         if (query.isBlank()) return emptyMap()
         return buildMap {
@@ -276,7 +278,7 @@ interface QuestionDao {
      */
     @Query("SELECT id FROM questions WHERE deleted = 0 AND imageBytes IS NULL AND conversationJson IS NOT NULL")
     suspend fun questionIdsMissingImageOnce(): List<QuestionId>
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun questionsMissingImageOnce(): List<Question> = questionIdsMissingImageOnce().mapNotNull { heavyOnce(it) }
 
     /** 「原图回填」用：只写回主图，不动其它字段（避免整行 UPDATE 覆盖并发修改） */
@@ -292,14 +294,14 @@ interface QuestionDao {
     suspend fun setConversationJson(id: QuestionId, cj: String)
 
     /** 「多图修复」用：按"已存错题 id"找到对应搜题记录（记录里 `imagesJson` 有全部图） */
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun solveSessionForQuestion(qid: QuestionId): SolveSession? =
         solveSessionOnce(qid)?.takeIf { it.savedQuestionId == qid }
 
     /** 「多图修复」用（兜底）：按题干文本匹配搜题记录 */
     @Query("SELECT id FROM solve_sessions WHERE text = :text AND imagesJson IS NOT NULL ORDER BY createdAt DESC LIMIT 1")
     suspend fun sessionIdByText(text: String): QuestionId?
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun solveSessionByText(text: String): SolveSession? = sessionIdByText(text)?.let { solveSessionOnce(it) }
 
     // ── DB v9：一题多图（`question_images` 表，0=主图）────────────────────────
@@ -311,28 +313,15 @@ interface QuestionDao {
     suspend fun imageSize(id: Long): Int?
     @Query("SELECT substr(bytes,:offset,:count) FROM question_images WHERE id=:id")
     suspend fun imagePart(id: Long, offset: Int, count: Int): ByteArray?
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun imagesForQuestion(qid: QuestionId): List<QuestionImage> = imageHeadersForQuestion(qid).map {
         it.copy(bytes=checkNotNull(readChunkedBlob(imageSize(it.id)) { a,b -> imagePart(it.id,a,b) }))
     }
 
-    /** Card-only projection. Never load the answer or later conversation turns for a thumbnail. */
-    @androidx.room.Transaction
-    suspend fun previewImages(qid: QuestionId): List<ByteArray> {
-        val stored = imagesForQuestion(qid)
-        if (stored.isNotEmpty()) return stored.map { it.bytes }
-        val primary = listOfNotNull(questionImageOnce(qid))
-        val legacy = legacyPreviewImages { offset, count -> previewConversationPart(qid, offset, count) }
-        return primary + additionalQuestionImages(primary, legacy)
-    }
-
-    @Query("SELECT substr(conversationJson,:offset,:count) FROM questions WHERE id=:qid")
-    fun previewConversationPart(qid: QuestionId, offset: Int, count: Int): String?
-
     /** 批量读"主图"（列表页兜底；只取 position=0，避免把全部大图读进内存） */
     @Query("SELECT id,questionId,position,X'' AS bytes,source,createdAt FROM question_images WHERE position = 0 AND questionId IN (:qids)")
     suspend fun mainImageHeadersFor(qids: List<QuestionId>): List<QuestionImage>
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun mainImagesFor(qids: List<QuestionId>): List<QuestionImage> = mainImageHeadersFor(qids).map {
         it.copy(bytes=checkNotNull(readChunkedBlob(imageSize(it.id)) { a,b -> imagePart(it.id,a,b) }))
     }
@@ -344,7 +333,7 @@ interface QuestionDao {
     suspend fun questionExists(qid: QuestionId): Boolean
 
     /** 同一事务内检查并追加，不清除、不重排已有图片。 */
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun appendMissingImages(qid: QuestionId, candidates: List<ByteArray>, source: String): Int {
         if (!questionExists(qid)) return 0
         val existing = imagesForQuestion(qid)
@@ -377,7 +366,7 @@ interface QuestionDao {
 
     @Query("SELECT id FROM solve_sessions ORDER BY createdAt ASC")
     suspend fun allSessionIdsOnce(): List<QuestionId>
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun allSolveSessionsOnce(): List<SolveSession> = allSessionIdsOnce().mapNotNull { solveSessionOnce(it) }
 
     @Insert
@@ -414,7 +403,7 @@ interface QuestionDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertQuestionTagsRaw(list: List<QuestionTag>)
 
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun insertQuestionTags(list: List<QuestionTag>) {
         val ids = list.map { it.tagId }.distinct()
         if (ids.isNotEmpty() && existingTagCount(ids) != ids.size) throw TagMergeException("tagMerge.changed")
@@ -496,7 +485,7 @@ interface QuestionDao {
     suspend fun sessionImageSize(id: QuestionId): Int?
     @Query("SELECT substr(imageBytes,:offset,:count) FROM solve_sessions WHERE id=:id")
     suspend fun sessionImagePart(id: QuestionId, offset: Int, count: Int): ByteArray?
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun sessionImageOnce(id: QuestionId): ByteArray? =
         readChunkedBlob(sessionImageSize(id)) { a,b -> sessionImagePart(id,a,b) }
     @Query("SELECT LENGTH(conversationJson) FROM solve_sessions WHERE id=:id")
@@ -507,7 +496,7 @@ interface QuestionDao {
     suspend fun sessionImagesSize(id: QuestionId): Int?
     @Query("SELECT substr(imagesJson,:offset,:count) FROM solve_sessions WHERE id=:id")
     suspend fun sessionImagesPart(id: QuestionId, offset: Int, count: Int): String?
-    @androidx.room.Transaction
+    @androidx.room3.Transaction
     suspend fun solveSessionOnce(id: QuestionId): SolveSession? {
         val row = sessionLightOnce(id) ?: return null
         return SolveSession(id = row.id, createdAt = row.createdAt, updatedAt = row.updatedAt, source = row.source,
@@ -538,28 +527,28 @@ interface QuestionDao {
 
 /** 数据库 1 -> 2：给 questions 表加 imageBytes 列，保留现有错题 */
 val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("ALTER TABLE questions ADD COLUMN imageBytes BLOB")
     }
 }
 
 /** 数据库 2 -> 3：加 conversationJson 列（对话会话） */
 val MIGRATION_2_3 = object : Migration(2, 3) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("ALTER TABLE questions ADD COLUMN conversationJson TEXT")
     }
 }
 
 /** 数据库 3 -> 4：加 deleted 列（软删除/恢复） */
 val MIGRATION_3_4 = object : Migration(3, 4) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("ALTER TABLE questions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
     }
 }
 
 /** 数据库 4 -> 5：加 categories 表 + questions.categoryId 列（错题分类） */
 val MIGRATION_4_5 = object : Migration(4, 5) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, createdAt INTEGER NOT NULL)")
         db.execSQL("ALTER TABLE questions ADD COLUMN categoryId INTEGER")
     }
@@ -567,7 +556,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
 
 /** 数据库 5 -> 6：加 tags 表 + question_tags 关联表（知识点 tag，多对多） */
 val MIGRATION_5_6 = object : Migration(5, 6) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, createdAt INTEGER NOT NULL)")
         db.execSQL("CREATE TABLE IF NOT EXISTS question_tags (questionId INTEGER NOT NULL, tagId INTEGER NOT NULL, PRIMARY KEY(questionId, tagId))")
     }
@@ -575,14 +564,14 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 
 /** 数据库 6 -> 7：加 review 表（艾宾浩斯复习调度） */
 val MIGRATION_6_7 = object : Migration(6, 7) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("CREATE TABLE IF NOT EXISTS review (questionId INTEGER PRIMARY KEY NOT NULL, intervalStep INTEGER NOT NULL, nextReviewAt INTEGER NOT NULL, lastReviewedAt INTEGER NOT NULL, reviewCount INTEGER NOT NULL)")
     }
 }
 
 /** 数据库 7 -> 8：加 solve_sessions 表（搜题记录；与 questions 完全隔离，现有查询一律不动） */
 val MIGRATION_7_8 = object : Migration(7, 8) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL(
             "CREATE TABLE IF NOT EXISTS solve_sessions (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -609,7 +598,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
  *  - 只做加法：`questions.imageBytes` 列保留不删，读取一律「新表 → imageBytes → conversationJson」三层兜底。
  */
 val MIGRATION_8_9 = object : Migration(8, 9) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL(
             "CREATE TABLE IF NOT EXISTS question_images (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -633,13 +622,13 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
 
 /** Room executes this plan in its migration transaction. */
 val MIGRATION_9_10 = object : Migration(9, 10) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        fun times(sql: String): List<LegacyQuestionTime> = db.query(sql).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(LegacyQuestionTime(cursor.getLong(0), cursor.getLong(1))) }
+    override suspend fun migrate(db: SQLiteConnection) {
+        fun times(sql: String): List<LegacyQuestionTime> = db.prepare(sql).use { cursor ->
+            buildList { while (cursor.step()) add(LegacyQuestionTime(cursor.getLong(0), cursor.getLong(1))) }
         }
         val rows = times("SELECT id,createdAt FROM questions ORDER BY id")
-        val orphans = db.query("SELECT questionId FROM question_tags UNION SELECT questionId FROM review UNION SELECT questionId FROM question_images").use { cursor ->
-            buildList { while (cursor.moveToNext()) add(cursor.getLong(0)) }
+        val orphans = db.prepare("SELECT questionId FROM question_tags UNION SELECT questionId FROM review UNION SELECT questionId FROM question_images").use { cursor ->
+            buildList { while (cursor.step()) add(cursor.getLong(0)) }
         }
         val sessions = times("SELECT id,createdAt FROM solve_sessions ORDER BY id")
         IdentityMigrationPlan.statements(rows, orphans, sessions, System.currentTimeMillis()).forEach(db::execSQL)
@@ -668,7 +657,7 @@ abstract class AppDatabase : RoomDatabase() {
                         context.applicationContext,
                         AppDatabase::class.java,
                         "study_assistant.db"
-                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build().also {
+                    ).setDriver(AndroidSQLiteDriver()).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build().also {
                         it.tagUndoStore = SqliteTagUndoStore(context)
                         INSTANCE = it
                     }
