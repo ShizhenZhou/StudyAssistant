@@ -26,6 +26,13 @@ class UpdateDeltaTest {
             it.copy(delta = it.delta.copy(baseSize = 101))
         })))
         org.junit.Assert.assertEquals(50L, plan(chain + edge('b', 'a', 1))!!.downloadSize)
+        val newer = edge('a', 'd', 60).let { it.copy(delta = it.delta.copy(format = UpdateArchiveDelta.FORMAT)) }
+        org.junit.Assert.assertEquals(60L, plan(chain + edge('a', 'd', 90) + newer)!!.downloadSize)
+        val mixed = chain.take(2).mapIndexed { i, it ->
+            if (i == 1) it.copy(delta = it.delta.copy(format = UpdateArchiveDelta.FORMAT)) else it
+        }
+        org.junit.Assert.assertEquals(listOf(UpdateDelta.FORMAT, UpdateArchiveDelta.FORMAT),
+            plan(mixed)!!.steps.map { it.delta.format })
     }
 
     @Test fun cancellationInterruptsReconstructionAndHashing() = withFiles { base, file, out ->

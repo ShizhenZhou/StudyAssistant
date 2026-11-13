@@ -62,9 +62,9 @@ def encode(base, target, block_size=32):
     return gzip.compress(output.getvalue(), compresslevel=9, mtime=0)
 
 
-def encode_matched(base, target, block_size=16):
+def encode_matched(base, target, block_size=16, *, raw=False, max_size=MAX_APK_SIZE):
     """Bounded alternative matcher; emits only commands already supported by old clients."""
-    if not 0 < len(base) <= MAX_APK_SIZE or not 0 < len(target) <= MAX_APK_SIZE:
+    if not 0 < len(base) <= max_size or not 0 < len(target) <= max_size:
         raise ValueError("APK size is outside the supported range")
     if block_size not in (16, 32): raise ValueError("Unsupported matching block size")
     # Bound index entries for larger APKs. Repeated seeds retain both ends so an
@@ -125,7 +125,7 @@ def encode_matched(base, target, block_size=16):
         commands += 1
         cursor += length; literal = cursor; continuation = source + length
     data(literal, len(target)); output.write(b"\x00")
-    return gzip.compress(output.getvalue(), compresslevel=9, mtime=0)
+    return output.getvalue() if raw else gzip.compress(output.getvalue(), compresslevel=9, mtime=0)
 
 
 def encode_candidates(base, target):
@@ -142,8 +142,13 @@ def encode_best(base, target):
 
 def apply(base, patch, target_size):
     """Strict independent decoder used to verify artifacts before publication."""
-    if not 0 < target_size <= MAX_APK_SIZE: raise ValueError("Invalid target size")
-    source = gzip.GzipFile(fileobj=io.BytesIO(patch))
+    with gzip.GzipFile(fileobj=io.BytesIO(patch)) as source:
+        return apply_raw(base, source, target_size)
+
+
+def apply_raw(base, source, target_size, *, max_size=MAX_APK_SIZE):
+    """Decode one bounded raw stream, including its EOF (also used by APK-aware deltas)."""
+    if not 0 < target_size <= max_size: raise ValueError("Invalid target size")
     def read(size):
         result = source.read(size)
         if len(result) != size: raise ValueError("Truncated GDIFF stream")
@@ -153,9 +158,12 @@ def apply(base, patch, target_size):
     output = bytearray()
     copy_types = {249: (">H", ">B"), 250: (">H", ">H"), 251: (">H", ">i"),
                   252: (">i", ">B"), 253: (">i", ">H"), 254: (">i", ">i"), 255: (">q", ">i")}
+    commands = 0
     while True:
         opcode = read(1)[0]
         if opcode == 0: break
+        commands += 1
+        if commands > 1_000_000: raise ValueError("Too many GDIFF commands")
         offset = None
         if opcode <= 246: length = opcode
         elif opcode == 247: length = number(">H")

@@ -2,7 +2,7 @@ package com.zsz.studyassistant.data
 
 /** One verified-manifest edge. Intermediate APKs are private data, never installed. */
 data class UpdateDeltaStep(val delta: UpdateDeltaInfo, val targetSha256: String, val targetSize: Long, val tagName: String) {
-    internal fun valid(): Boolean = delta.format == UpdateDelta.FORMAT &&
+    internal fun valid(): Boolean = UpdateDelta.supports(delta.format) &&
         delta.baseSize in 1..UpdateDelta.MAX_APK_SIZE && targetSize in 1..UpdateDelta.MAX_APK_SIZE &&
         delta.patchSize in 1 until targetSize &&
         listOf(delta.baseSha256, delta.patchSha256, targetSha256).all { Regex("[0-9a-f]{64}").matches(it) } &&

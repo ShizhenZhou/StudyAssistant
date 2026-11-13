@@ -41,51 +41,66 @@ internal object UpdateDelta {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
+    fun supports(format: String): Boolean = format == FORMAT || format == UpdateArchiveDelta.FORMAT
+
+    fun applyPatch(base: File, patch: File, output: File, targetSize: Long, format: String, check: () -> Unit = {}) {
+        when (format) {
+            FORMAT -> applyGdiff(base, patch, output, targetSize, check)
+            UpdateArchiveDelta.FORMAT -> UpdateArchiveDelta.apply(base, patch, output, targetSize, check)
+            else -> error("Unsupported delta format")
+        }
+    }
+
     fun applyGdiff(base: File, patch: File, output: File, targetSize: Long, check: () -> Unit = {}) {
+        DataInputStream(GZIPInputStream(patch.inputStream().buffered(), 64 * 1024)).use { input ->
+            applyGdiffStream(base, input, output, targetSize, check)
+        }
+    }
+
+    /** Shared bounded interpreter; archive delta supplies the remainder of its gzip stream. */
+    internal fun applyGdiffStream(base: File, input: DataInputStream, output: File, targetSize: Long, check: () -> Unit) {
         check()
         require(targetSize in 1..MAX_APK_SIZE)
         RandomAccessFile(base, "r").use { source ->
-            DataInputStream(GZIPInputStream(patch.inputStream().buffered(), 64 * 1024)).use { input ->
-                require(input.readInt() == 0xd1ffd1ff.toInt() && input.readUnsignedByte() == 4)
-                output.outputStream().buffered().use { target ->
-                    val buffer = ByteArray(64 * 1024)
-                    var written = 0L
-                    var commands = 0
-                    while (true) {
-                        check()
-                        val command = input.readUnsignedByte()
-                        if (command == 0) {
-                            require(written == targetSize && input.read() == -1)
-                            break
-                        }
-                        require(++commands <= 1_000_000)
-                        val offset = when (command) {
-                            in 249..251 -> input.readUnsignedShort().toLong()
-                            in 252..254 -> input.readInt().toLong()
-                            255 -> input.readLong()
-                            else -> -1L
-                        }
-                        val length = when (command) {
-                            in 1..246 -> command
-                            247, 250, 253 -> input.readUnsignedShort()
-                            249, 252 -> input.readUnsignedByte()
-                            else -> input.readInt()
-                        }
-                        require(length > 0 && length.toLong() <= targetSize - written)
-                        if (command >= 249) {
-                            require(offset >= 0 && offset <= source.length() && length.toLong() <= source.length() - offset)
-                            source.seek(offset)
-                        }
-                        var remaining = length
-                        while (remaining > 0) {
-                            check()
-                            val count = minOf(remaining, buffer.size)
-                            if (command >= 249) source.readFully(buffer, 0, count) else input.readFully(buffer, 0, count)
-                            target.write(buffer, 0, count)
-                            remaining -= count
-                        }
-                        written += length
+            require(input.readInt() == 0xd1ffd1ff.toInt() && input.readUnsignedByte() == 4)
+            output.outputStream().buffered().use { target ->
+                val buffer = ByteArray(64 * 1024)
+                var written = 0L
+                var commands = 0
+                while (true) {
+                    check()
+                    val command = input.readUnsignedByte()
+                    if (command == 0) {
+                        require(written == targetSize && input.read() == -1)
+                        break
                     }
+                    require(++commands <= 1_000_000)
+                    val offset = when (command) {
+                        in 249..251 -> input.readUnsignedShort().toLong()
+                        in 252..254 -> input.readInt().toLong()
+                        255 -> input.readLong()
+                        else -> -1L
+                    }
+                    val length = when (command) {
+                        in 1..246 -> command
+                        247, 250, 253 -> input.readUnsignedShort()
+                        249, 252 -> input.readUnsignedByte()
+                        else -> input.readInt()
+                    }
+                    require(length > 0 && length.toLong() <= targetSize - written)
+                    if (command >= 249) {
+                        require(offset >= 0 && offset <= source.length() && length.toLong() <= source.length() - offset)
+                        source.seek(offset)
+                    }
+                    var remaining = length
+                    while (remaining > 0) {
+                        check()
+                        val count = minOf(remaining, buffer.size)
+                        if (command >= 249) source.readFully(buffer, 0, count) else input.readFully(buffer, 0, count)
+                        target.write(buffer, 0, count)
+                        remaining -= count
+                    }
+                    written += length
                 }
             }
         }

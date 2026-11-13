@@ -18,6 +18,7 @@ import io
 import zipfile
 import tempfile
 import apk_delta
+import apk_archive_delta
 from release_common import VERSION, apk_identity, apk_payload, extract_candidate, numeric_version, sha256, validate_manifest
 from verification import (make_plan, validate_ci_evidence,
                           validate_promotion, pre_main_gate)
@@ -112,8 +113,9 @@ def distribution_metadata(metadata, state):
 
 def published_asset_names(metadata):
     names = {"update-manifest.json", metadata["apkName"]}
+    if len(metadata.get("deltas", [])) > 8: raise ReleaseError("Too many published deltas for legacy clients")
     for delta in metadata.get("deltas", []):
-        if delta.get("format") != apk_delta.FORMAT or not re.fullmatch(r"[A-Za-z0-9_.-]+\.gdiff\.gz", delta.get("patchName", "")):
+        if delta.get("format") not in (apk_delta.FORMAT, apk_archive_delta.FORMAT) or not re.fullmatch(r"[A-Za-z0-9_.-]+\.gdiff\.gz", delta.get("patchName", "")):
             raise ReleaseError("Unexpected published delta format or name")
         if delta["patchName"] in names: raise ReleaseError("Duplicate published delta asset")
         names.add(delta["patchName"])
@@ -123,6 +125,51 @@ def published_asset_names(metadata):
 def delta_files(signed, state):
     names = published_asset_names(dict(apkName=signed.name, deltas=state.get("deltas", [])))
     return {name: signed.parent / name for name in names - {signed.name, "update-manifest.json"}}
+
+
+def build_deltas(bases, signed, version_code, allow_same_version=False):
+    """Every base keeps its legacy patch; remaining slots buy the largest savings."""
+    if not 0 < len(bases) <= 8: raise ReleaseError("Support one to eight exact delta bases")
+    legacy = [apk_delta.build(base, signed, version_code, signed.parent,
+                             allow_same_version=allow_same_version) for base in bases]
+    if len(legacy) == 8: return legacy
+    candidates = []
+    with tempfile.TemporaryDirectory(prefix="archive-deltas-", dir=signed.parent) as tmp:
+        for base, old in zip(bases, legacy):
+            try:
+                new = apk_archive_delta.build(base, signed, version_code, tmp, allow_same_version=allow_same_version)
+            except apk_archive_delta.NotApplicable:
+                continue
+            saving = old["patchSize"] - new["patchSize"]
+            if saving > 0: candidates.append((saving, new))
+        selected = sorted(candidates, key=lambda item: (-item[0], item[1]["baseVersionCode"]))[:8 - len(legacy)]
+        for _, delta in selected:
+            source, target = Path(tmp) / delta["patchName"], signed.parent / delta["patchName"]
+            if target.exists() and target.read_bytes() != source.read_bytes():
+                raise ReleaseError("Delta artifact already exists with different bytes")
+            shutil.copyfile(source, target)
+        return legacy + [delta for _, delta in selected]
+
+
+def frozen_delta_pairs(bases, deltas):
+    """Match frozen artifacts by identity AND format, independent of list order."""
+    if not 0 < len(bases) <= 8 or not len(bases) <= len(deltas) <= 8:
+        raise ReleaseError("Delta artifacts differ from frozen bases")
+    key_fields = ("baseSha256", "baseSize", "baseVersionCode")
+    by_identity = {tuple(base[key] for key in key_fields): base for base in bases}
+    if len(by_identity) != len(bases): raise ReleaseError("Duplicate frozen delta base")
+    seen, result = set(), []
+    for delta in deltas:
+        identity = tuple(delta.get(key) for key in key_fields)
+        format_name = delta.get("format")
+        key = identity + (format_name,)
+        if identity not in by_identity or format_name not in (apk_delta.FORMAT, apk_archive_delta.FORMAT) or key in seen:
+            raise ReleaseError("Delta artifact differs from its frozen base or format")
+        seen.add(key)
+        result.append((by_identity[identity], delta))
+    if any(identity + (apk_delta.FORMAT,) not in seen for identity in by_identity):
+        raise ReleaseError("Every frozen base must retain its legacy delta")
+    return result
 
 def validate_release_assets(assets, files, complete=False):
     names = [asset["name"] for asset in assets]
@@ -527,6 +574,7 @@ class Release:
         if delta_base is not None:
             paths = delta_base if isinstance(delta_base, (list, tuple)) else [delta_base]
             bases = sorted((apk_delta.read_base(path) for path in paths), key=lambda base: base["baseVersionCode"])
+            if not 0 < len(bases) <= 8: raise ReleaseError("Support one to eight exact delta bases")
             if len({base["baseVersionCode"] for base in bases}) != len(bases):
                 raise ReleaseError("Specify only one exact delta base per versionCode")
             previous = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
@@ -751,19 +799,16 @@ class Release:
         bases = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
         if bases:
             if not self.state.get("deltas"):
-                self.state["deltas"] = [apk_delta.build(base, signed, manifest["versionCode"], signed.parent,
-                    allow_same_version=bool(self.state.get("replacementRequested"))) for base in bases]
+                self.state["deltas"] = build_deltas(bases, signed, manifest["versionCode"],
+                    allow_same_version=bool(self.state.get("replacementRequested")))
                 self.save()
             paths = delta_files(signed, self.state)
-            if len(self.state["deltas"]) != len(bases):
-                raise ReleaseError("Delta artifacts differ from frozen bases")
-            for base, delta in zip(bases, self.state["deltas"]):
-                if any(delta.get(key) != base[key] for key in ("baseSha256", "baseSize", "baseVersionCode")):
-                    raise ReleaseError("Delta artifact differs from its frozen base")
+            for base, delta in frozen_delta_pairs(bases, self.state["deltas"]):
                 path = paths[delta["patchName"]]
                 if not path.exists():
                     # A recovered signing directory also needs each exact original delta.
-                    apk_delta.build(base, signed, manifest["versionCode"], signed.parent, expected=delta,
+                    builder = apk_delta if delta["format"] == apk_delta.FORMAT else apk_archive_delta
+                    builder.build(base, signed, manifest["versionCode"], signed.parent, expected=delta,
                         allow_same_version=bool(self.state.get("replacementRequested")))
                 if path.stat().st_size != delta["patchSize"] or sha256(path) != delta["patchSha256"]:
                     raise ReleaseError("Local delta artifact changed")

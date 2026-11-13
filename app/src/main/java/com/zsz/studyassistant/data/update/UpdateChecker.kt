@@ -139,7 +139,7 @@ object UpdateChecker {
             runCatching {
                 val delta = entry.jsonObject
                 fun field(key: String) = delta[key]!!.jsonPrimitive.content
-                require(field("format") == "gdiff4-gzip")
+                val format = field("format").also { require(UpdateDelta.supports(it)) }
                 val baseSha = field("baseSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
                 val patchSha = field("patchSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
                 val baseSize = field("baseSize").toLong().also { require(it in 1..536870912L) }
@@ -149,9 +149,9 @@ object UpdateChecker {
                 }
                 val url = release.assetUrl.substringBeforeLast('/') + "/" + name
                 require(isReleaseAssetUrl(url, release.tagName))
-                UpdateDeltaInfo("gdiff4-gzip", baseSha, baseSize, name, url, patchSha, patchSize)
+                UpdateDeltaInfo(format, baseSha, baseSize, name, url, patchSha, patchSize)
             }.getOrNull()
-        }.orEmpty().distinctBy { it.baseSha256 }
+        }.orEmpty().distinctBy { it.baseSha256 to it.format }
         release.copy(minSdk = min, versionCode = code, assetSha256 = digest, compatibilityIssue = null,
             channel = if (channel == "beta" || release.channel == Channel.BETA) Channel.BETA else Channel.STABLE,
             mandatory = mandatory && channel != "beta" && release.channel == Channel.STABLE, deltas = deltas)

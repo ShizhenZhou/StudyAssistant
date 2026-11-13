@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import local_checks
 import release
 import apk_delta
+import apk_archive_delta
 from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
 
 
@@ -202,6 +203,88 @@ class DeliveryTest(unittest.TestCase):
             legacy_dir = folder / "legacy-recovered"
             self.assertEqual(legacy_metadata, apk_delta.build(record, target, 2, legacy_dir, expected=legacy_metadata))
             self.assertEqual(legacy_patch, (legacy_dir / metadata["patchName"]).read_bytes())
+
+    def test_archive_delta_preserves_zip_bytes_and_rejects_invalid_ranges(self):
+        import gzip
+        import random
+        import struct
+        raw = random.Random(917).randbytes(220_000) + b"repeated dex strings" * 5000
+        def apk(dex, compression=zipfile.ZIP_DEFLATED):
+            out = io.BytesIO()
+            with zipfile.ZipFile(out, "w", compression=compression, compresslevel=6) as archive:
+                archive.writestr("classes.dex", dex)
+                archive.writestr("classes2.dex", b"unchanged dex" * 400)
+                archive.writestr("assets/resource", b"resource bytes" * 100)
+                archive.comment = b"retain exact archive comment"
+            return out.getvalue()
+        base = apk(raw)
+        target = apk(raw[:900] + b"new dex instructions" + raw[919:])
+        delta = apk_archive_delta.encode(base, target)
+        self.assertEqual(target, apk_archive_delta.apply(base, delta, len(target)))
+        self.assertLess(len(delta), len(apk_delta.encode_best(base, target)))
+        unpacked = gzip.decompress(delta)
+        header_size = struct.unpack(">I", unpacked[4:8])[0]
+        header = json.loads(unpacked[8:8 + header_size])
+        self.assertEqual(b"SAZ1", unpacked[:4])
+        self.assertTrue(header["targetRanges"])
+        self.assertEqual(apk_delta.MAGIC, unpacked[8 + header_size:13 + header_size])
+        def corrupted(value, tail=None):
+            encoded = json.dumps(value, separators=(",", ":")).encode()
+            return gzip.compress(b"SAZ1" + struct.pack(">I", len(encoded)) + encoded +
+                                 (unpacked[8 + header_size:] if tail is None else tail))
+        for field, value in (("offset", -1), ("rawSize", apk_archive_delta.MAX_RAW + 1),
+                             ("compressedSize", len(target)), ("level", 0), ("level", True)):
+            changed = json.loads(json.dumps(header)); changed["targetRanges"][0][field] = value
+            with self.assertRaises(ValueError): apk_archive_delta.apply(base, corrupted(changed), len(target))
+        changed = dict(header, targetRanges=[header["targetRanges"][0]] * 17)
+        with self.assertRaises(ValueError): apk_archive_delta.apply(base, corrupted(changed), len(target))
+        for invalid in (gzip.compress(b"SAZ1" + struct.pack(">I", 65537)),
+                        corrupted(header, unpacked[8 + header_size:] + b"tail"),
+                        corrupted(header, unpacked[8 + header_size:-1])):
+            with self.assertRaises(ValueError): apk_archive_delta.apply(base, invalid, len(target))
+        first = header["baseRanges"][0]
+        payload = base[first["offset"]:first["offset"] + first["compressedSize"]]
+        for bad in (payload[:-1], payload + b"tail"):
+            with self.assertRaises(ValueError): apk_archive_delta.inflate(bad, first["rawSize"])
+        with self.assertRaises(apk_archive_delta.NotApplicable): apk_archive_delta.encode(base, apk(raw, zipfile.ZIP_STORED))
+
+    def test_archive_delta_frozen_recovery_and_legacy_slot_budget(self):
+        import random
+        raw = random.Random(917).randbytes(220_000) + b"repeated dex strings" * 5000
+        def apk(dex):
+            out = io.BytesIO()
+            with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+                archive.writestr("classes.dex", dex)
+            return out.getvalue()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            base = folder / "base.apk"; base.write_bytes(apk(raw))
+            target = folder / "target.apk"; target.write_bytes(apk(raw[:900] + b"new dex instructions" + raw[919:]))
+            record = dict(path=str(base), baseSha256=sha256(base), baseSize=base.stat().st_size, baseVersionCode=1)
+            deltas = release.build_deltas([record], target, 3)
+            self.assertEqual({apk_delta.FORMAT, apk_archive_delta.FORMAT}, {item["format"] for item in deltas})
+            pairs = release.frozen_delta_pairs([record], list(reversed(deltas)))
+            for frozen_base, delta in pairs:
+                builder = apk_delta if delta["format"] == apk_delta.FORMAT else apk_archive_delta
+                restored = builder.build(frozen_base, target, 3, folder / "recovered", expected=delta)
+                self.assertEqual(delta, restored)
+                self.assertEqual((folder / delta["patchName"]).read_bytes(), (folder / "recovered" / delta["patchName"]).read_bytes())
+            for invalid in ([deltas[1]], deltas + [deltas[1]], [dict(deltas[0], baseVersionCode=9)]):
+                with self.assertRaises(release.ReleaseError): release.frozen_delta_pairs([record], invalid)
+            records = [dict(record, baseVersionCode=code) for code in range(1, 8)]
+            # Allocation is independent of expensive compression: retain all seven
+            # legacy entries and spend the sole free slot on the greatest saving.
+            def fake_build(item, signed, code, output, **kwargs):
+                is_archive = Path(output) != folder
+                name = f"target-{'zip-' if is_archive else ''}from-{item['baseVersionCode']}.gdiff.gz"
+                (Path(output) / name).write_bytes(b"fixture")
+                return dict(item, format=apk_archive_delta.FORMAT if is_archive else apk_delta.FORMAT,
+                            patchName=name, patchSize=100 - item["baseVersionCode"] if is_archive else 100)
+            with patch.object(apk_delta, "build", side_effect=fake_build), patch.object(apk_archive_delta, "build", side_effect=fake_build):
+                selected = release.build_deltas(records, target, 9)
+            self.assertEqual(8, len(selected))
+            self.assertEqual(7, selected[-1]["baseVersionCode"])
+            self.assertEqual(7, sum(item["format"] == apk_delta.FORMAT for item in selected))
 
     def test_start_requires_merged_main_and_dispatches_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:

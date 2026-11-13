@@ -233,7 +233,7 @@ internal class UpdateDownloads(
                 val base = if (record.stepIndex > 0) intermediate(record, record.stepIndex - 1) else installedApk()
                 require(step.valid() && UpdateDelta.matches(patch, delta.patchSize, delta.patchSha256, ensureTransfer) &&
                     UpdateDelta.matches(base, delta.baseSize, delta.baseSha256, ensureTransfer))
-                UpdateDelta.applyGdiff(base, patch, candidate, step.targetSize, ensureTransfer)
+                UpdateDelta.applyPatch(base, patch, candidate, step.targetSize, delta.format, ensureTransfer)
                 require(UpdateDelta.matches(candidate, step.targetSize, step.targetSha256, ensureTransfer))
                 if (record.stepIndex + 1 < record.steps.size) {
                     ensureTransfer()
@@ -297,6 +297,7 @@ internal class UpdateDownloads(
         cleanupPreviousSteps(record)
         cleanupIntermediates(record)
         partial(record).delete(); ready(record).delete(); checking(record).delete(); patchChecking(record).delete()
+        UpdateArchiveDelta.cleanup(checking(record))
         if (record.delta != null && key !in setOf("update.incompatible", "update.compatibilityUnknown")) {
             // Keep the public task token for notifications/cancel; never reuse the patch transfer identity.
             val fallback = record.copy(delta = null, steps = emptyList(), stepIndex = 0, id = -1, ready = false, error = null,
@@ -313,6 +314,7 @@ internal class UpdateDownloads(
         cleanupPreviousSteps(record)
         cleanupIntermediates(record)
         partial(record).delete(); ready(record).delete(); checking(record).delete(); patchChecking(record).delete()
+        UpdateArchiveDelta.cleanup(checking(record))
         check(prefs.edit().remove("session").commit())
     }
     private fun removeOwned(record: Record) {

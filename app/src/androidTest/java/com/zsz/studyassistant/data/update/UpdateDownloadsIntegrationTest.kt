@@ -199,6 +199,85 @@ class UpdateDownloadsIntegrationTest {
         val ready=repo().snapshot()!!;ready.file!!.delete()
         assertEquals(UpdateDownloads.Phase.FAILED, repo().snapshot()!!.phase)
     }
+    // Optional cross-language check. Public/synthetic fixtures are supplied locally,
+    // never bundled into the app or dispatched by CI.
+    private val deltaFixtures get() = File(context.filesDir, "delta-fixtures")
+    private fun deltaMetadata() = org.json.JSONObject(File(deltaFixtures, "fixture.json").readText())
+    private fun fixtureDelta(name: String, baseName: String, format: String): UpdateDeltaInfo {
+        val metadata = deltaMetadata()
+        val base = metadata.getJSONObject(baseName); val patch = metadata.getJSONObject(name)
+        return UpdateDeltaInfo(format, base.getString("sha"), base.getLong("size"), name,
+            "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v9.0/$name",
+            patch.getString("sha"), patch.getLong("size"))
+    }
+    private fun archiveRepo() = UpdateDownloads(context, backend, { File(deltaFixtures, "base.apk") }) { file, release ->
+        val valid = UpdateDelta.matches(file, release.assetSize, release.assetSha256!!)
+        UpdateChecker.VerifyResult(valid, valid, valid, null)
+    }
+    private fun completeFixture(name: String) {
+        File(deltaFixtures, name).copyTo(backend.file!!, overwrite = true)
+        backend.current = backend.current!!.copy(status = UpdateDownloads.TransferPhase.SUCCESS, bytes = backend.file!!.length())
+    }
+
+    @Test fun archiveDeltaReconstructsPublicApkAndMixedChain() = runBlocking {
+        val metadata = deltaMetadata()
+        val middle = metadata.getJSONObject("middle"); val final = metadata.getJSONObject("final")
+        val direct = File(context.cacheDir, "archive-direct.apk")
+        try {
+            UpdateDelta.applyPatch(File(deltaFixtures, "base.apk"), File(deltaFixtures, "direct.gdiff.gz"),
+                direct, middle.getLong("size"), UpdateArchiveDelta.FORMAT)
+            assertTrue(UpdateDelta.matches(direct, middle.getLong("size"), middle.getString("sha")))
+        } finally { direct.delete() }
+        val first = fixtureDelta("first.gdiff.gz", "base", UpdateDelta.FORMAT)
+        val second = fixtureDelta("second.gdiff.gz", "middle", UpdateArchiveDelta.FORMAT)
+        val release = rel.copy(assetSize = final.getLong("size"), assetSha256 = final.getString("sha"), minSdk = 36,
+            deltas = listOf(second), deltaHistory = listOf(UpdateDeltaStep(first, middle.getString("sha"), middle.getLong("size"), rel.tagName)))
+        assertEquals(listOf(UpdateDelta.FORMAT, UpdateArchiveDelta.FORMAT), archiveRepo().matchingPlan(release)!!.steps.map { it.delta.format })
+        archiveRepo().start(release)
+        assertEquals(first.patchUrl, backend.current!!.url)
+        completeFixture("first.gdiff.gz")
+        assertEquals(UpdateDownloads.Phase.DOWNLOADING, archiveRepo().snapshot()!!.phase)
+        assertEquals(second.patchUrl, backend.current!!.url)
+        // A recreated repository reads the new-format second step from durable state.
+        completeFixture("second.gdiff.gz")
+        val done = archiveRepo().snapshot()!!
+        assertEquals(UpdateDownloads.Phase.READY, done.phase)
+        assertTrue(UpdateDelta.matches(done.file!!, final.getLong("size"), final.getString("sha")))
+        assertEquals(2, backend.enqueues)
+        assertFalse(UpdateChecker.downloadDir(context).listFiles().orEmpty().any { it.name.endsWith(".archive-delta") })
+    }
+
+    @Test fun archiveDeltaFailureFallsBackAndCancellationCleansScratch() = runBlocking {
+        val middle = deltaMetadata().getJSONObject("middle")
+        val base = File(deltaFixtures, "base.apk")
+        val out = File(context.cacheDir, "archive-cancelled.apk")
+        val scratch = File(context.cacheDir, "${out.name}.archive-delta")
+        scratch.mkdirs(); File(scratch, "interrupted").writeText("owned synthetic previous attempt")
+        var checks = 0
+        assertThrows(java.util.concurrent.CancellationException::class.java) {
+            UpdateDelta.applyPatch(base, File(deltaFixtures, "direct.gdiff.gz"), out, middle.getLong("size"), UpdateArchiveDelta.FORMAT) {
+                if (++checks == 10) throw java.util.concurrent.CancellationException()
+            }
+        }
+        assertFalse(out.exists()); assertFalse(scratch.exists())
+        // This patch has valid transport SHA but deliberately wrong recompression parameters.
+        val bad = fixtureDelta("bad.gdiff.gz", "base", UpdateArchiveDelta.FORMAT)
+        val release = rel.copy(assetSize = middle.getLong("size"), assetSha256 = middle.getString("sha"), minSdk = 36,
+            deltas = listOf(bad))
+        archiveRepo().start(release)
+        assertEquals(bad.patchUrl, backend.current!!.url)
+        completeFixture("bad.gdiff.gz")
+        assertEquals(UpdateDownloads.Phase.DOWNLOADING, archiveRepo().snapshot()!!.phase)
+        assertEquals(release.assetUrl, backend.current!!.url)
+        assertEquals(2, backend.enqueues)
+        assertFalse(UpdateChecker.downloadDir(context).listFiles().orEmpty().any { it.name.endsWith(".archive-delta") })
+        val interrupted = File(UpdateChecker.downloadDir(context), "${archiveRepo().snapshot()!!.token}.checking.archive-delta")
+        interrupted.mkdirs(); File(interrupted, "target").writeText("synthetic interrupted task")
+        archiveRepo().cancel()
+        assertNull(archiveRepo().snapshot())
+        assertFalse(interrupted.exists())
+    }
+
     internal class FakeTransfers : UpdateDownloads.Backend {
         var current: UpdateDownloads.Transfer? = null
         var file: File? = null

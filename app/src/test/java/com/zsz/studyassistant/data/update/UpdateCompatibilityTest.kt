@@ -40,6 +40,9 @@ class UpdateCompatibilityTest {
         val parsed = UpdateChecker.withManifest(release, "$base,\"deltas\":[$valid]}")!!
         assertEquals(1, parsed.deltas.size)
         assertTrue(parsed.deltas.single().patchUrl.startsWith(release.assetUrl.substringBeforeLast('/') + "/"))
+        val archive = valid.replace("gdiff4-gzip", "apk-gdiff1-gzip").replace("fixture.gdiff.gz", "fixture-zip.gdiff.gz")
+        val both = UpdateChecker.withManifest(release, "$base,\"deltas\":[$valid,$archive,$archive]}")!!
+        assertEquals(listOf("gdiff4-gzip", "apk-gdiff1-gzip"), both.deltas.map { it.format })
         for (bad in listOf(valid.replace("fixture.gdiff.gz", "../fixture.gdiff.gz"),
             valid.replace("\"patchSize\":3", "\"patchSize\":7"), valid.replace("gdiff4-gzip", "script"))) {
             val full = UpdateChecker.withManifest(release, "$base,\"deltas\":[$bad]}")!!
