@@ -4,6 +4,8 @@ import android.graphics.Color
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
 import android.content.ContentValues
 import android.provider.MediaStore
 import android.util.Base64
@@ -24,6 +26,8 @@ import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CountDownLatch
@@ -32,6 +36,96 @@ import java.util.concurrent.TimeUnit
 /** Optional, synthetic PDF artifact check. Not a CI gate or part of a default device suite. */
 @RunWith(AndroidJUnit4::class)
 class NativePdfExportTest {
+    @Test fun paginatesTablesWithHeadersAndWholeCellFragments() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        check(context.packageName.endsWith(".integration.pdfcheck") || context.packageName.endsWith(".integration"))
+        fun pageTexts(file:File):List<String> = PdfRenderer(
+            ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY)
+        ).use { pdf ->
+            assertTrue(pdf.pageCount in 2..30)
+            val chunks=JSONArray()
+            val texts=(0 until pdf.pageCount).map { index -> pdf.openPage(index).use { page ->
+                assertEquals(595,page.width);assertEquals(842,page.height)
+                val contents=page.textContents.map { it.text }
+                chunks.put(JSONArray(contents))
+                contents.joinToString("\n")
+            } }
+            File(context.filesDir,"${file.name}.text.json").writeText(chunks.toString(2))
+            texts
+        }
+        // PDF text extraction may split a word into separate text blocks or
+        // insert spacing between glyphs. Match every marker character, allowing
+        // only extraction whitespace between them, and never join across pages.
+        fun markerCount(pages:List<String>,marker:String):Int {
+            val pattern=Regex(marker.map { Regex.escape(it.toString()) }.joinToString("[\\s\\p{Z}]*"))
+            return pages.sumOf { pattern.findAll(it).count() }
+        }
+        val finished=CountDownLatch(1)
+        var failure:Throwable?=null
+        var started=false
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val web=WebView(activity)
+                configureConversationWebView(web)
+                activity.setContentView(FrameLayout(activity).apply {
+                    addView(web,FrameLayout.LayoutParams(360,1))
+                })
+                web.webViewClient=object:ConversationAssetClient() {
+                    override fun onPageFinished(view:WebView?,url:String?) {
+                        if(started)return
+                        started=true
+                        activity.lifecycleScope.launch {
+                            try {
+                                val rows=(1..75).joinToString("\n") { "| BODY${it.toString().padStart(3,'0')} | 中文 日本語 한국어 ${'$'}\\frac{x_$it+1}{2}${'$'} |" }
+                                val huge=(1..160).joinToString(" ") { "CELL${it.toString().padStart(3,'0')} 中文长内容" }
+                                val result=renderConversationExport(activity,web,listOf(ChatMsg("assistant",
+                                    "| REPEATHEADER | VALUE |\n|---|---|\n$rows\n| $huge | ${'$'}\\frac{a+b}{c+d}${'$'} ROWEND |"
+                                )),ConversationExportFormat.PDF,"native-table-pages") { _,_-> }
+                                val target=File(context.filesDir,"native-table-pages.pdf")
+                                result.files.single().copyTo(target,true)
+                                result.directory.deleteRecursively()
+                                val pages=pageTexts(target)
+                                pages.forEach { assertEquals("Body page must repeat the real header",1,markerCount(listOf(it),"REPEATHEADER")) }
+                                for(i in 1..75) assertEquals("BODY$i",1,markerCount(pages,"BODY${i.toString().padStart(3,'0')}"))
+                                for(i in 1..160) assertEquals("CELL$i",1,markerCount(pages,"CELL${i.toString().padStart(3,'0')}"))
+                                assertEquals("ROWEND",1,markerCount(pages,"ROWEND"))
+
+                                // Native semantic fixtures cover absent headers and headers taller
+                                // than a page without relying on unsupported raw HTML in Markdown.
+                                fun cell(value:String)=JSONArray().put(JSONObject().put("kind","text")
+                                    .put("runs",JSONArray().put(JSONObject().put("text",value))))
+                                fun row(a:String,b:String)=JSONArray().put(cell(a)).put(cell(b))
+                                suspend fun native(name:String,table:JSONObject):List<String> {
+                                    val file=File(context.filesDir,"$name.pdf")
+                                    ConversationPdfWriter().use { writer ->
+                                        writer.append(JSONObject().put("user",false).put("blocks",JSONArray().put(table)))
+                                        file.outputStream().use(writer::writeTo)
+                                    }
+                                    return pageTexts(file)
+                                }
+                                val noHeaderRows=JSONArray().put(row("FIRSTDATA","value"))
+                                for(i in 1..100) noHeaderRows.put(row("PLAIN$i","ordinary data"))
+                                val plain=native("native-table-no-header",JSONObject().put("kind","table").put("rows",noHeaderRows))
+                                assertEquals("FIRSTDATA (see native-table-no-header.pdf.text.json)",1,markerCount(plain,"FIRSTDATA"))
+                                val header=(1..100).joinToString("\n") { "TALLHEADER${it.toString().padStart(3,'0')}" }
+                                val tall=native("native-table-tall-header",JSONObject().put("kind","table")
+                                    .put("headerRows",1).put("rows",JSONArray().put(row(header,"heading"))
+                                        .put(row("FIRSTBODY","first body after tall header"))))
+                                for(i in 1..100) assertEquals("TALLHEADER$i",1,markerCount(tall,"TALLHEADER${i.toString().padStart(3,'0')}"))
+                                assertEquals("Final header fragment must stay with first body",1,markerCount(listOf(tall.last()),"TALLHEADER100"))
+                                assertEquals("First body must stay with final header fragment",1,markerCount(listOf(tall.last()),"FIRSTBODY"))
+                            } catch(t:Throwable) { failure=t }
+                            finally { web.destroy();finished.countDown() }
+                        }
+                    }
+                }
+                web.loadUrl(CONVERSATION_ASSET_URL)
+            }
+            assertTrue("Table PDF export timed out",finished.await(120,TimeUnit.SECONDS))
+            failure?.let { throw AssertionError("Table PDF export failed",it) }
+        }
+    }
+
     @Test fun dialogSavesThroughDocumentsUiWithoutPrintSpooler() {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         val context=instrumentation.targetContext

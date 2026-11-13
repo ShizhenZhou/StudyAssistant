@@ -11,6 +11,47 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class LargeFieldIntegrationTest {
+    @Test fun pagedSearchPreservesUnicodePriorityAndLongFieldMatches()=runBlocking {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        check(context.packageName=="com.zsz.studyassistant.integration")
+        val db=Room.inMemoryDatabaseBuilder(context,AppDatabase::class.java).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
+        try {
+            val dao=db.questionDao()
+            val questions=(0 until 70).map { index ->
+                val text=when(index) {
+                    0 -> "😀".repeat(2047)+"Ω" // Exactly 2048 SQLite characters, still a complete projection.
+                    1 -> "x".repeat(8190)+"😀Ω question" // Match at the chunk boundary, after a surrogate pair.
+                    2 -> "Ω short question" // Long answer must not win over the question.
+                    3,4 -> "plain question $index"
+                    else -> if(index%3==0) "Ω question $index" else "question $index"
+                }
+                val answer=when(index) {
+                    2,4 -> "x".repeat(20000)+"Ω answer"
+                    3 -> "x".repeat(2048)+"Ω answer"
+                    else -> if(index%2==0) "Ω answer $index" else "answer $index"
+                }
+                Question(QuestionIdentity.create(10000L+index),text,answer,deleted=index==6)
+            }
+            questions.forEach { dao.insert(it) }
+            val expected=questions.filterNot { it.deleted }.mapNotNull { question ->
+                (searchSnippet(question.text,"ω",false) ?: searchSnippet(question.answer,"ω",true))
+                    ?.let { question.id to it }
+            }.toMap()
+            assertEquals(expected,dao.matchingQuestionSnippets("ω"))
+            assertTrue(dao.matchingQuestionSnippets("missing phrase").isEmpty())
+            assertTrue(dao.matchingQuestionSnippets("  ").isEmpty())
+            val first=dao.questionSearchPage("",2049,32)
+            val second=dao.questionSearchPage(first.last().id,2049,32)
+            assertEquals(32,first.size)
+            assertEquals(32,second.size)
+            assertTrue(first.all { a -> second.none { it.id==a.id } })
+            assertTrue((first+second).all { it.text.codePointCount(0,it.text.length)<=2049 &&
+                it.answer.codePointCount(0,it.answer.length)<=2049 })
+            dao.softDelete(questions[1].id)
+            assertNull(dao.matchingQuestionSnippet(questions[1].id,"ω"))
+        } finally { db.close() }
+    }
+
     @Test fun fullContentAndImagesSurviveWhileListsStayBounded()=runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName=="com.zsz.studyassistant.integration")

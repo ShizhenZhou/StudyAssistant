@@ -64,9 +64,18 @@
       if(node.tagName==='HR') {flush();result.push({kind:'rule'});return;}
       if(node.tagName==='IMG') {flush();result.push({kind:'image',image:await raster(node.src,1800)});return;}
       if(node.tagName==='TABLE') {
-        flush();var rows=[];
-        for(var row of node.rows) {var cells=[];for(var cell of row.cells) cells.push(await blocks(cell,Object.assign({},s,{bold:cell.tagName==='TH'||s.bold})));rows.push(cells);}
-        result.push({kind:'table',rows:rows});return;
+        flush();var rows=[],headerRows=0;
+        for(var row of node.rows) {
+          // Only leading column headers repeat; a TH used as a body row label
+          // must not turn the first data row into a repeated header.
+          var isHeader=row.parentElement.tagName==='THEAD' ||
+            (row.cells.length>0 && Array.from(row.cells).every(function(cell){return cell.tagName==='TH' && !/^row(group)?$/i.test(cell.getAttribute('scope')||'');}));
+          if(rows.length===headerRows && isHeader) headerRows++;
+          var cells=[];
+          for(var cell of row.cells) cells.push(await blocks(cell,Object.assign({},s,{bold:cell.tagName==='TH'||s.bold})));
+          rows.push(cells);
+        }
+        result.push({kind:'table',rows:rows,headerRows:headerRows});return;
       }
       if(node.matches('.quoted-text')) {flush();result.push({kind:'quote',blocks:await blocks(node,s)});return;}
       if(node.tagName==='UL'||node.tagName==='OL') {

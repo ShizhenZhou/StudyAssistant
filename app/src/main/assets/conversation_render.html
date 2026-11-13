@@ -190,7 +190,23 @@ function mdToHtml(s){
   if(pre){out+='<pre>'+preBuf.join('\n')+'</pre>';}
   closeList(); return out;
 }
+// Bound retained HTML as well as entry count: unusual formulas/SVG must not grow a session cache forever.
+var renderedTokenCache = new Map(), renderedTokenBytes = 0;
 function renderOne(raw){
+  if(renderedTokenCache.has(raw)){
+    var hit=renderedTokenCache.get(raw);renderedTokenCache.delete(raw);renderedTokenCache.set(raw,hit);return hit;
+  }
+  var html=renderToken(raw),size=(raw.length+html.length)*2;
+  if(size<=256*1024){
+    while(renderedTokenCache.size>=128 || renderedTokenBytes+size>2*1024*1024){
+      var oldest=renderedTokenCache.keys().next().value;
+      renderedTokenBytes-=(oldest.length+renderedTokenCache.get(oldest).length)*2;renderedTokenCache.delete(oldest);
+    }
+    renderedTokenCache.set(raw,html);renderedTokenBytes+=size;
+  }
+  return html;
+}
+function renderToken(raw){
   // Protect literal code before formula/Markdown processing, including unfinished
   // streamed fences. Escaping happens only here for these isolated code tokens.
   if(/^[ \t]*```/.test(raw)){
@@ -586,7 +602,38 @@ function msgKey(m){
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
   return (m.messageKey||'') + '|' + JSON.stringify(m.quoteAnchor||null) + '|' + m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + firstLen
-       + '|' + ((m.thinking||'').length) + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
+       + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
+}
+// Reconcile against a fresh parse, rather than guessing where a streamed Markdown block is final.
+// Equal subtrees keep their DOM, selection and formula scroll position. Only changed leaves are edited.
+function reconcileMessageNode(current, next){
+  if(current.isEqualNode(next)) return;
+  if(current.nodeType!==next.nodeType || current.nodeName!==next.nodeName){current.replaceWith(next);return;}
+  if(current.nodeType===3){
+    if(next.data.startsWith(current.data)) current.appendData(next.data.slice(current.data.length));
+    else current.data=next.data;
+    return;
+  }
+  if(current.nodeType!==1){current.replaceWith(next);return;}
+  // A changed formula is one atomic object; never splice together two different KaTeX trees.
+  if(current.classList.contains('math-source') && current.getAttribute('data-tex')!==next.getAttribute('data-tex')){
+    current.replaceWith(next);return;
+  }
+  Array.from(current.attributes).forEach(function(attr){
+    if(attr.name==='open' && current.tagName==='DETAILS') return;
+    if(!next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+  });
+  Array.from(next.attributes).forEach(function(attr){
+    if(current.getAttribute(attr.name)!==attr.value) current.setAttribute(attr.name,attr.value);
+  });
+  // Quote highlighting is a transient overlay owned by quote_navigation.js, outside rendered content.
+  var oldChildren=Array.from(current.childNodes).filter(function(n){return !(n.nodeType===1 && n.classList.contains('quote-jump-highlight'));});
+  var newChildren=Array.from(next.childNodes);
+  for(var n=0;n<newChildren.length;n++){
+    if(n<oldChildren.length) reconcileMessageNode(oldChildren[n],newChildren[n]);
+    else current.appendChild(newChildren[n]);
+  }
+  for(var n=newChildren.length;n<oldChildren.length;n++) oldChildren[n].remove();
 }
 function bubbleHtml(m, idx){
   var cls = (m.role==='assistant') ? 'assistant' : 'user';
@@ -832,6 +879,7 @@ function patchMessages(prefix, tail, sel, labels, dark, scale, thinkPref){
   renderMessages(messageSources.slice(0, prefix).concat(tail), sel, labels, dark, scale, thinkPref);
 }
 function renderMessages(arr, sel, labels, dark, scale, thinkPref){
+  var previousSources = messageSources;
   messageSources = arr;
   if(dark !== undefined) document.body.classList.toggle('dark', !!dark);
   if(scale !== undefined && scale !== null) document.documentElement.style.setProperty('--k', String(scale));
@@ -866,10 +914,15 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
   var keys = [];
   for(var i=0;i<arr.length;i++){ keys.push(msgKey(arr[i])); }
   while(k < renderedKeys.length && k < keys.length && renderedKeys[k] === keys[k]) k++;
-  // 丢弃第 k 条之后的旧节点
-  while(out.childNodes.length > k){ out.removeChild(out.lastChild); }
-  // 只重建从 k 开始的部分（流式时通常只有最后一条）
-  for(var i=k;i<arr.length;i++){ out.insertAdjacentHTML('beforeend', bubbleHtml(arr[i], i)); }
+  while(out.childNodes.length > arr.length){ out.removeChild(out.lastChild); }
+  for(var i=k;i<arr.length;i++){
+    var template=document.createElement('template');template.innerHTML=bubbleHtml(arr[i],i);
+    var old=out.children[i],previous=previousSources[i];
+    var sameMessage=previous && previous.role===arr[i].role && previous.messageKey===arr[i].messageKey;
+    if(old && sameMessage) reconcileMessageNode(old,template.content.firstChild);
+    else if(old) old.replaceWith(template.content.firstChild);
+    else out.appendChild(template.content.firstChild);
+  }
   renderedKeys = keys;
   Array.from(out.children).forEach(function(bubble,idx){
     var locked=!!lockedSet[idx], selected=!locked && !!selectedSet[idx];

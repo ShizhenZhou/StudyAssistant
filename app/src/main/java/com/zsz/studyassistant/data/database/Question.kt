@@ -16,6 +16,8 @@ import androidx.room3.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
 import androidx.sqlite.driver.AndroidSQLiteDriver
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
@@ -71,6 +73,9 @@ data class Review(
     val lastReviewedAt: Long = 0,
     val reviewCount: Int = 0
 )
+
+/** Search-only projection; never use these potentially truncated fields for content saves. */
+data class QuestionSearchRow(val id: QuestionId, val text: String, val answer: String)
 
 @Dao
 interface QuestionDao {
@@ -255,15 +260,44 @@ interface QuestionDao {
     @androidx.room3.Transaction
     suspend fun allLightOnce(): List<Question> = activeQuestionIdsOnce().mapNotNull { questionLightOnce(it) }
 
-    /** Full-content Unicode search; only bounded hit snippets leave the IO reader. */
+    @Query("SELECT id, substr(text,1,:fieldLimit) AS text, substr(answer,1,:fieldLimit) AS answer FROM questions WHERE deleted=0 AND id>:afterId ORDER BY id LIMIT :pageSize")
+    suspend fun questionSearchPage(afterId: QuestionId, fieldLimit: Int, pageSize: Int): List<QuestionSearchRow>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM questions WHERE id=:id AND deleted=0)")
+    suspend fun activeQuestionExists(id: QuestionId): Boolean
+
+    /** Long fields share one fresh per-question snapshot, including deletion and text-before-answer priority. */
     @androidx.room3.Transaction
+    suspend fun matchingQuestionSnippet(id: QuestionId, query: String): SearchSnippet? {
+        currentCoroutineContext().ensureActive()
+        if (!activeQuestionExists(id)) return null
+        return searchChunks(query, answer = false) { offset, count -> questionTextPart(id, "text", offset, count) }
+            ?: searchChunks(query, answer = true) { offset, count -> questionTextPart(id, "answer", offset, count) }
+    }
+
+    /**
+     * Short fields use bounded pages rather than two queries per question. Only long questions
+     * hold a transaction; each result is internally consistent, while table invalidation restarts
+     * the search if edits occur between pages. No images, conversations or whole long fields load.
+     */
     suspend fun matchingQuestionSnippets(query: String): Map<QuestionId, SearchSnippet> {
         if (query.isBlank()) return emptyMap()
         return buildMap {
-            for (id in activeQuestionIdsOnce()) {
-                val hit = searchChunks(query, answer = false) { offset, count -> questionTextPart(id, "text", offset, count) }
-                    ?: searchChunks(query, answer = true) { offset, count -> questionTextPart(id, "answer", offset, count) }
-                if (hit != null) put(id, hit)
+            val pageSize = 32
+            // Permanent question IDs are nonempty ASCII UUID/time strings; use the primary-key order.
+            var afterId = ""
+            while (true) {
+                currentCoroutineContext().ensureActive()
+                val rows = questionSearchPage(afterId, SEARCH_PROJECTION_CHARS + 1, pageSize)
+                currentCoroutineContext().ensureActive()
+                for (row in rows) {
+                    val hit = searchQuestionProjection(row.text, row.answer, query) {
+                        matchingQuestionSnippet(row.id, query)
+                    }
+                    if (hit != null) put(row.id, hit)
+                }
+                if (rows.size < pageSize) break
+                afterId = rows.last().id
             }
         }
     }

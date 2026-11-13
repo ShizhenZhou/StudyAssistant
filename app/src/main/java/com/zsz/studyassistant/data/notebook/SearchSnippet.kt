@@ -1,7 +1,30 @@
 package com.zsz.studyassistant.data
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+
 /** Only this bounded text crosses from the database reader to the search UI. */
 data class SearchSnippet(val text: String, val answer: Boolean, val highlights: List<IntRange>)
+
+internal const val SEARCH_PROJECTION_CHARS = 2048
+
+/** Projection includes one extra code point to detect truncation without scanning field lengths in SQL. */
+internal suspend fun searchQuestionProjection(
+    text: String,
+    answer: String,
+    query: String,
+    readCurrentQuestion: suspend () -> SearchSnippet?
+): SearchSnippet? {
+    currentCoroutineContext().ensureActive()
+    if (query.isBlank()) return null
+    val complete = text.codePointCount(0, text.length) <= SEARCH_PROJECTION_CHARS &&
+        answer.codePointCount(0, answer.length) <= SEARCH_PROJECTION_CHARS
+    // Never combine an old batch prefix/answer with chunks from a newer single-question snapshot.
+    val hit = if (complete) searchSnippet(text, query, answer = false) ?: searchSnippet(answer, query, answer = true)
+        else readCurrentQuestion()
+    currentCoroutineContext().ensureActive()
+    return hit
+}
 
 internal fun searchSnippet(source: String, query: String, answer: Boolean,
                            hasPrefix: Boolean = false, hasSuffix: Boolean = false): SearchSnippet? {
@@ -35,7 +58,9 @@ internal suspend fun searchChunks(query: String, answer: Boolean, read: suspend 
     var tail = ""
     var discarded = false
     while (true) {
+        currentCoroutineContext().ensureActive()
         val chunk = read(position, chunkSize).orEmpty()
+        currentCoroutineContext().ensureActive()
         val window = tail + chunk
         val count = chunk.codePointCount(0, chunk.length)
         val more = count == chunkSize
@@ -43,6 +68,7 @@ internal suspend fun searchChunks(query: String, answer: Boolean, read: suspend 
         if (hit >= 0) {
             // One short lookahead supplies the snippet context and distinguishes an exact-size final chunk.
             val next = if (more && window.length - hit - query.length < 65) read(position + count, 65).orEmpty() else ""
+            currentCoroutineContext().ensureActive()
             return searchSnippet(window + next, query, answer, hasPrefix = discarded,
                 hasSuffix = more && next.codePointCount(0, next.length) == 65)
         }

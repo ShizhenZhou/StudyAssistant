@@ -136,6 +136,11 @@ androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(generateBuildStamp) { it.outputDirectory }
     }
+    onVariants(selector().withBuildType("release")) { variant ->
+        // Direct APK downloads benefit from compressed DEX. ART extracts it at install time,
+        // trading additional installed storage for a smaller download; keep JNI packaging unchanged.
+        variant.packaging.dex.useLegacyPackaging.set(true)
+    }
 }
 
 kotlin {

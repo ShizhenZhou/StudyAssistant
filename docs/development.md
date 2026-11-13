@@ -22,6 +22,10 @@ AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同�
 
 Room 结构快照由正常 KSP 编译导出至 `app/schemas/com.zsz.studyassistant.data.AppDatabase/<数据库版本>.json`，随源码提交，从当前 DB v10 开始保留。各构建变体共用相同结构；目录不加入应用资源，不打入正式 APK。以后变更表结构时新增对应版本快照并保留旧文件，不手工编造历史版本；无需为导出单独增加测试或 CI 门禁。
 
+Release APK 显式压缩 DEX（`packaging.dex.useLegacyPackaging`），降低完整包下载量；R8、原生库 ABI/对齐和公式字体保持原配置。代价是安装时解压及额外的安装存储占用，不能把下载体积减少等同于运行内存减少。首次切换压缩方式可能降低与旧包的差分收益，仍按实际补丁大小选择差分或完整包。
+
+流式对话渲染复用未变更的 DOM 子树，并以 2 MiB / 128 项上限缓存公式与图形的 HTML。Markdown 结构改变时仍以完整解析结果校正节点，避免增量追加破坏表格、代码块或未完成公式。PDF 表格只重复明确的表头，超高行按完整文字/公式行分片，每个单元格每页绘制一段边框；这些运行时优化不增加默认测试或发布门禁。
+
 当前运行依赖：Compose BOM 2026.09.00、Lifecycle 2.11.0、Navigation Compose 2.10.2、CameraX 1.6.2、Retrofit 3.0.0、OkHttp 5.5.1、kotlinx.serialization 1.13.0、WorkManager 2.12.0（备份与6小时周期更新通知）。离线 KaTeX 0.19.1 的来源与打包说明见 [third-party-assets.md](third-party-assets.md)。版本声明以 `gradle/libs.versions.toml` 为准。
 
 GitHub Actions 直接使用官方 Google Maven、Maven Central 与 Gradle Plugin Portal；国内本地开发保留原镜像优先配置。定向 JVM 的实际任务为 `testIntegrationUnitTest`（AGP 9 对应 `testBuildType = integration`），仍由 `-TestClass` 显式选择，不启动设备。

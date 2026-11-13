@@ -156,13 +156,14 @@ internal class ConversationPdfWriter : AutoCloseable {
             canvas.drawBitmap(bitmap(resolved.getString("data")),null,RectF(x,at+4f*U,x+w,at+4f*U+h),paint)
         }
     }
-    private suspend fun table(rows: JSONArray, left: Float, width: Float, quoted: Boolean) {
+    private suspend fun table(rows: JSONArray, headerRows: Int, left: Float, width: Float, quoted: Boolean) {
         val columns=(0 until rows.length()).maxOfOrNull { rows.getJSONArray(it).length() } ?: return
         require(columns in 1..40)
         val cellWidth=width/columns;val padding=4f*U
-        for(r in 0 until rows.length()) {
+        val pageHeight=BOTTOM-M-2*PAD
+        fun layoutRow(r:Int):List<StaticLayout> {
             val row=rows.getJSONArray(r)
-            val cells=(0 until columns).map { c ->
+            return (0 until columns).map { c ->
                 val combined=JSONArray()
                 fun append(items: JSONArray) {
                     for(i in 0 until items.length()) {
@@ -180,40 +181,82 @@ internal class ConversationPdfWriter : AutoCloseable {
                 }
                 paragraph(JSONObject().put("runs",combined),max(U,cellWidth-2*padding))
             }
-            val rowHeight=(cells.maxOfOrNull { it.height } ?: 0)+2*padding
-            if(rowHeight <= BOTTOM-M-2*PAD) {
-                val at=reserve(rowHeight)
-                cells.forEachIndexed { c,layout ->
-                    val x=left+c*cellWidth
-                    operations.add { canvas ->
-                        background(canvas,x,at,cellWidth,rowHeight,quoted)
-                        paint.style=Paint.Style.STROKE;paint.strokeWidth=.4f*U;paint.color=Color.LTGRAY
-                        canvas.drawRect(x,at,x+cellWidth,at+rowHeight,paint);paint.style=Paint.Style.FILL
-                        canvas.save();canvas.translate(x+padding,at+padding);layout.draw(canvas);canvas.restore()
-                    }
-                }
-                continue
+        }
+        fun remainingHeight(cells:List<StaticLayout>,offsets:IntArray)=
+            cells.indices.maxOf { c -> val l=cells[c];if(offsets[c]<l.lineCount) l.getLineBottom(l.lineCount-1)-l.getLineTop(offsets[c]) else 0 }.toFloat()+2*padding
+        fun minimumHeight(cells:List<StaticLayout>,offsets:IntArray)=
+            cells.indices.maxOf { c -> val l=cells[c];if(offsets[c]<l.lineCount) l.getLineBottom(offsets[c])-l.getLineTop(offsets[c]) else 0 }.toFloat()+2*padding
+
+        // One frame per cell/page fragment, with only complete StaticLayout lines
+        // inside it. FormulaSpan contributes to line height, so formulas stay intact.
+        fun drawFragment(cells:List<StaticLayout>,offsets:IntArray,budget:Float) {
+            val starts=offsets.copyOf()
+            val tops=IntArray(columns) { c -> cells[c].getLineTop(starts[c]) }
+            val heights=IntArray(columns)
+            for(c in cells.indices) {
+                val layout=cells[c]
+                while(offsets[c]<layout.lineCount && layout.getLineBottom(offsets[c])-tops[c]<=budget-2*padding) offsets[c]++
+                if(offsets[c]>starts[c]) heights[c]=layout.getLineBottom(offsets[c]-1)-tops[c]
             }
-            val offsets=IntArray(columns)
-            while(offsets.indices.any { offsets[it]<cells[it].lineCount }) {
-                currentCoroutineContext().ensureActive()
-                val heights=cells.mapIndexed { c,l -> if(offsets[c]<l.lineCount) (l.getLineBottom(offsets[c])-l.getLineTop(offsets[c])).toFloat() else 0f }
-                val height=(heights.maxOrNull()?:FONT)+padding*2;val at=reserve(height)
-                for(c in 0 until columns) {
-                    val layout=cells[c];val line=offsets[c];val x=left+c*cellWidth
-                    operations.add { canvas ->
-                        background(canvas,x,at,cellWidth,height,quoted)
-                        paint.style=Paint.Style.STROKE;paint.strokeWidth=.4f*U;paint.color=Color.LTGRAY
-                        canvas.drawRect(x,at,x+cellWidth,at+height,paint);paint.style=Paint.Style.FILL
-                        if(line<layout.lineCount) {
-                            canvas.save();canvas.clipRect(x+padding,at+padding,x+cellWidth-padding,at+height-padding)
-                            canvas.translate(x+padding,at+padding-layout.getLineTop(line));layout.draw(canvas);canvas.restore()
-                        }
+            check(cells.indices.any { offsets[it]>starts[it] }) { "PDF table cannot fit a line" }
+            val height=heights.max().toFloat()+2*padding
+            val at=reserve(height)
+            for(c in cells.indices) {
+                val layout=cells[c];val x=left+c*cellWidth
+                operations.add { canvas ->
+                    background(canvas,x,at,cellWidth,height,quoted)
+                    paint.style=Paint.Style.STROKE;paint.strokeWidth=.4f*U;paint.color=Color.LTGRAY
+                    canvas.drawRect(x,at,x+cellWidth,at+height,paint);paint.style=Paint.Style.FILL
+                    if(heights[c]>0) {
+                        canvas.save();canvas.clipRect(x+padding,at+padding,x+cellWidth-padding,at+padding+heights[c])
+                        canvas.translate(x+padding,at+padding-tops[c]);layout.draw(canvas);canvas.restore()
                     }
-                    if(line<layout.lineCount) offsets[c]++
                 }
             }
         }
+        val headerCount=headerRows.coerceIn(0,rows.length())
+        val headers=(0 until headerCount).map(::layoutRow)
+        val headerHeight=headers.sumOf { remainingHeight(it,IntArray(columns)).toDouble() }.toFloat()
+        fun repeatHeight(minimum:Float)=if(headerCount<rows.length() && headerHeight+minimum<=pageHeight) headerHeight else 0f
+        fun nextPage(minimum:Float,repeat:Boolean) {
+            require(minimum<=pageHeight) { "PDF table line exceeds page height" }
+            finishPage();beginFrame()
+            if(repeat && repeatHeight(minimum)>0f) {
+                headers.forEach { drawFragment(it,IntArray(columns),remainingHeight(it,IntArray(columns))) }
+            }
+        }
+        suspend fun drawRow(cells:List<StaticLayout>,repeat:Boolean,keepAfter:Float=0f,keepStart:Boolean=false) {
+            val offsets=IntArray(columns)
+            var firstFragment=true
+            while(cells.indices.any { offsets[it]<cells[it].lineCount }) {
+                currentCoroutineContext().ensureActive()
+                val minimum=minimumHeight(cells,offsets)
+                require(minimum<=pageHeight) { "PDF table line exceeds page height" }
+                val freshHeight=pageHeight-if(repeat) repeatHeight(minimum) else 0f
+                val remaining=remainingHeight(cells,offsets)
+                // Keep a fitting row whole and the final header fragment with the
+                // first body line. Oversized headers are rendered once, never looped.
+                val keep=if(minimum+keepAfter<=freshHeight) keepAfter else 0f
+                var available=BOTTOM-PAD-y
+                if(available<minimum || (!(keepStart && firstFragment) && remaining+keep<=freshHeight && available<remaining+keep)) {
+                    nextPage(minimum,repeat);available=BOTTOM-PAD-y
+                }
+                val budget=if(remaining<=available && remaining+keep>available && minimum+keep<=available) available-keep else available
+                drawFragment(cells,offsets,budget)
+                firstFragment=false
+                if(cells.indices.any { offsets[it]<cells[it].lineCount }) nextPage(minimumHeight(cells,offsets),repeat)
+            }
+        }
+        val firstBody=if(headerCount<rows.length()) layoutRow(headerCount) else null
+        val firstMinimum=firstBody?.let { minimumHeight(it,IntArray(columns)) } ?: 0f
+        if(headerCount>0 && headerHeight+firstMinimum<=pageHeight) {
+            val firstHeight=firstBody?.let { remainingHeight(it,IntArray(columns)) } ?: 0f
+            val together=headerHeight+if(headerHeight+firstHeight<=pageHeight) firstHeight else firstMinimum
+            if(y+together+PAD>BOTTOM) nextPage(firstMinimum,false)
+        }
+        headers.forEachIndexed { index,cells -> drawRow(cells,false,if(index==headers.lastIndex) firstMinimum else 0f) }
+        for(r in headerCount until rows.length()) drawRow(if(r==headerCount) firstBody!! else layoutRow(r),true,
+            keepStart=r==headerCount && headerCount>0)
         y=min(BOTTOM-PAD,y+4f*U)
     }
     private suspend fun blocks(items: JSONArray, left: Float, width: Float, quoted: Boolean=false) {
@@ -223,7 +266,7 @@ internal class ConversationPdfWriter : AutoCloseable {
             when(block.getString("kind")) {
                 "text" -> text(block,left,width,quoted)
                 "math","image" -> graphic(block.getJSONObject("image"),left,width,block.getString("kind")=="math",quoted)
-                "table" -> table(block.getJSONArray("rows"),left,width,quoted)
+                "table" -> table(block.getJSONArray("rows"),block.optInt("headerRows"),left,width,quoted)
                 "quote","indent" -> blocks(block.getJSONArray("blocks"),left+8f*U,max(U,width-16f*U),quoted||block.getString("kind")=="quote")
                 "rule" -> {val at=reserve(12f*U);operations.add { canvas ->paint.color=Color.LTGRAY;paint.strokeWidth=.5f*U;canvas.drawLine(left,at+6f*U,left+width,at+6f*U,paint)}}
             }
