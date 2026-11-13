@@ -133,6 +133,22 @@ class DeliveryTest(unittest.TestCase):
         target = b"new header" + base[100:] + b"changed signing block" + base[:150]
         delta = apk_delta.encode(base, target)
         self.assertEqual(target, apk_delta.apply(base, delta, len(target)))
+        # Same wire format, including repeated seeds, shifted matches and random literals.
+        import random
+        random_bytes = random.Random(42).randbytes(180_000)
+        repeated = b"shared seed text" * 2
+        cases = [(base, target), (random_bytes, b"prefix" + random_bytes[91:155_000] + b"suffix"),
+                 (repeated + b"short" + random_bytes + repeated + random_bytes,
+                  b"inserted" + repeated + random_bytes), (b"a", b"b"),
+                 (random_bytes, random.Random(43).randbytes(25_000))]
+        for before, after in cases:
+            legacy = apk_delta.encode(before, after)
+            candidates = [legacy] + [apk_delta.encode_matched(before, after, block) for block in (16, 32)]
+            for candidate in candidates:
+                self.assertEqual(after, apk_delta.apply(before, candidate, len(after)))
+            best = apk_delta.encode_best(before, after)
+            self.assertEqual(min(map(len, candidates)), len(best))
+            self.assertEqual(best, apk_delta.encode_best(before, after))
         # W3C's independently specified example: ABCDEFG -> ABXYCDBCDE.
         example = apk_delta.MAGIC + bytes([249, 0, 0, 2, 2, 88, 89, 249, 0, 2, 2, 249, 0, 1, 4, 0])
         self.assertEqual(b"ABXYCDBCDE", apk_delta.apply(b"ABCDEFG", gzip.compress(example), 10))
@@ -180,6 +196,12 @@ class DeliveryTest(unittest.TestCase):
                 apk_delta.build(record, wrong, 2, changed, expected=metadata)
             self.assertFalse((changed / metadata["patchName"]).exists())
             self.assertEqual(frozen, metadata)
+            # Historical frozen artifacts retain the old byte-for-byte encoding.
+            legacy_patch = apk_delta.encode(base.read_bytes(), target.read_bytes())
+            legacy_metadata = dict(metadata, patchSha256=apk_delta.digest(legacy_patch), patchSize=len(legacy_patch))
+            legacy_dir = folder / "legacy-recovered"
+            self.assertEqual(legacy_metadata, apk_delta.build(record, target, 2, legacy_dir, expected=legacy_metadata))
+            self.assertEqual(legacy_patch, (legacy_dir / metadata["patchName"]).read_bytes())
 
     def test_start_requires_merged_main_and_dispatches_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:
