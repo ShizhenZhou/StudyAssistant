@@ -1,3 +1,8 @@
+v0.7.2.4
+· ⚡ Improve streaming of long answers and question searches, reducing repeated work and memory use.
+· 📄 Improve PDF table pagination with repeated headers and borders for oversized rows.
+· 📦 Reduce APK and delta download sizes while retaining older-client compatibility and full-download fallback.
+
 v0.7.2.3
 · 🗄 Upgrade local storage to Room 3 and adapt data access, backup restoration, and tag-merge undo.
 

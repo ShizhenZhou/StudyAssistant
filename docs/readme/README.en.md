@@ -51,6 +51,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.2.4
+
+- ⚡ Improve streaming of long answers and question searches, reducing repeated work and memory use.
+- 📄 Improve PDF table pagination with repeated headers and borders for oversized rows.
+- 📦 Reduce APK and delta download sizes while retaining older-client compatibility and full-download fallback.
+- 📌 `versionCode` **121**.
+
 ### v0.7.2.3
 
 - 🗄 Upgrade local storage to Room 3 and adapt data access, backup restoration, and tag-merge undo.
