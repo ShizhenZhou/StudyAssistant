@@ -1,3 +1,7 @@
+v0.7.2.5
+· ⚡ Share concurrent backup folder reads and improve scheduling to reduce duplicate scans and time spent holding locks.
+· 🛠 Improve update notes by hiding malformed or truncated internal manifest comments.
+
 v0.7.2.4
 · ⚡ Improve streaming of long answers and question searches, reducing repeated work and memory use.
 · 📄 Improve PDF table pagination with repeated headers and borders for oversized rows.

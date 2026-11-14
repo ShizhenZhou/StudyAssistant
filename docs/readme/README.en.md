@@ -51,6 +51,12 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.2.5
+
+- ⚡ Share concurrent backup folder reads and improve scheduling to reduce duplicate scans and time spent holding locks.
+- 🛠 Improve update notes by hiding malformed or truncated internal manifest comments.
+- 📌 `versionCode` **122**.
+
 ### v0.7.2.4
 
 - ⚡ Improve streaming of long answers and question searches, reducing repeated work and memory use.
