@@ -12,6 +12,7 @@ import retrofit2.http.POST
 import retrofit2.http.Streaming
 import retrofit2.http.Multipart
 import retrofit2.http.Part
+import retrofit2.http.Header
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import java.util.concurrent.TimeUnit
@@ -22,7 +23,8 @@ interface DeepSeekService {
     suspend fun uploadImage(@Part("purpose") purpose: RequestBody,
         @Part("expires_after[anchor]") anchor: RequestBody,
         @Part("expires_after[seconds]") seconds: RequestBody,
-        @Part file: MultipartBody.Part): DeepSeekFile
+        @Part file: MultipartBody.Part,
+        @Header("Authorization") authorization: String? = null): DeepSeekFile
     @POST("chat/completions")
     suspend fun chat(@Body request: DeepSeekRequest): DeepSeekResponse
 
@@ -32,7 +34,8 @@ interface DeepSeekService {
      */
     @Streaming
     @POST("chat/completions")
-    fun chatStream(@Body request: DeepSeekRequest): retrofit2.Call<ResponseBody>
+    fun chatStream(@Body request: DeepSeekRequest,
+        @Header("Authorization") authorization: String? = null): retrofit2.Call<ResponseBody>
 }
 
 object ApiClient {
@@ -40,10 +43,9 @@ object ApiClient {
 
     /** 运行时动态读取用户填写的 key（Keystore 解密） */
     private val authInterceptor = Interceptor { chain ->
-        val key = KeyManager.getApiKey()
-        val req = chain.request().newBuilder()
-            .header("Authorization", "Bearer $key")
-            .build()
+        val original = chain.request()
+        val req = if (original.header("Authorization") != null) original else original.newBuilder()
+            .header("Authorization", "Bearer ${KeyManager.getApiKey()}").build()
         chain.proceed(req)
     }
 
@@ -60,6 +62,23 @@ object ApiClient {
         .build().create(DeepSeekService::class.java)
 
     val deepSeek: DeepSeekService by lazy { service(client) }
+    internal val imageUpload: DeepSeekService by lazy {
+        service(client.newBuilder().retryOnConnectionFailure(false).build())
+    }
+    // Multipart parsing can outlive upload. Never transparently replay billable uploads.
+    internal val files: DeepSeekFileService by lazy {
+        Retrofit.Builder().baseUrl("https://api.deepseek.com/")
+            .client(client.newBuilder().retryOnConnectionFailure(false)
+                .readTimeout(250, TimeUnit.SECONDS).callTimeout(270, TimeUnit.SECONDS).build())
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build().create(DeepSeekFileService::class.java)
+    }
+    internal val ocr: DeepSeekOcrService by lazy {
+        Retrofit.Builder().baseUrl("https://api.deepseek.com/")
+            .client(client.newBuilder().retryOnConnectionFailure(false)
+                .writeTimeout(30, TimeUnit.SECONDS).callTimeout(200, TimeUnit.SECONDS).build())
+            .build().create(DeepSeekOcrService::class.java)
+    }
     // Only the explicitly unlimited crop request may wait indefinitely for a response.
     val unlimitedCrop: DeepSeekService by lazy {
         service(client.newBuilder().callTimeout(0, TimeUnit.SECONDS).readTimeout(0, TimeUnit.SECONDS).build())
@@ -71,6 +90,6 @@ object ApiClient {
      */
     val deepSeekStream: DeepSeekService by lazy {
         // newBuilder shares the connection pool and dispatcher with ordinary requests.
-        service(client.newBuilder().callTimeout(0, TimeUnit.SECONDS).build())
+        service(client.newBuilder().retryOnConnectionFailure(false).callTimeout(0, TimeUnit.SECONDS).build())
     }
 }

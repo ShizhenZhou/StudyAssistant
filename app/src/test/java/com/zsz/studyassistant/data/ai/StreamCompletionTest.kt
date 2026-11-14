@@ -48,7 +48,8 @@ class StreamCompletionTest {
     @Test fun imageReferencesRespectFirstUseExpiryAndAccount() = kotlinx.coroutines.runBlocking {
         var now = 1000L
         var uploads = 0
-        val cache = ReusableImageFiles(clock = { now }) { bytes, mime ->
+        val cache = ReusableImageFiles(clock = { now }) { bytes, mime, key ->
+            assertEquals("account-a", key)
             assertEquals("image/jpeg", mime); assertArrayEquals(byteArrayOf(1,2,3), bytes)
             DeepSeekFile("file-api-${++uploads}", now + 86400)
         }
@@ -61,7 +62,7 @@ class StreamCompletionTest {
         now += 86400
         assertNotEquals(reused, cache.prepare(original, "account-a")); assertEquals(2, uploads)
         assertEquals(original, cache.prepare(original, "account-b"))
-        cache.invalidate()
+        cache.invalidate("account-b")
         assertEquals(original, cache.prepare(original, "account-b"))
     }
 
@@ -69,14 +70,35 @@ class StreamCompletionTest {
         val parts = kotlinx.serialization.json.Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
         val original = listOf(DeepSeekMessage("user", parts))
         var calls = 0
-        val failed = ReusableImageFiles { _, _ -> calls++; throw java.io.IOException() }
+        val failed = ReusableImageFiles { _, _, _ -> calls++; throw java.io.IOException() }
         failed.prepare(original, "a")
         assertEquals(original, failed.prepare(original, "a"))
         assertEquals(original, failed.prepare(original, "a")); assertEquals(1, calls)
-        val cancelled = ReusableImageFiles { _, _ -> throw kotlinx.coroutines.CancellationException() }
+        val cancelled = ReusableImageFiles { _, _, _ -> throw kotlinx.coroutines.CancellationException() }
         cancelled.prepare(original, "a")
         try { cancelled.prepare(original, "a"); fail("Cancellation swallowed") }
         catch (_: kotlinx.coroutines.CancellationException) { }
+    }
+
+    @Test fun thinkingModeAlwaysSendsItsRequiredType() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        for (mode in listOf("enabled", "disabled")) {
+            val request = DeepSeekRequest("deepseek-flash", listOf(DeepSeekMessage("user", kotlinx.serialization.json.JsonPrimitive("synthetic"))),
+                thinking = ThinkingOption(mode), stream = true, streamOptions = StreamOptions(true))
+            val serialized = json.encodeToString(DeepSeekRequest.serializer(), request)
+            val obj = json.parseToJsonElement(serialized) as kotlinx.serialization.json.JsonObject
+            assertEquals(kotlinx.serialization.json.JsonPrimitive(mode), (obj["thinking"] as kotlinx.serialization.json.JsonObject)["type"])
+            assertEquals(kotlinx.serialization.json.JsonPrimitive(true), (obj["stream_options"] as kotlinx.serialization.json.JsonObject)["include_usage"])
+        }
+    }
+
+    @Test fun fileFallbackRequiresExplicitFileRejection() {
+        assertTrue(classifyAiError(400, """{"error":{"code":"file_expired"}}""").fileReferenceRejected)
+        assertTrue(classifyAiError(400, """{"error":{"code":"invalid_file_id"}}""").fileReferenceRejected)
+        assertFalse(classifyAiError(422, """{"detail":[{"loc":["body","thinking","type"],"input":"private"}]}""").fileReferenceRejected)
+        assertEquals("thinking", classifyAiError(422, """{"detail":[{"loc":["body","thinking","type"]}]}""").parameter)
+        assertFalse(classifyAiError(401, """{"error":{"code":"file_expired"}}""").fileReferenceRejected)
+        assertFalse(classifyAiError(400, """{"error":{"message":"invalid model"}}""").fileReferenceRejected)
     }
 
     private fun expect(key: String, tracker: StreamCompletion) {

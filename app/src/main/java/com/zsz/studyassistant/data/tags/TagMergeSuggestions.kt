@@ -40,8 +40,7 @@ object TagMergeSuggestions {
             DeepSeekMessage("user", JsonPrimitive(payload(base)))),
         // Thinking tokens and final JSON share this budget. A full label list can exceed 8K.
         maxTokens = if (thinkingEnabled) 32768 else 16384, temperature = 0.0,
-        // Same contract as ordinary solving: enabled uses the server default. With default
-        // serialization, ThinkingOption("enabled") becomes {}, which the API rejects with 422.
+        // Enabled intentionally follows the server default; disabled is explicit.
         thinking = if (thinkingEnabled) null else ThinkingOption("disabled"),
         responseFormat = DeepSeekResponseFormat("json_object")
     )

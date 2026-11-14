@@ -10,6 +10,8 @@ class StreamOwner {
     private var cancelAction: (() -> Unit)? = null
     @Volatile var usage: DeepSeekUsage? = null
     @Volatile var responseContext: AiResponseContext? = null
+    /** Only a terminal length response with complete tool metadata can be replayed safely. */
+    @Volatile var resumableContext: AiResponseContext? = null
     @Volatile var usedWeb: Boolean = false
     fun attach(action: () -> Unit) {
         val runNow = synchronized(lock) { if (cancelled) true else { cancelAction = action; false } }

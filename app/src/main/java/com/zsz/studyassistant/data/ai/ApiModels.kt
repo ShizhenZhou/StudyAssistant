@@ -37,21 +37,24 @@ data class DeepSeekRequest(
 data class DeepSeekTool(val type: String)
 
 @Serializable
-data class DeepSeekFile(val id: String, @SerialName("expires_at") val expiresAt: Long? = null)
+data class DeepSeekFile(val id: String, @SerialName("expires_at") val expiresAt: Long? = null,
+    val bytes: Long = 0, val filename: String = "", val purpose: String = "",
+    @SerialName("created_at") val createdAt: Long = 0)
 
 /** Exact assistant payload for tool context; presentation/section parsing must not rewrite it. */
 @Serializable
 data class AiResponseContext(val rawContent: String, val reasoningContent: String? = null,
-    val serverToolCalls: JsonArray? = null, val annotations: JsonArray? = null)
+    val serverToolCalls: JsonArray? = null, val annotations: JsonArray? = null,
+    val continuationHistory: List<DeepSeekMessage> = emptyList())
 
 @Serializable
 data class DeepSeekResponseFormat(val type: String)
 
 @Serializable
-data class ThinkingOption(val type: String = "enabled")
+data class ThinkingOption(val type: String)
 
 @Serializable
-data class StreamOptions(@SerialName("include_usage") val includeUsage: Boolean = true)
+data class StreamOptions(@SerialName("include_usage") val includeUsage: Boolean)
 
 @Serializable
 data class DeepSeekChoice(val message: DeepSeekMessage,

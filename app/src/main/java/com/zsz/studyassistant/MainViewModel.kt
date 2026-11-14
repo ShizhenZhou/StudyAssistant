@@ -593,9 +593,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val partial = com.zsz.studyassistant.data.ThinkingOutput.split(value.raw)
                     streamingText=partial.body; thinkingText=value.thinking ?: partial.thinking; streamInterrupted=true
                     activeDraft=activeDraft?.copy(raw=partial.body, thinking=thinkingText)
-                    contModel=value.model; contPrefix=if(value.webEnabled) "" else partial.body
+                    webEnabled=value.webEnabled
+                    val continuation = if (value.webEnabled) com.zsz.studyassistant.data.webContinuation(
+                        value.messages, value.requestPrefix, value.continuationHistory,
+                        value.continuationAnnotations, value.resumableContext) else null
+                    contModel=value.model; contPrefix=continuation?.prefix ?: partial.body
                     contWebEnabled=value.webEnabled
-                    contMessages=if(value.webEnabled) value.messages else continuationMessages(value.messages,partial.body)
+                    contWebHistory=continuation?.history.orEmpty()
+                    contWebAnnotations=continuation?.annotations
+                    contMessages=continuation?.messages ?: continuationMessages(value.messages,partial.body)
                     contDraftAction=value.action
                     contOnDone={ output -> applyRecoveredReply(value.action,output) }
                 }
@@ -1339,6 +1345,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     private var completedAiContext: com.zsz.studyassistant.data.AiResponseContext? = null
     private var contWebEnabled = false
+    private var contWebHistory: List<DeepSeekMessage> = emptyList()
+    private var contWebAnnotations: kotlinx.serialization.json.JsonArray? = null
     val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
 
     fun stopActiveGeneration() {
@@ -1363,6 +1371,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         contMessages = null
         contOnDone = null
         contPrefix = ""
+        contWebHistory = emptyList()
+        contWebAnnotations = null
+        toolProgress = null
+        completedAiContext = null
         stopping?.let { com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(), it.id) }
     }
     fun clearCaptureCaches() {
@@ -1435,9 +1447,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         for (item in items) {
             if (item.answerPending) continue
             when (item.role) {
-                "assistant" -> msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.aiContext?.rawContent ?: item.content),
-                    reasoningContent = if (item.aiContext != null) item.aiContext.reasoningContent else item.thinking,
-                    serverToolCalls = item.aiContext?.serverToolCalls))
+                "assistant" -> {
+                    msgs.addAll(item.aiContext?.continuationHistory.orEmpty())
+                    msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.aiContext?.rawContent ?: item.content),
+                        reasoningContent = if (item.aiContext != null) item.aiContext.reasoningContent else item.thinking,
+                        serverToolCalls = item.aiContext?.serverToolCalls))
+                }
                 "user" -> {
                     val imgs = item.images
                     if (imgs.isNullOrEmpty()) {
@@ -1458,6 +1473,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val msg = e.message.orEmpty().lowercase()
         return when {
             e is com.zsz.studyassistant.data.StreamIncompleteException -> s[e.messageKey]
+            e is com.zsz.studyassistant.data.AiRequestException && e.code() in setOf(400, 422) ->
+                s.format("err.invalidParameter", "code" to e.code().toString(), "field" to (e.parameter ?: "—"))
             msg.contains("timed out") || msg.contains("timeout") || msg.contains("socket") -> s["err.timeout"]
             msg.contains("failed to connect") || msg.contains("unreachable") || msg.contains("connect") -> s["err.connect"]
             msg.contains("api key") || msg.contains("unauthorized") || msg.contains("401") -> s["err.apikey"]
@@ -1482,6 +1499,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     private fun resetSession() {
+        webEnabled = com.zsz.studyassistant.data.CapturePrefs.webEnabled(getApplication())
         attachmentCropFlow?.cancelCropFlow()
         attachmentCropFlow = null
         solveInputDraft = com.zsz.studyassistant.ui.SolveInputDraft()
@@ -1561,6 +1579,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         contMessages = null
         contOnDone = null
         contPrefix = ""
+        contWebHistory = emptyList()
+        contWebAnnotations = null
+        toolProgress = null
+        completedAiContext = null
     }
 
     /** 继续生成：把已生成部分作为 assistant 上文，要求模型接着往下写（不重复、不重开） */
@@ -1569,7 +1591,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val onDone = contOnDone ?: return
         // ★ 包一层：续写完成后把**同一条**搜题记录也更新掉（否则记录里永远停在被中止时的半截答案）
         val wrapped: (String) -> Unit = { out -> onDone(out); updateSolveSession() }
-        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction, useWeb=contWebEnabled)
+        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction, useWeb=contWebEnabled,
+            webHistory=contWebHistory, webAnnotations=contWebAnnotations)
     }
 
     private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
@@ -1601,7 +1624,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         onDone: (String) -> Unit,
         repeat: (() -> Unit)?,
         replyAction: String = if(chatItems.lastOrNull()?.role=="user") "followup" else if(gradeMode) "grade" else "initial",
-        useWeb: Boolean = webEnabled
+        useWeb: Boolean = webEnabled,
+        webHistory: List<DeepSeekMessage> = emptyList(),
+        webAnnotations: kotlinx.serialization.json.JsonArray? = null
     ) {
         if(dataBusy) return
         streamOwner?.cancel()
@@ -1613,7 +1638,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val template=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
             owner.id,model,replyAction,currentSource(),questionText,isPhoto,askMode,gradeMode,
             sessionRecordBinding.historyAllowed,savedQuestionId,questionImages,chatItems.toList(),messages,raw=prefix,redoFor=pendingRedoFor ?: if(gradeMode) redoQuestionId else null,
-            gradeHistoryEnabled=gradeMode, webEnabled=useWeb) }
+            gradeHistoryEnabled=gradeMode, webEnabled=useWeb, requestPrefix=prefix,
+            continuationHistory=webHistory, continuationAnnotations=webAnnotations) }
         if(template!=null) { conversationDrafts.reserve(template.id,template.generation); activeDraft=template }
         callJob = viewModelScope.launch {
             busy = true
@@ -1677,7 +1703,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val parsedReply = com.zsz.studyassistant.data.ThinkingOutput.split(reply)
                 thinkingText = thinkSb.toString().takeIf { it.isNotEmpty() } ?: parsedReply.thinking ?: thinkingText
                 thinkingDone = true
-                completedAiContext = owner.responseContext
+                completedAiContext = com.zsz.studyassistant.data.completedWebContext(owner.responseContext, webHistory, webAnnotations)
                 // ⚠️ 这里原先有一段「把 thinkingText 挂到 indexOfLast{assistant}」的代码，已删除：
                 //   调用点在 onDone 之前，此刻 chatItems 里最后一条助手消息是**上一轮的** →
                 //   追问时会把上一轮答案的思考块覆盖成本轮思考。
@@ -1704,6 +1730,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 contMessages = null
                 contOnDone = null
                 contPrefix = ""
+                contWebHistory = emptyList()
+                contWebAnnotations = null
             } catch (e: Exception) {
                 // 用户中止时协程已被取消（关闭响应体导致的 IOException 也走这里）：
                 // 统一按「中断」处理——**甚至一个字都没生成时也保留气泡**（界面显示「思考中…」+ 蓝色「继续生成」）
@@ -1715,7 +1743,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // 已被新请求取代的旧请求：不改界面状态（否则会把新请求的「思考中…」/内容冲掉）
                 if (mySeq == callSeq) {
                     thinkingText = thinkSb.toString().takeIf { it.isNotEmpty() } ?: parsedPartial.thinking ?: thinkingText
-                    activeDraft=activeDraft?.copy(raw=partial,thinking=thinkingText)
+                    activeDraft=activeDraft?.copy(raw=partial,thinking=thinkingText,resumableContext=owner.resumableContext)
                     activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
                     withContext(kotlinx.coroutines.NonCancellable) { refreshDrafts() }
                     contDraftAction=replyAction
@@ -1723,8 +1751,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         streamInterrupted = true
                         contModel = model
                         contWebEnabled = useWeb
-                        contMessages = if (useWeb) messages else continuationMessages(messages, partial)
-                        contPrefix = if (useWeb) "" else partial
+                        val continuation = if (useWeb) com.zsz.studyassistant.data.webContinuation(
+                            messages, prefix, webHistory, webAnnotations, owner.resumableContext) else null
+                        contMessages = continuation?.messages ?: continuationMessages(messages, partial)
+                        contPrefix = continuation?.prefix ?: partial
+                        contWebHistory = continuation?.history.orEmpty()
+                        contWebAnnotations = continuation?.annotations
                         contOnDone = onDone
                         // 用完整累积文本刷新一次界面（可能是空串 → 界面显示「思考中…」+ 蓝色「继续生成」）
                         streamingText = partial

@@ -312,12 +312,16 @@ object StudyAssistant {
         owner: StreamOwner = StreamOwner(),
         task: String = "initial",
         webEnabled: Boolean = false,
-        onToolProgress: (suspend (String) -> Unit)? = null
+        onToolProgress: (suspend (String) -> Unit)? = null,
+        documents: List<RemoteAiFile> = emptyList()
     ): String {
         requireKey()
+        val accountKey = KeyManager.getApiKey()
+        require(accountKey.isNotBlank())
+        val original = attachDocuments(messages, documents, accountKey)
         val budget = AiRequestPolicy.budget(task, thinkingEnabled, webEnabled)
         owner.usedWeb = webEnabled
-        val prepared = AiImageUploads.cache.prepare(messages, KeyManager.getApiKey().orEmpty())
+        val prepared = AiImageUploads.cache.prepare(original, accountKey)
         fun request(input: List<DeepSeekMessage>) = DeepSeekRequest(
             model = model, messages = if (webEnabled) input else input.map { it.copy(reasoningContent = null, serverToolCalls = null) }, maxTokens = budget.tokens,
             stream = true, streamOptions = StreamOptions(includeUsage = true),
@@ -326,13 +330,13 @@ object StudyAssistant {
             tools = if (webEnabled) listOf(DeepSeekTool("deepseek_web_search"), DeepSeekTool("deepseek_read_url")) else null
         )
         val body = try {
-            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared)), owner)
-        } catch (e: retrofit2.HttpException) {
+            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared), "Bearer $accountKey"), owner)
+        } catch (e: AiRequestException) {
             // Rejected file references: one inline fallback before any answer was generated.
-            if (e.code() !in setOf(400, 404, 410) || prepared == messages) throw e
+            if (!e.fileReferenceRejected || prepared == original) throw e
             currentCoroutineContext().ensureActive()
-            AiImageUploads.cache.invalidate()
-            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(messages)), owner)
+            AiImageUploads.cache.invalidate(accountKey)
+            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(original), "Bearer $accountKey"), owner)
         }
         val sb = StringBuilder()
         var usage: DeepSeekUsage? = null
@@ -340,6 +344,8 @@ object StudyAssistant {
         val finalThinking = StringBuilder()
         var toolCalls: kotlinx.serialization.json.JsonArray? = null
         var annotations: kotlinx.serialization.json.JsonArray? = null
+        var terminalMetadata = false
+        var sawToolCall = false
         try {
             body.use { b ->
                 val src = b.source()
@@ -355,6 +361,7 @@ object StudyAssistant {
                     chunk.usage?.let { usage = it }
                     val choice = chunk.choices.firstOrNull()
                     choice?.serverToolEvent?.let { event ->
+                        if ((event["type"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "call_started") sawToolCall = true
                         if ((event["type"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "step_reasoning_done") finalThinking.setLength(0)
                         toolProgressKey(event)?.let { onToolProgress?.invoke(it) }
                     }
@@ -362,6 +369,7 @@ object StudyAssistant {
                     d?.reasoningContent?.let(finalThinking::append)
                     d?.serverToolCalls?.let { toolCalls = it }
                     d?.annotations?.let { annotations = it }
+                    if (choice?.finishReason == "length") terminalMetadata = d?.serverToolCalls != null || !sawToolCall
                     // ★ 推理模型的"思考流"：单独回调，且**不并入**正文（避免污染答案与解析）
                     d?.reasoningContent?.takeIf { it.isNotEmpty() }?.let { r -> onReasoning?.invoke(r) }
                     val delta = d?.content
@@ -374,9 +382,11 @@ object StudyAssistant {
         } finally {
             owner.usage = usage
             if (webEnabled) owner.responseContext = AiResponseContext(sb.toString(),
-                finalThinking.toString().takeIf { it.isNotEmpty() }, toolCalls, annotations)
+                finalThinking.toString(), toolCalls, annotations)
             owner.finish()
         }
+        if (webEnabled && completion.canContinueLength && terminalMetadata && sb.isNotBlank())
+            owner.resumableContext = owner.responseContext
         completion.requireComplete()
         return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }
     }
@@ -391,8 +401,8 @@ object StudyAssistant {
                     if (response.isSuccessful && received != null) {
                         continuation.resume(received) { _, resource, _ -> resource.close() }
                     } else {
-                        response.errorBody()?.close()
-                        if (continuation.isActive) continuation.resumeWith(Result.failure(retrofit2.HttpException(response)))
+                        val error = aiRequestException(response)
+                        if (continuation.isActive) continuation.resumeWith(Result.failure(error))
                     }
                 }
                 override fun onFailure(call: retrofit2.Call<ResponseBody>, error: Throwable) {

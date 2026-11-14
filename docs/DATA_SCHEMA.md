@@ -464,7 +464,16 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 ## v0.7.3：联网会话上下文与本机偏好
 
 - `ChatItem.aiContext` 为可选对象，缺失时 `null`；包含 `rawContent`（解析前正文）、`reasoningContent`（最终步骤推理，可空）、`serverToolCalls` 和 `annotations`（原始 JSON 数组）。工具调用的签名及原始字段保持不变以供后续联网追问回传；界面从 annotations 提取安全 HTTP(S) 来源，显示内容不改写引用定位正文。首答删除时同步清空 aiContext，撤销恢复原消息。
-- 草稿 `ConversationDraft.webEnabled` 缺失时 `false`，记录本次请求的联网选项；联网中断后重发原请求，不拼接残缺工具上下文。
+- 草稿 `ConversationDraft.webEnabled` 缺失时 `false`，记录本次请求的联网选项；缺少完整终态的联网中断重试当前段，不拼接残缺工具上下文；已收到完整长度截断终态时可续写。
 - 本机 settings 增加 `ai_web_enabled`（默认 false）、`usage_cache`、`usage_search`、`usage_fetch`、`usage_image_search`（默认0）。工具统计采用服务端计费次数字段，不以进度事件计数。
 - 图片 file_id 只保留在有界内存缓存，绑定凭据摘要与图片内容；不保存凭据本身、不写数据库/备份/草稿。首次使用仍内嵌图片，重复使用按需上传并设置24小时有效期；过期重新上传，失败回退原图，原图始终随原有会话保留。
 - Room 表结构、DB v10、Bak v4 不变；会话 JSON 可选字段随既有保存及备份路径写入，旧数据无需批量转换，旧读端忽略未知字段。未做有损迁移或清库。
+
+
+## 联网续写与文件接口维护（2026-11-14，未发布）
+
+- DB v10 / Bak v4 / 草稿 version 1 不变，无结构迁移，不批量改写已有数据。
+- `ChatItem.aiContext.continuationHistory` 缺失时为空列表，记录安全续写之前的原样 assistant 与内部续写 user 消息；`rawContent` 仅是最后一次响应的精确正文。显示正文可以拼接，但工具签名上下文不能按显示结果改写。历史重开、保存及备份沿用 JSON 字段兼容读取。
+- 草稿新增默认字段 `requestPrefix`（空字符串）、`continuationHistory`（空列表）、`continuationAnnotations`（null）、`resumableContext`（null）。只有服务端完整 length 终态允许接纳当前段；网络中断/主动中止只重试当前段，之前已接纳的前缀保留。恢复草稿的联网显示取该草稿值，新会话回到全局偏好。
+- 图片上传与问答固定使用同一轮凭据；缓存失效仅作用于对应账号。明确的文件引用拒绝才允许一次原图回退，普通参数错误不自动重试。显式 low-detail 图片保留内嵌格式。
+- 文件提问/OCR 此轮仅提供底层接口，无页面、自动上传、题库字段或附件持久化入口。远端文件引用绑定账号摘要和到期时间，不能取代本地原件；OCR 返回独立的逐页原始文本、截断标记及参考用量，不自动修改题干或发送 AI。未来 UI 接入需另行定义本地文档生命周期、恢复/备份与确认费用流程，详见 `docs/ai-files.md`。

@@ -13,6 +13,7 @@ class StreamCompletion(private val maxCharacters: Int = 4_000_000) {
     private var finishReason: String? = null
     private var received = 0L
     private var serverError = false
+    val canContinueLength: Boolean get() = !serverError && finishReason == "length"
     fun accept(payload: String): StreamChunk? {
         if (payload.isBlank()) return null
         if (payload == "[DONE]") { done = true; return null }
