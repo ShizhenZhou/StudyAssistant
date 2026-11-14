@@ -17,7 +17,8 @@ import java.util.concurrent.atomic.AtomicLong
 internal data class CaptureFlowState(
     val paths: List<String>, val index: Int, val grade: Boolean, val expect: Int,
     val needsMore: Boolean, val results: List<ByteArray>, val questionId: String?, val createdAt: Long,
-    val rotations: List<Int> = List(paths.size) { 0 }
+    val rotations: List<Int> = List(paths.size) { 0 },
+    val correctedTexts: List<String?> = List(results.size) { null }
 )
 
 /** Independent, app-private checkpoint. Call disk operations on an IO dispatcher. */
@@ -73,10 +74,21 @@ internal class CaptureFlowStore(context: Context) {
                     FileOutputStream(File(directory, name)).use { it.write(bytes); it.fd.sync() }
                     name
                 }
+                val corrections = state.correctedTexts.mapIndexed { index, text ->
+                    active()
+                    if (text == null) JSONObject.NULL else {
+                        val name = "correction-$index.txt"
+                        FileOutputStream(File(directory, name)).use {
+                            it.write(text.toByteArray(Charsets.UTF_8)); it.fd.sync()
+                        }
+                        name
+                    }
+                }
                 val json = JSONObject().put("version", 1).put("generation", generation)
                     .put("paths", JSONArray(paths)).put("index", state.index).put("grade", state.grade)
                     .put("expect", state.expect).put("needsMore", state.needsMore)
                     .put("rotations", JSONArray(state.rotations))
+                    .put("correctedTexts", JSONArray(corrections))
                     .put("results", JSONArray(results)).put("questionId", state.questionId ?: JSONObject.NULL)
                     .put("createdAt", state.createdAt).toString()
                 active()
@@ -139,8 +151,24 @@ internal class CaptureFlowStore(context: Context) {
                     value
                 }
             } else List(paths.size) { 0 }
+            val corrections = if (json.has("correctedTexts")) {
+                val values = json.getJSONArray("correctedTexts")
+                if (values.length() != results.size) throw IOException("Invalid capture corrections")
+                List(values.length()) { index ->
+                    if (values.isNull(index)) null else {
+                        val name = "correction-$index.txt"
+                        if (values.get(index) != name) throw IOException("Invalid capture correction name")
+                        val file = File(directory, name)
+                        safeChild(directory, file)
+                        if (file.length() !in 1..CORRECTION_LIMIT.toLong()) throw IOException("Invalid capture correction length")
+                        val bytes = file.inputStream().use { it.readNBytes(CORRECTION_LIMIT + 1) }
+                        if (bytes.size > CORRECTION_LIMIT) throw IOException("Capture correction exceeds limit")
+                        Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+                    }
+                }
+            } else List(results.size) { null }
             val state = CaptureFlowState(paths, int(json, "index"), boolean(json, "grade"),
-                int(json, "expect"), boolean(json, "needsMore"), results, questionId, integer(json, "createdAt"), rotations)
+                int(json, "expect"), boolean(json, "needsMore"), results, questionId, integer(json, "createdAt"), rotations, corrections)
             validate(state)
             state
         }
@@ -158,6 +186,8 @@ internal class CaptureFlowStore(context: Context) {
 
     private fun validate(state: CaptureFlowState) {
         if (state.rotations.size != state.paths.size || state.rotations.any { it !in 0..3 } ||
+            state.correctedTexts.size != state.results.size ||
+            state.correctedTexts.any { it != null && (it.isBlank() || it.toByteArray(Charsets.UTF_8).size > CORRECTION_LIMIT) } ||
             state.paths.size !in 1..2 || state.expect !in 1..2 || state.paths.size > state.expect ||
             state.results.size > 2 || state.results.any { it.isEmpty() || it.size > RESULT_LIMIT } ||
             state.createdAt <= 0 || state.index !in 0..state.paths.size || state.results.size >= state.expect ||
@@ -267,5 +297,6 @@ internal class CaptureFlowStore(context: Context) {
         private val GENERATION = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
         private const val SOURCE_LIMIT = 64L * 1024 * 1024
         private const val RESULT_LIMIT = 16 * 1024 * 1024
+        private const val CORRECTION_LIMIT = 2 * 1024 * 1024
     }
 }

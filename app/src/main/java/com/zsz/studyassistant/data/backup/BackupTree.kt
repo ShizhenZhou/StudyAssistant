@@ -10,7 +10,7 @@ import java.security.MessageDigest
 import java.nio.file.Files
 import java.util.Base64
 
-/** Private tree version 1 inside Bak4: fixed-schema framed rows, SHA-256 image resources. */
+/** Private tree version 1 inside Bak4: fixed-schema framed rows, SHA-256 binary resources. */
 internal object BackupTree {
     const val CHUNK=64*1024
     const val sessionImageExpression="CASE WHEN imagesJson IS NOT NULL THEN (length(imagesJson)-length(replace(imagesJson,'\"','')))/2 WHEN imageBytes IS NOT NULL THEN 1 ELSE 0 END"
@@ -137,7 +137,7 @@ internal object BackupTree {
         writeCounts(root,counts)
     }
 
-    fun normalize(raw:File,tree:File,check:()->Unit,progress:(Long)->Unit) {
+    fun normalize(raw:File,tree:File,check:()->Unit,sourceDocuments:File?=null,progress:(Long)->Unit) {
         val counts=counts(raw); File(tree,"resources").mkdir(); var completed=0L
         tables.forEachIndexed { ti,table ->
             File(tree,table.name).mkdir()
@@ -157,7 +157,7 @@ internal object BackupTree {
                                 out.writeInt(reference.size); out.write(reference)
                             } else if(column.name=="conversationJson" || column.name=="imagesJson") {
                                 val text=readString(input,length)
-                                val normalized=imagesJson(text,tree,false,column.name=="conversationJson",check)
+                                val normalized=imagesJson(text,tree,false,column.name=="conversationJson",check,sourceDocuments)
                                 val bytes=normalized.toByteArray(Charsets.UTF_8); fieldSize(bytes.size.toLong()); out.writeInt(bytes.size); out.write(bytes)
                             } else { out.writeInt(length); copyExact(input,out,length,check) }
                         }
@@ -209,7 +209,8 @@ internal object BackupTree {
         catch(_:EOFException) { invalid() }
 
     /** Stream messages, preserving all known and unknown scalar fields, roles, IDs and image order. */
-    fun imagesJson(text:String,tree:File,restore:Boolean,conversation:Boolean,check:()->Unit):String {
+    fun imagesJson(text:String,tree:File,restore:Boolean,conversation:Boolean,check:()->Unit,
+        sourceDocuments:File?=null, restoredDocument:((File,ConversationDocument)->Unit)?=null):String {
         val output=LimitedStringWriter()
         JsonReader(StringReader(text)).use { input -> JsonWriter(output).use { out ->
             jsonToken { input.beginArray() }; out.beginArray()
@@ -225,6 +226,7 @@ internal object BackupTree {
                             "role" -> { out.value(jsonToken { input.nextString() }); role=true }
                             "content" -> { out.value(jsonToken { input.nextString() }); content=true }
                             "images" -> if(jsonToken { input.peek() }==JsonToken.NULL) { jsonToken { input.nextNull() }; out.nullValue() } else { imageArray(input,out,tree,restore,check) }
+                            "documents" -> documentArray(input,out,tree,restore,sourceDocuments,restoredDocument,check)
                             "thinking" -> if(jsonToken { input.peek() }==JsonToken.NULL) { jsonToken { input.nextNull() }; out.nullValue() } else out.value(jsonToken { input.nextString() })
                             else -> jsonToken { transfer(input,out,0) }
                         }
@@ -236,6 +238,80 @@ internal object BackupTree {
             jsonToken { input.endArray() }; out.endArray(); if(jsonToken { input.peek() }!=JsonToken.END_DOCUMENT) invalid()
         } }
         return output.toString()
+    }
+    /** Metadata stays in the conversation; originals use the existing content-addressed resources. */
+    private fun documentArray(input:JsonReader,out:JsonWriter,tree:File,restore:Boolean,
+        sourceDocuments:File?,restoredDocument:((File,ConversationDocument)->Unit)?,check:()->Unit) {
+        jsonToken { input.beginArray() }; out.beginArray()
+        while(jsonToken { input.hasNext() }) {
+            check(); jsonToken { input.beginObject() }; out.beginObject()
+            var sha:String?=null; var name:String?=null; var size:Long?=null
+            val seen=HashSet<String>()
+            while(jsonToken { input.hasNext() }) {
+                val key=jsonToken { input.nextName() }
+                if(seen.size>=128 || !seen.add(key)) invalid()
+                out.name(key)
+                when(key) {
+                    "sha256" -> { if(jsonToken { input.peek() }!=JsonToken.STRING) invalid(); sha=jsonToken { input.nextString() }; out.value(sha) }
+                    "name" -> { if(jsonToken { input.peek() }!=JsonToken.STRING) invalid(); name=jsonToken { input.nextString() }; out.value(name) }
+                    "size" -> { if(jsonToken { input.peek() }!=JsonToken.NUMBER) invalid(); size=jsonToken { input.nextLong() }; out.value(size) }
+                    else -> jsonToken { transfer(input,out,0) }
+                }
+            }
+            jsonToken { input.endObject() }; out.endObject()
+            val document=ConversationDocument(sha ?: invalid(),name ?: invalid(),size ?: invalid())
+            try { DocumentStore.validateDocument(document) } catch(_:IllegalArgumentException) { invalid() }
+            val resource=File(tree,"resources/${document.sha256}")
+            if(restore) {
+                copyDocument(resource,null,document,check)
+                restoredDocument?.invoke(resource,document)
+            } else {
+                val directory=sourceDocuments ?: invalid()
+                copyDocument(File(directory,document.sha256),resource,document,check)
+            }
+        }
+        jsonToken { input.endArray() }; out.endArray()
+    }
+    /** Bounded streaming copy; never rename or remove the original attachment. */
+    private fun copyDocument(source:File,target:File?,document:ConversationDocument,check:()->Unit) {
+        if(!source.isFile || Files.isSymbolicLink(source.toPath()) || source.length()!=document.size) invalid()
+        if(target==null || target.exists()) {
+            if(documentDigest(source,document.size,check)!=document.sha256) invalid()
+            if(target!=null && (!target.isFile || Files.isSymbolicLink(target.toPath()) ||
+                    target.length()!=document.size || documentDigest(target,document.size,check)!=document.sha256)) invalid()
+            return
+        }
+        space(target.parentFile,document.size)
+        val temp=File(target.parentFile,"${document.sha256}.${java.util.UUID.randomUUID()}.tmp")
+        try {
+            val hash=MessageDigest.getInstance("SHA-256"); var copied=0L
+            source.inputStream().use { input -> FileOutputStream(temp).use { output ->
+                val buffer=ByteArray(CHUNK)
+                while(true) {
+                    check(); val count=input.read(buffer); if(count<0) break
+                    copied+=count
+                    if(copied>document.size || copied>DocumentStore.MAX_BYTES) invalid()
+                    hash.update(buffer,0,count); output.write(buffer,0,count)
+                }
+                if(copied!=document.size || hash.digest().joinToString("") { "%02x".format(it) }!=document.sha256) invalid()
+                output.fd.sync()
+            } }
+            if(!temp.renameTo(target)) throw IOException("Cannot store private document")
+        } finally { temp.delete() }
+    }
+    private fun documentDigest(file:File,expectedSize:Long,check:()->Unit):String {
+        if(expectedSize !in 1..DocumentStore.MAX_BYTES) invalid()
+        val hash=MessageDigest.getInstance("SHA-256"); var total=0L
+        file.inputStream().use { input ->
+            val buffer=ByteArray(CHUNK)
+            while(true) {
+                check(); val count=input.read(buffer); if(count<0) break
+                total+=count; if(total>expectedSize) invalid()
+                hash.update(buffer,0,count)
+            }
+        }
+        if(total!=expectedSize) invalid()
+        return hash.digest().joinToString("") { "%02x".format(it) }
     }
     private fun imageArray(input:JsonReader,out:JsonWriter,tree:File,restore:Boolean,check:()->Unit) {
         jsonToken { input.beginArray() }; out.beginArray(); var count=0
@@ -289,16 +365,27 @@ internal object BackupTree {
             for(entry in entries) {
                 check(); val name=entry.fileName.toString(); val file=entry.toFile()
                 if(!name.matches(Regex("[0-9a-f]{64}")) || !Files.isRegularFile(entry) || Files.isSymbolicLink(entry) || file.length()==0L) invalid()
-                fieldSize(file.length()); if(digest(file,check)!=name) invalid()
+                // Documents are streamed, whereas imageValue/BLOB restore still enforce fieldSize.
+                if(file.length()>DocumentStore.MAX_BYTES) throw BackupValidationException("data.backupFieldTooLarge")
+                if(documentDigest(file,file.length(),check)!=name) invalid()
             }
         }
     }
     /** Reconstruct native SQLite on disk before a single main-db write; fields use 64KiB updates. */
-    fun restore(tree:File,target:File,check:()->Unit,progress:(Long)->Unit):BackupStats {
+    fun restore(tree:File,target:File,check:()->Unit,documentDirectory:File?=null,progress:(Long)->Unit):BackupStats {
         val counts=counts(tree); validateLayout(tree,counts,check); if(target.exists()) invalid(); space(tree,0); var completed=0L
         SQLiteDatabase.openOrCreateDatabase(target,null).use { stage ->
             stage.rawQuery("PRAGMA journal_mode=DELETE",null).use { it.moveToFirst() }; stage.execSQL("PRAGMA synchronous=FULL"); stage.execSQL("PRAGMA temp_store=FILE")
             tables.forEach { table -> stage.execSQL("CREATE TABLE ${table.name} (__row INTEGER PRIMARY KEY, ${table.columns.joinToString(",") { "${it.name} ${it.type}" }}, UNIQUE(${table.key}))") }
+            // Private restore index, never a business table or a new archive file.
+            stage.execSQL("CREATE TABLE backup_documents (sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL)")
+            val restoreDocument:(File,ConversationDocument)->Unit={ resource,document ->
+                documentDirectory?.let { directory ->
+                    if(!directory.isDirectory && !directory.mkdir()) throw IOException("Cannot stage private documents")
+                    copyDocument(resource,File(directory,document.sha256),document,check)
+                }
+                stage.execSQL("INSERT OR IGNORE INTO backup_documents VALUES(?,?,?)",arrayOf<Any>(document.sha256,document.name,document.size))
+            }
             stage.beginTransaction()
             try {
                 tables.forEachIndexed { ti,table ->
@@ -319,7 +406,8 @@ internal object BackupTree {
                                     fieldSize(resource.length())
                                     resource.inputStream().use { putField(stage,table,column,rowid,it,resource.length().toInt(),check) }
                                 } else if(column.name=="conversationJson" || column.name=="imagesJson") {
-                                    val materialized=imagesJson(readString(input,length),tree,true,column.name=="conversationJson",check).toByteArray(Charsets.UTF_8)
+                                    val materialized=imagesJson(readString(input,length),tree,true,column.name=="conversationJson",check,
+                                        restoredDocument=restoreDocument).toByteArray(Charsets.UTF_8)
                                     putField(stage,table,column,rowid,materialized.inputStream(),materialized.size,check)
                                 } else putField(stage,table,column,rowid,input,length,check)
                             }
@@ -387,5 +475,45 @@ internal object BackupTree {
         rejectIf("SELECT 1 FROM question_images WHERE questionId NOT IN (SELECT id FROM questions) OR position<0 OR length(bytes)=0 LIMIT 1")
         rejectIf("SELECT 1 FROM question_images GROUP BY questionId,position HAVING count(*)>1 LIMIT 1")
         rejectIf("SELECT 1 FROM solve_sessions WHERE savedQuestionId IS NOT NULL AND (savedQuestionId<>id OR savedQuestionId NOT IN (SELECT id FROM questions)) LIMIT 1")
+    }
+    /** Old prepared imports predate the private document index. Prove they have no attachments
+     * before accepting them; SQLite chunks keep the full conversation out of CursorWindow. */
+    fun validateDocumentFreeLegacyStage(stage:SQLiteDatabase,check:()->Unit) {
+        for(table in listOf("questions","solve_sessions")) {
+            stage.rawQuery("SELECT rowid,length(CAST(conversationJson AS BLOB)) FROM $table WHERE conversationJson IS NOT NULL",null).use { rows ->
+                while(rows.moveToNext()) {
+                    check(); val row=rows.getLong(0); val length=rows.getLong(1); fieldSize(length)
+                    val bytes=object:InputStream() {
+                        var position=0L
+                        override fun read():Int { val one=ByteArray(1); return if(read(one,0,1)<0) -1 else one[0].toInt() and 255 }
+                        override fun read(buffer:ByteArray,offset:Int,count:Int):Int {
+                            check(); if(count==0) return 0; if(position==length) return -1
+                            val size=minOf(count.toLong(),CHUNK.toLong(),length-position).toInt()
+                            val chunk=stage.rawQuery("SELECT substr(CAST(conversationJson AS BLOB),?,?) FROM $table WHERE rowid=?",
+                                arrayOf((position+1).toString(),size.toString(),row.toString())).use { cursor ->
+                                if(!cursor.moveToFirst()) invalid(); cursor.getBlob(0)
+                            }
+                            if(chunk.size!=size) invalid()
+                            chunk.copyInto(buffer,offset); position+=size; return size
+                        }
+                    }
+                    JsonReader(InputStreamReader(bytes,Charsets.UTF_8.newDecoder())).use { input ->
+                        jsonToken {
+                            input.beginArray()
+                            while(input.hasNext()) {
+                                check(); input.beginObject()
+                                while(input.hasNext()) {
+                                    if(input.nextName()=="documents") {
+                                        input.beginArray(); if(input.hasNext()) invalid(); input.endArray()
+                                    } else input.skipValue()
+                                }
+                                input.endObject()
+                            }
+                            input.endArray(); if(input.peek()!=JsonToken.END_DOCUMENT) invalid()
+                        }
+                    }
+                }
+            }
+        }
     }
 }

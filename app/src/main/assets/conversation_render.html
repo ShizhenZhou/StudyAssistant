@@ -602,7 +602,7 @@ function msgKey(m){
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
   return (m.messageKey||'') + '|' + JSON.stringify(m.quoteAnchor||null) + '|' + m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + firstLen
-       + '|' + JSON.stringify(m.sources||[]) + '|' + (m.sourcesLabel||'') + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
+       + '|' + JSON.stringify(m.documents||[]) + '|' + JSON.stringify(m.sources||[]) + '|' + (m.sourcesLabel||'') + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
 }
 // Reconcile against a fresh parse, rather than guessing where a streamed Markdown block is final.
 // Equal subtrees keep their DOM, selection and formula scroll position. Only changed leaves are edited.
@@ -702,6 +702,14 @@ function bubbleHtml(m, idx){
     } else {
       delete window.thinkJumped[idx];
     }
+  }
+  if(m.documents && m.documents.length){
+    body += '<div class="document-attachments" style="margin-top:10px;font-size:.85em;overflow-wrap:anywhere;user-select:none">';
+    m.documents.forEach(function(document){
+      body += '<div style="padding:6px 8px;border:1px solid #8886;border-radius:8px;margin-top:4px">📎 '
+        + esc(String(document.name||'')) + ' · ' + esc((Number(document.size||0)/1048576).toFixed(1)) + ' MB</div>';
+    });
+    body += '</div>';
   }
   if(m.sources && m.sources.length){
     body += '<div class="answer-sources" style="margin-top:16px;padding-top:8px;border-top:1px solid #8886;font-size:.85em">'

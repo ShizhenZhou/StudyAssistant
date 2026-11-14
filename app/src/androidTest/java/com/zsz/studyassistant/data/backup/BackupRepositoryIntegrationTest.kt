@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.room3.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.zsz.studyassistant.ChatItem
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -13,6 +14,7 @@ import org.junit.runner.RunWith
 import java.io.File
 import java.util.UUID
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
 /** Synthetic databases only; never opens the installed application's database. */
@@ -34,17 +36,101 @@ class BackupRepositoryIntegrationTest {
         val target=database(); val work=workspace()
         try {
             val id=QuestionIdentity.create(1700000000099)
-            source.questionDao().insert(Question(id,"synthetic in-memory question","answer",1700000000099))
+            source.questionDao().insert(Question(id,"synthetic in-memory question","answer",1700000000099,
+                conversationJson="""[{"id":1,"role":"question","content":"legacy prepared conversation"}]"""))
             source.questionDao().insertSolveSession(SolveSession(id,1700000000099,1700000000100,
                 "ask","synthetic history","answer",savedQuestionId=id))
             val archive=BackupRepository(context,source).export(File(work,"export"))
             val repo=BackupRepository(context,target)
             val prepared=repo.prepareImportFiles(archive.files,File(work,"import"))
+            // Simulate an already validated preview created before document support existed.
+            val staged=File(prepared.directory,"validated.db")
+            android.database.sqlite.SQLiteDatabase.openDatabase(staged.path,null,0).use { it.execSQL("DROP TABLE backup_documents") }
+            File(prepared.directory,"ready").writeText("${prepared.snapshotAt}\n${BackupTree.digest(staged) { }}\n")
             assertEquals(1,repo.merge(prepared).questions)
             assertEquals("synthetic in-memory question",target.questionDao().heavyOnce(id)!!.text)
             assertEquals(id,target.questionDao().solveSessionOnce(id)!!.savedQuestionId)
             assertEquals("answer",source.questionDao().heavyOnce(id)!!.answer)
         } finally { source.close(); closeFixture(target); work.deleteRecursively() }
+    }
+
+    @Test fun documentArchiveRoundTripRestoresOriginalsBeforeQuestionAndHistoryMerge() = runBlocking {
+        val source=database(); val target=database(); val work=workspace()
+        val store=DocumentStore(context)
+        val fixture=File(work,"synthetic.pdf").apply { writeText("%PDF-1.7\nSynthetic attachment ${UUID.randomUUID()}\n%%EOF") }
+        val bytes=fixture.readBytes()
+        val document=ConversationDocument(DocumentStore.hash(fixture),"synthetic.pdf",fixture.length())
+        val original=File(store.directory,document.sha256)
+        try {
+            assertFalse(original.exists()); store.install(fixture,document)
+            val at=1700000000500L; val id=QuestionIdentity.create(at)
+            val conversation=Json.encodeToString(listOf(ChatItem(1,"question","synthetic document",documents=listOf(document))))
+            source.questionDao().insert(Question(id,"synthetic document","answer",at,conversationJson=conversation))
+            source.questionDao().insertSolveSession(SolveSession(id,at,at+1,"ask","synthetic history","answer",conversationJson=conversation,savedQuestionId=id))
+            val archive=BackupRepository(context,source).export(File(work,"export"))
+            val tree=File(work,"inspect")
+            BackupArchive.readParts(archive.files,tree)
+            assertArrayEquals(bytes,File(tree,"resources/${document.sha256}").readBytes())
+            assertEquals(1,File(tree,"resources").listFiles()!!.size)
+            // Only this test's unique synthetic original is removed: restoration must use the ZIP.
+            assertTrue(original.delete())
+            val repo=BackupRepository(context,target)
+            val prepared=repo.prepareImportFiles(archive.files,File(work,"import"))
+            assertFalse(original.exists())
+            assertArrayEquals(bytes,File(prepared.directory,"documents/${document.sha256}").readBytes())
+            val result=repo.merge(prepared)
+            assertEquals(1,result.questions); assertEquals(1,result.sessions)
+            assertArrayEquals(bytes,store.file(document).readBytes())
+            assertEquals(document.sha256,DocumentStore.hash(store.file(document)))
+            val restored=Json.decodeFromString<List<ChatItem>>(target.questionDao().heavyOnce(id)!!.conversationJson!!)
+            val history=Json.decodeFromString<List<ChatItem>>(target.questionDao().solveSessionOnce(id)!!.conversationJson!!)
+            assertEquals(listOf(document),restored.single().documents)
+            assertEquals(listOf(document),history.single().documents)
+        } finally { original.delete(); closeFixture(source); closeFixture(target); work.deleteRecursively() }
+    }
+
+    @Test fun missingOrDamagedDocumentOriginalsRejectBackupAndRestoreWithoutDatabaseWrites() = runBlocking {
+        val source=database(); val target=database(); val work=workspace()
+        val store=DocumentStore(context)
+        val fixture=File(work,"synthetic.pdf").apply { writeText("%PDF-1.7\nSynthetic rejection ${UUID.randomUUID()}\n%%EOF") }
+        val bytes=fixture.readBytes(); val damaged=bytes.copyOf().apply { this[0]=(this[0].toInt() xor 1).toByte() }
+        val document=ConversationDocument(DocumentStore.hash(fixture),"synthetic.pdf",fixture.length())
+        val original=File(store.directory,document.sha256)
+        try {
+            assertFalse(original.exists()); store.install(fixture,document)
+            val at=1700000000501L; val id=QuestionIdentity.create(at)
+            val conversation=Json.encodeToString(listOf(ChatItem(1,"question","synthetic document",documents=listOf(document))))
+            source.questionDao().insert(Question(id,"source intact","answer",at,conversationJson=conversation))
+            val localId=QuestionIdentity.create(at+1)
+            target.questionDao().insert(Question(localId,"local intact","answer",at+1))
+            val archive=BackupRepository(context,source).export(File(work,"valid-export"))
+            val repo=BackupRepository(context,target)
+            for(kind in listOf("missing","damaged")) {
+                if(kind=="missing") assertTrue(original.delete()) else original.writeBytes(damaged)
+                try { BackupRepository(context,source).export(File(work,"export-$kind")); fail("Invalid source original accepted: $kind") }
+                catch(error:BackupValidationException) { assertEquals("data.backupInvalid",error.messageKey) }
+                val tree=File(work,"tree-$kind")
+                BackupArchive.readParts(archive.files,tree)
+                val resource=File(tree,"resources/${document.sha256}")
+                if(kind=="missing") assertTrue(resource.delete()) else resource.writeBytes(damaged)
+                // Rebuild the envelope so this tests the original's SHA/identity checks, not ZIP CRC.
+                val invalidArchive=BackupArchive.writeTree(tree,File(work,"archive-$kind"),archive.snapshotAt)
+                try { repo.prepareImportFiles(invalidArchive.files,File(work,"import-$kind")); fail("Invalid archive original accepted: $kind") }
+                catch(error:BackupValidationException) { assertEquals("data.backupInvalid",error.messageKey) }
+                assertEquals(1,target.questionDao().countQuestions())
+                assertEquals("local intact",target.questionDao().heavyOnce(localId)!!.text)
+                assertEquals("source intact",source.questionDao().heavyOnce(id)!!.text)
+            }
+            // A missing private index must never turn an attachment-bearing preview into a legacy import.
+            val prepared=repo.prepareImportFiles(archive.files,File(work,"missing-index"))
+            val staged=File(prepared.directory,"validated.db")
+            android.database.sqlite.SQLiteDatabase.openDatabase(staged.path,null,0).use { it.execSQL("DROP TABLE backup_documents") }
+            File(prepared.directory,"ready").writeText("${prepared.snapshotAt}\n${BackupTree.digest(staged) { }}\n")
+            try { repo.merge(prepared); fail("Attachment-bearing legacy staging accepted") }
+            catch(error:BackupValidationException) { assertEquals("data.backupInvalid",error.messageKey) }
+            assertEquals(1,target.questionDao().countQuestions())
+            assertEquals("local intact",target.questionDao().heavyOnce(localId)!!.text)
+        } finally { original.delete(); closeFixture(source); closeFixture(target); work.deleteRecursively() }
     }
 
     @Test fun archiveRoundTripPreservesFieldsAndGlobalImageDedup() = runBlocking {

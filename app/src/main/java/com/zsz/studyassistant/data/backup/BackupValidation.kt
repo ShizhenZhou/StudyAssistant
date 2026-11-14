@@ -62,7 +62,11 @@ object BackupValidation {
     private fun conversation(text: String?) {
         if (text == null) return
         try {
-            json.decodeFromString<List<ChatItem>>(text).forEach { item -> item.images.orEmpty().forEach { image(it) } }
+            json.decodeFromString<List<ChatItem>>(text).forEach { item ->
+                item.images.orEmpty().forEach { image(it) }
+                // Legacy JSON has no binary document resources: reject dangling originals.
+                if(item.documents.isNotEmpty()) invalid()
+            }
         } catch (_: Exception) { invalid() }
     }
 

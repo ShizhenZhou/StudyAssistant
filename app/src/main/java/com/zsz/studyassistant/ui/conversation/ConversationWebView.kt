@@ -48,7 +48,8 @@ import androidx.compose.ui.window.DialogProperties
 
 /** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
 data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null, val messageKey: String? = null, val quoteAnchor: com.zsz.studyassistant.QuoteAnchor? = null,
-    val sources: List<com.zsz.studyassistant.data.AiSource> = emptyList(), val sourcesLabel: String = "") {
+    val sources: List<com.zsz.studyassistant.data.AiSource> = emptyList(), val sourcesLabel: String = "",
+    val documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList()) {
     internal fun sourceText(scope: String): String? = when (scope) {
         "body" -> content
         "thinking" -> thinking
@@ -504,6 +505,9 @@ internal fun buildMessagesJson(messages: List<ChatMsg>): String = JSONArray().ap
             .put("thinking", m.thinking ?: JSONObject.NULL).put("thinkingOpen", m.thinkingOpen)
             .put("thinkingDone", m.thinkingDone).put("quotedText", m.quotedText ?: JSONObject.NULL)
             .put("sourcesLabel", m.sourcesLabel)
+            .put("documents", JSONArray().apply { m.documents.forEach { document ->
+                put(JSONObject().put("name", document.name).put("size", document.size))
+            } })
             .put("sources", JSONArray().apply { m.sources.forEach { source ->
                 put(JSONObject().put("title", source.title).put("url", source.url))
             } })

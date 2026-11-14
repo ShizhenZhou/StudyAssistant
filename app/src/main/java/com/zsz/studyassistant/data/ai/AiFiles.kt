@@ -52,9 +52,9 @@ class AiFileSession internal constructor(private val files: DeepSeekFileService,
 
     /** Explicit upload; no hidden retries. An interrupted upload may still exist/bill remotely. */
     suspend fun uploadDocument(original: File, purpose: DocumentRecognition = DocumentRecognition.TEXT_AND_FIGURES,
-        lifetimeSeconds: Long = 86400): RemoteAiFile = withContext(Dispatchers.IO) {
+        lifetimeSeconds: Long = 86400, filename: String = original.name): RemoteAiFile = withContext(Dispatchers.IO) {
         require(lifetimeSeconds in 3600..2592000)
-        val part = documentPart(original)
+        val part = documentPart(original, filename)
         bind(files.upload(authorization, textPart(purpose.wireValue), textPart("created_at"),
             textPart(lifetimeSeconds.toString()), part))
     }
@@ -100,15 +100,15 @@ class AiFileSession internal constructor(private val files: DeepSeekFileService,
 private fun textPart(value: String) = value.toRequestBody("text/plain".toMediaType())
 
 /** Stream bounded files; a 100 MiB document must not create another 100 MiB byte array. */
-internal fun documentPart(file: File): MultipartBody.Part {
+internal fun documentPart(file: File, filename: String = file.name): MultipartBody.Part {
     require(file.isFile && file.canRead()) { "Document is not readable" }
     val bytes = file.length()
     require(bytes in 1..100L * 1024 * 1024) { "Document must be between 1 byte and 100 MiB" }
-    require(file.extension.lowercase() in setOf("pdf", "doc", "docx", "ppt", "pptx", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff")) {
+    require(filename.substringAfterLast('.', "").lowercase() in setOf("pdf", "doc", "docx", "ppt", "pptx", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff")) {
         "Unsupported document format"
     }
     val modified = file.lastModified()
-    val filename = file.name.replace(Regex("[\\r\\n\\u0000]"), "_")
+    val safeFilename = filename.replace(Regex("[\\r\\n\\u0000]"), "_")
     val body = object : RequestBody() {
         override fun contentType() = "application/octet-stream".toMediaType()
         override fun contentLength() = bytes
@@ -129,7 +129,7 @@ internal fun documentPart(file: File): MultipartBody.Part {
             }
         }
     }
-    return MultipartBody.Part.createFormData("file", filename, body)
+    return MultipartBody.Part.createFormData("file", safeFilename, body)
 }
 
 /** OCR sends heartbeat newlines then a JSON object, including errors with HTTP 200. */

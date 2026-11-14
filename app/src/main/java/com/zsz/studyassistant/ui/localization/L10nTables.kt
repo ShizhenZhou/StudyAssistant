@@ -1842,6 +1842,38 @@ private val B6_ZH = mapOf(
     "err.connect" to "无法连接到服务器，请检查网络",
     "err.apikey" to "API Key 无效或未配置，请到⚙️设置检查",
     "err.requestFailed" to "请求失败",
+    "tools.more" to "更多功能",
+    "tools.web" to "联网",
+    "tools.file" to "文件",
+    "tools.export" to "全部导出",
+    "tools.formula" to "公式",
+    "document.remove" to "移除文件",
+    "document.importing" to "正在导入文件…",
+    "document.sendHint" to "发送时上传并解析，可能产生文件解析费用。",
+    "document.importFailed" to "无法导入文件，请重试。",
+    "document.invalid" to "请选择有效的 PDF、Word 或 PowerPoint 文件。",
+    "document.tooLarge" to "文件不能超过 100 MiB。",
+    "document.readFailed" to "无法读取原文件，请重新选择。",
+    "document.missing" to "附件原件不可用，请重新添加同一文件后重试。",
+    "document.damaged" to "附件校验失败，请保留原件并重新导入。",
+    "document.tooMany" to "单次问答上下文最多包含 20 个文件附件，请开始新会话。",
+    "document.uploadUncertain" to "上次文件上传结果尚不确定，请等待约 5 分钟后重试，避免重复解析计费。",
+    "document.uploading" to "正在上传并解析文件…",
+    "document.expired" to "远端附件已失效。请重新生成，将从本地原件重新上传。",
+    "crop.ocr" to "OCR 校对",
+    "ocr.title" to "OCR 校对",
+    "ocr.feeNotice" to "将所选区域发送至 DeepSeek OCR，解析按页计费；开始后取消仍可能计费。",
+    "ocr.start" to "开始识别",
+    "ocr.busy" to "正在识别…",
+    "ocr.text" to "识别文本，可修改",
+    "ocr.preview" to "公式预览",
+    "ocr.original" to "所选原图",
+    "ocr.incomplete" to "识别结果不完整，请对照原图补全后再确认。",
+    "ocr.reviewedIncomplete" to "已核对并补全缺失内容",
+    "ocr.confirm" to "确认并继续",
+    "ocr.failed" to "识别失败，请重试或返回框选。",
+    "ocr.tooLarge" to "识别文本过长，暂无法校对，请缩小框选区域。",
+    "ocr.imageText" to "第 {n} 张图片的校对文字：",
     "err.invalidParameter" to "AI 服务拒绝了请求参数（HTTP {code}，字段：{field}）。请反馈此信息。",
     "err.similarFailed" to "出题失败：{msg}",
     "err.chatFailed" to "出错：{msg}",
@@ -1865,6 +1897,38 @@ private val B6_EN = mapOf(
     "err.connect" to "Cannot reach the server — check your network",
     "err.apikey" to "API Key is invalid or missing — check ⚙️ Settings",
     "err.requestFailed" to "Request failed",
+    "tools.more" to "More tools",
+    "tools.web" to "Web",
+    "tools.file" to "File",
+    "tools.export" to "Export all",
+    "tools.formula" to "Formula",
+    "document.remove" to "Remove file",
+    "document.importing" to "Importing file…",
+    "document.sendHint" to "Uploaded and parsed when sent. File parsing fees may apply.",
+    "document.importFailed" to "Could not import the file. Please retry.",
+    "document.invalid" to "Choose a valid PDF, Word or PowerPoint file.",
+    "document.tooLarge" to "Files must not exceed 100 MiB.",
+    "document.readFailed" to "Cannot read the original file. Select it again.",
+    "document.missing" to "The original attachment is unavailable. Add the same file again, then retry.",
+    "document.damaged" to "Attachment verification failed. Keep the original and import it again.",
+    "document.tooMany" to "A request can contain at most 20 file attachments. Start a new conversation.",
+    "document.uploadUncertain" to "The previous upload outcome is uncertain. Wait about 5 minutes before retrying to avoid duplicate parsing charges.",
+    "document.uploading" to "Uploading and parsing file…",
+    "document.expired" to "The remote attachment expired. Regenerate to upload the local original again.",
+    "crop.ocr" to "OCR review",
+    "ocr.title" to "Review recognized text",
+    "ocr.feeNotice" to "Sends the selected area to DeepSeek OCR, billed per page. Cancelling after starting may still incur a charge.",
+    "ocr.start" to "Recognize text",
+    "ocr.busy" to "Recognizing…",
+    "ocr.text" to "Recognized text — editable",
+    "ocr.preview" to "Formula preview",
+    "ocr.original" to "Selected image",
+    "ocr.incomplete" to "Recognition is incomplete. Check the original and fill in missing text before confirming.",
+    "ocr.reviewedIncomplete" to "I checked and completed the missing content",
+    "ocr.confirm" to "Confirm and continue",
+    "ocr.failed" to "Recognition failed. Retry or return to cropping.",
+    "ocr.tooLarge" to "The recognized text is too long to edit. Select a smaller area.",
+    "ocr.imageText" to "Corrected text for image {n}:",
     "err.invalidParameter" to "The AI service rejected a request parameter (HTTP {code}, field: {field}). Please report this information.",
     "err.similarFailed" to "Could not generate a problem: {msg}",
     "err.chatFailed" to "Error: {msg}",
@@ -1888,6 +1952,38 @@ private val B6_JA = mapOf(
     "err.connect" to "サーバーに接続できません。ネットワークを確認してください",
     "err.apikey" to "API Key が無効か未設定です。⚙️設定 を確認してください",
     "err.requestFailed" to "リクエストに失敗しました",
+    "tools.more" to "その他の機能",
+    "tools.web" to "ウェブ",
+    "tools.file" to "ファイル",
+    "tools.export" to "全て出力",
+    "tools.formula" to "数式",
+    "document.remove" to "ファイルを外す",
+    "document.importing" to "ファイルを取り込み中…",
+    "document.sendHint" to "送信時にアップロード・解析します。解析料金が発生する場合があります。",
+    "document.importFailed" to "ファイルを取り込めませんでした。再試行してください。",
+    "document.invalid" to "有効な PDF、Word、PowerPoint ファイルを選択してください。",
+    "document.tooLarge" to "ファイルは 100 MiB 以下にしてください。",
+    "document.readFailed" to "元ファイルを読み込めません。選び直してください。",
+    "document.missing" to "添付の原本が見つかりません。同じファイルを追加して再試行してください。",
+    "document.damaged" to "添付ファイルの検証に失敗しました。原本を保管して再度取り込んでください。",
+    "document.tooMany" to "一度の質問には最大20個の添付ファイルを含められます。新しい会話を開始してください。",
+    "document.uploadUncertain" to "前回のアップロード結果が不明です。重複課金を避けるため約5分後に再試行してください。",
+    "document.uploading" to "ファイルをアップロード・解析中…",
+    "document.expired" to "リモート添付の有効期限が切れました。再生成すると原本を再アップロードします。",
+    "crop.ocr" to "OCR 校正",
+    "ocr.title" to "OCR テキストの校正",
+    "ocr.feeNotice" to "選択範囲を DeepSeek OCR に送信します。ページ単位で課金され、開始後のキャンセルでも料金が発生する場合があります。",
+    "ocr.start" to "認識を開始",
+    "ocr.busy" to "認識中…",
+    "ocr.text" to "認識テキスト（編集可）",
+    "ocr.preview" to "数式プレビュー",
+    "ocr.original" to "選択した画像",
+    "ocr.incomplete" to "認識結果が不完全です。元画像と照合して補完してください。",
+    "ocr.reviewedIncomplete" to "不足部分を確認・補完しました",
+    "ocr.confirm" to "確認して続ける",
+    "ocr.failed" to "認識に失敗しました。再試行するか範囲選択に戻ってください。",
+    "ocr.tooLarge" to "認識テキストが長すぎます。選択範囲を小さくしてください。",
+    "ocr.imageText" to "画像 {n} の校正テキスト：",
     "err.invalidParameter" to "AIサービスがリクエストのパラメータを拒否しました（HTTP {code}、項目：{field}）。この情報をお知らせください。",
     "err.similarFailed" to "出題に失敗しました：{msg}",
     "err.chatFailed" to "エラー：{msg}",
@@ -1911,6 +2007,38 @@ private val B6_KO = mapOf(
     "err.connect" to "서버에 연결할 수 없습니다. 네트워크를 확인하세요",
     "err.apikey" to "API Key가 유효하지 않거나 없습니다. ⚙️설정을 확인하세요",
     "err.requestFailed" to "요청 실패",
+    "tools.more" to "더 많은 기능",
+    "tools.web" to "웹",
+    "tools.file" to "파일",
+    "tools.export" to "모두 내보내기",
+    "tools.formula" to "수식",
+    "document.remove" to "파일 제거",
+    "document.importing" to "파일 가져오는 중…",
+    "document.sendHint" to "전송할 때 업로드하고 분석합니다. 파일 분석 요금이 발생할 수 있습니다.",
+    "document.importFailed" to "파일을 가져올 수 없습니다. 다시 시도해 주세요.",
+    "document.invalid" to "유효한 PDF, Word 또는 PowerPoint 파일을 선택하세요.",
+    "document.tooLarge" to "파일은 100 MiB 이하여야 합니다.",
+    "document.readFailed" to "원본 파일을 읽을 수 없습니다. 다시 선택하세요.",
+    "document.missing" to "첨부 원본을 찾을 수 없습니다. 같은 파일을 다시 추가한 후 시도하세요.",
+    "document.damaged" to "첨부 파일 검증에 실패했습니다. 원본을 보관하고 다시 가져오세요.",
+    "document.tooMany" to "요청 하나에는 파일을 최대 20개까지 포함할 수 있습니다. 새 대화를 시작하세요.",
+    "document.uploadUncertain" to "이전 업로드 결과가 불확실합니다. 중복 분석 요금을 피하려면 약 5분 후 다시 시도하세요.",
+    "document.uploading" to "파일 업로드 및 분석 중…",
+    "document.expired" to "원격 첨부 파일이 만료되었습니다. 다시 생성하면 로컬 원본을 업로드합니다.",
+    "crop.ocr" to "OCR 교정",
+    "ocr.title" to "인식한 텍스트 교정",
+    "ocr.feeNotice" to "선택 영역을 DeepSeek OCR로 보냅니다. 페이지별 요금이 부과되며 시작 후 취소해도 요금이 발생할 수 있습니다.",
+    "ocr.start" to "인식 시작",
+    "ocr.busy" to "인식 중…",
+    "ocr.text" to "인식 텍스트 — 수정 가능",
+    "ocr.preview" to "수식 미리보기",
+    "ocr.original" to "선택한 이미지",
+    "ocr.incomplete" to "인식 결과가 불완전합니다. 원본과 비교해 누락된 내용을 채운 후 확인하세요.",
+    "ocr.reviewedIncomplete" to "누락된 내용을 확인하고 보완했습니다",
+    "ocr.confirm" to "확인하고 계속",
+    "ocr.failed" to "인식에 실패했습니다. 다시 시도하거나 자르기로 돌아가세요.",
+    "ocr.tooLarge" to "인식 텍스트가 너무 깁니다. 더 작은 영역을 선택하세요.",
+    "ocr.imageText" to "이미지 {n}의 교정 텍스트:",
     "err.invalidParameter" to "AI 서비스가 요청 매개변수를 거부했습니다(HTTP {code}, 필드: {field}). 이 정보를 알려 주세요.",
     "err.similarFailed" to "문제 생성 실패: {msg}",
     "err.chatFailed" to "오류: {msg}",
@@ -2621,9 +2749,10 @@ private val B10_ZH = mapOf(
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
         "· 🌐 可选联网搜索、链接阅读与答案来源查看。\n" +
-        "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
+        "· 📷 拍照或图文提问，支持图片框选、OCR 文字与公式校对和手写作答批改，保留原图。\n" +
+        "· 📎 支持 PDF、Word、PPT 文件提问，本地保留原件并随备份保存。\n" +
         "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。\n" +
-        "· 📤 选中问答可导出为文字型 PDF 或分张 PNG。\n" +
+        "· 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
         "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
@@ -2638,6 +2767,7 @@ private val B10_ZH = mapOf(
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
+        "· 📎 文件在点击发送后上传至 DeepSeek，OCR 由用户手动启动；解析可能按页计费，本地原件保留并纳入备份。\n" +
         "· 图片重复使用时可上传至 DeepSeek 并设置 24 小时有效期，本地原图仍保留；联网搜索和链接阅读仅在开启后使用，工具另行计费。\n" +
         "· 📱 无账号、自有服务器或统计上报；错题、解题记录和复习数据库保存在本机\n" +
         "· 🤖 AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
@@ -2691,9 +2821,10 @@ private val B10_EN = mapOf(
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
         "· 🌐 Optional web search, link reading and answer sources.\n" +
-        "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
+        "· 📷 Ask with photos or text and images, crop and correct OCR text and formulas, and grade handwritten work while retaining the original image.\n" +
+        "· 📎 Ask about PDF, Word and PowerPoint files; originals stay on the device and are included in backups.\n" +
         "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.\n" +
-        "· 📤 Export selected messages as a text PDF or paged PNG images.\n" +
+        "· 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
         "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
@@ -2708,6 +2839,7 @@ private val B10_EN = mapOf(
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
+        "· 📎 Files upload to DeepSeek when sent; OCR starts only on request. Parsing may be billed per page. Originals stay locally and are included in backups.\n" +
         "· Repeated images may be uploaded to DeepSeek with a 24-hour expiry; local originals remain available. Web search and link reading are opt-in, with separate tool charges.\n" +
         "· 📱 No accounts, developer backend or analytics reporting; notebook, history and review databases are stored locally\n" +
         "· 🤖 AI features send necessary question text, images, context, custom instructions, relevant category/label names and options directly to the official DeepSeek API, authenticated with your own key\n" +
@@ -2761,9 +2893,10 @@ private val B10_JA = mapOf(
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
         "· 🌐 任意のウェブ検索・リンク閲覧と回答の参照元表示。\n" +
-        "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
+        "· 📷 写真や画像付きテキストで質問し、切り取り・OCR の文字と数式の校正・手書き解答の添削に対応。元画像も保持します。\n" +
+        "· 📎 PDF・Word・PowerPoint ファイルで質問でき、原本を端末とバックアップに保存します。\n" +
         "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・簡単な SVG 図に対応。\n" +
-        "· 📤 選択した問答をテキスト PDF または分割 PNG に出力。\n" +
+        "· 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。\n" +
         "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
         "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
@@ -2778,6 +2911,7 @@ private val B10_JA = mapOf(
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
+        "· 📎 ファイルは送信時に DeepSeek へアップロードし、OCR は手動で開始します。解析はページ単位で課金される場合があります。原本は端末とバックアップに保持します。\n" +
         "· 繰り返し使用する画像は有効期限24時間で DeepSeek にアップロードされる場合があります。元画像は端末に保持します。ウェブ検索とリンク閲覧は任意で、ツールは別料金です。\n" +
         "· 📱 アカウント・開発者サーバー・解析データ送信なし。ノート・履歴・復習のDBは端末に保存\n" +
         "· 🤖 AI機能は必要な問題文・画像・文脈・カスタム指示・関連する分類/タグ名・設定をDeepSeek公式APIへ直接送信し、自分のキーで認証\n" +
@@ -2831,9 +2965,10 @@ private val B10_KO = mapOf(
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
         "· 🌐 선택적 웹 검색, 링크 읽기와 답변 출처 확인.\n" +
-        "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
+        "· 📷 사진 또는 이미지와 글로 질문하고 자르기, OCR 문자·수식 교정, 손글씨 채점을 지원하며 원본 이미지를 보관합니다.\n" +
+        "· 📎 PDF·Word·PowerPoint 파일로 질문하고 원본을 기기와 백업에 보관합니다.\n" +
         "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표와 간단한 SVG 그림을 지원합니다.\n" +
-        "· 📤 선택한 문답을 텍스트 PDF 또는 분할 PNG로 내보냅니다.\n" +
+        "· 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
         "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
@@ -2848,6 +2983,7 @@ private val B10_KO = mapOf(
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (
+        "· 📎 파일은 전송할 때 DeepSeek에 업로드하며 OCR은 직접 시작합니다. 분석은 페이지별로 과금될 수 있습니다. 원본은 기기와 백업에 보관합니다.\n" +
         "· 반복 사용하는 이미지는 24시간 만료 설정으로 DeepSeek에 업로드될 수 있으며 원본은 기기에 보관합니다. 웹 검색과 링크 읽기는 선택 사항이며 도구는 별도 과금됩니다.\n" +
         "· 📱 계정·개발자 서버·분석 정보 전송이 없으며 오답·기록·복습 DB는 기기에 저장\n" +
         "· 🤖 AI 기능은 필요한 문제 글·이미지·문맥·사용자 지시·관련 분류/태그 이름·설정을 DeepSeek 공식 API로 직접 보내고 본인의 키로 인증\n" +

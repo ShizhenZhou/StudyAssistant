@@ -55,7 +55,7 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
             journal.reset("tree","export-validation.db","normalize.ready","validation.ready")
             kotlin.check(tree.mkdir())
             progress("data.backupNormalize",0)
-            BackupTree.normalize(raw,tree,stop) { progress("data.backupNormalize",it) }
+            BackupTree.normalize(raw,tree,stop,sourceDocuments=File(context.filesDir,"ai-documents")) { progress("data.backupNormalize",it) }
             journal.complete("normalize",tree,checkNotNull(snapshotAt))
             journal.reset("capture","capture.ready")
         }
@@ -112,7 +112,7 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
         }
         progress("data.backupValidate",0)
         val staged=File(directory,"validated.db")
-        val stats=try { BackupTree.restore(tree,staged,stop) { progress("data.backupValidate",it) } }
+        val stats=try { BackupTree.restore(tree,staged,stop,documentDirectory=File(directory,"documents")) { progress("data.backupValidate",it) } }
             catch(_:android.database.sqlite.SQLiteFullException) { throw BackupValidationException("data.backupSpaceInsufficient") }
             catch(_:android.database.sqlite.SQLiteConstraintException) { BackupTree.invalid() }
         File(directory,"ready").writeText("$snapshotAt\n${BackupTree.digest(staged,stop)}\n")
@@ -134,6 +134,19 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
         try {
             SQLiteDatabase.openDatabase(staged.path,null,SQLiteDatabase.OPEN_READONLY).use { source ->
                 BackupTree.validate(source,stop)
+                // Install verified immutable originals before any main-db write. Cancellation or
+                // merge failure can only leave unused copies; existing user files are never removed.
+                val documents=DocumentStore(context)
+                val hasDocumentIndex=source.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name='backup_documents'",null).use { it.moveToFirst() }
+                if(!hasDocumentIndex) BackupTree.validateDocumentFreeLegacyStage(source,stop)
+                else source.rawQuery("SELECT sha256,name,size FROM backup_documents",null).use { entries ->
+                    while(entries.moveToNext()) {
+                        stop()
+                        val document=ConversationDocument(entries.getString(0),entries.getString(1),entries.getLong(2))
+                        try { DocumentStore.validateDocument(document) } catch(_:IllegalArgumentException) { BackupTree.invalid() }
+                        documents.install(File(prepared.directory,"documents/${document.sha256}"),document,stop)
+                    }
+                }
                 SQLiteDatabase.openOrCreateDatabase(maps,null).use { index ->
                     TagMergeRepository.invalidateForImport(db) {
                         db.withWriteTransaction {

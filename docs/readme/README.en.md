@@ -20,10 +20,11 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 ## Features
 
-- 📷 Ask with photos or text and images, crop images and grade handwritten work.
+- 📷 Ask with photos or text and images, crop and correct OCR text and formulas, and grade handwritten work while retaining the original image.
+- 📎 Ask about PDF, Word and PowerPoint files; originals stay on the device and are included in backups.
 - 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.
 - 🌐 Optional web search, link reading and answer sources.
-- 📤 Export selected messages as a text PDF or paged PNG images.
+- 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.
 - 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.
 - 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.
 - 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.
@@ -46,6 +47,8 @@ Automatic backups write only to your SAF-selected folder. The app does not initi
 
 Repeated images may be uploaded to DeepSeek with a 24-hour expiry; local originals remain available. Web search and link reading are opt-in, with separate tool charges.
 
+Files are uploaded to the official DeepSeek API for parsing when you send a question. OCR correction sends the current crop only when you choose to use it. File parsing and OCR are called on demand and billed per page. Original files and images stay on the device, and original files are included in backups.
+
 ## Technology
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3** (DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
@@ -53,6 +56,14 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.7.3.1
+
+- 🛠 Fix photo request parameters that caused HTTP 422 and improve resumed answers in web-enabled and image conversations.
+- 🧰 Add a compact More tools bar for web access, files, exporting all Q&A and formulas, removing the separate web row's empty space.
+- 📎 Ask about PDF, Word and PowerPoint files, with local originals included in backup and restore.
+- 🔎 Correct OCR text and formulas while cropping; send corrections with the question and retain the original image.
+- 📌 `versionCode` **124**. ❗ This update is critically important and mandatory.
 
 ### v0.7.3
 

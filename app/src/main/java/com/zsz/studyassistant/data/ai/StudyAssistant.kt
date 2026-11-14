@@ -313,12 +313,15 @@ object StudyAssistant {
         task: String = "initial",
         webEnabled: Boolean = false,
         onToolProgress: (suspend (String) -> Unit)? = null,
-        documents: List<RemoteAiFile> = emptyList()
+        documents: List<RemoteAiFile> = emptyList(),
+        documentStore: DocumentStore? = null
     ): String {
         requireKey()
         val accountKey = KeyManager.getApiKey()
         require(accountKey.isNotBlank())
-        val original = attachDocuments(messages, documents, accountKey)
+        val localPrepared = if (messages.any { it.localDocuments.isNotEmpty() })
+            ConversationDocumentUploads.prepare(messages, requireNotNull(documentStore), accountKey, onToolProgress) else messages
+        val original = attachDocuments(localPrepared, documents, accountKey)
         val budget = AiRequestPolicy.budget(task, thinkingEnabled, webEnabled)
         owner.usedWeb = webEnabled
         val prepared = AiImageUploads.cache.prepare(original, accountKey)
@@ -332,11 +335,20 @@ object StudyAssistant {
         val body = try {
             awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared), "Bearer $accountKey"), owner)
         } catch (e: AiRequestException) {
-            // Rejected file references: one inline fallback before any answer was generated.
-            if (!e.fileReferenceRejected || prepared == original) throw e
+            if (!e.fileReferenceRejected) throw e
             currentCoroutineContext().ensureActive()
             AiImageUploads.cache.invalidate(accountKey)
-            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(original), "Bearer $accountKey"), owner)
+            // Retry images inline first, retaining parsed documents and avoiding a paid re-upload.
+            try {
+                if (prepared == original) throw e
+                awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(original), "Bearer $accountKey"), owner)
+            } catch (fallback: AiRequestException) {
+                if (fallback.fileReferenceRejected && messages.any { it.localDocuments.isNotEmpty() }) {
+                    ConversationDocumentUploads.invalidate(messages, accountKey)
+                    throw DocumentProblem("document.expired")
+                }
+                throw fallback
+            }
         }
         val sb = StringBuilder()
         var usage: DeepSeekUsage? = null

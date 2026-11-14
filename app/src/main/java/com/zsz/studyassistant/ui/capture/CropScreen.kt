@@ -149,6 +149,25 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
     val scope = rememberCoroutineScope()
     var submitting by remember { mutableStateOf(false) }
     var imageFailed by remember(path) { mutableStateOf(false) }
+    var ocrSnapshot by remember(flow, path, turns) { mutableStateOf<OcrCropSnapshot?>(null) }
+    val cropLocked = submitting || ocrSnapshot != null
+
+    // Use the same pixel rectangle for normal confirmation and OCR; capture it before leaving Main.
+    fun selectedPixels(): android.graphics.Rect? {
+        val bounds = selection.bounds
+        if (bounds.width <= 0f || bounds.height <= 0f) return null
+        val r = selection.rect ?: bounds
+        val x = safeCoerceRange((r.left - bounds.left) / bounds.width * bitmap.width, 0f, (bitmap.width - 1).toFloat()).toInt()
+        val y = safeCoerceRange((r.top - bounds.top) / bounds.height * bitmap.height, 0f, (bitmap.height - 1).toFloat()).toInt()
+        val w = safeCoerceRange(r.width / bounds.width * bitmap.width, 1f, (bitmap.width - x).toFloat()).toInt()
+        val h = safeCoerceRange(r.height / bounds.height * bitmap.height, 1f, (bitmap.height - y).toFloat()).toInt()
+        return android.graphics.Rect(x, y, x + w, y + h)
+    }
+
+    fun encodeSelection(rect: android.graphics.Rect): ByteArray {
+        val cropped = Bitmap.createBitmap(bitmap, rect.left, rect.top, rect.width(), rect.height())
+        return try { compressBitmap(cropped) } finally { if (cropped !== bitmap) cropped.recycle() }
+    }
 
     /** 提交一张之后：还差一张 → 回拍摄界面；队列还有下一张 → 留在本页继续框；都完成 → 进入解题/批改 */
     fun afterSubmit() {
@@ -163,7 +182,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
 
     // Decode/compress away from Main; an old result cannot advance a replaced/cancelled crop flow.
     fun submitImages(all: Boolean, encode: () -> List<ByteArray>) {
-        if (submitting || flow.rotating || flow.currentCropPath != path || flow.preview?.bitmap !== bitmap) return
+        if (submitting || ocrSnapshot != null || flow.rotating || flow.currentCropPath != path || flow.preview?.bitmap !== bitmap) return
         val revision = flow.cropRevision
         val remaining = flow.cropPaths.drop(flow.cropIndex)
         submitting = true
@@ -180,6 +199,23 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                 afterSubmit()
             } finally { submitting = false }
         }
+    }
+
+    ocrSnapshot?.let { snapshot ->
+        val valid = snapshot.revision == flow.cropRevision && flow.currentCropPath == path &&
+            flow.preview?.bitmap === bitmap && snapshot.selection == region.fraction
+        if (valid) OcrCorrectionDialog(
+            imageBytes = snapshot.bytes,
+            onDismiss = { ocrSnapshot = null },
+            onConfirm = { correctedText ->
+                if (snapshot.revision == flow.cropRevision && flow.currentCropPath == path &&
+                    flow.preview?.bitmap === bitmap && snapshot.selection == region.fraction) {
+                    ocrSnapshot = null
+                    flow.submitCropResult(snapshot.bytes, correctedText)
+                    afterSubmit()
+                }
+            }
+        ) else LaunchedEffect(snapshot) { ocrSnapshot = null }
     }
 
     // 缩放 / 平移（双指捏合调整图片大小；1x~4x）
@@ -272,8 +308,8 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                         .fillMaxSize()
                         // ★ 键用 path：换图时手势层与保留的选区一起切换，
                         //   避免旧闭包继续写已废弃的 state（否则新图上的框拖不动）。
-                        .pointerInput(path, turns, flow.rotating, submitting) {
-                            if (flow.rotating || submitting) return@pointerInput
+                        .pointerInput(path, turns, flow.rotating, cropLocked) {
+                            if (flow.rotating || cropLocked) return@pointerInput
                             awaitEachGesture {
                                 // ★ 2026-10-13：**手指一按下就置 region.touched**。
                                 //   原来只在 onDragStart/onDrag 置位，而 `detectDragGestures` 的 onDragStart
@@ -353,8 +389,8 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                         // ★ 键用 path（原来是 selection.bounds）：selection.bounds 在缩放时每帧都变 → 键变 → 手柄拖到一半
                         //   手势会被取消重建（"卡住不跟手"）。改用 path 后手势层只在换图时重建，
                         //   拖动逻辑本来就是每帧现读 `selection.bounds`/`selection.rect`，不依赖这个键。
-                        .pointerInput(path, turns, flow.rotating, submitting) {
-                            if (flow.rotating || submitting) return@pointerInput
+                        .pointerInput(path, turns, flow.rotating, cropLocked) {
+                            if (flow.rotating || cropLocked) return@pointerInput
                             detectDragGestures(
                         onDragStart = { pos ->
                             region.touch()
@@ -452,22 +488,9 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                 )
             }
             Button(
-                enabled = !submitting && !flow.rotating,
+                enabled = !cropLocked && !flow.rotating,
                 onClick = {
-                    val r = selection.rect ?: selection.bounds
-                    if (selection.bounds != Rect.Zero) {
-                        val d2 = selection.bounds
-                        // 裁剪区域：全部用 safeCoerceRange（原来 1..bitmap.width-x 在贴边时会出现 1 > max → 崩溃）
-                        val x = safeCoerceRange((r.left - d2.left) / d2.width * bitmap.width, 0f, (bitmap.width - 1).toFloat()).toInt()
-                        val y = safeCoerceRange((r.top - d2.top) / d2.height * bitmap.height, 0f, (bitmap.height - 1).toFloat()).toInt()
-                        val w = safeCoerceRange((r.width / d2.width) * bitmap.width, 1f, (bitmap.width - x).toFloat()).toInt()
-                        val h = safeCoerceRange((r.height / d2.height) * bitmap.height, 1f, (bitmap.height - y).toFloat()).toInt()
-                        submitImages(false) {
-                            val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
-                            try { listOf(compressBitmap(cropped)) }
-                            finally { if (cropped !== bitmap) cropped.recycle() }
-                        }
-                    }
+                    selectedPixels()?.let { rect -> submitImages(false) { listOf(encodeSelection(rect)) } }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
@@ -482,7 +505,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
             // 「整张图片」：单击 = 跳过这一张（多张时进入下一张）；**按住 1 秒填满 → 松开 = 剩下全部跳过**
             // 没填满松手 = 取消；填满后上滑（填充变浅红）= 取消
             HoldToSkipButton(
-                enabled = !submitting && !flow.rotating,
+                enabled = !cropLocked && !flow.rotating,
                 text = s["crop.whole"],
                 holdHint = if (flow.cropExpect > 1) s["crop.wholeHoldHint"] else "",
                 holdEnabled = flow.cropExpect > 1,
@@ -505,7 +528,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 // Manual detection uses the same deadline and retains the current selection on failure.
                 TextButton(
-                    enabled = !aiBusy && !submitting && !flow.rotating,
+                    enabled = !aiBusy && !cropLocked && !flow.rotating,
                     onClick = {
                         val p = path ?: return@TextButton
                         feedback.dismiss("cropAi")
@@ -517,7 +540,7 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                     }
                 ) { AppIconLabel(if (aiBusy) s["crop.aiBusy"] else s["crop.aiAutoCrop"], iconSize = 16.dp, iconSpacing = 4.dp, maxLines = 1, softWrap = false) }
                 TextButton(
-                    enabled = !submitting && !flow.rotating,
+                    enabled = !cropLocked && !flow.rotating,
                     onClick = {
                         scope.launch {
                             try { flow.rotateCurrent(requireNotNull(path), bitmap) }
@@ -527,14 +550,35 @@ fun CropScreen(nav: NavHostController, vm: MainViewModel, attachment: Boolean = 
                     },
                     modifier = Modifier.semantics { contentDescription = s["crop.rotate"] }
                 ) { Text("↻ 90°", maxLines = 1, softWrap = false) }
-                // Returning from an attachment batch preserves the original input.
-                TextButton(onClick = { handleBack() }) {
-                    Text(if (flow.cropIndex > 0) s["crop.prevImage"] else s[if (attachment) "crop.backToInput" else "crop.backToCamera"], maxLines = 1, softWrap = false)
+                TextButton(enabled = !cropLocked && !flow.rotating, onClick = {
+                    if (submitting || ocrSnapshot != null || flow.rotating || flow.currentCropPath != path ||
+                        flow.preview?.bitmap !== bitmap) return@TextButton
+                    val rect = selectedPixels() ?: return@TextButton
+                    region.touch() // Stop automatic detection before freezing the selected area.
+                    val fraction = region.fraction
+                    val revision = flow.cropRevision
+                    submitting = true
+                    imageFailed = false
+                    scope.launch {
+                        try {
+                            val bytes = withContext(Dispatchers.IO) { encodeSelection(rect) }
+                            if (revision == flow.cropRevision && flow.currentCropPath == path &&
+                                flow.preview?.bitmap === bitmap && fraction == region.fraction) {
+                                ocrSnapshot = OcrCropSnapshot(bytes, revision, fraction)
+                            }
+                        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                        catch (_: Exception) { imageFailed = true }
+                        finally { submitting = false }
+                    }
+                }) {
+                    Text(s["crop.ocr"], maxLines = 1, softWrap = false)
                 }
             }
         }
     }
 }
+
+private class OcrCropSnapshot(val bytes: ByteArray, val revision: Long, val selection: Rect?)
 
 private fun compressBitmap(bmp: Bitmap, quality: Int = 85): ByteArray {
     val out = ByteArrayOutputStream()

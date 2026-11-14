@@ -9,7 +9,9 @@ import kotlinx.serialization.json.JsonObject
 @Serializable
 data class DeepSeekMessage(val role: String, val content: JsonElement,
     @SerialName("reasoning_content") val reasoningContent: String? = null,
-    @SerialName("server_tool_calls") val serverToolCalls: JsonArray? = null)
+    @SerialName("server_tool_calls") val serverToolCalls: JsonArray? = null,
+    /** Private draft data, removed by document preparation before network serialization. */
+    val localDocuments: List<ConversationDocument> = emptyList())
 
 @Serializable
 data class DeepSeekRequest(

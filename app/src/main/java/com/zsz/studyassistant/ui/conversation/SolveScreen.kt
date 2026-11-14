@@ -142,6 +142,7 @@ fun SolveScreen(
     val inputScope = androidx.compose.runtime.rememberCoroutineScope()
     val selectedImages = attachments.mapNotNull { loaded[it] }
     val pickingImages = draft.importingImages || selectedImages.size != attachments.size
+    val importingAttachments = pickingImages || draft.importingDocuments
     LaunchedEffect(draft, attachments) {
         loaded.keys.toList().filterNot { it in attachments }.forEach { loaded.remove(it) }
         val missing = attachments.filterNot(loaded::containsKey)
@@ -187,9 +188,26 @@ fun SolveScreen(
         }
     }
     fun pickImages() {
-        if (draft.importingImages || draft.attachments.size >= 3) return
+        if (vm.busy || vm.dataBusy || importingAttachments || draft.attachments.size >= 3) return
         draft.awaitingPicker = true
         imagePicker.launch(imagePickRequest(maxItems = 3))
+    }
+
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (draft.awaitingDocumentPicker && vm.solveInputDraft === draft) {
+            draft.awaitingDocumentPicker = false
+            if (uri != null) inputScope.launch { vm.importDocument(draft, uri) }
+        }
+    }
+    fun pickDocument() {
+        if (vm.busy || vm.dataBusy || importingAttachments || draft.awaitingDocumentPicker) return
+        draft.awaitingDocumentPicker = true
+        try {
+            documentPicker.launch(SOLVE_DOCUMENT_MIME_TYPES)
+        } catch (_: Exception) {
+            draft.awaitingDocumentPicker = false
+            feedback.show(s["document.importFailed"])
+        }
     }
 
     // Freeze the selected messages before opening the system destination picker.
@@ -286,6 +304,7 @@ fun SolveScreen(
                 messageKey = c.messageKey,
                 quoteAnchor = if (hideAiText) null else c.quote?.anchor,
                 images = imgs,
+                documents = c.documents,
                 thinking = if (vm.thinkingEnabled) c.thinking else null,
                 // 思考块显示在对应气泡顶端；**快速模式（未开启思考）不渲染**
             )
@@ -345,6 +364,39 @@ fun SolveScreen(
         }
     }
     val questionSelected = selectedIndices.any { sourceIndices.getOrNull(it) in com.zsz.studyassistant.protectedMessageIndices(vm.chatItems) }
+    // Export stored Q/A, including answers hidden for review, without UI placeholders or streaming tails.
+    val allExportMessages = remember(vm.chatItems, vm.questionImages, vm.thinkingEnabled, s) {
+        vm.chatItems.filterNot { it.answerPending }.map { item ->
+            ChatMsg(
+                role = if (item.role == "assistant") "assistant" else "user",
+                content = item.quote?.question ?: item.content,
+                images = if (item.role == "question") vm.questionImages.ifEmpty { item.images.orEmpty() } else item.images.orEmpty(),
+                documents = item.documents,
+                thinking = if (vm.thinkingEnabled) item.thinking else null,
+                quotedText = item.quote?.text,
+                quoteAnchor = item.quote?.anchor,
+                messageKey = item.messageKey,
+                sources = item.aiContext?.sources().orEmpty(),
+                sourcesLabel = s["ai.web.sources"]
+            )
+        }
+    }
+    val moreTools: @Composable () -> Unit = {
+        MoreFunctionsBar(
+            webEnabled = vm.webEnabled,
+            onToggleWeb = { vm.updateWebEnabled(!vm.webEnabled) },
+            onPickDocument = ::pickDocument,
+            onExport = { exportMessages = allExportMessages },
+            onInsert = { draft.text += it },
+            canToggleWeb = !vm.busy && !vm.streamInterrupted,
+            canPickDocument = !vm.busy && !vm.dataBusy && !importingAttachments,
+            canExport = !vm.busy && allExportMessages.isNotEmpty()
+        )
+    }
+    val documentAttachments: @Composable () -> Unit = {
+        DocumentAttachments(draft.documents, draft.importingDocuments,
+            onRemove = { document -> draft.documents = draft.documents.filterNot { it.sha256 == document.sha256 } })
+    }
     exportMessages?.let { selected ->
         ConversationExportDialog(selected, onDismiss = { exportMessages = null }, onFeedback = { feedback.show(it) })
     }
@@ -781,7 +833,7 @@ fun SolveScreen(
                     //   省掉"先进入独立输入页再跳转"的一跳，三种模式从此共用同一页
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
 
-                        AiWebToggle(vm)
+                        documentAttachments()
                         OutlinedTextField(
                             value = draft.text,
                             onValueChange = { draft.text = it },
@@ -798,23 +850,27 @@ fun SolveScreen(
                             )
                         }
                         Spacer(Modifier.height(8.dp))
-                        FormulaBar(onInsert = { draft.text = draft.text + it })
+                        moreTools()
                         Spacer(Modifier.height(8.dp))
                         Row(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            TextButton(enabled = !pickingImages && attachments.size < 3, onClick = ::pickImages) {
+                            TextButton(enabled = !vm.dataBusy && !importingAttachments && attachments.size < 3, onClick = ::pickImages) {
                                 AppIconLabel(s["ask.addImage"])
                             }
                             Button(
                                 onClick = {
-                                    vm.solveDirect(draft.text.trim(), selectedImages)
-                                    draft.text = ""
-                                    draft.attachments = emptyList()
+                                    val requestImages = draft.attachments.mapNotNull(draft.images::get)
+                                    if (vm.solveDirect(draft.requestText(vm.uiLang), requestImages, documents = draft.documents)) {
+                                        draft.text = ""
+                                        draft.attachments = emptyList()
+                                        draft.documents = emptyList()
+                                    }
                                 },
-                                enabled = !pickingImages && (draft.text.isNotBlank() || selectedImages.isNotEmpty()),
+                                enabled = !vm.dataBusy && !importingAttachments &&
+                                    (draft.text.isNotBlank() || selectedImages.isNotEmpty() || draft.documents.isNotEmpty()),
                                 modifier = Modifier.height(52.dp)
                             ) { Text(s["solve.send"]) }
                         }
@@ -1018,7 +1074,11 @@ fun SolveScreen(
             } else if (vm.chatItems.isNotEmpty() || vm.busy) {
                 // 输入栏（与同类题页共用组件：附图 + 公式键盘 + 图库 + 发送）
                 // ★ 生成中也显示：否则拍题后到首字出现之前，整条输入栏会被"答案生成中…"顶掉
-                AiWebToggle(vm)
+                vm.toolProgress?.takeIf { it.isNotBlank() }?.let { progress ->
+                    Text(s[progress], style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp))
+                }
                 ConversationInputBar(
                     value = draft.text,
                     onValueChange = { draft.text = it },
@@ -1026,20 +1086,26 @@ fun SolveScreen(
                     onRemoveImage = { bytes -> draft.attachments = attachments.filterNot { loaded[it] === bytes } },
                     onPickImages = ::pickImages,
                     onSend = {
-                        if (vm.sendFollowUp(draft.text.trim(), selectedImages, draft.quote?.text, draft.quote?.anchor)) {
+                        val requestImages = draft.attachments.mapNotNull(draft.images::get)
+                        if (vm.sendFollowUp(draft.requestText(vm.uiLang), requestImages, draft.quote?.text, draft.quote?.anchor,
+                                documents = draft.documents)) {
                             draft.text = ""
                             draft.attachments = emptyList()
                             draft.quote = null
+                            draft.documents = emptyList()
                         }
                     },
-                    busy = vm.busy || vm.dataBusy || pickingImages,
+                    busy = vm.busy || vm.dataBusy || importingAttachments,
                     hint = s["solve.followUpHint"],
                     sendLabel = s["solve.send"],
                     imageDesc = s["solve.imageDesc"],
                     quotedText = draft.quote?.text,
                     onRemoveQuote = { draft.quote = null },
                     quoteFocusSignal = quoteFocusSignal,
-                    draft = draft
+                    draft = draft,
+                    hasDocuments = draft.documents.isNotEmpty(),
+                    attachments = documentAttachments,
+                    tools = moreTools
                 )
             }
         }

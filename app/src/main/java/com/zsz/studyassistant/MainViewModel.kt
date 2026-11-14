@@ -72,7 +72,9 @@ data class ChatItem(val id: Long, val role: String, val content: String, val ima
                     val messageKey: String? = null, val gradePart: String? = null,
                     val notebookSuggestions: com.zsz.studyassistant.data.NotebookSuggestions? = null,
                     val answerPending: Boolean = false,
-                    val aiContext: com.zsz.studyassistant.data.AiResponseContext? = null)
+                    val aiContext: com.zsz.studyassistant.data.AiResponseContext? = null,
+                    val documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
+                    val ocrCorrections: List<String?> = emptyList())
 
 internal fun protectedMessageIndices(items: List<ChatItem>): Set<Int> = buildSet {
     items.forEachIndexed { index, item -> if (item.role == "question") add(index) }
@@ -104,6 +106,7 @@ internal fun messageIndicesForKeys(items: List<ChatItem>, keys: List<String?>): 
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+    private val documentStore by lazy { com.zsz.studyassistant.data.DocumentStore(getApplication()) }
     val sharedImages = com.zsz.studyassistant.data.SharedImageInbox(app, viewModelScope)
 
     init { KeyManager.init(app) }
@@ -949,8 +952,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun updatePendingImagePath(path: String) { pendingImagePath = path }
 
     internal val captureFlow: com.zsz.studyassistant.ui.CaptureFlowController by lazy {
-        com.zsz.studyassistant.ui.CaptureFlowController(getApplication(), viewModelScope, ::refreshUsage) { images, grade ->
-            if (grade) startGrade(images[0], images.getOrNull(1))
+        com.zsz.studyassistant.ui.CaptureFlowController(getApplication(), viewModelScope, ::refreshUsage) { images, grade, corrections ->
+            if (grade) startGrade(images[0], images.getOrNull(1), correctedTexts = corrections)
+            else if (corrections.any { !it.isNullOrBlank() }) solveDirect(ocrCorrectionText(corrections), images, fromCamera = true)
             else if (images.size >= 2) solveWithImages(images) else solveWithImage(images[0])
         }
     }
@@ -975,9 +979,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             attachmentCropFlow?.cancelCropFlow()
             attachmentCropFlow = com.zsz.studyassistant.ui.CaptureFlowController(
                 getApplication(), viewModelScope, ::refreshUsage, persistCheckpoints = false
-            ) { images, _ ->
+            ) { images, _, corrections ->
                 if (solveInputDraft === owner && images.size == batch.size) {
                     owner.images.putAll(batch.zip(images))
+                    batch.forEachIndexed { index, uri ->
+                        corrections.getOrNull(index)?.takeIf { it.isNotBlank() }?.let {
+                            owner.correctedTexts[uri] = it
+                        } ?: owner.correctedTexts.remove(uri)
+                    }
                     owner.attachments = owner.attachments + batch
                 }
             }.also { it.startCropFlow(imported.map { file -> file.absolutePath }, grade = false) }
@@ -990,6 +999,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+    private fun ocrCorrectionText(corrections: List<String?>): String {
+        val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
+        return corrections.mapIndexedNotNull { index, text -> text?.takeIf { it.isNotBlank() }?.let {
+            strings.format("ocr.imageText", "n" to (index + 1).toString()) + "\n" + it
+        } }.joinToString("\n\n")
+    }
+
+    internal suspend fun importDocument(owner: com.zsz.studyassistant.ui.SolveInputDraft, uri: android.net.Uri): Boolean {
+        if (solveInputDraft !== owner || busy || dataBusy || owner.importingDocuments || owner.documents.size >= 20) return false
+        owner.importingDocuments = true
+        return try {
+            val document = withContext(Dispatchers.IO) { documentStore.importUri(uri) }
+            if (solveInputDraft !== owner || busy || dataBusy) false else {
+                owner.documents = (owner.documents + document).distinctBy { it.sha256 }
+                true
+            }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            if (solveInputDraft === owner) error = com.zsz.studyassistant.ui.stringsFor(uiLang)[
+                (failure as? com.zsz.studyassistant.data.DocumentProblem)?.messageKey ?: "document.importFailed"]
+            false
+        } finally { owner.importingDocuments = false }
+    }
+
     private var captureIdentity: Pair<QuestionId, Long>?
         get() = captureFlow.captureIdentity
         set(value) { captureFlow.captureIdentity = value }
@@ -1036,7 +1069,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             else -> listOfNotNull(imageBytes)
         }
         val keys = questionImages.toList()
-        val q = questionText.ifBlank { if (keys.isEmpty() && fallback.isEmpty()) return else "（图片题）" }
+        val q = questionText.ifBlank {
+            originalDocumentTitle().ifBlank { if (keys.isEmpty() && fallback.isEmpty()) return else "（图片题）" }
+        }
         val created = binding.createdAt
         val updated = System.currentTimeMillis()
         val origin = binding.source ?: source
@@ -1438,8 +1473,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else if (questionText.isNotBlank()) {
             msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
         }
+        val originalQuestion = items.firstOrNull { it.role == "question" }
+        val originalDocuments = originalQuestion?.documents.orEmpty()
+        if (originalDocuments.isNotEmpty()) {
+            if (msgs.lastOrNull()?.role != "user") msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
+        }
+        if (msgs.lastOrNull()?.role == "user") msgs[msgs.lastIndex] = withQuestionAttachments(msgs.last(), originalQuestion)
         msgs.addAll(chatMessages(items))
         return msgs
+    }
+
+    private fun withQuestionAttachments(message: DeepSeekMessage,
+        question: ChatItem? = chatItems.firstOrNull { it.role == "question" }): DeepSeekMessage {
+        val corrected = ocrCorrectionText(question?.ocrCorrections.orEmpty())
+        val content = if (corrected.isBlank()) message.content else {
+            val parts = (message.content as? kotlinx.serialization.json.JsonArray)?.toList()
+                ?: listOf(kotlinx.serialization.json.buildJsonObject {
+                    put("type", kotlinx.serialization.json.JsonPrimitive("text"))
+                    put("text", message.content)
+                })
+            kotlinx.serialization.json.JsonArray(parts + kotlinx.serialization.json.buildJsonObject {
+                put("type", kotlinx.serialization.json.JsonPrimitive("text"))
+                put("text", kotlinx.serialization.json.JsonPrimitive("以下是用户逐张校对后的文字，请以校对结果为准并结合原图：\n" + corrected))
+            })
+        }
+        return message.copy(content = content, localDocuments = question?.documents.orEmpty())
     }
 
     private fun chatMessages(items: List<ChatItem>): List<DeepSeekMessage> {
@@ -1456,10 +1514,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 "user" -> {
                     val imgs = item.images
                     if (imgs.isNullOrEmpty()) {
-                        msgs.add(DeepSeekMessage("user", JsonPrimitive(item.content)))
+                        msgs.add(DeepSeekMessage("user", JsonPrimitive(item.content), localDocuments = item.documents))
                     } else {
                         // 追问带有附图的 user 消息 → 视觉模型（文字 + 多图）
-                        msgs.add(StudyAssistant.userMessageWithEncodedImages(item.content, imgs))
+                        msgs.add(StudyAssistant.userMessageWithEncodedImages(item.content, imgs).copy(localDocuments = item.documents))
                     }
                 }
                 // "question" 已作为题目消息
@@ -1473,6 +1531,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val msg = e.message.orEmpty().lowercase()
         return when {
             e is com.zsz.studyassistant.data.StreamIncompleteException -> s[e.messageKey]
+            e is com.zsz.studyassistant.data.DocumentProblem -> s[e.messageKey]
             e is com.zsz.studyassistant.data.AiRequestException && e.code() in setOf(400, 422) ->
                 s.format("err.invalidParameter", "code" to e.code().toString(), "field" to (e.parameter ?: "—"))
             msg.contains("timed out") || msg.contains("timeout") || msg.contains("socket") -> s["err.timeout"]
@@ -1484,14 +1543,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun addItem(role: String, content: String, images: List<String>? = null, thinking: String? = null,
-                        quote: QuotedFollowUp? = null, gradePart: String? = null) {
+                        quote: QuotedFollowUp? = null, gradePart: String? = null,
+                        documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList()) {
         // 助手消息默认带上本轮思考（这样所有调用方都不用改，避免"正文一出思考就没了"）
         val th = thinking ?: if (role == "assistant") thinkingText?.takeIf { it.isNotBlank() } else null
         val suggestions = if (role == "assistant" && chatItems.none { it.role == "assistant" })
             com.zsz.studyassistant.data.NotebookSuggestions(suggestedCategory, suggestedTags.toList()) else null
         chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote,
             gradePart = gradePart, notebookSuggestions = suggestions,
-            aiContext = if (role == "assistant") completedAiContext else null)
+            aiContext = if (role == "assistant") completedAiContext else null, documents = documents)
     }
 
     fun notebookSaveSuggestions() = com.zsz.studyassistant.data.firstAnswerSuggestions(
@@ -1666,7 +1726,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 var nextDraftWrite = 0L
                 val reply = withContext(Dispatchers.IO) {
                     val thinkOn = com.zsz.studyassistant.data.CapturePrefs.solveModel(app) != "flash"
-                    StudyAssistant.chatStream(model, messages, onDelta = bodyDelta@{ delta ->
+                    StudyAssistant.chatStream(model, messages, documentStore = documentStore, onDelta = bodyDelta@{ delta ->
                         sb.append(delta)
                         val now = SystemClock.elapsedRealtime()
                         if (now < nextBodyEmit) return@bodyDelta
@@ -2369,8 +2429,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 直接提问：文字 + 可选多张图，作为一条问题解答 */
-    fun solveDirect(text: String, images: List<ByteArray>) {
-        prepareSession(photo = images.isNotEmpty(), ask = true)
+    fun solveDirect(text: String, images: List<ByteArray>, documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
+                    fromCamera: Boolean = false): Boolean {
+        if (busy || dataBusy || (text.isBlank() && images.isEmpty() && documents.isEmpty())) return false
+        if (documents.size > 20) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false }
+        prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)
         isPhoto = images.isNotEmpty()
         isFromNotebook = false
         questionFromPhoto = false   // 直接提问显示用户自己写的文字，不是 AI 转译题干
@@ -2382,8 +2445,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // 附图同时存进该条消息，重开会话（如从错题本进入）仍能看到原图
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         questionImages = encoded
-        addItem("question", text, if (encoded.isEmpty()) null else encoded)
-        recordSolveSession("ask", create = true)
+        addItem("question", text, if (encoded.isEmpty()) null else encoded, documents = documents)
+        recordSolveSession(if (fromCamera) "camera" else "ask", create = true)
         val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             if (images.isNotEmpty()) {
@@ -2399,16 +2462,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedTags = r.tags
                 addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
             }
-            recordSolveSession("ask")
-        }, repeat = { solveDirect(text, images) })
+            recordSolveSession(if (fromCamera) "camera" else "ask")
+        }, repeat = { solveDirect(text, images, documents, fromCamera) })
+        return true
     }
 
     /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */
     fun sendFollowUp(text: String, images: List<ByteArray> = emptyList(), quotedText: String? = null,
-                     quoteAnchor: QuoteAnchor? = null): Boolean {
+                     quoteAnchor: QuoteAnchor? = null, documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList()): Boolean {
         if (busy || dataBusy) return false
         if(streamInterrupted) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]; return false }
-        if (text.isBlank() && images.isEmpty()) return false
+        if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return false
+        if (chatItems.sumOf { it.documents.size } + documents.size > 20) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false }
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         // Store the complete quote in the existing message body, so retries, history,
         // notebook saves and backups all retain the same context without a format change.
@@ -2416,7 +2481,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
             strings["solve.quoteTitle"] + ":\n" + quote + "\n\n" + strings["solve.quoteQuestion"] + ":\n" + text
         } ?: text
-        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text, quoteAnchor) })
+        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text, quoteAnchor) }, documents = documents)
         val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
@@ -2479,10 +2544,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val model = if (input != null || questionImages.isNotEmpty() || isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         val request = if (input == null && questionImages.isNotEmpty()) listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
-            StudyAssistant.userMessageWithEncodedImages(StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n" + questionText, questionImages))
-        else if (input == null) buildMessages(emptyList()) else listOf(
+            withQuestionAttachments(StudyAssistant.userMessageWithEncodedImages(StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n" + questionText, questionImages)))
+        else if (input == null) buildMessages(chatItems.filter { it.role == "question" }) else listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
-            StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames))
+            withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames)))
         busyIsGrade = input != null
         streamCall(model, request, "", onDone = { applyRecoveredReply(action, it) },
             repeat = { generateMissingInitialAnswer() }, replyAction = action)
@@ -2496,9 +2561,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * ⚠️ 必须共用同一套取法：之前界面拿的是 `questionText`，而落库时可能在它为空的情况下
      * 回退到"AI 识别出的题干" —— 存的串和查的串不一致，就会永远查不出重复。
      */
+    private fun originalDocumentTitle(): String = chatItems.firstOrNull { it.role == "question" }
+        ?.documents.orEmpty().joinToString("、") { it.name }
+
     fun pendingQuestionText(): String = questionText.ifBlank {
-        runCatching { StudyAssistant.parseVisionOutput(lastAnswer() ?: "").question }
-            .getOrNull()?.trim().orEmpty()
+        originalDocumentTitle().ifBlank {
+            runCatching { StudyAssistant.parseVisionOutput(lastAnswer()).question }
+                .getOrNull()?.trim().orEmpty().ifBlank {
+                    if (questionImages.isNotEmpty() || imageBytes != null || directImages.isNotEmpty()) "（图片题）" else ""
+                }
+        }
     }
 
     /** 保存到错题本（带分类）。name 非空→新建分类；categoryId 为 null→暂不分类 */
@@ -2506,12 +2578,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if(dataBusy) return
         if (saving) { cancelPending = true; return }
         if (savedQuestionId != null) return
-        val hasImg = questionImages.isNotEmpty() || imageBytes != null || directImages.isNotEmpty()
-        val q = questionText.ifBlank {
-            if (!hasImg) return
-            runCatching { StudyAssistant.parseVisionOutput(lastAnswer()).question }
-                .getOrNull()?.trim().orEmpty().ifBlank { "（图片题）" }
-        }
+        val q = pendingQuestionText().ifBlank { return }
         val binding = sessionRecordBinding
         val stableId = binding.id ?: return
         val firstCreatedAt = binding.createdAt
@@ -3136,7 +3203,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     internal var similarChatRequest: suspend (String, List<DeepSeekMessage>, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> String =
-        { model, messages, owner, onDelta -> StudyAssistant.chatStream(model, messages, owner = owner, onDelta = onDelta,
+        { model, messages, owner, onDelta -> StudyAssistant.chatStream(model, messages, documentStore = documentStore, owner = owner, onDelta = onDelta,
             task = "followup", thinkingEnabled = thinkingEnabled) }
 
     fun sendSimilar(text: String, images: List<ByteArray> = emptyList()) {
@@ -3498,7 +3565,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 开始批改（流式、全屏复用解题页）：把「题目图 [+ 我的作答图]」作为一条提问，
      * 批改结果流式追加；之后可继续带图追问。
      */
-    fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?, redoFor: QuestionId? = null) {
+    fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?, redoFor: QuestionId? = null, correctedTexts: List<String?> = emptyList()) {
         prepareSession(grade = true)
         pendingRedoFor = redoFor
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
@@ -3515,6 +3582,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val encoded = imgs.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         questionImages = encoded
         addItem("question", questionText, encoded)
+        chatItems = chatItems.dropLast(1) + chatItems.last().copy(ocrCorrections = correctedTexts)
         recordSolveSession("grade", create = true)
         gradeCall()
     }
@@ -3569,7 +3637,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val msgs = listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
-            StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames)
+            withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames))
         )
         busyIsGrade = true
         streamCall(

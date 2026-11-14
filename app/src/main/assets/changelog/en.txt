@@ -1,3 +1,9 @@
+v0.7.3.1
+· 🛠 Fix photo request parameters that caused HTTP 422 and improve resumed answers in web-enabled and image conversations.
+· 🧰 Add a compact More tools bar for web access, files, exporting all Q&A and formulas, removing the separate web row's empty space.
+· 📎 Ask about PDF, Word and PowerPoint files, with local originals included in backup and restore.
+· 🔎 Correct OCR text and formulas while cropping; send corrections with the question and retain the original image.
+
 v0.7.3
 · 🤖 Adjust output budgets and reasoning effort for solving, follow-ups and grading.
 · 🖼 Reuse uploaded images in repeated questions, with inline fallback for unavailable references.

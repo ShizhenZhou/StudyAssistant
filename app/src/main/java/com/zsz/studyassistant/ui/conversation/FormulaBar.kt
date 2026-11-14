@@ -80,23 +80,29 @@ fun FormulaBar(onInsert: (String) -> Unit, modifier: Modifier = Modifier) {
             }
         }
         if (expanded) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
-                LazyRow(
-                    Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(FORMULA_SYMBOLS) { sym ->
-                        FormulaChip(label = sym) { onInsert(sym) }
-                    }
-                }
-                LazyRow(
-                    Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(FORMULA_TEMPLATES) { (label, latex) ->
-                        FormulaChip(label = label) { onInsert(latex) }
-                    }
-                }
+            FormulaKeyboard(onInsert)
+        }
+    }
+}
+
+/** Symbol rows shared by the compact formula bar and the solve tools. */
+@Composable
+internal fun FormulaKeyboard(onInsert: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
+        LazyRow(
+            Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(FORMULA_SYMBOLS) { sym ->
+                FormulaChip(label = sym) { onInsert(sym) }
+            }
+        }
+        LazyRow(
+            Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(FORMULA_TEMPLATES) { (label, latex) ->
+                FormulaChip(label = label) { onInsert(latex) }
             }
         }
     }

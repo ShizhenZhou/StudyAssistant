@@ -18,7 +18,7 @@ internal class CaptureFlowController(
     private val scope: CoroutineScope,
     private val onUsageChanged: () -> Unit,
     private val persistCheckpoints: Boolean = true,
-    private val onComplete: (List<ByteArray>, Boolean) -> Unit
+    private val onComplete: (List<ByteArray>, Boolean, List<String?>) -> Unit
 ) {
     private val ownedInputs = mutableSetOf<String>()
     private val rotations = mutableMapOf<String, Int>()
@@ -64,6 +64,7 @@ internal class CaptureFlowController(
     var cropNeedsMore by mutableStateOf(false)
         private set
     private val cropResults = mutableListOf<ByteArray>()
+    private val cropCorrectedTexts = mutableListOf<String?>()
     private val captureFlowStore by lazy { com.zsz.studyassistant.data.CaptureFlowStore(app) }
     private val captureRestoreMutex = kotlinx.coroutines.sync.Mutex()
     private var captureRecoveryChecked = false
@@ -98,6 +99,7 @@ internal class CaptureFlowController(
             cropExpect = restored.expect
             cropNeedsMore = restored.needsMore
             cropResults.clear(); cropResults.addAll(restored.results)
+            cropCorrectedTexts.clear(); cropCorrectedTexts.addAll(restored.correctedTexts)
             captureStartedAt = restored.createdAt
             captureIdentity = restored.questionId?.let { it to restored.createdAt }
         }
@@ -110,7 +112,8 @@ internal class CaptureFlowController(
         if (!persistCheckpoints) return
         val ticket = captureFlowStore.reserve()
         val state = com.zsz.studyassistant.data.CaptureFlowState(cropPaths.toList(), cropIndex, cropGrade,
-            cropExpect, cropNeedsMore, cropResults.toList(), captureIdentity?.first, captureStartedAt, cropPaths.map(::cropRotation))
+            cropExpect, cropNeedsMore, cropResults.toList(), captureIdentity?.first, captureStartedAt,
+            cropPaths.map(::cropRotation), cropCorrectedTexts.toList())
         captureWriteJob?.cancel()
         captureWriteJob = scope.launch {
             try {
@@ -207,6 +210,7 @@ internal class CaptureFlowController(
         cropExpect = maxOf(expect, paths.size).coerceAtLeast(1)
         cropNeedsMore = false
         cropResults.clear()
+        cropCorrectedTexts.clear()
         checkpointCaptureFlow()
     }
 
@@ -222,11 +226,12 @@ internal class CaptureFlowController(
     }
 
     /** 提交当前这张的框选结果：还有下一张就前进；否则凑够张数就进入解题/批改，不够就回拍摄界面 */
-    fun submitCropResult(bytes: ByteArray) {
+    fun submitCropResult(bytes: ByteArray, correctedText: String? = null) {
         if (rotating || currentCropPath == null) return
         selections[currentCropPath]?.cancelDetection()
         preview = null
         cropResults.add(bytes)
+        cropCorrectedTexts.add(correctedText?.trim()?.takeIf { it.isNotEmpty() })
         if (cropIndex + 1 < cropPaths.size) {
             cropIndex += 1
         } else if (cropResults.size < cropExpect) {
@@ -244,6 +249,7 @@ internal class CaptureFlowController(
         val decoded = cropPaths.drop(cropIndex).map { decode(it)?.takeIf { bytes -> bytes.isNotEmpty() } ?: return false }
         selections[currentCropPath]?.cancelDetection()
         cropResults.addAll(decoded)
+        cropCorrectedTexts.addAll(List(decoded.size) { null })
         cropIndex = cropPaths.size
         if (cropResults.size < cropExpect) { cropNeedsMore = true; checkpointCaptureFlow() } else finishCropFlow()
         return true
@@ -254,6 +260,7 @@ internal class CaptureFlowController(
         if (cropIndex <= 0) return
         selections[currentCropPath]?.cancelDetection()
         if (cropResults.isNotEmpty()) cropResults.removeAt(cropResults.size - 1)
+        if (cropCorrectedTexts.isNotEmpty()) cropCorrectedTexts.removeAt(cropCorrectedTexts.size - 1)
         preview = null
         cropIndex -= 1
         cropNeedsMore = false
@@ -289,18 +296,20 @@ internal class CaptureFlowController(
         cropExpect = 1
         cropNeedsMore = false
         cropResults.clear()
+        cropCorrectedTexts.clear()
         captureIdentity = null
         captureStartedAt = 0L
     }
 
     private fun finishCropFlow() {
         val imgs = cropResults.toList()
+        val correctedTexts = cropCorrectedTexts.toList()
         val grade = cropGrade
         val identity = captureIdentity
         cancelCropFlow()
         captureIdentity = identity
         if (imgs.isEmpty()) return
-        onComplete(imgs, grade)
+        onComplete(imgs, grade, correctedTexts)
     }
 
     /** Swap the in-memory preview first; checkpoint orientation with the unchanged source, never a PNG. */

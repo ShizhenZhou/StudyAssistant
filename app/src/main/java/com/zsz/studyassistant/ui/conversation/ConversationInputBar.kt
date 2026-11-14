@@ -75,7 +75,10 @@ internal fun ConversationInputBar(
     quotedText: String? = null,
     onRemoveQuote: () -> Unit = {},
     quoteFocusSignal: Int = 0,
-    draft: SolveInputDraft? = null
+    draft: SolveInputDraft? = null,
+    hasDocuments: Boolean = false,
+    attachments: @Composable () -> Unit = {},
+    tools: (@Composable () -> Unit)? = null
 ) {
     val editor = editorFocus(draft, quoteFocusSignal)
     val addImageLabel = appLabelIcon(LocalStrings.current["ask.addImage"]).second
@@ -134,8 +137,8 @@ internal fun ConversationInputBar(
                 }
             }
         }
-        // 公式快捷输入条（∫ ∑ √ 等）
-        FormulaBar(onInsert = { onValueChange(value + it) })
+        attachments()
+        if (tools != null) tools() else FormulaBar(onInsert = { onValueChange(value + it) })
         Row(
             Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -163,7 +166,7 @@ internal fun ConversationInputBar(
             Spacer(Modifier.width(8.dp))
             Button(
                 onClick = onSend,
-                enabled = (value.isNotBlank() || images.isNotEmpty()) && !busy,
+                enabled = (value.isNotBlank() || images.isNotEmpty() || hasDocuments) && !busy,
                 shape = RoundedCornerShape(22.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
             ) { Text(sendLabel, fontSize = BTN_LABEL) }
