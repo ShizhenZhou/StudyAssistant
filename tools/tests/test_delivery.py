@@ -288,6 +288,14 @@ class DeliveryTest(unittest.TestCase):
                 selected = release.build_deltas(records, target, 9)
             self.assertEqual(8, len(selected))
             self.assertTrue(all(item["format"] == apk_archive_delta.FORMAT for item in selected))
+            def legacy_build(item, signed, code, output, **kwargs):
+                return dict(fake_build(item, signed, code, output, **kwargs), format=apk_delta.FORMAT)
+            with patch.object(apk_delta, "build", side_effect=legacy_build), \
+                    patch.object(apk_archive_delta, "build", side_effect=fake_build):
+                mixed = release.build_deltas(records[:2], target, 9, legacy_codes=[1])
+            self.assertEqual([apk_delta.FORMAT, apk_archive_delta.FORMAT], [d["format"] for d in mixed])
+            with self.assertRaises(release.ReleaseError):
+                release.build_deltas(records[:2], target, 9, legacy_codes=[99])
             with self.assertRaises(release.ReleaseError):
                 release.frozen_delta_pairs(records, [deltas[0]] * 8)
             with patch.object(apk_archive_delta, "build", side_effect=apk_archive_delta.NotApplicable()):

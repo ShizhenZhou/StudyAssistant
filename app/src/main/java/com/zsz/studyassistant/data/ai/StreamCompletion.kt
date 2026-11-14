@@ -12,11 +12,13 @@ class StreamCompletion(private val maxCharacters: Int = 4_000_000) {
         private set
     private var finishReason: String? = null
     private var received = 0L
+    private var serverError = false
     fun accept(payload: String): StreamChunk? {
         if (payload.isBlank()) return null
         if (payload == "[DONE]") { done = true; return null }
         val chunk = try { json.decodeFromString<StreamChunk>(payload) }
         catch (_: Exception) { throw StreamIncompleteException("err.streamInvalid") }
+        if (chunk.error != null) serverError = true
         val delta = chunk.choices.firstOrNull()?.delta
         received += (delta?.content?.length ?: 0).toLong() + (delta?.reasoningContent?.length ?: 0)
         if (received > maxCharacters) throw StreamIncompleteException("err.streamLength")
@@ -24,6 +26,7 @@ class StreamCompletion(private val maxCharacters: Int = 4_000_000) {
         return chunk
     }
     fun requireComplete() {
+        if (serverError) throw StreamIncompleteException("err.streamInterrupted")
         when (finishReason) {
             "stop" -> return // Explicit completion is authoritative even if the [DONE] footer was lost.
             "length" -> throw StreamIncompleteException("err.streamLength")

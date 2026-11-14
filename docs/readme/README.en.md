@@ -22,6 +22,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 - 📷 Ask with photos or text and images, crop images and grade handwritten work.
 - 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.
+- 🌐 Optional web search, link reading and answer sources.
 - 📤 Export selected messages as a text PDF or paged PNG images.
 - 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.
 - 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.
@@ -43,6 +44,8 @@ Explicitly choosing tag organization → AI analysis sends all tag IDs, names an
 
 Automatic backups write only to your SAF-selected folder. The app does not initiate cloud sync; a cloud drive provider may sync its folder independently. Crash logs and AI diagnostics are exported only on request to your chosen location.
 
+Repeated images may be uploaded to DeepSeek with a 24-hour expiry; local originals remain available. Web search and link reading are opt-in, with separate tool charges.
+
 ## Technology
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3** (DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
@@ -50,6 +53,14 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.7.3
+
+- 🤖 Adjust output budgets and reasoning effort for solving, follow-ups and grading.
+- 🖼 Reuse uploaded images in repeated questions, with inline fallback for unavailable references.
+- 🌐 Add optional web search and link reading, with progress and clickable sources.
+- 📊 Track cached tokens and billed search, page-reading and image-search calls.
+- 📌 `versionCode` **123**.
 
 ### v0.7.2.5
 

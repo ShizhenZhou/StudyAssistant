@@ -602,7 +602,7 @@ function msgKey(m){
   var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
   return (m.messageKey||'') + '|' + JSON.stringify(m.quoteAnchor||null) + '|' + m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + firstLen
-       + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
+       + '|' + JSON.stringify(m.sources||[]) + '|' + (m.sourcesLabel||'') + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
 }
 // Reconcile against a fresh parse, rather than guessing where a streamed Markdown block is final.
 // Equal subtrees keep their DOM, selection and formula scroll position. Only changed leaves are edited.
@@ -702,6 +702,16 @@ function bubbleHtml(m, idx){
     } else {
       delete window.thinkJumped[idx];
     }
+  }
+  if(m.sources && m.sources.length){
+    body += '<div class="answer-sources" style="margin-top:16px;padding-top:8px;border-top:1px solid #8886;font-size:.85em">'
+      + '<div>'+esc(m.sourcesLabel||'')+'</div>';
+    m.sources.forEach(function(source,n){
+      body += '<button type="button" style="display:block;text-align:start;color:inherit;background:transparent;border:0;padding:6px 0;text-decoration:underline;font:inherit;overflow-wrap:anywhere"'
+        + ' onclick="event.stopPropagation();if(selectionMode){bubbleTap('+idx+');}else if(window.Android){Android.openSource('+idx+','+n+');}">'
+        + esc('['+(n+1)+'] '+source.title)+'</button>';
+    });
+    body += '</div>';
   }
   if(contLabel !== null){
     body += '<div class="continue" onclick="event.stopPropagation();continueGen()">'+esc(contLabel)+'</div>';

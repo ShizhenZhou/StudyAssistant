@@ -22,6 +22,7 @@
 
 - 📷 拍照或图文提问，支持图片框选和手写作答批改。
 - 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。
+- 🌐 可选联网搜索、链接阅读与答案来源查看。
 - 📤 选中问答可导出为文字型 PDF 或分张 PNG。
 - 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。
 - 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。
@@ -43,6 +44,8 @@
 
 自动备份仅写入用户通过系统文件选择器（SAF）选定的文件夹，本应用不主动云同步；若选择网盘目录，网盘应用可能自行同步。崩溃日志和 AI 分析诊断仅在手动导出时写入用户选择的位置。
 
+图片重复使用时可上传至 DeepSeek 并设置 24 小时有效期，本地原图仍保留；联网搜索和链接阅读仅在开启后使用，工具另行计费。
+
 ## 技术栈
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（备份与定期更新检查）· AlarmManager · Android Keystore。
@@ -50,6 +53,14 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 构建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
 
 ## 版本记录
+
+### v0.7.3
+
+- 🤖 按任务调整解题、追问与批改的输出预算和思考强度。
+- 🖼 重复提问复用图片上传，过期或失败时回退原图发送。
+- 🌐 新增可选联网搜索与链接阅读，显示处理进度和可点击来源。
+- 📊 增加缓存命中及搜索、网页读取、图片搜索的用量统计。
+- 📌 `versionCode` **123**.
 
 ### v0.7.2.5
 

@@ -591,6 +591,12 @@ private val B0_ZH = mapOf(
     "settings.customPrompt.desc" to "写在这里的要求会附加到每次 AI 提问中。例如：只给思路不要直接给答案 / 步骤编号并写清依据 / 用更简洁的语言 / 优先用我课本的符号习惯…（留空即不生效）",
     "settings.solveModel" to "🧠 解题模式",
     "settings.solveModel.desc" to "快速模式关闭思考；思考模式先思考再作答，可能耗时更长、消耗更多 token。两种模式都使用 deepseek-flash。",
+    "ai.web.toggle" to "联网",
+    "ai.web.description" to "允许 AI 搜索和阅读链接；工具另行计费。普通解题可关闭。",
+    "ai.web.searching" to "搜索资料中…",
+    "ai.web.reading" to "阅读资料中…",
+    "ai.web.sources" to "参考来源",
+    "ai.usage.tools" to "缓存命中 tokens：{c}；工具计费次数：搜索 {s} / 网页读取 {f} / 图片搜索 {i}",
     "settings.solveModel.flash" to "快速模式（关闭思考）",
     "settings.solveModel.reasoner" to "思考模式（开启思考）",
     "settings.aiCrop.desc" to "滑到最右端，越过 5 秒后的阻尼即可选择 ∞。手动调框、换图或离开可结束等待。",
@@ -713,6 +719,12 @@ private val B0_EN = mapOf(
     "settings.customPrompt.desc" to "Anything written here is appended to every AI request. For example: give hints only, no full answer / number the steps and state the reasoning / use more concise language … (leave empty to disable)",
     "settings.solveModel" to "🧠 Solve mode",
     "settings.solveModel.desc" to "Fast mode disables thinking. Thinking mode reasons before answering and may take longer and use more tokens. Both use deepseek-flash.",
+    "ai.web.toggle" to "Web",
+    "ai.web.description" to "Allow AI to search and read links. Tools are billed separately; optional for ordinary questions.",
+    "ai.web.searching" to "Searching…",
+    "ai.web.reading" to "Reading sources…",
+    "ai.web.sources" to "Sources",
+    "ai.usage.tools" to "Cached tokens: {c}; billed tools: searches {s} / page reads {f} / image searches {i}",
     "settings.solveModel.flash" to "Fast mode (thinking off)",
     "settings.solveModel.reasoner" to "Thinking mode (thinking on)",
     "settings.aiCrop.desc" to "Slide past the stop after 5 s to select ∞. Adjust the crop, switch images or leave to stop waiting.",
@@ -835,6 +847,12 @@ private val B0_JA = mapOf(
     "settings.customPrompt.desc" to "ここに書いた内容は毎回の AI 質問に追加されます。例：考え方だけ／手順に番号と根拠／より簡潔に…（空欄なら無効）",
     "settings.solveModel" to "🧠 解答モード",
     "settings.solveModel.desc" to "高速モードは思考を無効化。思考モードは推論後に回答し、時間とトークンが増える場合があります。どちらも deepseek-flash を使用。",
+    "ai.web.toggle" to "ウェブ検索",
+    "ai.web.description" to "AI に検索とリンク閲覧を許可します。ツールは別料金です。通常の問題ではオフにできます。",
+    "ai.web.searching" to "検索中…",
+    "ai.web.reading" to "資料を閲覧中…",
+    "ai.web.sources" to "参照元",
+    "ai.usage.tools" to "キャッシュ tokens：{c}；課金回数：検索 {s} / ページ閲覧 {f} / 画像検索 {i}",
     "settings.solveModel.flash" to "高速モード（思考オフ）",
     "settings.solveModel.reasoner" to "思考モード（思考オン）",
     "settings.aiCrop.desc" to "5秒の先の段差を越えると ∞ になります。手動調整、画像の切り替え、終了で待機を中止できます。",
@@ -957,6 +975,12 @@ private val B0_KO = mapOf(
     "settings.customPrompt.desc" to "여기에 쓴 내용은 모든 AI 질문에 추가됩니다. 예: 풀이 방향만/단계 번호와 근거/더 간결하게… (비우면 적용 안 됨)",
     "settings.solveModel" to "🧠 풀이 모드",
     "settings.solveModel.desc" to "빠른 모드는 사고를 끕니다. 사고 모드는 추론 후 답하며 시간과 토큰 사용이 늘 수 있습니다. 모두 deepseek-flash를 사용합니다.",
+    "ai.web.toggle" to "웹 검색",
+    "ai.web.description" to "AI의 검색과 링크 읽기를 허용합니다. 도구는 별도 과금되며 일반 문제에서는 끌 수 있습니다.",
+    "ai.web.searching" to "검색 중…",
+    "ai.web.reading" to "자료 읽는 중…",
+    "ai.web.sources" to "출처",
+    "ai.usage.tools" to "캐시 tokens: {c}; 과금 횟수: 검색 {s} / 페이지 읽기 {f} / 이미지 검색 {i}",
     "settings.solveModel.flash" to "빠른 모드(사고 끔)",
     "settings.solveModel.reasoner" to "사고 모드(사고 켬)",
     "settings.aiCrop.desc" to "5초 뒤의 걸림 구간을 지나 오른쪽 끝으로 밀면 ∞를 선택합니다. 영역 조정, 이미지 전환 또는 화면 종료로 대기를 끝낼 수 있습니다.",
@@ -2592,6 +2616,7 @@ private val B10_ZH = mapOf(
     "about.features" to "📋 功能",
     "about.repoLabel" to "项目主页：",
     "about.features.body" to (
+        "· 🌐 可选联网搜索、链接阅读与答案来源查看。\n" +
         "· 📷 拍照或图文提问，支持图片框选和手写作答批改。\n" +
         "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。\n" +
         "· 📤 选中问答可导出为文字型 PDF 或分张 PNG。\n" +
@@ -2609,6 +2634,7 @@ private val B10_ZH = mapOf(
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
+        "· 图片重复使用时可上传至 DeepSeek 并设置 24 小时有效期，本地原图仍保留；联网搜索和链接阅读仅在开启后使用，工具另行计费。\n" +
         "· 📱 无账号、自有服务器或统计上报；错题、解题记录和复习数据库保存在本机\n" +
         "· 🤖 AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
         "· 🏷️ 标签整理 AI 分析发送完整标签的编号、名称与关联题数，不发送题目正文、答案或图片\n" +
@@ -2660,6 +2686,7 @@ private val B10_EN = mapOf(
     "about.features" to "📋 Features",
     "about.repoLabel" to "Project: ",
     "about.features.body" to (
+        "· 🌐 Optional web search, link reading and answer sources.\n" +
         "· 📷 Ask with photos or text and images, crop images and grade handwritten work.\n" +
         "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.\n" +
         "· 📤 Export selected messages as a text PDF or paged PNG images.\n" +
@@ -2677,6 +2704,7 @@ private val B10_EN = mapOf(
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
+        "· Repeated images may be uploaded to DeepSeek with a 24-hour expiry; local originals remain available. Web search and link reading are opt-in, with separate tool charges.\n" +
         "· 📱 No accounts, developer backend or analytics reporting; notebook, history and review databases are stored locally\n" +
         "· 🤖 AI features send necessary question text, images, context, custom instructions, relevant category/label names and options directly to the official DeepSeek API, authenticated with your own key\n" +
         "· 🏷️ AI label analysis sends the complete label IDs, names and linked-question counts, without question text, answers or images\n" +
@@ -2728,6 +2756,7 @@ private val B10_JA = mapOf(
     "about.features" to "📋 機能",
     "about.repoLabel" to "プロジェクト：",
     "about.features.body" to (
+        "· 🌐 任意のウェブ検索・リンク閲覧と回答の参照元表示。\n" +
         "· 📷 写真や画像付きテキストで質問し、画像の切り取りや手書き解答の添削ができます。\n" +
         "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・簡単な SVG 図に対応。\n" +
         "· 📤 選択した問答をテキスト PDF または分割 PNG に出力。\n" +
@@ -2745,6 +2774,7 @@ private val B10_JA = mapOf(
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
+        "· 繰り返し使用する画像は有効期限24時間で DeepSeek にアップロードされる場合があります。元画像は端末に保持します。ウェブ検索とリンク閲覧は任意で、ツールは別料金です。\n" +
         "· 📱 アカウント・開発者サーバー・解析データ送信なし。ノート・履歴・復習のDBは端末に保存\n" +
         "· 🤖 AI機能は必要な問題文・画像・文脈・カスタム指示・関連する分類/タグ名・設定をDeepSeek公式APIへ直接送信し、自分のキーで認証\n" +
         "· 🏷️ タグ分析では全タグの番号・名称・関連問題数を送信。問題本文・解答・画像は送信しない\n" +
@@ -2796,6 +2826,7 @@ private val B10_KO = mapOf(
     "about.features" to "📋 기능",
     "about.repoLabel" to "프로젝트: ",
     "about.features.body" to (
+        "· 🌐 선택적 웹 검색, 링크 읽기와 답변 출처 확인.\n" +
         "· 📷 사진 또는 이미지와 글로 질문하고 이미지를 자르거나 손글씨 답안을 채점합니다.\n" +
         "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표와 간단한 SVG 그림을 지원합니다.\n" +
         "· 📤 선택한 문답을 텍스트 PDF 또는 분할 PNG로 내보냅니다.\n" +
@@ -2813,6 +2844,7 @@ private val B10_KO = mapOf(
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (
+        "· 반복 사용하는 이미지는 24시간 만료 설정으로 DeepSeek에 업로드될 수 있으며 원본은 기기에 보관합니다. 웹 검색과 링크 읽기는 선택 사항이며 도구는 별도 과금됩니다.\n" +
         "· 📱 계정·개발자 서버·분석 정보 전송이 없으며 오답·기록·복습 DB는 기기에 저장\n" +
         "· 🤖 AI 기능은 필요한 문제 글·이미지·문맥·사용자 지시·관련 분류/태그 이름·설정을 DeepSeek 공식 API로 직접 보내고 본인의 키로 인증\n" +
         "· 🏷️ 태그 분석은 전체 태그 번호·이름·연결 문제 수를 보내며 문제 본문·답안·이미지는 보내지 않음\n" +

@@ -71,7 +71,8 @@ data class ChatItem(val id: Long, val role: String, val content: String, val ima
                     val thinking: String? = null, val quote: QuotedFollowUp? = null,
                     val messageKey: String? = null, val gradePart: String? = null,
                     val notebookSuggestions: com.zsz.studyassistant.data.NotebookSuggestions? = null,
-                    val answerPending: Boolean = false)
+                    val answerPending: Boolean = false,
+                    val aiContext: com.zsz.studyassistant.data.AiResponseContext? = null)
 
 internal fun protectedMessageIndices(items: List<ChatItem>): Set<Int> = buildSet {
     items.forEachIndexed { index, item -> if (item.role == "question") add(index) }
@@ -592,8 +593,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val partial = com.zsz.studyassistant.data.ThinkingOutput.split(value.raw)
                     streamingText=partial.body; thinkingText=value.thinking ?: partial.thinking; streamInterrupted=true
                     activeDraft=activeDraft?.copy(raw=partial.body, thinking=thinkingText)
-                    contModel=value.model; contPrefix=partial.body
-                    contMessages=continuationMessages(value.messages,partial.body)
+                    contModel=value.model; contPrefix=if(value.webEnabled) "" else partial.body
+                    contWebEnabled=value.webEnabled
+                    contMessages=if(value.webEnabled) value.messages else continuationMessages(value.messages,partial.body)
                     contDraftAction=value.action
                     contOnDone={ output -> applyRecoveredReply(value.action,output) }
                 }
@@ -612,7 +614,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedCategory = result.category; suggestedTags = result.tags
                 chatItems = restoreInitialAnswer(chatItems, ChatItem(0, "assistant",
                     result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)), thinking = thinkingText,
-                    notebookSuggestions = com.zsz.studyassistant.data.NotebookSuggestions(result.category, result.tags)))
+                    notebookSuggestions = com.zsz.studyassistant.data.NotebookSuggestions(result.category, result.tags),
+                    aiContext = completedAiContext))
             }
             "grade" -> onGradeReply(output)
             "followup" -> addItem("assistant",StudyAssistant.stripMetaLines(output))
@@ -1325,6 +1328,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 再进图文提问会看到上一轮仍在流式。
      */
     /** 当前是否开启思考模式（设置 → AI 配置 → **解题模式**）：快速=关闭 → 界面不渲染思考块 */
+    var webEnabled by mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.webEnabled(getApplication()))
+        private set
+    fun updateWebEnabled(value: Boolean) {
+        if (busy || streamInterrupted) return
+        webEnabled = value
+        com.zsz.studyassistant.data.CapturePrefs.setWebEnabled(getApplication(), value)
+    }
+    var toolProgress by mutableStateOf<String?>(null)
+        private set
+    private var completedAiContext: com.zsz.studyassistant.data.AiResponseContext? = null
+    private var contWebEnabled = false
     val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
 
     fun stopActiveGeneration() {
@@ -1421,7 +1435,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         for (item in items) {
             if (item.answerPending) continue
             when (item.role) {
-                "assistant" -> msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.content)))
+                "assistant" -> msgs.add(DeepSeekMessage("assistant", JsonPrimitive(item.aiContext?.rawContent ?: item.content),
+                    reasoningContent = if (item.aiContext != null) item.aiContext.reasoningContent else item.thinking,
+                    serverToolCalls = item.aiContext?.serverToolCalls))
                 "user" -> {
                     val imgs = item.images
                     if (imgs.isNullOrEmpty()) {
@@ -1457,7 +1473,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val suggestions = if (role == "assistant" && chatItems.none { it.role == "assistant" })
             com.zsz.studyassistant.data.NotebookSuggestions(suggestedCategory, suggestedTags.toList()) else null
         chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote,
-            gradePart = gradePart, notebookSuggestions = suggestions)
+            gradePart = gradePart, notebookSuggestions = suggestions,
+            aiContext = if (role == "assistant") completedAiContext else null)
     }
 
     fun notebookSaveSuggestions() = com.zsz.studyassistant.data.firstAnswerSuggestions(
@@ -1552,7 +1569,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val onDone = contOnDone ?: return
         // ★ 包一层：续写完成后把**同一条**搜题记录也更新掉（否则记录里永远停在被中止时的半截答案）
         val wrapped: (String) -> Unit = { out -> onDone(out); updateSolveSession() }
-        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction)
+        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction, useWeb=contWebEnabled)
     }
 
     private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
@@ -1583,7 +1600,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         prefix: String,
         onDone: (String) -> Unit,
         repeat: (() -> Unit)?,
-        replyAction: String = if(gradeMode) "grade" else if(chatItems.any { it.role=="assistant" }) "followup" else "initial"
+        replyAction: String = if(chatItems.lastOrNull()?.role=="user") "followup" else if(gradeMode) "grade" else "initial",
+        useWeb: Boolean = webEnabled
     ) {
         if(dataBusy) return
         streamOwner?.cancel()
@@ -1595,7 +1613,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val template=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
             owner.id,model,replyAction,currentSource(),questionText,isPhoto,askMode,gradeMode,
             sessionRecordBinding.historyAllowed,savedQuestionId,questionImages,chatItems.toList(),messages,raw=prefix,redoFor=pendingRedoFor ?: if(gradeMode) redoQuestionId else null,
-            gradeHistoryEnabled=gradeMode) }
+            gradeHistoryEnabled=gradeMode, webEnabled=useWeb) }
         if(template!=null) { conversationDrafts.reserve(template.id,template.generation); activeDraft=template }
         callJob = viewModelScope.launch {
             busy = true
@@ -1613,6 +1631,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // 思考流（推理模型才有）：每次新请求都清空
             thinkingText = null
             thinkingDone = false
+            toolProgress = null
+            completedAiContext = null
             val thinkSb = StringBuilder()
             var nextThinkEmit = 0L
             try {
@@ -1631,6 +1651,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             if (mySeq == callSeq) {
                                 parsed.thinking?.let { thinkingText = it }
                                 streamingText = snapshot
+                                toolProgress = null
                                 activeDraft = activeDraft?.copy(raw = snapshot, thinking = thinkingText)
                                 if (now >= nextDraftWrite) {
                                     nextDraftWrite = now + 1000
@@ -1638,7 +1659,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 }
                             }
                         }
-                    }, thinkingEnabled = thinkOn, owner = owner, onReasoning = { r ->
+                    }, thinkingEnabled = thinkOn, owner = owner, task = replyAction, webEnabled = useWeb,
+                    onToolProgress = { key -> withContext(Dispatchers.Main) { if (mySeq == callSeq) toolProgress = key } },
+                    onReasoning = { r ->
                         thinkSb.append(r)
                         val now = SystemClock.elapsedRealtime()
                         if (now >= nextThinkEmit) {
@@ -1654,7 +1677,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val parsedReply = com.zsz.studyassistant.data.ThinkingOutput.split(reply)
                 thinkingText = thinkSb.toString().takeIf { it.isNotEmpty() } ?: parsedReply.thinking ?: thinkingText
                 thinkingDone = true
-                recordUsage(app, owner.usage)
+                completedAiContext = owner.responseContext
                 // ⚠️ 这里原先有一段「把 thinkingText 挂到 indexOfLast{assistant}」的代码，已删除：
                 //   调用点在 onDone 之前，此刻 chatItems 里最后一条助手消息是**上一轮的** →
                 //   追问时会把上一轮答案的思考块覆盖成本轮思考。
@@ -1699,8 +1722,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (keepPartial) {
                         streamInterrupted = true
                         contModel = model
-                        contMessages = continuationMessages(messages, partial)
-                        contPrefix = partial
+                        contWebEnabled = useWeb
+                        contMessages = if (useWeb) messages else continuationMessages(messages, partial)
+                        contPrefix = if (useWeb) "" else partial
                         contOnDone = onDone
                         // 用完整累积文本刷新一次界面（可能是空串 → 界面显示「思考中…」+ 蓝色「继续生成」）
                         streamingText = partial
@@ -1729,9 +1753,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (e is CancellationException) throw e
             } finally {
+                recordUsage(app, owner.usage)
                 // 已被新请求取代的旧请求：不要动界面状态（避免把新请求的气泡/忙碌态清掉）
                 if (mySeq == callSeq) {
                     busy = false
+                    toolProgress = null
+                    completedAiContext = null
                     if (!keepPartial) streamingText = null
                     callJob = null
                 }
@@ -1771,6 +1798,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var usagePromptTokens by mutableStateOf(0)
         private set
+    var usageCacheTokens by mutableStateOf(0)
+        private set
+    var usageSearches by mutableStateOf(0)
+        private set
+    var usageFetches by mutableStateOf(0)
+        private set
+    var usageImageSearches by mutableStateOf(0)
+        private set
     var usageCompletionTokens by mutableStateOf(0)
         private set
 
@@ -1785,6 +1820,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         usageCalls = s.calls
         usagePromptTokens = s.promptTokens
         usageCompletionTokens = s.completionTokens
+        usageCacheTokens = s.cacheTokens
+        usageSearches = s.searches
+        usageFetches = s.fetches
+        usageImageSearches = s.imageSearches
     }
 
     fun resetUsage() {
@@ -3065,7 +3104,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     internal var similarChatRequest: suspend (String, List<DeepSeekMessage>, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> String =
-        { model, messages, owner, onDelta -> StudyAssistant.chatStream(model, messages, owner = owner, onDelta = onDelta) }
+        { model, messages, owner, onDelta -> StudyAssistant.chatStream(model, messages, owner = owner, onDelta = onDelta,
+            task = "followup", thinkingEnabled = thinkingEnabled) }
 
     fun sendSimilar(text: String, images: List<ByteArray> = emptyList()) {
         val qTitle = similarQuestion ?: return
@@ -3503,7 +3543,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         streamCall(
             StudyAssistant.MODEL_VISION, msgs, prefix = "",
             onDone = { onGradeReply(it) },
-            repeat = { gradeCall() }
+            repeat = { gradeCall() }, replyAction = "grade"
         )
     }
 

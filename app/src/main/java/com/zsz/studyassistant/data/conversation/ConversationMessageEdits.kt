@@ -8,7 +8,7 @@ internal fun deleteConversationMessages(items: List<ChatItem>, selected: Set<Int
         when {
             index !in selected || item.answerPending -> item
             index == initialAnswer -> item.copy(content = "", images = null, thinking = null, quote = null,
-                messageKey = java.util.UUID.randomUUID().toString(), answerPending = true)
+                messageKey = java.util.UUID.randomUUID().toString(), answerPending = true, aiContext = null)
             else -> null
         }
     }

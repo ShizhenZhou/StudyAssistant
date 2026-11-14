@@ -9,6 +9,8 @@ class StreamOwner {
     private var cancelled = false
     private var cancelAction: (() -> Unit)? = null
     @Volatile var usage: DeepSeekUsage? = null
+    @Volatile var responseContext: AiResponseContext? = null
+    @Volatile var usedWeb: Boolean = false
     fun attach(action: () -> Unit) {
         val runNow = synchronized(lock) { if (cancelled) true else { cancelAction = action; false } }
         if (runNow) action()

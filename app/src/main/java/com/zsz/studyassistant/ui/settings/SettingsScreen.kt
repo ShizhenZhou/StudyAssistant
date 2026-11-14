@@ -205,7 +205,7 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                             AiCropTimeoutSettings()
                         }
                         AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { returnToParent() }) {
-                            AiSolveModelSettings()
+                            AiSolveModelSettings(vm)
                         }
                         AppNav.SettingsPages.AI_PROMPT -> {
                             val ctx = LocalContext.current
@@ -551,7 +551,7 @@ private fun AiCropTimeoutSettings() {
 
 /** ---- 解题模式（快 / 深度思考）：只是 thinking 开关，模型没变 ---- */
 @Composable
-private fun AiSolveModelSettings() {
+private fun AiSolveModelSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     val ctx = LocalContext.current
     Spacer(Modifier.height(22.dp))
@@ -559,6 +559,7 @@ private fun AiSolveModelSettings() {
     Spacer(Modifier.height(4.dp))
     Text(s["settings.solveModel.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(8.dp))
+    AiWebToggle(vm, explain = true)
     var model by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.solveModel(ctx)) }
     listOf("flash" to s["settings.solveModel.flash"], "reasoner" to s["settings.solveModel.reasoner"]).forEach { (v, label) ->
         Row(
@@ -814,6 +815,8 @@ private fun ApiSettings(vm: MainViewModel) {
             color = MaterialTheme.colorScheme.outline
         )
         Spacer(Modifier.height(8.dp))
+        Text(s.format("ai.usage.tools", "c" to "${vm.usageCacheTokens}", "s" to "${vm.usageSearches}",
+            "f" to "${vm.usageFetches}", "i" to "${vm.usageImageSearches}"), style = MaterialTheme.typography.bodySmall)
         TextButton(shape = smoothPill(), onClick = { vm.resetUsage() }) { Text(s["api.usage.reset"]) }
     }
 }

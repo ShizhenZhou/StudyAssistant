@@ -1,3 +1,9 @@
+v0.7.3
+· 🤖 Adjust output budgets and reasoning effort for solving, follow-ups and grading.
+· 🖼 Reuse uploaded images in repeated questions, with inline fallback for unavailable references.
+· 🌐 Add optional web search and link reading, with progress and clickable sources.
+· 📊 Track cached tokens and billed search, page-reading and image-search calls.
+
 v0.7.2.5
 · ⚡ Share concurrent backup folder reads and improve scheduling to reduce duplicate scans and time spent holding locks.
 · 🛠 Improve update notes by hiding malformed or truncated internal manifest comments.

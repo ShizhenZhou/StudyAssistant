@@ -24,6 +24,8 @@ object CapturePrefs {
     private const val KEY_SOLVE_MODEL = "solve_model"
     fun solveModel(c: Context): String = prefs(c).getString(KEY_SOLVE_MODEL, "flash") ?: "flash"
     fun setSolveModel(c: Context, v: String) = prefs(c).edit().putString(KEY_SOLVE_MODEL, v).apply()
+    fun webEnabled(c: Context): Boolean = prefs(c).getBoolean("ai_web_enabled", false)
+    fun setWebEnabled(c: Context, value: Boolean) = prefs(c).edit().putBoolean("ai_web_enabled", value).apply()
     fun solveDouble(c: Context): Boolean = prefs(c).getBoolean(KEY_SOLVE_DOUBLE, false)
 
     fun setSolveDouble(c: Context, v: Boolean) =

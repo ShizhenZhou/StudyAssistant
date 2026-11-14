@@ -459,3 +459,12 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 `update_download/session` 增加可选 `steps` 数组与 `stepIndex`：每一步保存补丁format/baseSha256/baseSize/patchName/patchUrl/patchSha256/patchSize，以及目标targetSha256/targetSize/tag。原`delta`保存当前步骤，`transferToken`由任务UUID及步骤序号确定（首步沿用任务UUID）；旧单差分/完整包记录仍可读取。恢复时检查每步的安全URL、摘要、尺寸、前后连接、总下载量和最终目标一致性；中间包保存在私有更新缓存`<UUID>.stage-<序号>`，不进入题库备份。持久化下一步骤后再清理上一系统下载，进程重启按已验证中间包继续；安装前仍验证最终APK。失败清理本任务中间包并单向回退完整包，取消清理且不回退。此为可重新生成的公开更新缓存，无用户数据迁移或迁移备份需求。
 
 备份目录摘要仅在进程内缓存最近64组精确内容摘要对应的有效快照时间；每次读取仍复制并核对文件内容哈希，删除和导入不使用该缓存。不持久化、不改变备份格式。
+
+
+## v0.7.3：联网会话上下文与本机偏好
+
+- `ChatItem.aiContext` 为可选对象，缺失时 `null`；包含 `rawContent`（解析前正文）、`reasoningContent`（最终步骤推理，可空）、`serverToolCalls` 和 `annotations`（原始 JSON 数组）。工具调用的签名及原始字段保持不变以供后续联网追问回传；界面从 annotations 提取安全 HTTP(S) 来源，显示内容不改写引用定位正文。首答删除时同步清空 aiContext，撤销恢复原消息。
+- 草稿 `ConversationDraft.webEnabled` 缺失时 `false`，记录本次请求的联网选项；联网中断后重发原请求，不拼接残缺工具上下文。
+- 本机 settings 增加 `ai_web_enabled`（默认 false）、`usage_cache`、`usage_search`、`usage_fetch`、`usage_image_search`（默认0）。工具统计采用服务端计费次数字段，不以进度事件计数。
+- 图片 file_id 只保留在有界内存缓存，绑定凭据摘要与图片内容；不保存凭据本身、不写数据库/备份/草稿。首次使用仍内嵌图片，重复使用按需上传并设置24小时有效期；过期重新上传，失败回退原图，原图始终随原有会话保留。
+- Room 表结构、DB v10、Bak v4 不变；会话 JSON 可选字段随既有保存及备份路径写入，旧数据无需批量转换，旧读端忽略未知字段。未做有损迁移或清库。

@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import com.zsz.studyassistant.data.sources
+
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
@@ -278,6 +280,8 @@ fun SolveScreen(
                 role = if (c.role == "assistant") "assistant" else "user",
                 content = if (c.answerPending) s["solve.answerPending"] + "\n\n[[CONTINUE|" + s["solve.continueGen"] + "]]"
                     else if (hideAiText) "" else c.quote?.question ?: c.content,
+                sources = if (hideAiText) emptyList() else c.aiContext?.sources().orEmpty(),
+                sourcesLabel = s["ai.web.sources"],
                 quotedText = if (hideAiText) null else c.quote?.text,
                 messageKey = c.messageKey,
                 quoteAnchor = if (hideAiText) null else c.quote?.anchor,
@@ -777,6 +781,7 @@ fun SolveScreen(
                     //   省掉"先进入独立输入页再跳转"的一跳，三种模式从此共用同一页
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
 
+                        AiWebToggle(vm)
                         OutlinedTextField(
                             value = draft.text,
                             onValueChange = { draft.text = it },
@@ -1013,6 +1018,7 @@ fun SolveScreen(
             } else if (vm.chatItems.isNotEmpty() || vm.busy) {
                 // 输入栏（与同类题页共用组件：附图 + 公式键盘 + 图库 + 发送）
                 // ★ 生成中也显示：否则拍题后到首字出现之前，整条输入栏会被"答案生成中…"顶掉
+                AiWebToggle(vm)
                 ConversationInputBar(
                     value = draft.text,
                     onValueChange = { draft.text = it },

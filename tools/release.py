@@ -127,12 +127,14 @@ def delta_files(signed, state):
     return {name: signed.parent / name for name in names - {signed.name, "update-manifest.json"}}
 
 
-def build_deltas(bases, signed, version_code, allow_same_version=False):
-    """New releases publish one APK-aware patch per exact base."""
+def build_deltas(bases, signed, version_code, allow_same_version=False, legacy_codes=()):
+    """APK-aware by default; explicit user-selected bases may use the historical format."""
     if not 0 < len(bases) <= 8: raise ReleaseError("Support one to eight exact delta bases")
+    if not set(legacy_codes).issubset({base["baseVersionCode"] for base in bases}):
+        raise ReleaseError("Legacy delta codes must refer to an exact selected base")
     try:
-        return [apk_archive_delta.build(base, signed, version_code, signed.parent,
-                    allow_same_version=allow_same_version) for base in bases]
+        return [(apk_delta if base["baseVersionCode"] in legacy_codes else apk_archive_delta).build(
+                    base, signed, version_code, signed.parent, allow_same_version=allow_same_version) for base in bases]
     except apk_archive_delta.NotApplicable as error:
         raise ReleaseError("An exact base has no beneficial APK-aware delta; inspect before publishing") from error
 
@@ -535,7 +537,7 @@ class Release:
         self.state['verificationBaselineReleaseId']=published['id'];self.save()
         return commit
 
-    def start(self, version, replacement=False, channel="stable", mandatory=None, delta_base=None):
+    def start(self, version, replacement=False, channel="stable", mandatory=None, delta_base=None, legacy_delta_base=None):
         # Merge/review happens before this command; it never starts tests or merges branches.
         if self.git("status", "--porcelain").stdout.strip():
             raise ReleaseError("Commit/review local changes first.")
@@ -557,16 +559,22 @@ class Release:
         if self.state.get("channel", channel) != channel:
             raise ReleaseError("Resume with the original release channel")
         bind_mandatory(self.state, mandatory)
-        if delta_base is not None:
-            paths = delta_base if isinstance(delta_base, (list, tuple)) else [delta_base]
-            bases = sorted((apk_delta.read_base(path) for path in paths), key=lambda base: base["baseVersionCode"])
+        if delta_base is not None or legacy_delta_base is not None:
+            paths = (delta_base if isinstance(delta_base, (list, tuple)) else [delta_base]) if delta_base is not None else []
+            old_paths = (legacy_delta_base if isinstance(legacy_delta_base, (list, tuple)) else [legacy_delta_base]) if legacy_delta_base is not None else []
+            old_bases = [apk_delta.read_base(path) for path in old_paths]
+            legacy_codes = sorted(base["baseVersionCode"] for base in old_bases)
+            bases = sorted([apk_delta.read_base(path) for path in paths] + old_bases, key=lambda base: base["baseVersionCode"])
             if not 0 < len(bases) <= 8: raise ReleaseError("Support one to eight exact delta bases")
             if len({base["baseVersionCode"] for base in bases}) != len(bases):
                 raise ReleaseError("Specify only one exact delta base per versionCode")
             previous = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
             if (self.state.get("dispatchAttempted") or self.state.get("signedPath") or previous) and previous != bases:
                 raise ReleaseError("Cannot change delta bases of an existing release state")
+            if (self.state.get("dispatchAttempted") or self.state.get("signedPath") or previous) and self.state.get("legacyDeltaBaseCodes", []) != legacy_codes:
+                raise ReleaseError("Cannot change frozen delta formats")
             self.state["deltaBases"] = bases
+            self.state["legacyDeltaBaseCodes"] = legacy_codes
         if self.state.get("replacementRequested") and not replacement:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
         if self.state.get("dispatchAttempted"): return self.status()
@@ -722,7 +730,7 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","mandatory","deltaBase","deltaBases","dispatchBranch","fullVerification") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","mandatory","deltaBase","deltaBases","legacyDeltaBaseCodes","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
             branch = run.get("head_branch")
             if numeric_version(manifest["version"]) != manifest["version"] and self.state.get("channel") != "beta":
@@ -786,7 +794,8 @@ class Release:
         if bases:
             if not self.state.get("deltas"):
                 self.state["deltas"] = build_deltas(bases, signed, manifest["versionCode"],
-                    allow_same_version=bool(self.state.get("replacementRequested")))
+                    allow_same_version=bool(self.state.get("replacementRequested")),
+                    legacy_codes=self.state.get("legacyDeltaBaseCodes", []))
                 self.save()
             paths = delta_files(signed, self.state)
             for base, delta in frozen_delta_pairs(bases, self.state["deltas"]):
@@ -921,6 +930,7 @@ def main():
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
         if operation == "start": item.add_argument("--mandatory", action="store_true", default=None, help="Explicit stable-only forced update; adds -ENF to the APK filename")
         if operation == "start": item.add_argument("--delta-base", type=Path, action="append", help="Exact archived stable/beta APK with companion manifest; repeat for multiple versionCodes")
+        if operation == "start": item.add_argument("--legacy-delta-base", type=Path, action="append", help="Explicit exception: build an old-format patch for this exact base instead of APK-aware")
         if operation == "status": item.add_argument("--run",type=int,help="Select an exact build when a version has multiple states")
     for operation in ("verify", "publish", "replace"):
         item = sub.add_parser(operation,help="Explicitly replace the same version's public assets; never moves its tag" if operation=="replace" else None)
@@ -929,7 +939,7 @@ def main():
     args = parser.parse_args()
     coordinator = Release()
     try:
-        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel,mandatory=args.mandatory,delta_base=args.delta_base)
+        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel,mandatory=args.mandatory,delta_base=args.delta_base,legacy_delta_base=args.legacy_delta_base)
         elif args.operation == "status":
             result=coordinator.load_status(args.version,args.run)
         elif args.operation == "verify": result = coordinator.verify(args.run)

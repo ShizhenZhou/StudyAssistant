@@ -47,7 +47,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
-data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null, val messageKey: String? = null, val quoteAnchor: com.zsz.studyassistant.QuoteAnchor? = null) {
+data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null, val messageKey: String? = null, val quoteAnchor: com.zsz.studyassistant.QuoteAnchor? = null,
+    val sources: List<com.zsz.studyassistant.data.AiSource> = emptyList(), val sourcesLabel: String = "") {
     internal fun sourceText(scope: String): String? = when (scope) {
         "body" -> content
         "thinking" -> thinking
@@ -115,7 +116,6 @@ fun ConversationWebView(
     /** 用户在网页里点了「展开 / 折叠思考区」→ 回调最新状态（true = 展开），由界面写进偏好 */
     onThinkToggled: (Boolean) -> Unit = {}
 ) {
-    val currentMessages by rememberUpdatedState(messages)
     // 深色与否同样必须取「最新值」：onPageFinished 是在 factory 里注册的回调，
     // 只会捕获首次组合时的那份 dark（与上面回调闭包是同一类坑）。
     val currentDark by rememberUpdatedState(dark)
@@ -126,6 +126,7 @@ fun ConversationWebView(
     // 若直接调用 onXxx()，用的就是**首次组合**时的那份闭包（其中的 selectedIndices/lockedIndices 等值永远是旧的），
     // 曾导致「受保护消息（题干/AI 首条）长按仍被算作可选中 → 已选 1 条」。
     // 因此所有回调都必须通过 rememberUpdatedState 取最新值。
+    val currentMessages by rememberUpdatedState(messages)
     val currentOnContinue by rememberUpdatedState(onContinue)
     val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
     val currentOnQuote by rememberUpdatedState(onQuoteText)
@@ -245,6 +246,17 @@ fun ConversationWebView(
                     }
                     // 网页里的图片点击 → 交给 Kotlin 打开全屏查看（JS 线程回调，切回主线程改状态）
                     addJavascriptInterface(object {
+                        @JavascriptInterface
+                        fun openSource(message: Int, source: Int) {
+                            bridgeHandler.post {
+                                if (webRef !== bridgeView) return@post
+                                val item = currentMessages.getOrNull(message)?.sources?.getOrNull(source) ?: return@post
+                                val url = com.zsz.studyassistant.data.safeSourceUrl(item.url) ?: return@post
+                                runCatching { bridgeView.context.startActivity(android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                    .addCategory(android.content.Intent.CATEGORY_BROWSABLE)) }
+                            }
+                        }
                         @JavascriptInterface
                         fun quoteReturnAvailable(available: Boolean) {
                             bridgeHandler.post { if (webRef === bridgeView) currentOnQuoteReturn(available) }
@@ -491,6 +503,10 @@ internal fun buildMessagesJson(messages: List<ChatMsg>): String = JSONArray().ap
         put(JSONObject().put("role", m.role).put("content", m.content).put("images", JSONArray(m.images))
             .put("thinking", m.thinking ?: JSONObject.NULL).put("thinkingOpen", m.thinkingOpen)
             .put("thinkingDone", m.thinkingDone).put("quotedText", m.quotedText ?: JSONObject.NULL)
+            .put("sourcesLabel", m.sourcesLabel)
+            .put("sources", JSONArray().apply { m.sources.forEach { source ->
+                put(JSONObject().put("title", source.title).put("url", source.url))
+            } })
             .put("messageKey", m.messageKey ?: JSONObject.NULL)
             .put("hashes", JSONObject().apply {
                 listOf("body", "thinking", "quote").forEach { scope -> put(scope, m.sourceHash(scope) ?: JSONObject.NULL) }

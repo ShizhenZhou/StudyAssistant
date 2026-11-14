@@ -3,9 +3,13 @@ package com.zsz.studyassistant.data
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
-data class DeepSeekMessage(val role: String, val content: JsonElement)
+data class DeepSeekMessage(val role: String, val content: JsonElement,
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
+    @SerialName("server_tool_calls") val serverToolCalls: JsonArray? = null)
 
 @Serializable
 data class DeepSeekRequest(
@@ -25,8 +29,20 @@ data class DeepSeekRequest(
     /** 思考强度：low / high / max（仅思考模式有效） */
     @SerialName("reasoning_effort") val reasoningEffort: String? = null,
     /** Optional structured output for label analysis; other callers retain their current behavior. */
-    @SerialName("response_format") val responseFormat: DeepSeekResponseFormat? = null
+    @SerialName("response_format") val responseFormat: DeepSeekResponseFormat? = null,
+    val tools: List<DeepSeekTool>? = null
 )
+
+@Serializable
+data class DeepSeekTool(val type: String)
+
+@Serializable
+data class DeepSeekFile(val id: String, @SerialName("expires_at") val expiresAt: Long? = null)
+
+/** Exact assistant payload for tool context; presentation/section parsing must not rewrite it. */
+@Serializable
+data class AiResponseContext(val rawContent: String, val reasoningContent: String? = null,
+    val serverToolCalls: JsonArray? = null, val annotations: JsonArray? = null)
 
 @Serializable
 data class DeepSeekResponseFormat(val type: String)
@@ -46,8 +62,16 @@ data class DeepSeekChoice(val message: DeepSeekMessage,
 data class DeepSeekUsage(
     @SerialName("prompt_tokens") val promptTokens: Int = 0,
     @SerialName("completion_tokens") val completionTokens: Int = 0,
-    @SerialName("total_tokens") val totalTokens: Int = 0
+    @SerialName("total_tokens") val totalTokens: Int = 0,
+    @SerialName("prompt_cache_hit_tokens") val cacheHitTokens: Int = 0,
+    @SerialName("server_tool_use") val serverToolUse: DeepSeekToolUsage? = null
 )
+
+@Serializable
+data class DeepSeekToolUsage(
+    @SerialName("tool_search") val searches: Int = 0,
+    @SerialName("tool_fetch") val fetches: Int = 0,
+    @SerialName("tool_image_search") val imageSearches: Int = 0)
 
 @Serializable
 data class DeepSeekResponse(val choices: List<DeepSeekChoice>, val usage: DeepSeekUsage? = null)
@@ -59,17 +83,21 @@ data class DeepSeekResponse(val choices: List<DeepSeekChoice>, val usage: DeepSe
 @Serializable
 data class StreamChunk(
     val choices: List<StreamChoice> = emptyList(),
-    val usage: DeepSeekUsage? = null
+    val usage: DeepSeekUsage? = null,
+    val error: JsonObject? = null
 )
 
 @Serializable
 data class StreamChoice(val delta: StreamDelta? = null,
-    @SerialName("finish_reason") val finishReason: String? = null)
+    @SerialName("finish_reason") val finishReason: String? = null,
+    @SerialName("server_tool_event") val serverToolEvent: JsonObject? = null)
 
 @Serializable
 data class StreamDelta(
     val content: String? = null,
     /** 推理模型（如 deepseek-reasoner）的思考增量；非推理模型不会返回该字段 */
-    @SerialName("reasoning_content") val reasoningContent: String? = null
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
+    @SerialName("server_tool_calls") val serverToolCalls: JsonArray? = null,
+    val annotations: JsonArray? = null
 )
 

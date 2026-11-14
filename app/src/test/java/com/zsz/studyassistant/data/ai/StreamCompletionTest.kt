@@ -16,6 +16,69 @@ class StreamCompletionTest {
             completion.accept("""{"choices":[{"delta":{"reasoning_content":"x"}}]}""")
         }
     }
+    @Test fun webMetadataAndTerminalErrorsArePreserved() {
+        val tracker = StreamCompletion()
+        val chunk = tracker.accept("""{"choices":[{"delta":{"content":"answer","server_tool_calls":[{"index":0,"calls":[{"signature":"synthetic"}]}],"annotations":[{"type":"url_citation","url_citation":{"url":"https://example.com","title":"Source"}}]},"finish_reason":"stop"}],"usage":{"server_tool_use":{"tool_search":2,"tool_fetch":1}}}""")!!
+        assertEquals(2, chunk.usage!!.serverToolUse!!.searches)
+        val metadata = AiResponseContext("answer", serverToolCalls = chunk.choices[0].delta!!.serverToolCalls,
+            annotations = chunk.choices[0].delta!!.annotations)
+        assertEquals("https://example.com/", metadata.sources().single().url)
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val text = json.encodeToString(AiResponseContext.serializer(), metadata)
+        assertEquals(metadata, json.decodeFromString(AiResponseContext.serializer(), text))
+        val deleted = com.zsz.studyassistant.deleteConversationMessages(listOf(
+            com.zsz.studyassistant.ChatItem(0, "question", "Q"),
+            com.zsz.studyassistant.ChatItem(1, "assistant", "answer", aiContext = metadata)), setOf(1))
+        assertTrue(deleted[1].answerPending)
+        assertNull(deleted[1].aiContext)
+        tracker.accept("""{"choices":[],"error":{"message":"private service detail"}}""")
+        expect("err.streamInterrupted", tracker)
+        assertNull(safeSourceUrl("javascript:alert(1)"))
+        assertNull(safeSourceUrl("https://user:password@example.com"))
+    }
+
+    @Test fun outputBudgetsSeparateFollowupSolveAndGrade() {
+        assertEquals(4096, AiRequestPolicy.budget("followup", false).tokens)
+        assertEquals(8192, AiRequestPolicy.budget("initial", false).tokens)
+        assertEquals("low", AiRequestPolicy.budget("followup", true).effort)
+        assertEquals("high", AiRequestPolicy.budget("followup", true, true).effort)
+        assertTrue(AiRequestPolicy.budget("grade", true).tokens > AiRequestPolicy.budget("initial", true).tokens)
+    }
+
+    @Test fun imageReferencesRespectFirstUseExpiryAndAccount() = kotlinx.coroutines.runBlocking {
+        var now = 1000L
+        var uploads = 0
+        val cache = ReusableImageFiles(clock = { now }) { bytes, mime ->
+            assertEquals("image/jpeg", mime); assertArrayEquals(byteArrayOf(1,2,3), bytes)
+            DeepSeekFile("file-api-${++uploads}", now + 86400)
+        }
+        val parts = kotlinx.serialization.json.Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
+        val original = listOf(DeepSeekMessage("user", parts))
+        assertEquals(original, cache.prepare(original, "account-a"))
+        val reused = cache.prepare(original, "account-a")
+        assertNotEquals(original, reused); assertEquals(1, uploads)
+        assertEquals(reused, cache.prepare(original, "account-a")); assertEquals(1, uploads)
+        now += 86400
+        assertNotEquals(reused, cache.prepare(original, "account-a")); assertEquals(2, uploads)
+        assertEquals(original, cache.prepare(original, "account-b"))
+        cache.invalidate()
+        assertEquals(original, cache.prepare(original, "account-b"))
+    }
+
+    @Test fun failedUploadFallsBackButCancellationPropagates() = kotlinx.coroutines.runBlocking {
+        val parts = kotlinx.serialization.json.Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
+        val original = listOf(DeepSeekMessage("user", parts))
+        var calls = 0
+        val failed = ReusableImageFiles { _, _ -> calls++; throw java.io.IOException() }
+        failed.prepare(original, "a")
+        assertEquals(original, failed.prepare(original, "a"))
+        assertEquals(original, failed.prepare(original, "a")); assertEquals(1, calls)
+        val cancelled = ReusableImageFiles { _, _ -> throw kotlinx.coroutines.CancellationException() }
+        cancelled.prepare(original, "a")
+        try { cancelled.prepare(original, "a"); fail("Cancellation swallowed") }
+        catch (_: kotlinx.coroutines.CancellationException) { }
+    }
+
     private fun expect(key: String, tracker: StreamCompletion) {
         try { tracker.requireComplete(); fail("Incomplete answer was accepted") }
         catch (e: StreamIncompleteException) { assertEquals(key, e.messageKey) }

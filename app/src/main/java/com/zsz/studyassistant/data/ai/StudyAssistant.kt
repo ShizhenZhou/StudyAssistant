@@ -28,7 +28,7 @@ import okhttp3.ResponseBody
 object StudyAssistant {
 
     // V4.1-Flash：原生多模态，文字/图片通用。
-    // （旧 deepseek-v4-flash-vision-exp 已退役、deepseek-v4-pro 于 2026/09/14 起被路由到 V4.1-Flash）
+    // 使用官方稳定别名；V4 Pro 仍独立提供服务，本应用不使用它。
     const val MODEL_VISION = "deepseek-flash"
     const val MODEL_TEXT = "deepseek-flash"   // 官方仅 flash / v4-pro；flash 默认开启思考模式并支持图像
 
@@ -309,22 +309,81 @@ object StudyAssistant {
         onReasoning: (suspend (String) -> Unit)? = null,
         /** 是否开启思考模式（设置 → AI 配置 → **解题模式**） */
         thinkingEnabled: Boolean = true,
-        owner: StreamOwner = StreamOwner()
+        owner: StreamOwner = StreamOwner(),
+        task: String = "initial",
+        webEnabled: Boolean = false,
+        onToolProgress: (suspend (String) -> Unit)? = null
     ): String {
         requireKey()
-        val call = ApiClient.deepSeekStream.chatStream(
-            DeepSeekRequest(
-                model = model,
-                messages = messages,
-                maxTokens = 4096,
-                stream = true,
-                streamOptions = StreamOptions(includeUsage = true),
-                // 思考模式：仅"关闭"时显式传 disabled（开启用服务端默认，避免多传字段被拒 422）
-                thinking = if (!thinkingEnabled) ThinkingOption("disabled") else null
-            )
+        val budget = AiRequestPolicy.budget(task, thinkingEnabled, webEnabled)
+        owner.usedWeb = webEnabled
+        val prepared = AiImageUploads.cache.prepare(messages, KeyManager.getApiKey().orEmpty())
+        fun request(input: List<DeepSeekMessage>) = DeepSeekRequest(
+            model = model, messages = if (webEnabled) input else input.map { it.copy(reasoningContent = null, serverToolCalls = null) }, maxTokens = budget.tokens,
+            stream = true, streamOptions = StreamOptions(includeUsage = true),
+            thinking = ThinkingOption(if (thinkingEnabled) "enabled" else "disabled"),
+            reasoningEffort = budget.effort,
+            tools = if (webEnabled) listOf(DeepSeekTool("deepseek_web_search"), DeepSeekTool("deepseek_read_url")) else null
         )
+        val body = try {
+            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared)), owner)
+        } catch (e: retrofit2.HttpException) {
+            // Rejected file references: one inline fallback before any answer was generated.
+            if (e.code() !in setOf(400, 404, 410) || prepared == messages) throw e
+            currentCoroutineContext().ensureActive()
+            AiImageUploads.cache.invalidate()
+            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(messages)), owner)
+        }
+        val sb = StringBuilder()
+        var usage: DeepSeekUsage? = null
+        val completion = StreamCompletion()
+        val finalThinking = StringBuilder()
+        var toolCalls: kotlinx.serialization.json.JsonArray? = null
+        var annotations: kotlinx.serialization.json.JsonArray? = null
+        try {
+            body.use { b ->
+                val src = b.source()
+                while (true) {
+                    // 支持「中止生成」：协程被取消时在这里抛出，且关闭响应体后阻塞读也会立刻失败
+                    currentCoroutineContext().ensureActive()
+                    val line = readStreamLine(src) ?: break
+                    if (line.isEmpty() || !line.startsWith("data:")) continue
+                    val payload = line.substring(5).trim()
+                    val chunk = completion.accept(payload)
+                    if (completion.done) break
+                    if (chunk == null) continue
+                    chunk.usage?.let { usage = it }
+                    val choice = chunk.choices.firstOrNull()
+                    choice?.serverToolEvent?.let { event ->
+                        if ((event["type"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "step_reasoning_done") finalThinking.setLength(0)
+                        toolProgressKey(event)?.let { onToolProgress?.invoke(it) }
+                    }
+                    val d = choice?.delta
+                    d?.reasoningContent?.let(finalThinking::append)
+                    d?.serverToolCalls?.let { toolCalls = it }
+                    d?.annotations?.let { annotations = it }
+                    // ★ 推理模型的"思考流"：单独回调，且**不并入**正文（避免污染答案与解析）
+                    d?.reasoningContent?.takeIf { it.isNotEmpty() }?.let { r -> onReasoning?.invoke(r) }
+                    val delta = d?.content
+                    if (!delta.isNullOrEmpty()) {
+                        sb.append(delta)
+                        onDelta(delta)
+                    }
+                }
+            }
+        } finally {
+            owner.usage = usage
+            if (webEnabled) owner.responseContext = AiResponseContext(sb.toString(),
+                finalThinking.toString().takeIf { it.isNotEmpty() }, toolCalls, annotations)
+            owner.finish()
+        }
+        completion.requireComplete()
+        return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }
+    }
+
+    private suspend fun awaitStreamBody(call: retrofit2.Call<ResponseBody>, owner: StreamOwner): ResponseBody {
         owner.attach { call.cancel() }
-        val body = try { kotlinx.coroutines.suspendCancellableCoroutine<ResponseBody> { continuation ->
+        return try { kotlinx.coroutines.suspendCancellableCoroutine<ResponseBody> { continuation ->
             continuation.invokeOnCancellation { owner.cancel() }
             call.enqueue(object : retrofit2.Callback<ResponseBody> {
                 override fun onResponse(call: retrofit2.Call<ResponseBody>, response: retrofit2.Response<ResponseBody>) {
@@ -345,38 +404,6 @@ object StudyAssistant {
             owner.finish()
             throw error
         }
-        val sb = StringBuilder()
-        var usage: DeepSeekUsage? = null
-        val completion = StreamCompletion()
-        try {
-            body.use { b ->
-                val src = b.source()
-                while (true) {
-                    // 支持「中止生成」：协程被取消时在这里抛出，且关闭响应体后阻塞读也会立刻失败
-                    currentCoroutineContext().ensureActive()
-                    val line = readStreamLine(src) ?: break
-                    if (line.isEmpty() || !line.startsWith("data:")) continue
-                    val payload = line.substring(5).trim()
-                    val chunk = completion.accept(payload)
-                    if (completion.done) break
-                    if (chunk == null) continue
-                    chunk.usage?.let { usage = it }
-                    val d = chunk.choices.firstOrNull()?.delta
-                    // ★ 推理模型的"思考流"：单独回调，且**不并入**正文（避免污染答案与解析）
-                    d?.reasoningContent?.takeIf { it.isNotEmpty() }?.let { r -> onReasoning?.invoke(r) }
-                    val delta = d?.content
-                    if (!delta.isNullOrEmpty()) {
-                        sb.append(delta)
-                        onDelta(delta)
-                    }
-                }
-            }
-        } finally {
-            owner.usage = usage
-            owner.finish()
-        }
-        completion.requireComplete()
-        return sb.toString().ifBlank { throw IllegalStateException("DeepSeek 返回为空") }
     }
 
     /**
