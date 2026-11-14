@@ -248,7 +248,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     }
 }
 
-/** 单行记录：题干首行 + 相对时间 + 已存/未存标记（不渲染原图，也不碰 conversationJson） */
+/** 单行记录：会话短标题（缺失时题干首行）+ 相对时间 + 已存/未存标记。 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SolveHistoryItem(
@@ -279,7 +279,8 @@ private fun SolveHistoryItem(
         Box {
             Column(Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, end = if (selectionMode) 42.dp else 12.dp, bottom = 10.dp)) {
                 Text(
-                    if (rec.text.isBlank()) "（图片题）" else TextPretty.oneLine(rec.text, 60),
+                    com.zsz.studyassistant.data.normalizedConversationTitle(rec.title)
+                        ?: if (rec.text.isBlank()) "（图片题）" else TextPretty.oneLine(rec.text, 60),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium

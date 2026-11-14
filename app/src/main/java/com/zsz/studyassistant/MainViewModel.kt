@@ -74,7 +74,18 @@ data class ChatItem(val id: Long, val role: String, val content: String, val ima
                     val answerPending: Boolean = false,
                     val aiContext: com.zsz.studyassistant.data.AiResponseContext? = null,
                     val documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
-                    val ocrCorrections: List<String?> = emptyList())
+                    val ocrCorrections: List<String?> = emptyList(),
+                    /** Optional history label, stored only on the first message. */
+                    val conversationTitle: String? = null,
+                    /** Per-request exclusions; originals remain attached to their historical messages. */
+                    val excludedDocumentHashes: List<String> = emptyList())
+
+internal fun withConversationTitle(items: List<ChatItem>, title: String?): List<ChatItem> {
+    val label = com.zsz.studyassistant.data.normalizedConversationTitle(title) ?: return items
+    val first = items.firstOrNull() ?: return items
+    if (!first.conversationTitle.isNullOrBlank()) return items
+    return listOf(first.copy(conversationTitle = label)) + items.drop(1)
+}
 
 internal fun protectedMessageIndices(items: List<ChatItem>): Set<Int> = buildSet {
     items.forEachIndexed { index, item -> if (item.role == "question") add(index) }
@@ -1478,7 +1489,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (originalDocuments.isNotEmpty()) {
             if (msgs.lastOrNull()?.role != "user") msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
         }
-        if (msgs.lastOrNull()?.role == "user") msgs[msgs.lastIndex] = withQuestionAttachments(msgs.last(), originalQuestion)
+        val excluded = items.lastOrNull { it.role == "user" }?.excludedDocumentHashes.orEmpty().toSet()
+        if (msgs.lastOrNull()?.role == "user") msgs[msgs.lastIndex] = withQuestionAttachments(msgs.last(),
+            originalQuestion?.copy(documents = originalDocuments.filterNot { it.sha256 in excluded }))
         msgs.addAll(chatMessages(items))
         return msgs
     }
@@ -1502,7 +1515,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun chatMessages(items: List<ChatItem>): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
-        for (item in items) {
+        val latestUserIndex = items.indexOfLast { it.role == "user" }
+        val excluded = items.getOrNull(latestUserIndex)?.excludedDocumentHashes.orEmpty().toSet()
+        for ((index, item) in items.withIndex()) {
             if (item.answerPending) continue
             when (item.role) {
                 "assistant" -> {
@@ -1513,11 +1528,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 "user" -> {
                     val imgs = item.images
+                    val documents = if (index == latestUserIndex) item.documents
+                        else item.documents.filterNot { it.sha256 in excluded }
                     if (imgs.isNullOrEmpty()) {
-                        msgs.add(DeepSeekMessage("user", JsonPrimitive(item.content), localDocuments = item.documents))
+                        msgs.add(DeepSeekMessage("user", JsonPrimitive(item.content), localDocuments = documents))
                     } else {
                         // 追问带有附图的 user 消息 → 视觉模型（文字 + 多图）
-                        msgs.add(StudyAssistant.userMessageWithEncodedImages(item.content, imgs).copy(localDocuments = item.documents))
+                        msgs.add(StudyAssistant.userMessageWithEncodedImages(item.content, imgs).copy(localDocuments = documents))
                     }
                 }
                 // "question" 已作为题目消息
@@ -1532,6 +1549,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return when {
             e is com.zsz.studyassistant.data.StreamIncompleteException -> s[e.messageKey]
             e is com.zsz.studyassistant.data.DocumentProblem -> s[e.messageKey]
+            e is com.zsz.studyassistant.data.AiRequestException && e.contextTooLong -> s["context.tooLong"]
             e is com.zsz.studyassistant.data.AiRequestException && e.code() in setOf(400, 422) ->
                 s.format("err.invalidParameter", "code" to e.code().toString(), "field" to (e.parameter ?: "—"))
             msg.contains("timed out") || msg.contains("timeout") || msg.contains("socket") -> s["err.timeout"]
@@ -1544,14 +1562,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun addItem(role: String, content: String, images: List<String>? = null, thinking: String? = null,
                         quote: QuotedFollowUp? = null, gradePart: String? = null,
-                        documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList()) {
+                        documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
+                        excludedDocumentHashes: List<String> = emptyList()) {
         // 助手消息默认带上本轮思考（这样所有调用方都不用改，避免"正文一出思考就没了"）
         val th = thinking ?: if (role == "assistant") thinkingText?.takeIf { it.isNotBlank() } else null
         val suggestions = if (role == "assistant" && chatItems.none { it.role == "assistant" })
             com.zsz.studyassistant.data.NotebookSuggestions(suggestedCategory, suggestedTags.toList()) else null
         chatItems = chatItems + ChatItem(chatItems.size.toLong(), role, content, images, th, quote,
             gradePart = gradePart, notebookSuggestions = suggestions,
-            aiContext = if (role == "assistant") completedAiContext else null, documents = documents)
+            aiContext = if (role == "assistant") completedAiContext else null, documents = documents,
+            excludedDocumentHashes = excludedDocumentHashes)
     }
 
     fun notebookSaveSuggestions() = com.zsz.studyassistant.data.firstAnswerSuggestions(
@@ -1652,7 +1672,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // ★ 包一层：续写完成后把**同一条**搜题记录也更新掉（否则记录里永远停在被中止时的半截答案）
         val wrapped: (String) -> Unit = { out -> onDone(out); updateSolveSession() }
         streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction, useWeb=contWebEnabled,
-            webHistory=contWebHistory, webAnnotations=contWebAnnotations)
+            webHistory=contWebHistory, webAnnotations=contWebAnnotations, requestTitle=false)
     }
 
     private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
@@ -1686,7 +1706,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         replyAction: String = if(chatItems.lastOrNull()?.role=="user") "followup" else if(gradeMode) "grade" else "initial",
         useWeb: Boolean = webEnabled,
         webHistory: List<DeepSeekMessage> = emptyList(),
-        webAnnotations: kotlinx.serialization.json.JsonArray? = null
+        webAnnotations: kotlinx.serialization.json.JsonArray? = null,
+        requestTitle: Boolean = sessionRecordBinding.historyAllowed &&
+            replyAction in setOf("initial", "grade") && prefix.isEmpty() &&
+            chatItems.none { it.role == "assistant" || !it.conversationTitle.isNullOrBlank() }
     ) {
         if(dataBusy) return
         streamOwner?.cancel()
@@ -1694,6 +1717,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val owner = com.zsz.studyassistant.data.StreamOwner()
         streamOwner = owner
         val mySeq = ++callSeq
+        val titleBinding = sessionRecordBinding
         val draftId=sessionRecordBinding.id
         val template=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
             owner.id,model,replyAction,currentSource(),questionText,isPhoto,askMode,gradeMode,
@@ -1745,7 +1769,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 }
                             }
                         }
-                    }, thinkingEnabled = thinkOn, owner = owner, task = replyAction, webEnabled = useWeb,
+                    }, thinkingEnabled = thinkOn, owner = owner, task = replyAction, webEnabled = useWeb, requestTitle = requestTitle,
                     onToolProgress = { key -> withContext(Dispatchers.Main) { if (mySeq == callSeq) toolProgress = key } },
                     onReasoning = { r ->
                         thinkSb.append(r)
@@ -1770,6 +1794,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 //   本轮思考由 addItem() 的默认值自动挂到**新建的那条**助手消息上（见 addItem）。
                 onDone(prefix + parsedReply.body.trim())
                 if(mySeq==callSeq) {
+                    // Initial photo/text callbacks create the question message here, so attach
+                    // the label after onDone and before freezing the completed save/draft.
+                    if (requestTitle && sessionRecordBinding === titleBinding)
+                        chatItems = withConversationTitle(chatItems, owner.conversationTitle)
                     val completed=activeDraft?.copy(raw=prefix+parsedReply.body,thinking=thinkingText,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
                     activeDraft=completed
                     completed?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
@@ -1924,6 +1952,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- 数据管理：导出 / 导入 / 清空 ----
+    var documentStorageSummary by mutableStateOf<com.zsz.studyassistant.data.DocumentStorageSummary?>(null)
+        private set
+    var documentStorageMessage by mutableStateOf<String?>(null)
+        private set
+    val canInspectDocumentStorage: Boolean
+        get() = !(dataBusy || busy || reviewBusy || saving || saveOperations > 0 || retryingHistoryWrites ||
+            activeDraft != null || solveInputDraft.importingImages || solveInputDraft.importingDocuments ||
+            preparedBackup != null || preparedExport != null)
+
+    /** Explicit maintenance only; protect all active references before inspecting private originals. */
+    fun inspectDocumentStorage(clean: Boolean = false) {
+        if (!canInspectDocumentStorage) return
+        dataBusy = true
+        documentStorageMessage = null
+        val hashes = (chatItems.flatMap { it.documents } + solveInputDraft.documents).map { it.sha256 }.toSet()
+        viewModelScope.launch {
+            try {
+                val result = dataMaintenanceMutex.withLock {
+                    com.zsz.studyassistant.data.BackupJobs.exclusive(getApplication()) {
+                        solveSessionWriteMutex.withLock {
+                            requireNoPendingSaves()
+                            com.zsz.studyassistant.data.DocumentStorageMaintenance.inspect(
+                                getApplication(), AppDatabase.get(getApplication()), hashes, clean)
+                        }
+                    }
+                }
+                documentStorageSummary = result
+                if (clean) documentStorageMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format(
+                    "document.cleaned", "n" to result.removedCount.toString(),
+                    "size" to android.text.format.Formatter.formatFileSize(getApplication(), result.removedBytes))
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) {
+                documentStorageMessage = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.cleanupFailed"]
+            } finally { dataBusy = false }
+        }
+    }
+
     var dataBusy by mutableStateOf(false)
         private set
     /** 备份管理子页自己的结果文案（导出 / 导入） */
@@ -2469,11 +2534,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */
     fun sendFollowUp(text: String, images: List<ByteArray> = emptyList(), quotedText: String? = null,
-                     quoteAnchor: QuoteAnchor? = null, documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList()): Boolean {
+                     quoteAnchor: QuoteAnchor? = null, documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
+                     excludedDocumentHashes: Set<String> = emptySet()): Boolean {
         if (busy || dataBusy) return false
         if(streamInterrupted) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]; return false }
         if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return false
-        if (chatItems.sumOf { it.documents.size } + documents.size > 20) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false }
+        val historicalDocuments = chatItems.firstOrNull { it.role == "question" }?.documents.orEmpty() +
+            chatItems.filter { it.role == "user" }.flatMap { it.documents }
+        val excluded = excludedDocumentHashes.intersect(historicalDocuments.map { it.sha256 }.toSet())
+        if (historicalDocuments.count { it.sha256 !in excluded } + documents.size > 20) {
+            error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false
+        }
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         // Store the complete quote in the existing message body, so retries, history,
         // notebook saves and backups all retain the same context without a format change.
@@ -2481,7 +2552,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
             strings["solve.quoteTitle"] + ":\n" + quote + "\n\n" + strings["solve.quoteQuestion"] + ":\n" + text
         } ?: text
-        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text, quoteAnchor) }, documents = documents)
+        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text, quoteAnchor) },
+            documents = documents, excludedDocumentHashes = excluded.sorted())
         val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         runCall(model, onDone = { reply ->
             // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）

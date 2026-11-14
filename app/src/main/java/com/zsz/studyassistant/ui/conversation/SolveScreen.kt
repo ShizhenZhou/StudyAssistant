@@ -867,6 +867,7 @@ fun SolveScreen(
                                         draft.text = ""
                                         draft.attachments = emptyList()
                                         draft.documents = emptyList()
+                                        draft.excludedDocumentHashes = emptySet()
                                     }
                                 },
                                 enabled = !vm.dataBusy && !importingAttachments &&
@@ -1079,6 +1080,8 @@ fun SolveScreen(
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp))
                 }
+                ConversationContextControls(vm.chatItems, draft,
+                    enabled = !vm.busy && !vm.dataBusy && !importingAttachments)
                 ConversationInputBar(
                     value = draft.text,
                     onValueChange = { draft.text = it },
@@ -1088,11 +1091,12 @@ fun SolveScreen(
                     onSend = {
                         val requestImages = draft.attachments.mapNotNull(draft.images::get)
                         if (vm.sendFollowUp(draft.requestText(vm.uiLang), requestImages, draft.quote?.text, draft.quote?.anchor,
-                                documents = draft.documents)) {
+                                documents = draft.documents, excludedDocumentHashes = draft.excludedDocumentHashes)) {
                             draft.text = ""
                             draft.attachments = emptyList()
                             draft.quote = null
                             draft.documents = emptyList()
+                            draft.excludedDocumentHashes = emptySet()
                         }
                     },
                     busy = vm.busy || vm.dataBusy || importingAttachments,

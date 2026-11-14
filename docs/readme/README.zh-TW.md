@@ -27,7 +27,7 @@
 - 📤 選中或全部問答可導出為文字型 PDF 或分張 PNG。
 - 🧠 快速與思考模式，可設定 AI 輸出語言、自訂要求並查看用量。
 - 📚 錯題本支援分類、標籤、批次管理和依篩選結果專項練習。
-- 🕘 回看解題與批改紀錄、繼續追問，保留 30 天內最近 200 筆。
+- 🕘 按自動短標題回看解題與批改紀錄、繼續追問，保留 30 天內最近 200 筆。
 - 🏷 標籤整理支援 AI 建議、預覽確認和復原合併。
 - 📖 間隔複習、每日提醒與學習統計。
 - 🌐 五種介面語言，可調整主題、桌布背景和字級。
@@ -51,7 +51,7 @@
 
 ## 技術棧
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（備份與定期更新檢查）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（備份與定期更新檢查）· AlarmManager · Android Keystore。
 
 構建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 

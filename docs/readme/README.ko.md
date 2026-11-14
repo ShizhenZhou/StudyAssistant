@@ -27,7 +27,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 - 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.
 - 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.
 - 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.
-- 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.
+- 🕘 자동 짧은 제목으로 풀이·채점 기록을 찾고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.
 - 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.
 - 📖 간격 복습, 매일 알림과 학습 통계.
 - 🌐 5개 화면 언어, 테마·배경화면·글자 크기 조절.
@@ -51,7 +51,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
 ## 기술 구성
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**(DB v10) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**(백업 및 정기 업데이트 확인) · AlarmManager · Android Keystore.
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**(DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**(백업 및 정기 업데이트 확인) · AlarmManager · Android Keystore.
 
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 

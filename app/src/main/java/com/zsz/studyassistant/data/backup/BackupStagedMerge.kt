@@ -77,7 +77,9 @@ internal class BackupStagedMerge(
                 check()
                 val bytes=source.rawQuery("SELECT substr(CAST(${column.name} AS BLOB),?,?) FROM $tableName WHERE __row=?",arrayOf((offset+1).toString(),minOf(BackupTree.CHUNK.toLong(),length-offset).toString(),sourceRow.toString())).use { if(!it.moveToFirst()) BackupTree.invalid(); it.getBlob(0) }
                 if(bytes.isEmpty()) BackupTree.invalid()
-                target.execSQL("UPDATE $tableName SET ${column.name}=CAST(${column.name} AS BLOB)||? WHERE rowid=?",arrayOf(bytes,targetRow))
+                // Keep unfinished text as BLOB until the final cast below. This also lets
+                // title-cache triggers skip JSON parsing on every partial conversation chunk.
+                target.execSQL("UPDATE $tableName SET ${column.name}=CAST(CAST(${column.name} AS BLOB)||? AS BLOB) WHERE rowid=?",arrayOf(bytes,targetRow))
                 offset+=bytes.size
             }
             target.execSQL("UPDATE $tableName SET ${column.name}=CAST(${column.name} AS ${column.type}) WHERE rowid=?",arrayOf(targetRow))

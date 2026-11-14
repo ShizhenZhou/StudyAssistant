@@ -12,9 +12,10 @@ data class QuestionPreview(
 data class SolveSessionPreview(
     val id: QuestionId, val createdAt: Long, val updatedAt: Long,
     val source: String = "camera", val text: String = "", val answer: String = "",
-    val savedQuestionId: QuestionId? = null
+    val savedQuestionId: QuestionId? = null,
+    val title: String? = null
 )
 
 private fun String.previewText(): String = substring(0, offsetByCodePoints(0, minOf(256, codePointCount(0, length))))
 fun Question.toPreview() = QuestionPreview(id, text.previewText(), answer.previewText(), createdAt, deleted, categoryId)
-fun SolveSession.toPreview() = SolveSessionPreview(id, createdAt, updatedAt, source, text.previewText(), answer.previewText(), savedQuestionId)
+fun SolveSession.toPreview() = SolveSessionPreview(id, createdAt, updatedAt, source, text.previewText(), answer.previewText(), savedQuestionId, title)

@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -974,6 +975,24 @@ private fun DataSettings(vm: MainViewModel, section: String = "backup") {
         Text(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         AutoBackupSettings(vm)
+        androidx.compose.material3.HorizontalDivider()
+        Spacer(Modifier.height(16.dp))
+        Text(s["document.storage"], style = MaterialTheme.typography.titleMedium)
+        vm.documentStorageSummary?.let { summary ->
+            Text(s.format("document.storageSummary", "n" to summary.totalCount.toString(),
+                "size" to android.text.format.Formatter.formatFileSize(LocalContext.current, summary.totalBytes)))
+        }
+        Text(s["document.storageHint"], style = MaterialTheme.typography.bodySmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { vm.inspectDocumentStorage() }, enabled = vm.canInspectDocumentStorage) {
+                Text(s["document.scan"])
+            }
+            OutlinedButton(onClick = { vm.inspectDocumentStorage(clean = true) },
+                enabled = vm.canInspectDocumentStorage && vm.documentStorageSummary != null) {
+                Text(s["document.cleanup"])
+            }
+        }
+        vm.documentStorageMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }
 }
 

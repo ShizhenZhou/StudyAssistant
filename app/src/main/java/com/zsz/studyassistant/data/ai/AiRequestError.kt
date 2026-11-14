@@ -7,9 +7,10 @@ import retrofit2.Response
 
 /** Only classified protocol information escapes the HTTP layer; no echoed prompts or credentials. */
 class AiRequestException internal constructor(response: Response<ResponseBody>,
-    val fileReferenceRejected: Boolean, val parameter: String?) : HttpException(response)
+    val fileReferenceRejected: Boolean, val parameter: String?, val contextTooLong: Boolean = false) : HttpException(response)
 
-internal data class AiErrorDetails(val fileReferenceRejected: Boolean, val parameter: String?)
+internal data class AiErrorDetails(val fileReferenceRejected: Boolean, val parameter: String?,
+    val contextTooLong: Boolean = false)
 
 internal fun classifyAiError(status: Int, body: String): AiErrorDetails {
     val root = runCatching { Json.parseToJsonElement(body) as? JsonObject }.getOrNull()
@@ -30,7 +31,10 @@ internal fun classifyAiError(status: Int, body: String): AiErrorDetails {
     }
     val field = listOf("thinking", "reasoning_effort", "max_tokens", "model", "tools", "messages")
         .firstOrNull { Regex("\\b${Regex.escape(it)}\\b").containsMatchIn(paths) }
-    return AiErrorDetails(status in setOf(400, 404, 410, 422) && file && rejected, field)
+    val contextTooLong = status == 400 && (code in setOf("context_length_exceeded", "context_window_exceeded", "context_too_long") ||
+        listOf("maximum context length", "context length exceeded", "context window exceeded", "context is too long")
+            .any { it in message })
+    return AiErrorDetails(status in setOf(400, 404, 410, 422) && file && rejected, field, contextTooLong)
 }
 
 internal fun aiRequestException(response: Response<ResponseBody>): AiRequestException {
@@ -42,5 +46,5 @@ internal fun aiRequestException(response: Response<ResponseBody>): AiRequestExce
         }.orEmpty()
     }.getOrDefault("")
     val details = classifyAiError(response.code(), text)
-    return AiRequestException(response, details.fileReferenceRejected, details.parameter)
+    return AiRequestException(response, details.fileReferenceRejected, details.parameter, details.contextTooLong)
 }

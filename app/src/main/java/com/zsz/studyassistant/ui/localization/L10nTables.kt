@@ -1860,6 +1860,33 @@ private val B6_ZH = mapOf(
     "document.uploadUncertain" to "上次文件上传结果尚不确定，请等待约 5 分钟后重试，避免重复解析计费。",
     "document.uploading" to "正在上传并解析文件…",
     "document.expired" to "远端附件已失效。请重新生成，将从本地原件重新上传。",
+    "document.passwordProtected" to "文件有打开密码，请先解密后重试。",
+    "document.unsupportedFormat" to "无法解析该文件，请检查是否损坏或转换格式。",
+    "document.tooManyPages" to "文件页数超出限制，请拆分后重试。",
+    "document.rateLimited" to "服务请求过多，请稍后主动重试。",
+    "document.insufficientBalance" to "DeepSeek 余额不足，请充值后重试。",
+    "document.timeout" to "上传或处理超时，结果可能尚未确定。请稍后重试，或缩小文件。",
+    "document.serviceUnavailable" to "服务暂时不可用，请稍后重试。",
+    "document.requestFailed" to "服务返回异常，未获得可用结果，请稍后重试。",
+    "document.cacheFailed" to "无法保存文件复用记录，本次未自动重新上传。请稍后重试。",
+    "ocr.restoring" to "正在恢复本机草稿…",
+    "ocr.restored" to "已恢复本机校对草稿，未重新调用 OCR。",
+    "ocr.retryWait" to "上次识别可能仍在处理或已计费。请等待 {seconds} 秒后再主动重试。",
+    "ocr.retry" to "重新识别，可能再次计费",
+    "ocr.cacheFailed" to "无法保存本机校对草稿，请关闭后重试。本次未自动重试识别。",
+    "context.files" to "本次携带文件：{n} 份",
+    "context.title" to "本次请求的文件",
+    "context.hint" to "取消勾选仅影响本次发送，不删除历史附件。",
+    "context.duplicate" to "会话中已有同一文件，可避免重复携带。",
+    "context.long" to "当前会话较长，携带全部历史与文件可能增加用量或超出上下文限制。（当前文字约 {n} 字符，不含图片与文件解析内容）",
+    "context.tooLong" to "请求上下文过长，请减少携带的文件或新建提问。历史内容未删除。",
+    "document.storage" to "文件附件占用",
+    "document.storageSummary" to "本机原件 {size}，共 {n} 份",
+    "document.storageHint" to "仅清理确认未被题库、记录、草稿或当前任务引用满 7 天的原件；不会删除外部备份。",
+    "document.scan" to "检查占用",
+    "document.cleanup" to "清理未引用原件",
+    "document.cleaned" to "已清理 {n} 份原件，释放 {size}。",
+    "document.cleanupFailed" to "无法完整确认文件引用，已停止清理。请先处理未保存内容或恢复异常。",
     "crop.ocr" to "OCR 校对",
     "ocr.title" to "OCR 校对",
     "ocr.feeNotice" to "将所选区域发送至 DeepSeek OCR，解析按页计费；开始后取消仍可能计费。",
@@ -1915,6 +1942,33 @@ private val B6_EN = mapOf(
     "document.uploadUncertain" to "The previous upload outcome is uncertain. Wait about 5 minutes before retrying to avoid duplicate parsing charges.",
     "document.uploading" to "Uploading and parsing file…",
     "document.expired" to "The remote attachment expired. Regenerate to upload the local original again.",
+    "document.passwordProtected" to "This file is password-protected. Remove its password first.",
+    "document.unsupportedFormat" to "This file cannot be parsed. Check for damage or convert its format.",
+    "document.tooManyPages" to "Too many pages. Split the file and try again.",
+    "document.rateLimited" to "Too many requests. Try again later.",
+    "document.insufficientBalance" to "Your DeepSeek balance is insufficient. Top up before retrying.",
+    "document.timeout" to "Upload or processing timed out; the result may be uncertain. Wait before retrying or use a smaller file.",
+    "document.serviceUnavailable" to "The service is temporarily unavailable. Try again later.",
+    "document.requestFailed" to "The service returned no usable result. Try again later.",
+    "document.cacheFailed" to "Could not save the file reference. No automatic re-upload was attempted. Try again later.",
+    "ocr.restoring" to "Restoring local draft…",
+    "ocr.restored" to "Local correction draft restored without another OCR request.",
+    "ocr.retryWait" to "The previous OCR may still be running or billed. Wait {seconds} seconds before retrying.",
+    "ocr.retry" to "Recognize again; charges may apply",
+    "ocr.cacheFailed" to "Could not save the local correction draft. Close and retry. OCR was not automatically repeated.",
+    "context.files" to "Files for this request: {n}",
+    "context.title" to "Files for this request",
+    "context.hint" to "Deselecting affects only this request; historical attachments remain.",
+    "context.duplicate" to "This file already exists in the conversation; avoid sending duplicates.",
+    "context.long" to "This is a long conversation. Full history and files may increase usage or exceed the context limit. (About {n} text characters, excluding images and parsed files.)",
+    "context.tooLong" to "The context is too long. Include fewer files or start a new question. History is unchanged.",
+    "document.storage" to "Document storage",
+    "document.storageSummary" to "Local originals: {size}, {n} files",
+    "document.storageHint" to "Only originals unreferenced for 7 days are removed. Questions, history, drafts and active tasks are protected; external backups are untouched.",
+    "document.scan" to "Check storage",
+    "document.cleanup" to "Clean unused originals",
+    "document.cleaned" to "Removed {n} originals; freed {size}.",
+    "document.cleanupFailed" to "Could not fully verify file references. Cleanup stopped. Resolve unsaved data or recovery issues first.",
     "crop.ocr" to "OCR review",
     "ocr.title" to "Review recognized text",
     "ocr.feeNotice" to "Sends the selected area to DeepSeek OCR, billed per page. Cancelling after starting may still incur a charge.",
@@ -1970,6 +2024,33 @@ private val B6_JA = mapOf(
     "document.uploadUncertain" to "前回のアップロード結果が不明です。重複課金を避けるため約5分後に再試行してください。",
     "document.uploading" to "ファイルをアップロード・解析中…",
     "document.expired" to "リモート添付の有効期限が切れました。再生成すると原本を再アップロードします。",
+    "document.passwordProtected" to "パスワードを解除してから再試行してください。",
+    "document.unsupportedFormat" to "解析できません。破損を確認するか形式を変換してください。",
+    "document.tooManyPages" to "ページ数が上限を超えています。分割してください。",
+    "document.rateLimited" to "リクエストが多すぎます。後で再試行してください。",
+    "document.insufficientBalance" to "DeepSeek の残高が不足しています。",
+    "document.timeout" to "アップロードまたは処理がタイムアウトしました。時間を置くかファイルを小さくしてください。",
+    "document.serviceUnavailable" to "サービスを利用できません。後で再試行してください。",
+    "document.requestFailed" to "有効な結果を取得できませんでした。後で再試行してください。",
+    "document.cacheFailed" to "ファイル参照を保存できません。自動再送信はしていません。後で再試行してください。",
+    "ocr.restoring" to "端末の下書きを復元中…",
+    "ocr.restored" to "OCR を再実行せず、校正下書きを復元しました。",
+    "ocr.retryWait" to "前回の認識は処理中または課金済みの可能性があります。{seconds} 秒待ってください。",
+    "ocr.retry" to "再認識（再課金の可能性あり）",
+    "ocr.cacheFailed" to "校正下書きを保存できません。閉じて再試行してください。OCR は自動再実行していません。",
+    "context.files" to "今回のファイル：{n} 件",
+    "context.title" to "今回のリクエストのファイル",
+    "context.hint" to "選択解除は今回の送信のみに適用され、履歴は削除しません。",
+    "context.duplicate" to "会話に同じファイルがあります。重複送信を避けられます。",
+    "context.long" to "長い会話です。全履歴とファイルで使用量が増加したり、上限を超える場合があります。（本文約 {n} 文字。画像とファイル解析内容は含みません）",
+    "context.tooLong" to "文脈が長すぎます。ファイルを減らすか新しく質問してください。履歴は保持しています。",
+    "document.storage" to "添付ファイルの使用容量",
+    "document.storageSummary" to "端末の原本：{size}、{n} 件",
+    "document.storageHint" to "7 日間参照されていない原本のみ削除します。問題・履歴・下書き・作業中のファイルと外部バックアップは保護します。",
+    "document.scan" to "使用容量を確認",
+    "document.cleanup" to "未使用の原本を整理",
+    "document.cleaned" to "原本 {n} 件を整理し、{size} を解放しました。",
+    "document.cleanupFailed" to "参照を完全に確認できず整理を中止しました。未保存データや復元の問題を解決してください。",
     "crop.ocr" to "OCR 校正",
     "ocr.title" to "OCR テキストの校正",
     "ocr.feeNotice" to "選択範囲を DeepSeek OCR に送信します。ページ単位で課金され、開始後のキャンセルでも料金が発生する場合があります。",
@@ -2025,6 +2106,33 @@ private val B6_KO = mapOf(
     "document.uploadUncertain" to "이전 업로드 결과가 불확실합니다. 중복 분석 요금을 피하려면 약 5분 후 다시 시도하세요.",
     "document.uploading" to "파일 업로드 및 분석 중…",
     "document.expired" to "원격 첨부 파일이 만료되었습니다. 다시 생성하면 로컬 원본을 업로드합니다.",
+    "document.passwordProtected" to "파일의 암호를 해제한 후 다시 시도하세요.",
+    "document.unsupportedFormat" to "파일을 분석할 수 없습니다. 손상 여부를 확인하거나 형식을 변환하세요.",
+    "document.tooManyPages" to "페이지 수가 너무 많습니다. 파일을 나누어 주세요.",
+    "document.rateLimited" to "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
+    "document.insufficientBalance" to "DeepSeek 잔액이 부족합니다. 충전 후 다시 시도하세요.",
+    "document.timeout" to "업로드 또는 처리 시간이 초과되었습니다. 잠시 기다리거나 더 작은 파일을 사용하세요.",
+    "document.serviceUnavailable" to "서비스를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요.",
+    "document.requestFailed" to "사용 가능한 결과를 받지 못했습니다. 나중에 다시 시도하세요.",
+    "document.cacheFailed" to "파일 참조를 저장하지 못했습니다. 자동 재업로드는 하지 않았습니다. 나중에 다시 시도하세요.",
+    "ocr.restoring" to "기기의 초안을 복원하는 중…",
+    "ocr.restored" to "OCR을 다시 요청하지 않고 교정 초안을 복원했습니다.",
+    "ocr.retryWait" to "이전 인식이 처리 중이거나 과금되었을 수 있습니다. {seconds}초 후 다시 시도하세요.",
+    "ocr.retry" to "다시 인식 (추가 과금 가능)",
+    "ocr.cacheFailed" to "교정 초안을 저장하지 못했습니다. 닫고 다시 시도하세요. OCR은 자동 반복하지 않았습니다.",
+    "context.files" to "이번 요청 파일: {n}개",
+    "context.title" to "이번 요청의 파일",
+    "context.hint" to "선택 해제는 이번 요청에만 적용되며 기록은 삭제되지 않습니다.",
+    "context.duplicate" to "대화에 같은 파일이 있습니다. 중복 전송을 피할 수 있습니다.",
+    "context.long" to "긴 대화입니다. 전체 기록과 파일로 사용량이 늘거나 문맥 한도를 초과할 수 있습니다. (본문 약 {n}자, 이미지 및 파일 분석 내용 제외)",
+    "context.tooLong" to "문맥이 너무 깁니다. 파일을 줄이거나 새 질문을 시작하세요. 기록은 유지됩니다.",
+    "document.storage" to "첨부 파일 저장 공간",
+    "document.storageSummary" to "기기 원본: {size}, {n}개",
+    "document.storageHint" to "7일간 참조되지 않은 원본만 정리합니다. 문제·기록·초안·작업 중인 파일과 외부 백업은 보호합니다.",
+    "document.scan" to "저장 공간 확인",
+    "document.cleanup" to "사용하지 않는 원본 정리",
+    "document.cleaned" to "원본 {n}개 정리, {size} 확보.",
+    "document.cleanupFailed" to "파일 참조를 완전히 확인하지 못해 정리를 중단했습니다. 미저장 데이터나 복원 문제를 먼저 해결하세요.",
     "crop.ocr" to "OCR 교정",
     "ocr.title" to "인식한 텍스트 교정",
     "ocr.feeNotice" to "선택 영역을 DeepSeek OCR로 보냅니다. 페이지별 요금이 부과되며 시작 후 취소해도 요금이 발생할 수 있습니다.",
@@ -2755,7 +2863,7 @@ private val B10_ZH = mapOf(
         "· 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
-        "· 🕘 回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
+        "· 🕘 按自动短标题回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
         "· 🏷 标签整理支持 AI 建议、预览确认和合并撤销。\n" +
         "· 📖 间隔复习、每日提醒与学习统计。\n" +
         "· 🌐 五种界面语言，可调整主题、壁纸背景和字号。\n" +
@@ -2827,7 +2935,7 @@ private val B10_EN = mapOf(
         "· 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
-        "· 🕘 Revisit solutions and grading or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
+        "· 🕘 Revisit solutions and grading with automatic short titles, or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
         "· 🏷 Organize tags with AI suggestions, merge previews and undo.\n" +
         "· 📖 Spaced review, daily reminders and learning statistics.\n" +
         "· 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.\n" +
@@ -2899,7 +3007,7 @@ private val B10_JA = mapOf(
         "· 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。\n" +
         "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
-        "· 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。\n" +
+        "· 🕘 自動の短いタイトルで解答・添削履歴を見直し、追加質問。30日以内の最新200件を保存。\n" +
         "· 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。\n" +
         "· 📖 間隔を空けた復習、毎日の通知と学習統計。\n" +
         "· 🌐 5言語の画面表示、テーマ・壁紙背景・文字サイズの調整。\n" +
@@ -2971,7 +3079,7 @@ private val B10_KO = mapOf(
         "· 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
-        "· 🕘 풀이·채점 기록을 다시 보고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
+        "· 🕘 자동 짧은 제목으로 풀이·채점 기록을 찾고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
         "· 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.\n" +
         "· 📖 간격 복습, 매일 알림과 학습 통계.\n" +
         "· 🌐 5개 화면 언어, 테마·배경화면·글자 크기 조절.\n" +

@@ -314,7 +314,8 @@ object StudyAssistant {
         webEnabled: Boolean = false,
         onToolProgress: (suspend (String) -> Unit)? = null,
         documents: List<RemoteAiFile> = emptyList(),
-        documentStore: DocumentStore? = null
+        documentStore: DocumentStore? = null,
+        requestTitle: Boolean = false
     ): String {
         requireKey()
         val accountKey = KeyManager.getApiKey()
@@ -330,7 +331,8 @@ object StudyAssistant {
             stream = true, streamOptions = StreamOptions(includeUsage = true),
             thinking = ThinkingOption(if (thinkingEnabled) "enabled" else "disabled"),
             reasoningEffort = budget.effort,
-            tools = if (webEnabled) listOf(DeepSeekTool("deepseek_web_search"), DeepSeekTool("deepseek_read_url")) else null
+            tools = if (webEnabled) listOf(DeepSeekTool("deepseek_web_search"), DeepSeekTool("deepseek_read_url")) else null,
+            title = if (requestTitle) ConversationTitleOption(true) else null
         )
         val body = try {
             awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared), "Bearer $accountKey"), owner)
@@ -344,7 +346,7 @@ object StudyAssistant {
                 awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(original), "Bearer $accountKey"), owner)
             } catch (fallback: AiRequestException) {
                 if (fallback.fileReferenceRejected && messages.any { it.localDocuments.isNotEmpty() }) {
-                    ConversationDocumentUploads.invalidate(messages, accountKey)
+                    ConversationDocumentUploads.invalidate(messages, accountKey, requireNotNull(documentStore))
                     throw DocumentProblem("document.expired")
                 }
                 throw fallback
@@ -378,6 +380,7 @@ object StudyAssistant {
                         toolProgressKey(event)?.let { onToolProgress?.invoke(it) }
                     }
                     val d = choice?.delta
+                    if (requestTitle) normalizedConversationTitle(d?.title)?.let { owner.conversationTitle = it }
                     d?.reasoningContent?.let(finalThinking::append)
                     d?.serverToolCalls?.let { toolCalls = it }
                     d?.annotations?.let { annotations = it }

@@ -26,5 +26,7 @@ data class SolveSession(
     /** 多图（base64 数组的 JSON）；顺带修"多图拍题存错题本丢原图" */
     val imagesJson: String? = null,
     /** 已存进错题本时指向 questions.id */
-    val savedQuestionId: QuestionId? = null
+    val savedQuestionId: QuestionId? = null,
+    /** Derived from the first ChatItem's conversationTitle by database write triggers. */
+    val title: String? = null
 )

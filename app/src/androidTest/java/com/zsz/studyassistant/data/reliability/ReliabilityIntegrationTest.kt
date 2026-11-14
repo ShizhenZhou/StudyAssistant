@@ -29,7 +29,8 @@ class ReliabilityIntegrationTest {
 
     private fun open() {
         db = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(MIGRATION_9_10).setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
+            .addMigrations(MIGRATION_9_10, MIGRATION_10_11).addCallback(SOLVE_SESSION_TITLE_CALLBACK)
+            .setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build()
         store = SqliteTagUndoStore(context)
         db.tagUndoStore = store
     }
@@ -71,6 +72,9 @@ class ReliabilityIntegrationTest {
 
     @Test fun backupRoundTripDeduplicatesAndPreservesImagesAndLinks() = runBlocking {
         seed()
+        val initial = db.questionDao().solveSessionOnce(id)!!
+        db.questionDao().updateSolveSession(initial.copy(conversationJson =
+            """[{"id":0,"role":"question","content":"synthetic question","conversationTitle":"Backup title"}]"""))
         val text = BackupManager.export(db)
         BackupManager.clearAll(db)
         assertEquals(1, BackupManager.import(db, text).questions)
@@ -78,6 +82,7 @@ class ReliabilityIntegrationTest {
         val dao = db.questionDao()
         assertEquals(id, dao.allQuestionsOnce().single().id)
         assertEquals(id, dao.allSolveSessionsOnce().single().savedQuestionId)
+        assertEquals("Backup title", dao.sessionLightOnce(id)!!.title)
         assertEquals(4, dao.allQuestionTagsOnce().size)
         assertEquals(3, dao.allReviewsOnce().single().reviewCount)
         val images = dao.imagesForQuestion(id).sortedBy { it.position }
@@ -143,7 +148,7 @@ class ReliabilityIntegrationTest {
         assertEquals(previousUndo, store.read(1)); assertNull(store.read(2))
     }
 
-    @Test fun room2Schema10OpensWithoutMigrationAndKeepsLegacyPreview() = runBlocking {
+    @Test fun schema10MigratesTitleCacheAndKeepsLegacyPreview() = runBlocking {
         db.close(); store.close()
         context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { old ->
             val sql = InstrumentationRegistry.getInstrumentation().context.assets
@@ -152,6 +157,9 @@ class ReliabilityIntegrationTest {
             old.execSQL("INSERT INTO questions (id,text,answer,createdAt,conversationJson,deleted) VALUES (?,?,?,?,?,0)",
                 arrayOf<Any>(id, "Room 2 fixture", "preserved answer", 10000,
                     """[{"role":"question","images":["AQI=","AwQ="]}]"""))
+            old.execSQL("INSERT INTO solve_sessions (id,createdAt,updatedAt,source,text,answer,conversationJson,savedQuestionId) VALUES (?,?,?,?,?,?,?,?)",
+                arrayOf<Any>(id, 10000, 11000, "text", "Complete original question", "preserved answer",
+                    """[{"id":0,"role":"question","content":"Complete original question","conversationTitle":"Migrated title"}]""", id))
             old.version = 10
         }
         open()
@@ -162,10 +170,34 @@ class ReliabilityIntegrationTest {
         assertArrayEquals(byteArrayOf(3, 4), images[1])
         db.getSupportWrapper().query("SELECT identity_hash FROM room_master_table WHERE id=42").use {
             assertTrue(it.moveToFirst())
-            assertEquals("d66e3125b1edecdae1ee701ddbb0c951", it.getString(0))
+            assertNotEquals("d66e3125b1edecdae1ee701ddbb0c951", it.getString(0))
         }
+        assertEquals(11, db.getSupportWrapper().version)
+        val migrated = db.questionDao().solveSessionOnce(id)!!
+        assertEquals("Migrated title", migrated.title)
+        assertEquals("Complete original question", migrated.text)
+        assertEquals(10000L, migrated.createdAt)
+        assertEquals(11000L, migrated.updatedAt)
+        assertEquals(id, migrated.savedQuestionId)
         reopen()
         assertEquals(id, db.questionDao().allQuestionsOnce().single().id)
+        assertEquals("Migrated title", db.questionDao().sessionLightOnce(id)!!.title)
+        val sql = db.getSupportWrapper()
+        // Backup v4 inserts its existing column whitelist; triggers rebuild the excluded cache.
+        val restoredId = QuestionIdentity.create(20000)
+        sql.execSQL("INSERT INTO solve_sessions (id,createdAt,updatedAt,source,text,answer,conversationJson) VALUES (?,?,?,?,?,?,?)",
+            arrayOf<Any>(restoredId, 20000, 20000, "text", "Restored source", "Restored answer",
+                """[{"id":0,"role":"question","content":"Restored source","conversationTitle":"Restored title"}]"""))
+        assertEquals("Restored title", db.questionDao().sessionLightOnce(restoredId)!!.title)
+        for (invalid in listOf("not-json", "[]", """[{"conversationTitle":{"unexpected":"object"}}]""")) {
+            sql.execSQL("UPDATE solve_sessions SET conversationJson=? WHERE id=?", arrayOf<Any>(invalid, restoredId))
+            assertNull(db.questionDao().sessionLightOnce(restoredId)!!.title)
+        }
+        db.questionDao().updateSolveSession(migrated.copy(title = "stale cache"))
+        assertEquals("Migrated title", db.questionDao().sessionLightOnce(id)!!.title)
+        sql.execSQL("UPDATE solve_sessions SET conversationJson=? WHERE id=?",
+            arrayOf<Any>("""[{"conversationTitle":"Updated title"}]""", restoredId))
+        assertEquals("Updated title", db.questionDao().sessionLightOnce(restoredId)!!.title)
     }
 
     @Test fun actualRoomUpgradeKeepsOldQuestionsAndImageBytes() = runBlocking {
@@ -177,7 +209,7 @@ class ReliabilityIntegrationTest {
         }
         open()
         val questions = db.questionDao().allQuestionsOnce()
-        assertEquals(10, db.getSupportWrapper().version)
+        assertEquals(11, db.getSupportWrapper().version)
         assertEquals(3, questions.size)
         assertTrue(questions.all { QuestionIdentity.valid(it.id) })
         val one = questions.first { it.text == "one" }

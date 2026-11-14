@@ -17,6 +17,33 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AiFilesTest {
+    @Test fun multipartFilenameKeepsExtensionWithinUtf8ByteLimit() {
+        assertEquals("normal.pdf", documentUploadFilename("normal.pdf"))
+        assertEquals("a".repeat(508) + ".pdf", documentUploadFilename("a".repeat(509) + ".pdf"))
+        val unicode = documentUploadFilename("题😀".repeat(100) + ".pptx")
+        assertTrue(unicode.endsWith(".pptx"))
+        assertTrue(unicode.toByteArray(Charsets.UTF_8).size <= 512)
+        assertEquals(unicode, unicode.toByteArray(Charsets.UTF_8).toString(Charsets.UTF_8))
+        assertFalse(documentUploadFilename("a\r\n\u0000\"/\\.pdf").any { it.code < 32 || it in "\"/\\" })
+    }
+
+    @Test fun documentErrorsUseOnlyFixedKeysIncludingHttp200Failures() {
+        fun error(message: String) = buildJsonObject { put("message", message) }
+        assertEquals("document.passwordProtected", documentApiErrorKey(400, error("The file is password-protected and cannot be processed.")))
+        assertEquals("document.tooManyPages", documentApiErrorKey(400, error("Failed to recognize the file: the document has more than 1000 pages")))
+        assertEquals("document.unsupportedFormat", documentApiErrorKey(400, error("Failed to recognize the file: the image could not be decoded")))
+        mapOf(402 to "insufficientBalance", 408 to "timeout", 413 to "tooLarge", 429 to "rateLimited",
+            500 to "serviceUnavailable", 503 to "serviceUnavailable", 504 to "timeout").forEach { (status, key) ->
+            assertEquals("document.$key", documentApiErrorKey(status, error("private server content")))
+        }
+        assertEquals("document.requestFailed", documentApiErrorKey(400, error("private server content")))
+        val failed = assertThrows(DocumentProblem::class.java) {
+            decodeOcrResult("""{"error":{"code":"gateway_timeout_error","message":"private server content"}}""".toResponseBody())
+        }
+        assertEquals("document.timeout", failed.messageKey)
+        assertNull(failed.cause)
+    }
+
     @Test fun ocrPreservesRawPagesAndDoesNotHideTruncationOrErrors() {
         val body = """
             {"id":"ocr-example","purpose":"text_recognition","page_count":2,

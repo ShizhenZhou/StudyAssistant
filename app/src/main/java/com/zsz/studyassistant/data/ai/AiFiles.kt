@@ -2,6 +2,7 @@ package com.zsz.studyassistant.data
 
 import java.io.File
 import java.io.IOException
+import java.io.InterruptedIOException
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -45,8 +46,9 @@ class AiFileSession internal constructor(private val files: DeepSeekFileService,
     private val ocr: DeepSeekOcrService, private val key: String,
     private val clock: () -> Long = { System.currentTimeMillis() / 1000 }) {
     init { require(key.isNotBlank()) }
+    internal val accountScope = aiAccountScope(key)
     private val authorization get() = "Bearer $key"
-    private fun bind(file: DeepSeekFile) = RemoteAiFile(file, aiAccountScope(key)).also {
+    private fun bind(file: DeepSeekFile) = RemoteAiFile(file, accountScope).also {
         it.checkUsable(key, clock())
     }
 
@@ -54,9 +56,13 @@ class AiFileSession internal constructor(private val files: DeepSeekFileService,
     suspend fun uploadDocument(original: File, purpose: DocumentRecognition = DocumentRecognition.TEXT_AND_FIGURES,
         lifetimeSeconds: Long = 86400, filename: String = original.name): RemoteAiFile = withContext(Dispatchers.IO) {
         require(lifetimeSeconds in 3600..2592000)
-        val part = documentPart(original, filename)
-        bind(files.upload(authorization, textPart(purpose.wireValue), textPart("created_at"),
-            textPart(lifetimeSeconds.toString()), part))
+        documentRequest {
+            val part = documentPart(original, filename)
+            val metadata = files.upload(authorization, textPart(purpose.wireValue), textPart("created_at"),
+                textPart(lifetimeSeconds.toString()), part)
+            require(metadata.purpose == purpose.wireValue && metadata.expiresAt != null)
+            bind(metadata)
+        }
     }
 
     /** Use listing/retrieval to reconcile uncertain uploads; never choose a file by name alone. */
@@ -83,32 +89,77 @@ class AiFileSession internal constructor(private val files: DeepSeekFileService,
 
     suspend fun recognize(original: File, purpose: DocumentRecognition = DocumentRecognition.TEXT): OcrResult =
         withContext(Dispatchers.IO) {
-            val context = currentCoroutineContext()
-            ocr.recognize(authorization, textPart(purpose.wireValue), documentPart(original)).use { body ->
-                coroutineScope {
-                    val reader = async(Dispatchers.IO) {
-                        try { decodeOcrResult(body) { context.ensureActive() } }
-                        catch (error: Exception) { context.ensureActive(); throw error }
+            documentRequest {
+                val context = currentCoroutineContext()
+                ocr.recognize(authorization, textPart(purpose.wireValue), documentPart(original)).use { body ->
+                    coroutineScope {
+                        val reader = async(Dispatchers.IO) {
+                            try { decodeOcrResult(body) { context.ensureActive() } }
+                            catch (error: Exception) { context.ensureActive(); throw error }
+                        }
+                        // Cancellation of await closes the socket even while the reader is blocked in read().
+                        try { reader.await() } finally { body.close() }
                     }
-                    // Cancellation of await closes the socket even while the reader is blocked in read().
-                    try { reader.await() } finally { body.close() }
                 }
             }
         }
+}
+
+/** Only fixed local keys escape this boundary; neither API bodies nor their causes are retained. */
+private suspend fun <T> documentRequest(block: suspend () -> T): T = try { block() }
+catch (error: kotlinx.coroutines.CancellationException) { throw error }
+catch (error: DocumentProblem) { throw error }
+catch (error: retrofit2.HttpException) {
+    val payload = try {
+        error.response()?.errorBody()?.use { body ->
+            val source = body.source()
+            val buffer = okio.Buffer()
+            while (buffer.size <= 16384) {
+                if (source.read(buffer, minOf(4096L, 16385L - buffer.size)) < 0) break
+            }
+            if (buffer.size > 16384) null else Json.parseToJsonElement(buffer.readUtf8()) as? JsonObject
+        }
+    } catch (_: Exception) { null }
+    throw DocumentProblem(documentApiErrorKey(error.code(), payload?.get("error") as? JsonObject),
+        uploadRejected = error.code() in setOf(400, 401, 402, 403, 404, 413, 415, 422, 429))
+}
+catch (_: InterruptedIOException) { throw DocumentProblem("document.timeout") }
+catch (_: Exception) { throw DocumentProblem("document.requestFailed") }
+
+/** Interpret only documented fixed phrases/codes; never render a server-supplied message. */
+internal fun documentApiErrorKey(status: Int?, error: JsonObject?): String {
+    val code = (error?.get("code") as? JsonPrimitive)?.contentOrNull
+    val type = (error?.get("type") as? JsonPrimitive)?.contentOrNull
+    val message = (error?.get("message") as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase()
+    return when {
+        status == 402 -> "document.insufficientBalance"
+        status == 413 -> "document.tooLarge"
+        status == 429 -> "document.rateLimited"
+        status == 408 || status == 504 || code == "gateway_timeout_error" || type == "gateway_timeout_error" -> "document.timeout"
+        status != null && status >= 500 -> "document.serviceUnavailable"
+        "password-protected" in message -> "document.passwordProtected"
+        "the document has more than 1000 pages" in message -> "document.tooManyPages"
+        "file is too large: max 100 mib" in message -> "document.tooLarge"
+        "the file could not be parsed or its format is not supported" in message ||
+            "the file format is not supported" in message || "the image could not be decoded" in message -> "document.unsupportedFormat"
+        message == "ocr did not finish in time" || message == "ocr did not finish within 180 seconds" -> "document.timeout"
+        message == "the ocr service is temporarily unavailable. please try again later." || message == "internal server error" -> "document.serviceUnavailable"
+        else -> "document.requestFailed"
+    }
 }
 
 private fun textPart(value: String) = value.toRequestBody("text/plain".toMediaType())
 
 /** Stream bounded files; a 100 MiB document must not create another 100 MiB byte array. */
 internal fun documentPart(file: File, filename: String = file.name): MultipartBody.Part {
-    require(file.isFile && file.canRead()) { "Document is not readable" }
+    if (!file.isFile || !file.canRead()) throw DocumentProblem("document.readFailed")
     val bytes = file.length()
-    require(bytes in 1..100L * 1024 * 1024) { "Document must be between 1 byte and 100 MiB" }
-    require(filename.substringAfterLast('.', "").lowercase() in setOf("pdf", "doc", "docx", "ppt", "pptx", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff")) {
-        "Unsupported document format"
-    }
+    if (bytes > 100L * 1024 * 1024) throw DocumentProblem("document.tooLarge")
+    if (bytes <= 0) throw DocumentProblem("document.unsupportedFormat")
+    if (filename.substringAfterLast('.', "").lowercase() !in setOf("pdf", "doc", "docx", "ppt", "pptx", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff"))
+        throw DocumentProblem("document.unsupportedFormat")
     val modified = file.lastModified()
-    val safeFilename = filename.replace(Regex("[\\r\\n\\u0000]"), "_")
+    val safeFilename = documentUploadFilename(filename)
     val body = object : RequestBody() {
         override fun contentType() = "application/octet-stream".toMediaType()
         override fun contentLength() = bytes
@@ -132,6 +183,27 @@ internal fun documentPart(file: File, filename: String = file.name): MultipartBo
     return MultipartBody.Part.createFormData("file", safeFilename, body)
 }
 
+/** Multipart-only alias: preserve the original local name and the uploaded extension. */
+internal fun documentUploadFilename(filename: String): String {
+    val safe = filename.map { if (it.code < 32 || it.code == 127 || it in charArrayOf('/', '\\', '"')) '_' else it }.joinToString("")
+    if (safe.toByteArray(Charsets.UTF_8).size <= 512) return safe
+    val dot = safe.lastIndexOf('.')
+    val extension = if (dot >= 0) safe.substring(dot) else ""
+    require(extension.toByteArray(Charsets.UTF_8).size < 512)
+    val stem = if (dot >= 0) safe.substring(0, dot) else safe
+    val budget = 512 - extension.toByteArray(Charsets.UTF_8).size
+    var used = 0
+    var end = 0
+    while (end < stem.length) {
+        val chars = Character.charCount(stem.codePointAt(end))
+        val bytes = stem.substring(end, end + chars).toByteArray(Charsets.UTF_8).size
+        if (used + bytes > budget) break
+        used += bytes
+        end += chars
+    }
+    return stem.substring(0, end) + extension
+}
+
 /** OCR sends heartbeat newlines then a JSON object, including errors with HTTP 200. */
 internal fun decodeOcrResult(body: ResponseBody, checkActive: () -> Unit = {}): OcrResult {
     val source = body.source()
@@ -142,18 +214,18 @@ internal fun decodeOcrResult(body: ResponseBody, checkActive: () -> Unit = {}): 
         val count = source.read(buffer, minOf(8192L, maxBytes + 1 - buffer.size))
         checkActive()
         if (count < 0) break
-        if (buffer.size > maxBytes) throw IOException("OCR result exceeds local size limit")
+        if (buffer.size > maxBytes) throw DocumentProblem("document.requestFailed")
     }
     val json = Json { ignoreUnknownKeys = true }
     val value = try { json.parseToJsonElement(buffer.readUtf8()) as? JsonObject }
-        catch (_: Exception) { null } ?: throw IOException("Invalid OCR response")
-    if (value["error"] != null) throw IOException("OCR recognition failed; no automatic retry")
+        catch (_: Exception) { null } ?: throw DocumentProblem("document.requestFailed")
+    if (value["error"] != null) throw DocumentProblem(documentApiErrorKey(null, value["error"] as? JsonObject))
     val result = try { json.decodeFromJsonElement<OcrResult>(value) }
-        catch (_: Exception) { throw IOException("Invalid OCR response") }
+        catch (_: Exception) { throw DocumentProblem("document.requestFailed") }
     if (result.pageCount !in 1..1000 || result.pages.size != result.pageCount ||
         result.pages.map { it.index }.sorted() != (0 until result.pageCount).toList() ||
         result.purpose !in DocumentRecognition.entries.map { it.wireValue } ||
-        result.pages.any { it.finishReason !in setOf("stop", "length") }) throw IOException("Invalid OCR page metadata")
+        result.pages.any { it.finishReason !in setOf("stop", "length") }) throw DocumentProblem("document.requestFailed")
     return result.copy(pages = result.pages.sortedBy { it.index })
 }
 

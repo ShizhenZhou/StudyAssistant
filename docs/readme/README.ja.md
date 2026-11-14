@@ -27,7 +27,7 @@ zsz が DeepSeek と GPT の支援で開発。
 - 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。
 - 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。
 - 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。
-- 🕘 解答・添削履歴の見直しと追加質問。30日以内の最新200件を保存。
+- 🕘 自動の短いタイトルで解答・添削履歴を見直し、追加質問。30日以内の最新200件を保存。
 - 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。
 - 📖 間隔を空けた復習、毎日の通知と学習統計。
 - 🌐 5言語の画面表示、テーマ・壁紙背景・文字サイズの調整。
@@ -51,7 +51,7 @@ zsz が DeepSeek と GPT の支援で開発。
 
 ## 技術構成
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v10）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（バックアップと定期更新確認）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（バックアップと定期更新確認）· AlarmManager · Android Keystore。
 
 AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 

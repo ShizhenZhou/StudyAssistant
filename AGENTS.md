@@ -15,7 +15,7 @@
 ## 必须保持的行为
 
 - 这是单人自用工具。业务数据库和备份在本机；AI 请求发送必要题干、图片、上下文或用户主动分析的标签到 DeepSeek 官方 API。Key 用于鉴权，不得泄露；更新检查只访问 GitHub Releases。
-- 不清数据、不卸载、不删除备份。数据变更需要兼容迁移、读端兜底、迁移前备份并更新 DATA_SCHEMA；当前主库 DB v10、备份 v4（兼容导入 v3 JSON），撤销辅助库独立。
+- 不清数据、不卸载、不删除备份。数据变更需要兼容迁移、读端兜底、迁移前备份并更新 DATA_SCHEMA；当前主库 DB v11、备份 v4（兼容导入 v3 JSON），撤销辅助库独立。
 - 界面文案维护简体、英文、日文、韩文；繁体 s2t 自动转换。README 默认简体中文，顶部统一链接 docs/readme/README.zh-TW.md / docs/readme/README.en.md / docs/readme/README.ja.md / docs/readme/README.ko.md；各页为完整对应语言内容，不在每个版本下重复语言折叠。发版记录维护 README 五语言页面与 Changelog 四语言（繁体沿用 s2t），版本块之间留空行；README 与应用版本记录在 v0.6.8 / v0.6.7.9 之间统一标注“以上版本仅支持Android 16+”并加分割线，不在各版本条目重复最低要求；GitHub Release 更新内容最后一条同时说明最低支持 Android 版本和正式版/测试版属性；测试版显式使用 GitHub prerelease、不得设为 latest；更新默认同时检查两个渠道，测试版可选并提示不稳定，正式版另列且两者独立校验；DB / Bak 版本仅在格式版本实际变化时写入更新内容，未变化不重复列出。
 - 导航统一走 ui/AppNav.kt；公式 HTML 裁剪需保留上下 padding，KaTeX display 不重复套层。
 - 正式版更新说明归纳对应 Beta 阶段最终保留的功能与修复，不描述试验和回退过程；README 与应用版本记录合并到正式版条目后不再单列 Beta 记录。历史 GitHub Release 与标签继续保留，除非用户明确要求删除。

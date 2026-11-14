@@ -21,6 +21,25 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
+// Derived only on writes/migration. List queries read the small title column directly.
+private const val SOLVE_SESSION_TITLE_SQL = "CASE WHEN typeof(conversationJson) = 'text' THEN " +
+    "CASE WHEN json_valid(conversationJson) THEN " +
+    "CASE WHEN json_type(conversationJson, '$[0].conversationTitle') = 'text' THEN " +
+    "substr(json_extract(conversationJson, '$[0].conversationTitle'),1,256) END END END"
+
+/** Covers DAO writes and raw SQL backup restores without changing Bak v4's row format. */
+private fun installSolveSessionTitleTriggers(connection: SQLiteConnection) {
+    for ((suffix, event) in listOf("insert" to "INSERT", "update" to "UPDATE OF conversationJson")) {
+        connection.execSQL("CREATE TRIGGER IF NOT EXISTS solve_sessions_title_$suffix AFTER $event ON solve_sessions " +
+            "BEGIN UPDATE solve_sessions SET title = $SOLVE_SESSION_TITLE_SQL WHERE id = NEW.id; END")
+    }
+}
+
+val SOLVE_SESSION_TITLE_CALLBACK = object : RoomDatabase.Callback() {
+    override suspend fun onCreate(connection: SQLiteConnection) = installSolveSessionTitleTriggers(connection)
+    override suspend fun onOpen(connection: SQLiteConnection) = installSolveSessionTitleTriggers(connection)
+}
+
 @Entity(tableName = "questions")
 data class Question(
     @PrimaryKey val id: QuestionId,
@@ -505,11 +524,11 @@ interface QuestionDao {
      *   （与 `dueQuestions` / `allLightOnce` 同一个坑）。
      *   重字段（原图 / 会话 JSON）在真正进入某条记录时用 `solveSessionOnce(id)` 单独取。
      */
-    @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId FROM solve_sessions ORDER BY createdAt DESC")
+    @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId, title FROM solve_sessions ORDER BY createdAt DESC")
     fun solveSessionsLight(): Flow<List<SolveSessionPreview>>
 
     /** 按 id 取**重字段**（含原图 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
-    @Query("SELECT id,createdAt,updatedAt,source,substr(text,1,256) AS text,substr(answer,1,256) AS answer,savedQuestionId FROM solve_sessions WHERE id=:id")
+    @Query("SELECT id,createdAt,updatedAt,source,substr(text,1,256) AS text,substr(answer,1,256) AS answer,savedQuestionId,title FROM solve_sessions WHERE id=:id")
     suspend fun sessionLightOnce(id: QuestionId): SolveSessionPreview?
     @Query("SELECT LENGTH(CASE :field WHEN 'text' THEN text WHEN 'answer' THEN answer END) FROM solve_sessions WHERE id=:id")
     suspend fun sessionTextSize(id: QuestionId, field: String): Int?
@@ -534,7 +553,7 @@ interface QuestionDao {
     suspend fun solveSessionOnce(id: QuestionId): SolveSession? {
         val row = sessionLightOnce(id) ?: return null
         return SolveSession(id = row.id, createdAt = row.createdAt, updatedAt = row.updatedAt, source = row.source,
-            savedQuestionId = row.savedQuestionId, imageBytes = sessionImageOnce(id),
+            savedQuestionId = row.savedQuestionId, title = row.title, imageBytes = sessionImageOnce(id),
             text=checkNotNull(readChunkedText(sessionTextSize(id,"text")) { a,b -> sessionTextPart(id,"text",a,b) }),
             answer=checkNotNull(readChunkedText(sessionTextSize(id,"answer")) { a,b -> sessionTextPart(id,"answer",a,b) }),
             conversationJson = readChunkedText(sessionConversationSize(id)) { a,b -> sessionConversationPart(id,a,b) },
@@ -551,7 +570,7 @@ interface QuestionDao {
     suspend fun countSolveSessions(): Int
 
     /** 全部记录的轻字段（裁剪策略用：只判 id 与 createdAt） */
-    @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId FROM solve_sessions")
+    @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId, title FROM solve_sessions")
     suspend fun solveSessionsLightOnce(): List<SolveSessionPreview>
 
     @Query("DELETE FROM solve_sessions WHERE id IN (:ids)")
@@ -669,6 +688,15 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+/** Keep all source fields and permanent IDs; the new column is a rebuildable list cache. */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override suspend fun migrate(db: SQLiteConnection) {
+        db.execSQL("ALTER TABLE solve_sessions ADD COLUMN title TEXT")
+        db.execSQL("UPDATE solve_sessions SET title = $SOLVE_SESSION_TITLE_SQL")
+        installSolveSessionTitleTriggers(db)
+    }
+}
+
 @Database(entities = [Question::class, Category::class, Tag::class, QuestionTag::class, Review::class, SolveSession::class, QuestionImage::class], version = AppDatabase.SCHEMA_VERSION, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
@@ -676,7 +704,7 @@ abstract class AppDatabase : RoomDatabase() {
         internal set
 
     companion object {
-        const val SCHEMA_VERSION = 10
+        const val SCHEMA_VERSION = 11
 
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -691,7 +719,9 @@ abstract class AppDatabase : RoomDatabase() {
                         context.applicationContext,
                         AppDatabase::class.java,
                         "study_assistant.db"
-                    ).setDriver(AndroidSQLiteDriver()).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build().also {
+                    ).setDriver(AndroidSQLiteDriver())
+                        .addCallback(SOLVE_SESSION_TITLE_CALLBACK)
+                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build().also {
                         it.tagUndoStore = SqliteTagUndoStore(context)
                         INSTANCE = it
                     }

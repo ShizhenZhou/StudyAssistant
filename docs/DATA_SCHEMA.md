@@ -79,11 +79,11 @@
 
 - 手写重做的会话 JSON 可选字段 `ChatItem.gradePart`：`question` 标识原题文字与全部题图，`answer` 标识独立手写作答消息。缺失时沿用历史批改读取方式；新方式不会把作答图当作题目主图，初始作答受删除保护。仍使用原 `conversationJson` 字段，DB v10 / Bak v4 不变；旧客户端忽略可选字段，备份保留字段。没有迁移或改写历史记录。
 
-- 当前 **schema version = 10**（`AppDatabase.SCHEMA_VERSION`），自 App v0.6.6.3 起；v0.6.6.5 保持 v10，v0.6.6.2 使用 DB v9。
-- 已开启 Room 结构导出，编译生成的当前基线保存在 `app/schemas/com.zsz.studyassistant.data.AppDatabase/10.json`，只含结构定义，不含用户数据。从 v10 开始保留快照，不补造旧版本；此配置不改变表结构、迁移链或 Bak v4 格式。
-- Room 库版本与数据格式版本独立：构建使用 Room 3.0.3 / KSP（Kotlin DAO）及 AndroidSQLiteDriver；库或代码生成器更新不自动提升 DB/Bak 版本。现有实体、索引与迁移链保持不变时继续使用 DB v10 / Bak v4。Room 3 升级保留既有 v10 identity hash；历史迁移改用 SQLiteConnection，SQL 与永久编号规则不变。备份 SQL 经官方 SupportSQLite 包装接口在 withWriteTransaction 内执行，保留事务回滚和变更通知；打开包装对象本身不会打开数据库，快照导出须先读取并确认主库版本，再打开独立只读连接。
-- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10`，全部用 `Migration` + `addMigrations(...)`。
-- 保留 v9 → v10 的原地升级；历史 migration 链仍保留。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。v0.6.6.5 无主库迁移，不会仅因应用版本更新再次要求升级。
+- 当前 **schema version = 11**（`AppDatabase.SCHEMA_VERSION`）：v0.7.3.1 后续维护增加可重建的会话短标题缓存；此前自 App v0.6.6.3 起使用 DB v10，v0.6.6.2 使用 DB v9。
+- 已开启 Room 结构导出，编译生成的当前基线保存在 `app/schemas/com.zsz.studyassistant.data.AppDatabase/11.json`，只含结构定义，不含用户数据。保留原 `10.json` 供迁移对照，不补造旧版本；Bak v4 格式不变。
+- Room 库版本与数据格式版本独立：构建使用 Room 3.0.3 / KSP（Kotlin DAO）及 AndroidSQLiteDriver；库或代码生成器更新不自动提升 DB/Bak 版本。此前 Room 3 升级保留 v10 identity hash，本次因新增标题缓存列升为 DB v11；历史迁移使用 SQLiteConnection，SQL 与永久编号规则不变。备份 SQL 经官方 SupportSQLite 包装接口在 withWriteTransaction 内执行，保留事务回滚、标题缓存触发器和变更通知；打开包装对象本身不会打开数据库，快照导出须先读取并确认主库版本，再打开独立只读连接。
+- 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10 → v11`，全部用 `Migration` + `addMigrations(...)`。
+- 保留 v9 → v10 的永久编号原地升级；v10 → v11 仅新增及回填缓存列，不改变已有正文、图像、编号、关联和首次时间。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。
 - 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v<目标版本>-from-v<原版本>-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。此前 `.pre-v9` / `.pre-v10-*` 文件不删除。
 - 界面“一键升级”负责检查/补全，不是 Room 主键迁移的前置条件。升级提示仍按 DB 版本管理。
 - `settings.data_upgrade_confirmed_schema: Int` 单独记录用户成功执行“一键升级”检查并确认的结构版本。当前结构已触发升级提示且尚未确认时，即使启动自动迁移已完成、无需补图，首次检查成功仍显示“升级成功”；之后无变更时显示“无需升级”。失败不更新确认记录，“修复数据”不消费升级确认。此标记不替代每次完整性检查。
@@ -206,10 +206,11 @@
 | `imageBytes` | BLOB | NULL | 单图（拍照）原图；纯文字题为 NULL |
 | `imagesJson` | TEXT | NULL | 多图（**base64 数组**的 JSON）；顺带修"多图拍题存错题本丢原图" |
 | `savedQuestionId` | TEXT | NULL | 已存错题本时与本行 `id` 相同；NULL = 无对应错题 |
+| `title` | TEXT | NULL | DB v11 新增；从首条 `ChatItem.conversationTitle` 派生的列表缓存，只在写入和迁移时解析会话 |
 
 > 与错题本分表存储，共享题目永久编号；备份 v3 包含两表。首次拍题/提问才建历史，从错题本/复习打开不新增；已删/裁剪的历史不自动复活。
 > 相关联 DAO 方法（都在现有 `QuestionDao` 里）：
-> - `solveSessionsLight(): Flow<List<SolveSession>>` —— **列表用轻查询**（只选 `id/createdAt/updatedAt/source/text/answer/savedQuestionId`，
+> - `solveSessionsLight(): Flow<List<SolveSessionPreview>>` —— **列表用轻查询**（只选 `id/createdAt/updatedAt/source/text/answer/savedQuestionId/title`，
 >   **不含 BLOB 与 `conversationJson`**）→ 否则会重演 CursorWindow 2MB 崩溃；
 > - `solveSessionOnce(id)` —— 进详情时按 id 取**重字段**；
 > - `insertSolveSession`、`updateSolveSession`（按 id 更新同一条）、`countSolveSessions`、
@@ -233,6 +234,7 @@
 | `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(...)` |
 | `MIGRATION_8_9` | v0.6.6 | 新建表 `question_images`（一题多图，二进制、有序）+ 索引；**旧 `imageBytes` 搬成 `position=0`** | `CREATE TABLE question_images(...)`；`CREATE INDEX index_question_images_questionId_position ...`；`INSERT INTO question_images(questionId,position,bytes,source,createdAt) SELECT id,0,imageBytes,'migrate',createdAt FROM questions WHERE imageBytes IS NOT NULL` |
 | `MIGRATION_9_10` | v0.6.6.3 | 题目及所有题目引用改为 TEXT 永久编号；补齐旧时间 | 迁移前备份；映射复制五表；数量校验；事务回滚保护 |
+| `MIGRATION_10_11` | v0.7.3.1 后续维护（待发布） | solve_sessions 新增可空 title 列，派生会话短标题缓存 | 迁移前备份；ALTER TABLE 加列；单次回填；建立写入触发器；事务回滚保护 |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/database/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
 > 与 `data/database/SolveSession.kt`（`SolveSession` 实体）、`data/database/SolveSessionPrune.kt`（裁剪纯函数）。
@@ -481,3 +483,20 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - Bak v4 沿用通用 `resources/` 目录携带文件原件。导出、导入逐份校验大小和 SHA；资源缺失或损坏时拒绝恢复。暂存恢复数据库新增私有 `backup_documents` 索引（不是业务表），先安装原件再合并主库。旧暂存库无该表且会话无附件时兼容；存在附件却无索引则要求重新准备。v3 JSON 不支持非空附件，明确拒绝。
 - `ChatItem.ocrCorrections` 缺省为空，批改按原图顺序保留可选校对文字；图文附图草稿按 URI 绑定校对文字，删图同步去除，发送时按最终图片顺序组成文本。拍题校对文字成为题干而原图保留。裁剪检查点仍为 version 1，新增可选校对文件引用，单份上限 2 MiB；旧检查点无此项视为空。
 - OCR 按用户明确启动请求，返回逐页原文、截断标记和参考用量，校对确认后才沿现有流程继续；详见 `docs/ai-files.md`。
+
+## 会话短标题缓存（v0.7.3.1 后续维护，待发布；DB v11 / Bak v4）
+
+- 首次解答请求可携带 `title.enabled=true`，末片的标题独立于完整正文和联网元信息保存；追问、续写不额外索取标题。`ChatItem.conversationTitle` 为可选字符串，缺失时 `null`，只存于会话首条消息。收到标题时压缩空白、剔除控制字符并限制为 120 个 Unicode 码点；未返回标题或旧会话均沿用原题干摘要。标题不改题干、题号、排序或查重依据。
+- `solve_sessions.title` 是新增可空 TEXT 缓存列。`MIGRATION_10_11` 在 Room 事务内加列并单次回填；无效 JSON、缺失字段或非字符串字段均回填 NULL。迁移仍先沿既有路径保存同步落盘的完整旧库副本，备份失败停止迁移，迁移失败回滚；不删除旧库副本或用户备份。
+- 新建和打开数据库时注册 `solve_sessions_title_insert`、`solve_sessions_title_update` 两个触发器。INSERT 和 UPDATE OF conversationJson 在同一事务内从首条消息提取最多 256 字符缓存；更新标题列不会递归触发会话更新。JSON 解析仅发生于写入和迁移回填，列表直接读小字段，不读或扫描完整会话与图片。
+- 会话 JSON 是标题的唯一持久来源，草稿的 base/completedChats、待保存记录与普通备份均沿原路径保留该可选字段。标题绑定本轮生成及会话身份，旧请求不能更新另一个会话；首次拍题回调新建题目消息后才挂入标题，完成快照包含最终标题。
+- Bak v4 固定七表行格式和资源格式不变；`BackupTree` 的原业务字段白名单不包含派生 title 缓存，导入原始 SQL 写入会话时由同一触发器重建。旧 Bak v4 / v3 JSON 没有标题时缓存自然为空；无需额外备份格式迁移，原始会话正文和附件不改写。
+
+
+## 附件与识别私有状态（v0.7.3.1 后续维护，待发布）
+
+- `ChatItem.excludedDocumentHashes` 缺省为空列表，记录当前追问不携带的历史文件 SHA；仅请求构造时过滤当前用户消息之前的文件引用，当前新增附件正常发送。历史原件与完整消息保持不变，重试与重开沿原选择恢复。此字段不进入 API 消息，旧会话按全部携带读取。
+- `noBackupFilesDir/ai-document-references-v1/state.json` 为 version 1 的原子文件，最多 32 项、128 KiB。包含凭据 SHA 摘要、原件 SHA、解析方式、远端 ID、过期时间或重试冷却，不保存 Key。网络前记录 5 分钟不确定上传状态；缓存损坏时先恢复冷却，拒绝立即重复上传。仅本机使用，不入备份。
+- `noBackupFilesDir/ocr_drafts/<hash>.json` 保存原始 OCR 结果、编辑文字、更新时间、180 秒冷却截止时间和固定错误键。hash 绑定裁剪图内容、凭据摘要和 OCR 方式；最多 32 项、总计 64 MiB、单项 36 MiB、保留 7 天。原子写入，编辑短暂防抖；不替代已确认题干，不入备份。
+- `noBackupFilesDir/ai-document-maintenance-v1/state.json` 为 version 1 的未引用观察表，最多 10000 项、2 MiB，记录 SHA、大小、修改时间与首次确认未引用时间。仅手动检查或清理时更新；连续观察满 7 天且原件近期未使用才可删除。所有题库/历史（含软删除）、草稿、待保存状态与当前会话/输入附件均受保护；解析错误、未知文件结构或状态变化时拒绝清理。数据库事务、原件锁与草稿锁覆盖最终核对和删除。
+- 图片原件、永久题号、联网签名上下文沿用既有结构；本轮不重写或裁剪历史。新标题为派生列，附件选择为可选 JSON 字段，Bak v4 的原件资源格式不变。

@@ -24,6 +24,8 @@ internal class SolveInputDraft {
         }
     var importingImages by mutableStateOf(false)
     var documents by mutableStateOf<List<ConversationDocument>>(emptyList())
+    /** Applies only to historical attachments in the next accepted follow-up. */
+    var excludedDocumentHashes by mutableStateOf<Set<String>>(emptySet())
     var importingDocuments by mutableStateOf(false)
     var awaitingDocumentPicker = false
     var awaitingPicker = false

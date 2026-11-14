@@ -87,9 +87,53 @@ class StreamCompletionTest {
                 thinking = ThinkingOption(mode), stream = true, streamOptions = StreamOptions(true))
             val serialized = json.encodeToString(DeepSeekRequest.serializer(), request)
             val obj = json.parseToJsonElement(serialized) as kotlinx.serialization.json.JsonObject
+            assertEquals(kotlinx.serialization.json.JsonPrimitive(4096), obj["max_tokens"])
+            assertEquals(kotlinx.serialization.json.JsonPrimitive(0.3), obj["temperature"])
             assertEquals(kotlinx.serialization.json.JsonPrimitive(mode), (obj["thinking"] as kotlinx.serialization.json.JsonObject)["type"])
             assertEquals(kotlinx.serialization.json.JsonPrimitive(true), (obj["stream_options"] as kotlinx.serialization.json.JsonObject)["include_usage"])
+            val message = (obj["messages"] as kotlinx.serialization.json.JsonArray).single() as kotlinx.serialization.json.JsonObject
+            assertFalse(message.containsKey("localDocuments"))
+            assertFalse(obj.containsKey("title"))
         }
+        val request = DeepSeekRequest("deepseek-flash", emptyList(), title = ConversationTitleOption(true))
+        val obj = json.parseToJsonElement(json.encodeToString(DeepSeekRequest.serializer(), request)) as kotlinx.serialization.json.JsonObject
+        assertEquals(kotlinx.serialization.json.JsonPrimitive(false), obj["stream"])
+        assertEquals(kotlinx.serialization.json.JsonPrimitive(true), (obj["title"] as kotlinx.serialization.json.JsonObject)["enabled"])
+    }
+
+    @Test fun titleFooterKeepsAnswerAndToolContextSeparateAndSurvivesConversationStorage() {
+        val tracker = StreamCompletion()
+        val answer = tracker.accept("""{"choices":[{"delta":{"content":"Full original answer","server_tool_calls":[{"signature":"synthetic"}],"annotations":[{"type":"url_citation","url_citation":{"url":"https://example.com","title":"Source"}}]},"finish_reason":"stop"}]}""")!!.choices.single().delta!!
+        val footer = tracker.accept("""{"choices":[{"delta":{"title":"  Short\n title  "}}]}""")!!.choices.single().delta!!
+        tracker.accept("[DONE]")
+        tracker.requireComplete()
+        assertNull(footer.content)
+        val body = checkNotNull(answer.content)
+        val context = AiResponseContext(body, serverToolCalls = answer.serverToolCalls, annotations = answer.annotations)
+        val original = listOf(com.zsz.studyassistant.ChatItem(0, "question", "Full original question"),
+            com.zsz.studyassistant.ChatItem(1, "assistant", body, aiContext = context))
+        val titled = com.zsz.studyassistant.withConversationTitle(original, footer.title)
+        assertEquals("Short title", titled.first().conversationTitle)
+        assertEquals(original.first().content, titled.first().content)
+        assertEquals(original[1], titled[1])
+        val serializer = kotlinx.serialization.builtins.ListSerializer(com.zsz.studyassistant.ChatItem.serializer())
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        assertEquals(titled, json.decodeFromString(serializer, json.encodeToString(serializer, titled)))
+        assertNull(json.decodeFromString(serializer, """[{"id":0,"role":"question","content":"Legacy question"}]""").first().conversationTitle)
+        assertSame(titled, com.zsz.studyassistant.withConversationTitle(titled, "Another response title"))
+        assertSame(original, com.zsz.studyassistant.withConversationTitle(original, null))
+        val firstRequest = StreamOwner().apply { conversationTitle = titled.first().conversationTitle }
+        val laterRequest = StreamOwner()
+        assertNull(laterRequest.conversationTitle)
+        assertEquals("Short title", firstRequest.conversationTitle)
+    }
+
+    @Test fun titlesAreBoundedPlainLabelsWithoutSplittingUnicodeCharacters() {
+        assertEquals("First second", normalizedConversationTitle("\tFirst\u0000\u202e\n\u00a0 second\r"))
+        assertNull(normalizedConversationTitle("\u0000\n\t\u202e"))
+        val title = normalizedConversationTitle("😀".repeat(130))!!
+        assertEquals(120, title.codePointCount(0, title.length))
+        assertFalse(Character.isHighSurrogate(title.last()))
     }
 
     @Test fun fileFallbackRequiresExplicitFileRejection() {

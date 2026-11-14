@@ -22,7 +22,8 @@ import kotlinx.serialization.json.Json
 class BackupRepositoryIntegrationTest {
     private val context = ApplicationProvider.getApplicationContext<Context>().also { check(it.packageName == "com.zsz.studyassistant.integration") }
     private fun database(): AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java,
-        "backup-fixture-${UUID.randomUUID()}.db").setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build().also { it.tagUndoStore = SqliteTagUndoStore(context) }
+        "backup-fixture-${UUID.randomUUID()}.db").addCallback(SOLVE_SESSION_TITLE_CALLBACK)
+        .setDriver(androidx.sqlite.driver.AndroidSQLiteDriver()).build().also { it.tagUndoStore = SqliteTagUndoStore(context) }
     private fun closeFixture(database:AppDatabase) {
         val name=database.getSupportWrapper().path?.let { File(it).name }
         (database.tagUndoStore as? SqliteTagUndoStore)?.close()
@@ -138,12 +139,16 @@ class BackupRepositoryIntegrationTest {
         try {
             val id=QuestionIdentity.create(1700000000000); val bytes=byteArrayOf(1,2,3,4)
             val encoded=java.util.Base64.getEncoder().encodeToString(bytes)
-            val conversation="""[{"id":7,"role":"question","content":"内容","images":["$encoded"],"thinking":"思考"}]"""
+            val body="内容".repeat(40000)
+            val conversation=Json.encodeToString(listOf(ChatItem(7,"question",body,images=listOf(encoded),
+                thinking="思考",conversationTitle="Synthetic archive title")))
+            assertTrue(conversation.toByteArray(Charsets.UTF_8).size > 3 * BackupTree.CHUNK)
             val dao=source.questionDao()
             val category=dao.insertCategory(Category(name="synthetic category",createdAt=123))
             dao.insert(Question(id,"large "+"甲".repeat(900000),"answer",1700000000000,bytes,conversation,true,category))
             dao.insertImages(listOf(QuestionImage(questionId=id,position=0,bytes=bytes,source="fixture",createdAt=456)))
             dao.insertSolveSession(SolveSession(id,1700000000000,1700000000007,"ask","history","answer",conversation,bytes,null,id))
+            assertEquals("Synthetic archive title",dao.sessionLightOnce(id)!!.title)
             val archive=BackupRepository(context,source).export(File(work,"export"),volumeBytes=65536)
             val tree=File(work,"tree")
             BackupArchive.readParts(archive.files.reversed(),tree)
@@ -159,9 +164,12 @@ class BackupRepositoryIntegrationTest {
             assertEquals(1700000000000,restored.createdAt)
             assertEquals("fixture",target.questionDao().imagesForQuestion(id).single().source)
             assertEquals(456,target.questionDao().imagesForQuestion(id).single().createdAt)
-            assertEquals(id,target.questionDao().solveSessionOnce(id)!!.savedQuestionId)
-            assertEquals(1700000000007,target.questionDao().solveSessionOnce(id)!!.updatedAt)
-            assertTrue(restored.conversationJson!!.contains("思考"))
+            val history=target.questionDao().solveSessionOnce(id)!!
+            assertEquals(id,history.savedQuestionId)
+            assertEquals(1700000000007,history.updatedAt)
+            assertEquals(Json.parseToJsonElement(conversation),Json.parseToJsonElement(restored.conversationJson!!))
+            assertEquals(Json.parseToJsonElement(conversation),Json.parseToJsonElement(history.conversationJson!!))
+            assertEquals("Synthetic archive title",target.questionDao().sessionLightOnce(id)!!.title)
             assertEquals(0,repo.merge(prepared).questions)
         } finally { closeFixture(source); closeFixture(target); work.deleteRecursively() }
     }

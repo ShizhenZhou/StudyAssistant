@@ -2,6 +2,8 @@ package com.zsz.studyassistant.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -13,14 +15,15 @@ data class DeepSeekMessage(val role: String, val content: JsonElement,
     /** Private draft data, removed by document preparation before network serialization. */
     val localDocuments: List<ConversationDocument> = emptyList())
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class DeepSeekRequest(
     val model: String,
     val messages: List<DeepSeekMessage>,
-    @SerialName("max_tokens") val maxTokens: Int = 4096,
-    val temperature: Double = 0.3,
+    @EncodeDefault @SerialName("max_tokens") val maxTokens: Int = 4096,
+    @EncodeDefault val temperature: Double = 0.3,
     /** true = 流式（SSE，逐块返回）；仅解题/追问链路使用 */
-    val stream: Boolean = false,
+    @EncodeDefault val stream: Boolean = false,
     /** 流式时让服务端在最后一片里带上 token 用量，保证「API 管理」的统计不断档 */
     @SerialName("stream_options") val streamOptions: StreamOptions? = null,
     /**
@@ -32,8 +35,12 @@ data class DeepSeekRequest(
     @SerialName("reasoning_effort") val reasoningEffort: String? = null,
     /** Optional structured output for label analysis; other callers retain their current behavior. */
     @SerialName("response_format") val responseFormat: DeepSeekResponseFormat? = null,
-    val tools: List<DeepSeekTool>? = null
+    val tools: List<DeepSeekTool>? = null,
+    val title: ConversationTitleOption? = null
 )
+
+@Serializable
+data class ConversationTitleOption(val enabled: Boolean)
 
 @Serializable
 data class DeepSeekTool(val type: String)
@@ -103,6 +110,8 @@ data class StreamDelta(
     /** 推理模型（如 deepseek-reasoner）的思考增量；非推理模型不会返回该字段 */
     @SerialName("reasoning_content") val reasoningContent: String? = null,
     @SerialName("server_tool_calls") val serverToolCalls: JsonArray? = null,
-    val annotations: JsonArray? = null
+    val annotations: JsonArray? = null,
+    /** Optional short title in the last chunk, separate from the answer body. */
+    val title: String? = null
 )
 

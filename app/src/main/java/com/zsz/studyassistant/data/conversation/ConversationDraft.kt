@@ -46,8 +46,12 @@ object ConversationDraftCodec {
 }
 /** Private, noBackup, per-problem drafts. Reservations are made before scheduling asynchronous writes. */
 internal class ConversationDraftStore(context: Context) {
+    companion object {
+        private val maintenanceLock = Any()
+        internal fun <T> withMaintenanceLock(block: () -> T): T = synchronized(maintenanceLock) { block() }
+    }
     private val directory=File(context.noBackupFilesDir,"conversation-drafts-v1")
-    private val lock=Any()
+    private val lock=maintenanceLock
     private val writers=mutableMapOf<QuestionId,String>()
     private val revisions=mutableMapOf<QuestionId,Long>()
     private fun file(id: QuestionId): PrivateJsonFile {
