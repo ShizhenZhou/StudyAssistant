@@ -86,9 +86,9 @@ internal object BackupFolderAccess {
                 var summary: BackupRetention.FolderSummary? = null
                 if (health.state == State.AVAILABLE && scheduleIfAvailable && isCurrent(context, observed))
                     BackupJobs.onAppOpened(context) { c, tree ->
-                        BackupRetention.folderSummary(c, tree).also { summary = it }
+                        BackupRetention.observedFolderSummary(c, tree).also { summary = it }
                     }
-                // Reuse only this operation's freshly verified inventory, never a cross-refresh cache.
+                // Reuse this observation; overlapping readers may share its scan, not a finished cache.
                 return observed.copy(summary = summary)
             }
         }

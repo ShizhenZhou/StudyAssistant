@@ -81,6 +81,22 @@ object BackupRetention {
         val targets = sets.filter { it.id != newSetId }.sortedWith(compareByDescending<Set> { it.at }.thenBy { it.id }).drop(AutoBackup.KEEP - 1)
         remove(context, tree, targets, check)
     }
+    private val summaryReads = BackupSummaryReads<List<Any?>, FolderSummary>()
+
+    /** Read-only UI/scheduling observations can share an in-flight scan, never a finished one.
+     * Workers, retention and import deliberately use the fresh scan API below.
+     */
+    suspend fun observedFolderSummary(context: Context, tree: Uri): FolderSummary {
+        val app = context.applicationContext
+        val identity = synchronized(BackupJobs) {
+            val p = BackupJobs.prefs(app)
+            listOf(app.applicationInfo.dataDir, tree.toString(), p.getLong("backup_job_generation", 0),
+                p.getString("backup_job_token", null), p.getBoolean("backup_job_active", false),
+                p.getString("backup_job_phase", null), AutoBackup.lastBackupAt(app))
+        }
+        return summaryReads.read(identity) { folderSummary(app, tree) }
+    }
+
     /** Scans and hashes current documents; cancellation follows the caller's coroutine. */
     suspend fun folderSummary(context: Context, tree: Uri, check: () -> Unit = {}): FolderSummary =
         folderSummary(context, tree, check, BackupTree::space)

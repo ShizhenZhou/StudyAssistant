@@ -6,6 +6,19 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
 class UpdateCompatibilityTest {
+    @Test fun malformedManifestCommentsStayHiddenWithoutRelaxingCompatibility() {
+        val marker = "<!-- studyassistant-update-manifest"
+        for (hidden in listOf("$marker {broken} -->", "$marker\r\n{broken}\r\n-->",
+            "<!--studyassistant-update-manifest {broken}-->", "<!--  studyassistant-update-manifest\n{broken}")) {
+            assertEquals("Visible notes", UpdateChecker.visibleReleaseNotes("Visible notes\n$hidden"))
+            assertEquals("Visible notes", UpdateChecker.prettyReleaseNotes("Visible notes\n$hidden"))
+        }
+        assertEquals("Before\n\nAfter", UpdateChecker.visibleReleaseNotes("Before\n$marker {} -->\nAfter<!-- private -->"))
+        assertEquals("Math: x < y and y > z", UpdateChecker.visibleReleaseNotes("Math: x < y and y > z"))
+        val invalid = release.copy(notes = "Visible notes\n$marker\n{broken}")
+        val resolved = UpdateChecker.resolveManifest(invalid, emptyList()) { error("no attachment to fetch") }
+        assertEquals("update.compatibilityInvalid", resolved.compatibilityIssue)
+    }
     private val release = UpdateChecker.ReleaseInfo("v0.6.8", "0.6.8", "", "fixture.apk",
         "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.8/fixture.apk", null, 7)
     private fun manifest(min: Int = 36) = """{"schema":1,"version":"0.6.8","versionCode":78,"minSdk":$min,"apkName":"fixture.apk","apkSha256":"${"a".repeat(64)}","apkSize":7}"""

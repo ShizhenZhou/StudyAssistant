@@ -161,8 +161,21 @@ object UpdateChecker {
     private val inlineManifest = Regex("<!-- studyassistant-update-manifest\\r?\\n(.*?)\\r?\\n-->", RegexOption.DOT_MATCHES_ALL)
 
     /** Hide the wire format even from the app's plain-text release notes renderer. */
-    internal fun visibleReleaseNotes(notes: String): String =
-        inlineManifest.replace(notes, "").trim()
+    internal fun visibleReleaseNotes(notes: String): String {
+        val visible = StringBuilder()
+        var cursor = 0
+        while (cursor < notes.length) {
+            val start = notes.indexOf("<!--", cursor)
+            if (start < 0) { visible.append(notes, cursor, notes.length); break }
+            visible.append(notes, cursor, start)
+            // Hide malformed/truncated comments too. This is display-only; inlineManifest
+            // remains strict and continues to reject malformed compatibility metadata.
+            val end = notes.indexOf("-->", start + 4)
+            if (end < 0) break
+            cursor = end + 3
+        }
+        return visible.toString().trim()
+    }
 
     internal data class ManifestEndpoint(val url: String, val api: Boolean = false)
     internal sealed interface ManifestFetch {
@@ -389,7 +402,7 @@ object UpdateChecker {
         if (markdown.isBlank()) return ""
         val out = StringBuilder()
         var blank = false
-        for (raw in markdown.lines()) {
+        for (raw in visibleReleaseNotes(markdown).lines()) {
             var line = raw.trimEnd()
             line = line.replace(Regex("^\\s{0,3}#{1,6}\\s*"), "")   // ### 标题
             line = line.replace(Regex("^\\s*[-*+]\\s+"), "· ")      // - 列表

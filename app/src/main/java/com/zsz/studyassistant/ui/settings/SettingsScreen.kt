@@ -1126,7 +1126,6 @@ private fun AutoBackupSettings(vm: MainViewModel) {
     LaunchedEffect(context, refresh, vm.dataBusy, vm.preparedExport == null, internalStorage) {
         if (vm.dataBusy || vm.preparedExport != null) return@LaunchedEffect
         val tree = AutoBackup.treeUri(context)
-        val operation = kotlinx.coroutines.currentCoroutineContext()
         val documentId = tree?.let { runCatching { android.provider.DocumentsContract.getTreeDocumentId(it) }.getOrNull() }
         // The displayed path follows the actual selection even when the inventory is unreadable.
         autoFolder = backupFolderLabel(documentId, null, internalStorage)
@@ -1150,7 +1149,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
             if (AutoBackup.treeUri(context) == tree) autoFolder = label
             val summary = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 if (tree == null) com.zsz.studyassistant.data.BackupRetention.FolderSummary()
-                else observed.summary ?: com.zsz.studyassistant.data.BackupRetention.folderSummary(context, tree) { operation.ensureActive() }
+                else observed.summary ?: com.zsz.studyassistant.data.BackupRetention.observedFolderSummary(context, tree)
             }
             if (AutoBackup.treeUri(context) == tree && com.zsz.studyassistant.data.BackupFolderAccess.isCurrent(context, observed)) {
                 folderSummary = summary

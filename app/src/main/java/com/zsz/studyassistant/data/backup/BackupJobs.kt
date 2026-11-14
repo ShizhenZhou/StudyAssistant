@@ -45,6 +45,13 @@ object BackupJobs {
         currentCoroutineContext().ensureActive()
         var expectedTree: android.net.Uri? = null
         var expectedGeneration: Long? = null
+        var expectedToken: String? = null
+        fun stillCurrent(): Boolean = prefs(context).let { p ->
+            expectedGeneration != null && AutoBackup.treeUri(context) == expectedTree &&
+                p.getLong(PREFIX + "generation", 0) == expectedGeneration &&
+                p.getString(PREFIX + "token", null) == expectedToken &&
+                AutoBackup.isEnabled(context) && !p.getBoolean(PREFIX + "active", false)
+        }
         try {
             val opening = synchronized(this) {
                 if (!AutoBackup.isEnabled(context)) return
@@ -52,18 +59,22 @@ object BackupJobs {
                 val p = prefs(context)
                 if (p.getBoolean(PREFIX + "active", false) && !reconcile(context)) return
                 if (p.getString(PREFIX + "error", null) != null && !p.getBoolean(PREFIX + "dispatch_failed", false)) return
-                if (!hasActiveQuestions(context)) return
                 expectedTree = tree
                 expectedGeneration = p.getLong(PREFIX + "generation", 0)
-                tree to expectedGeneration
+                expectedToken = p.getString(PREFIX + "token", null)
+                tree
             }
-            val summary = readSummary?.invoke(context, opening.first)
-                ?: BackupRetention.folderSummary(context, opening.first)
+            if (!withContext(Dispatchers.IO) { hasActiveQuestions(context) }) return
+            if (!synchronized(this) { stillCurrent() }) return
+            val summary = readSummary?.invoke(context, opening)
+                ?: BackupRetention.observedFolderSummary(context, opening)
+            // A long provider scan can overlap edits. Re-read outside the monitor; the worker
+            // also checks emptiness immediately before capture, so this is only scheduling input.
+            val hasQuestions = withContext(Dispatchers.IO) { hasActiveQuestions(context) }
             currentCoroutineContext().ensureActive()
             synchronized(this) {
                 val p = prefs(context)
-                if (AutoBackup.treeUri(context) != opening.first || p.getLong(PREFIX + "generation", 0) != opening.second ||
-                    !AutoBackup.isEnabled(context) || p.getBoolean(PREFIX + "active", false)) return
+                if (!stillCurrent()) return
                 val today = AutoBackup.dayKey(System.currentTimeMillis())
                 val latestDay = today.takeIf { it in summary.backupDays }
                 if (latestDay == today) {
@@ -73,14 +84,13 @@ object BackupJobs {
                 val canceledDay = p.getString(PREFIX + "attempt_day", null)
                     .takeIf { p.getString(PREFIX + "phase", null) == "data.backupJob.canceled" }
                 if (!BackupTaskPolicy.shouldSchedule(true, true, today, false,
-                        hasActiveQuestions(context), latestDay, canceledDay)) return
-                enqueue(context, automatic = true, delay = 30)
+                        hasQuestions, latestDay, canceledDay)) return
+                enqueuePrepared(context, automatic = true, delay = 30)
             }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) {
             synchronized(this) {
-                if (expectedGeneration == null || (AutoBackup.treeUri(context) == expectedTree &&
-                        prefs(context).getLong(PREFIX + "generation", 0) == expectedGeneration))
+                if (stillCurrent())
                     recordSchedulingFailure(context, true, "data.autoBackup.snapshotFailed")
             }
         }
@@ -155,6 +165,19 @@ object BackupJobs {
         dispatch: (androidx.work.OneTimeWorkRequest) -> androidx.work.Operation = {
             WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, it)
         }): androidx.work.Operation? {
+        try {
+            if (automatic && !hasActiveQuestions(context)) return null
+        } catch (_: Exception) {
+            recordSchedulingFailure(context, automatic, "data.autoBackup.snapshotFailed")
+            return null
+        }
+        return enqueuePrepared(context, automatic, delay, dispatch)
+    }
+    /** App-open scheduling already read EXISTS on IO and rechecked ownership under the monitor. */
+    private fun enqueuePrepared(context: Context, automatic: Boolean, delay: Long,
+        dispatch: (androidx.work.OneTimeWorkRequest) -> androidx.work.Operation = {
+            WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, it)
+        }): androidx.work.Operation? {
         var queuedOperation: androidx.work.Operation? = null
         var failureKey = "data.autoBackup.snapshotFailed"
         try {
@@ -162,7 +185,6 @@ object BackupJobs {
         val token = UUID.randomUUID().toString()
         val generation = p.getLong(PREFIX + "generation", 0)
         val tree = AutoBackup.treeUri(context)?.toString() ?: return null
-        if (automatic && !hasActiveQuestions(context)) return null
         failureKey = "data.autoBackup.storageFailed"
         // State is committed before dispatch, so repeated activity creation cannot duplicate a request.
         p.edit().putString(PREFIX + "token", token).putBoolean(PREFIX + "active", true)
