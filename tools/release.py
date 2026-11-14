@@ -128,27 +128,13 @@ def delta_files(signed, state):
 
 
 def build_deltas(bases, signed, version_code, allow_same_version=False):
-    """Every base keeps its legacy patch; remaining slots buy the largest savings."""
+    """New releases publish one APK-aware patch per exact base."""
     if not 0 < len(bases) <= 8: raise ReleaseError("Support one to eight exact delta bases")
-    legacy = [apk_delta.build(base, signed, version_code, signed.parent,
-                             allow_same_version=allow_same_version) for base in bases]
-    if len(legacy) == 8: return legacy
-    candidates = []
-    with tempfile.TemporaryDirectory(prefix="archive-deltas-", dir=signed.parent) as tmp:
-        for base, old in zip(bases, legacy):
-            try:
-                new = apk_archive_delta.build(base, signed, version_code, tmp, allow_same_version=allow_same_version)
-            except apk_archive_delta.NotApplicable:
-                continue
-            saving = old["patchSize"] - new["patchSize"]
-            if saving > 0: candidates.append((saving, new))
-        selected = sorted(candidates, key=lambda item: (-item[0], item[1]["baseVersionCode"]))[:8 - len(legacy)]
-        for _, delta in selected:
-            source, target = Path(tmp) / delta["patchName"], signed.parent / delta["patchName"]
-            if target.exists() and target.read_bytes() != source.read_bytes():
-                raise ReleaseError("Delta artifact already exists with different bytes")
-            shutil.copyfile(source, target)
-        return legacy + [delta for _, delta in selected]
+    try:
+        return [apk_archive_delta.build(base, signed, version_code, signed.parent,
+                    allow_same_version=allow_same_version) for base in bases]
+    except apk_archive_delta.NotApplicable as error:
+        raise ReleaseError("An exact base has no beneficial APK-aware delta; inspect before publishing") from error
 
 
 def frozen_delta_pairs(bases, deltas):
@@ -167,8 +153,8 @@ def frozen_delta_pairs(bases, deltas):
             raise ReleaseError("Delta artifact differs from its frozen base or format")
         seen.add(key)
         result.append((by_identity[identity], delta))
-    if any(identity + (apk_delta.FORMAT,) not in seen for identity in by_identity):
-        raise ReleaseError("Every frozen base must retain its legacy delta")
+    if any(not any(key[:3] == identity for key in seen) for identity in by_identity):
+        raise ReleaseError("Every frozen base must retain a delta")
     return result
 
 def validate_release_assets(assets, files, complete=False):

@@ -248,7 +248,7 @@ class DeliveryTest(unittest.TestCase):
             with self.assertRaises(ValueError): apk_archive_delta.inflate(bad, first["rawSize"])
         with self.assertRaises(apk_archive_delta.NotApplicable): apk_archive_delta.encode(base, apk(raw, zipfile.ZIP_STORED))
 
-    def test_archive_delta_frozen_recovery_and_legacy_slot_budget(self):
+    def test_archive_delta_only_publication_and_frozen_recovery(self):
         import random
         raw = random.Random(917).randbytes(220_000) + b"repeated dex strings" * 5000
         def apk(dex):
@@ -261,30 +261,37 @@ class DeliveryTest(unittest.TestCase):
             base = folder / "base.apk"; base.write_bytes(apk(raw))
             target = folder / "target.apk"; target.write_bytes(apk(raw[:900] + b"new dex instructions" + raw[919:]))
             record = dict(path=str(base), baseSha256=sha256(base), baseSize=base.stat().st_size, baseVersionCode=1)
-            deltas = release.build_deltas([record], target, 3)
-            self.assertEqual({apk_delta.FORMAT, apk_archive_delta.FORMAT}, {item["format"] for item in deltas})
-            pairs = release.frozen_delta_pairs([record], list(reversed(deltas)))
-            for frozen_base, delta in pairs:
-                builder = apk_delta if delta["format"] == apk_delta.FORMAT else apk_archive_delta
-                restored = builder.build(frozen_base, target, 3, folder / "recovered", expected=delta)
-                self.assertEqual(delta, restored)
-                self.assertEqual((folder / delta["patchName"]).read_bytes(), (folder / "recovered" / delta["patchName"]).read_bytes())
-            for invalid in ([deltas[1]], deltas + [deltas[1]], [dict(deltas[0], baseVersionCode=9)]):
+            with patch.object(apk_delta, "build", side_effect=AssertionError("legacy generation forbidden")):
+                deltas = release.build_deltas([record], target, 3)
+            self.assertEqual([apk_archive_delta.FORMAT], [item["format"] for item in deltas])
+            self.assertEqual("target-from-1.gdiff.gz", deltas[0]["patchName"])
+            legacy = apk_delta.build(record, target, 3, folder / "old-release")
+            historical = dict(deltas[0], patchName="target-zip-from-1.gdiff.gz")
+            for frozen in (deltas, [historical], [legacy], [legacy, historical]):
+                for frozen_base, delta in release.frozen_delta_pairs([record], frozen):
+                    builder = apk_delta if delta["format"] == apk_delta.FORMAT else apk_archive_delta
+                    destination = folder / ("recovered-" + delta["format"])
+                    restored = builder.build(frozen_base, target, 3, destination, expected=delta)
+                    self.assertEqual(delta, restored)
+                    self.assertEqual(delta["patchSha256"], sha256(destination / delta["patchName"]))
+            for invalid in ([], deltas + deltas, [dict(deltas[0], baseVersionCode=9)]):
                 with self.assertRaises(release.ReleaseError): release.frozen_delta_pairs([record], invalid)
-            records = [dict(record, baseVersionCode=code) for code in range(1, 8)]
-            # Allocation is independent of expensive compression: retain all seven
-            # legacy entries and spend the sole free slot on the greatest saving.
+            with self.assertRaises(ValueError):
+                apk_archive_delta.build(record, target, 3, folder / "unsafe",
+                    expected=dict(deltas[0], patchName="../outside.gdiff.gz"))
+            records = [dict(record, baseVersionCode=code) for code in range(1, 9)]
             def fake_build(item, signed, code, output, **kwargs):
-                is_archive = Path(output) != folder
-                name = f"target-{'zip-' if is_archive else ''}from-{item['baseVersionCode']}.gdiff.gz"
-                (Path(output) / name).write_bytes(b"fixture")
-                return dict(item, format=apk_archive_delta.FORMAT if is_archive else apk_delta.FORMAT,
-                            patchName=name, patchSize=100 - item["baseVersionCode"] if is_archive else 100)
-            with patch.object(apk_delta, "build", side_effect=fake_build), patch.object(apk_archive_delta, "build", side_effect=fake_build):
+                return dict(item, format=apk_archive_delta.FORMAT,
+                            patchName=f"target-from-{item['baseVersionCode']}.gdiff.gz", patchSize=100)
+            with patch.object(apk_delta, "build", side_effect=AssertionError("legacy generation forbidden")), \
+                    patch.object(apk_archive_delta, "build", side_effect=fake_build):
                 selected = release.build_deltas(records, target, 9)
             self.assertEqual(8, len(selected))
-            self.assertEqual(7, selected[-1]["baseVersionCode"])
-            self.assertEqual(7, sum(item["format"] == apk_delta.FORMAT for item in selected))
+            self.assertTrue(all(item["format"] == apk_archive_delta.FORMAT for item in selected))
+            with self.assertRaises(release.ReleaseError):
+                release.frozen_delta_pairs(records, [deltas[0]] * 8)
+            with patch.object(apk_archive_delta, "build", side_effect=apk_archive_delta.NotApplicable()):
+                with self.assertRaises(release.ReleaseError): release.build_deltas([record], target, 3)
 
     def test_start_requires_merged_main_and_dispatches_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -197,7 +197,13 @@ def build(base_record, target_apk, target_version_code, output_dir, expected=Non
         if patch is None: raise ValueError("Restored delta differs from the frozen release metadata")
     if apply(base, patch, len(target)) != target: raise ValueError("Delta did not exactly reconstruct signed APK")
     if len(patch) >= len(target): raise NotApplicable("Archive delta is not smaller than complete APK")
-    name = target_apk.stem + f"-zip-from-{base_code}.gdiff.gz"
+    name = target_apk.stem + f"-from-{base_code}.gdiff.gz"
+    if expected is not None:
+        # Historical frozen releases keep their exact original asset name and bytes.
+        old_name = target_apk.stem + f"-zip-from-{base_code}.gdiff.gz"
+        if expected.get("patchName") not in (name, old_name):
+            raise ValueError("Unexpected frozen archive delta filename")
+        name = expected["patchName"]
     metadata = dict(format=FORMAT, baseSha256=base_record["baseSha256"], baseSize=len(base),
                     baseVersionCode=base_code, patchName=name, patchSha256=apk_delta.digest(patch), patchSize=len(patch))
     if expected is not None and metadata != expected: raise ValueError("Restored delta differs from the frozen release metadata")
