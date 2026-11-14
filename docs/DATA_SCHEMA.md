@@ -484,7 +484,7 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - `ChatItem.ocrCorrections` 缺省为空，批改按原图顺序保留可选校对文字；图文附图草稿按 URI 绑定校对文字，删图同步去除，发送时按最终图片顺序组成文本。拍题校对文字成为题干而原图保留。裁剪检查点仍为 version 1，新增可选校对文件引用，单份上限 2 MiB；旧检查点无此项视为空。
 - OCR 按用户明确启动请求，返回逐页原文、截断标记和参考用量，校对确认后才沿现有流程继续；详见 `docs/ai-files.md`。
 
-## 会话短标题缓存（v0.7.3.1 后续维护，待发布；DB v11 / Bak v4）
+## 会话短标题缓存（v0.7.3.2；DB v11 / Bak v4）
 
 - 首次解答请求可携带 `title.enabled=true`，末片的标题独立于完整正文和联网元信息保存；追问、续写不额外索取标题。`ChatItem.conversationTitle` 为可选字符串，缺失时 `null`，只存于会话首条消息。收到标题时压缩空白、剔除控制字符并限制为 120 个 Unicode 码点；未返回标题或旧会话均沿用原题干摘要。标题不改题干、题号、排序或查重依据。
 - `solve_sessions.title` 是新增可空 TEXT 缓存列。`MIGRATION_10_11` 在 Room 事务内加列并单次回填；无效 JSON、缺失字段或非字符串字段均回填 NULL。迁移仍先沿既有路径保存同步落盘的完整旧库副本，备份失败停止迁移，迁移失败回滚；不删除旧库副本或用户备份。
@@ -493,7 +493,7 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - Bak v4 固定七表行格式和资源格式不变；`BackupTree` 的原业务字段白名单不包含派生 title 缓存，导入原始 SQL 写入会话时由同一触发器重建。旧 Bak v4 / v3 JSON 没有标题时缓存自然为空；无需额外备份格式迁移，原始会话正文和附件不改写。
 
 
-## 附件与识别私有状态（v0.7.3.1 后续维护，待发布）
+## 附件与识别私有状态（v0.7.3.2）
 
 - `ChatItem.excludedDocumentHashes` 缺省为空列表，记录当前追问不携带的历史文件 SHA；仅请求构造时过滤当前用户消息之前的文件引用，当前新增附件正常发送。历史原件与完整消息保持不变，重试与重开沿原选择恢复。此字段不进入 API 消息，旧会话按全部携带读取。
 - `noBackupFilesDir/ai-document-references-v1/state.json` 为 version 1 的原子文件，最多 32 项、128 KiB。包含凭据 SHA 摘要、原件 SHA、解析方式、远端 ID、过期时间或重试冷却，不保存 Key。网络前记录 5 分钟不确定上传状态；缓存损坏时先恢复冷却，拒绝立即重复上传。仅本机使用，不入备份。

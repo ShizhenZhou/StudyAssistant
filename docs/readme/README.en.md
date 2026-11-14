@@ -57,6 +57,15 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.3.2
+
+- 🤖 Correct AI request parameters and automatically title initial answers for easier history browsing.
+- 📎 Reuse parsed file references across app launches; choose historical files for follow-ups and see duplicate-file and long-context hints.
+- 🔎 Preserve OCR results and correction drafts, with safer timeout cooldowns, filename limits and clearer errors.
+- 🧹 View attachment storage and manually clean long-unreferenced originals while protecting notebooks, history and drafts.
+- 💾 Upgrade to DB v11 for efficient title queries and backup restoration while preserving existing data.
+- 📌 `versionCode` **125**. ❗ This update is critically important and mandatory.
+
 ### v0.7.3.1
 
 - 🛠 Fix photo request parameters that caused HTTP 422 and improve resumed answers in web-enabled and image conversations.
