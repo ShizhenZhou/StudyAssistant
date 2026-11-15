@@ -502,7 +502,7 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - 图片原件、永久题号、联网签名上下文沿用既有结构；本轮不重写或裁剪历史。新标题为派生列，附件选择为可选 JSON 字段，Bak v4 的原件资源格式不变。
 
 
-## 分条自定义要求（v0.7.3.2 后续维护，待发布）
+## 分条自定义要求（v0.7.3.3）
 
 - `settings.custom_prompt_rules_v1` 保存 version=1 的 JSON，含有序 `rules` 列表。每条为 `id`、完整 `text`、`enabled`、`allSubjects` 和分类 ID 列表 `categoryIds`。分类改名按 ID 继续匹配；被删除的 ID 不转成全部科目，未知科目也不发送无有效分类的规则。
 - 新键不存在时，旧 `settings.custom_prompt` 完整映射为第一条 `legacy-custom-prompt`，默认开启、全部科目，不拆分不改写。首次保存原子写入新列表，旧键保留作为原文迁移副本；已保存空列表不重新导入旧文字。未知版本、损坏 JSON 不覆盖，也不回退到可能已停用的旧要求；本次 AI 请求停止并提示读取失败。

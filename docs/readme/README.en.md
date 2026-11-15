@@ -57,6 +57,14 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.3.3
+
+- ✍️ Organize custom instructions into separate rules, each with its own switch and all-subject or multi-subject scope.
+- 🧩 Add editable templates for step-by-step justification, conditions and units, hints before answers, common mistakes and standard course methods.
+- 📚 Match instructions to classified questions; for a first question with an unknown subject, AI applies the relevant conditions.
+- 🔔 Preserve previous instructions as the first rule and offer an upgrade reminder to review them; improve saving and retain input when errors occur.
+- 📌 `versionCode` **126**.
+
 ### v0.7.3.2
 
 - 🤖 Correct AI request parameters and automatically title initial answers for easier history browsing.
