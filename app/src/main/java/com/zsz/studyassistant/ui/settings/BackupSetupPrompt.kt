@@ -79,7 +79,7 @@ internal fun BackupSetupPrompt(vm: MainViewModel, ready: Boolean) {
             enabled = AutoBackup.isEnabled(context)
         }
     }
-    if (!show) return
+    if (!show || !ready) return
     AlertDialog(
         onDismissRequest = { if (!busy) show = false },
         title = { Text(s["data.autoBackup.setupTitle"]) },

@@ -38,7 +38,7 @@ object AppNav {
     const val OPEN_REVIEW_EXTRA = "open_review"
 
     // ── NavHost 路由（节点）──────────────────────────────────────────────
-    // Home startup: API Key dialog → optional automatic-backup folder setup (dialogs, not navigation nodes).
+    // Home startup: API Key → legacy prompt review → automatic-backup setup (dialogs, not navigation nodes).
     const val HOME = "home"
     const val CAMERA = "camera"
     const val CROP = "crop"

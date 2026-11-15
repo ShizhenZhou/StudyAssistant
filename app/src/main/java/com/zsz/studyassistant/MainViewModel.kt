@@ -125,7 +125,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val currentDay: StateFlow<com.zsz.studyassistant.data.CalendarDay> get() = calendarDay
     fun refreshClock() { calendarDay.value = com.zsz.studyassistant.data.CalendarDay.now() }
     // Draft text stays in memory across Activity recreation, never in a Binder saved-state Bundle.
-    var customPromptDraft by mutableStateOf<String?>(null)
+    val customPromptEditor by lazy { com.zsz.studyassistant.ui.SubjectPromptEditor(app, viewModelScope) }
 
     var reviewOpenRequested by mutableStateOf(false)
         private set
@@ -1456,13 +1456,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *   → 用户填的「自定义要求」实际上一次都没发给模型。现在改为取原文，由 [buildMessages] 拼进
      *   `languageSystemMessage(aiLang, customPrompt)`（合成一条 system 消息）。
      */
-    private fun customPromptText(): String =
-        com.zsz.studyassistant.data.CapturePrefs.customPrompt(getApplication()).trim()
+    private fun promptForSubject(categoryId: Long?): String = try {
+        com.zsz.studyassistant.data.compilePromptRules(
+            com.zsz.studyassistant.data.PromptRulesStore(getApplication()).read(),
+            categories.value, categoryId)
+    } catch (_: Exception) {
+        throw com.zsz.studyassistant.data.DocumentProblem("prompt.readFailed")
+    }
 
-    private fun buildMessages(items: List<ChatItem> = chatItems): List<DeepSeekMessage> {
+    private fun customPromptText(categoryId: Long? = currentQuestionCategoryId): String? = try {
+        promptForSubject(categoryId)
+    } catch (_: Exception) {
+        // Do not silently discard or resurrect old instructions if the new settings cannot be read.
+        error = com.zsz.studyassistant.ui.stringsFor(uiLang)["prompt.readFailed"]
+        null
+    }
+
+    private fun buildMessages(items: List<ChatItem> = chatItems, prompt: String? = customPromptText()): List<DeepSeekMessage> {
         val msgs = mutableListOf<DeepSeekMessage>()
         // 回答语言 + 用户自定义要求：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
-        msgs.add(StudyAssistant.languageSystemMessage(aiLang, customPromptText()))
+        msgs.add(StudyAssistant.languageSystemMessage(aiLang, prompt ?: return emptyList()))
         if (multiImages.isNotEmpty()) {
             // 多张搜题：多图一起作为题目（同一套搜题指令）
             msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames, tagNames))
@@ -1686,10 +1699,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             )
     }
 
-    private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null) {
+    private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null, prompt: String? = customPromptText()) {
         // 非批改的流式请求（解题/追问/重新生成/继续）：按钮显示「⏸ 中止生成」
         busyIsGrade = false
-        val messages = buildMessages().toList()
+        val messages = buildMessages(prompt = prompt).toList()
         streamCall(model, messages, prefix = "", onDone = onDone, repeat = repeat)
     }
 
@@ -1711,7 +1724,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             replyAction in setOf("initial", "grade") && prefix.isEmpty() &&
             chatItems.none { it.role == "assistant" || !it.conversationTitle.isNullOrBlank() }
     ) {
-        if(dataBusy) return
+        if (dataBusy || messages.isEmpty()) return
         streamOwner?.cancel()
         callJob?.cancel()
         val owner = com.zsz.studyassistant.data.StreamOwner()
@@ -2498,6 +2511,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     fromCamera: Boolean = false): Boolean {
         if (busy || dataBusy || (text.isBlank() && images.isEmpty() && documents.isEmpty())) return false
         if (documents.size > 20) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false }
+        val prompt = customPromptText(categoryId = null) ?: return false
         prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)
         isPhoto = images.isNotEmpty()
         isFromNotebook = false
@@ -2528,7 +2542,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
             }
             recordSolveSession(if (fromCamera) "camera" else "ask")
-        }, repeat = { solveDirect(text, images, documents, fromCamera) })
+        }, repeat = { solveDirect(text, images, documents, fromCamera) }, prompt = prompt)
         return true
     }
 
@@ -2545,6 +2559,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (historicalDocuments.count { it.sha256 !in excluded } + documents.size > 20) {
             error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false
         }
+        val prompt = customPromptText() ?: return false
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         // Store the complete quote in the existing message body, so retries, history,
         // notebook saves and backups all retain the same context without a format change.
@@ -2559,7 +2574,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
             addItem("assistant", StudyAssistant.stripMetaLines(reply))
             updateSolveSession()
-        }, repeat = { retryFollowUp(encoded) })
+        }, repeat = { retryFollowUp(encoded) }, prompt = prompt)
         return true
     }
 
@@ -2615,10 +2630,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val action = if (input == null) "restore_initial" else "restore_grade"
         val model = if (input != null || questionImages.isNotEmpty() || isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         val request = if (input == null && questionImages.isNotEmpty()) listOf(
-            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
+            StudyAssistant.languageSystemMessage(aiLang, customPromptText() ?: return),
             withQuestionAttachments(StudyAssistant.userMessageWithEncodedImages(StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n" + questionText, questionImages)))
         else if (input == null) buildMessages(chatItems.filter { it.role == "question" }) else listOf(
-            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
+            StudyAssistant.languageSystemMessage(aiLang, customPromptText() ?: return),
             withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames)))
         busyIsGrade = input != null
         streamCall(model, request, "", onDone = { applyRecoveredReply(action, it) },
@@ -3051,16 +3066,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         redoSubmitting = true
         viewModelScope.launch {
             try {
-                val originals = withContext(Dispatchers.IO) {
+                val (originals, subjectId) = withContext(Dispatchers.IO) {
                     val stored = dao.imagesForQuestion(qid).sortedBy { it.position }
                         .map { Base64.encodeToString(it.bytes, Base64.NO_WRAP) }
                     val keys = mergeImageKeys(stored.firstOrNull(), stored.drop(1) + fallback)
                     // Notebook entries can outlive their history, but use the saved source if available.
                     val grading = wasGrading || dao.sessionLightOnce(qid)?.source == "grade"
-                    gradingInput(grading, text, items, keys)?.questionImages ?: keys
+                    (gradingInput(grading, text, items, keys)?.questionImages ?: keys) to
+                        dao.questionPreviewOnce(qid)?.categoryId
                 }
                 if (binding !== sessionRecordBinding || redoQuestionId != qid || !redoMode) return@launch
-                startGradeText(text, answerBytes, redoFor = qid, questionImageKeys = originals)
+                startGradeText(text, answerBytes, redoFor = qid, questionImageKeys = originals, categoryId = subjectId)
                 onReady()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -3129,7 +3145,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private class SimilarProgress(val initial: Boolean, val raw: StringBuffer = StringBuffer())
     private var similarProgress: SimilarProgress? = null
     internal var similarQuestionRequest: suspend (Question, AiLang, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> StudyAssistant.SimilarResult =
-        { question, lang, owner, delta -> StudyAssistant.generateSimilarQuestionStream(question, lang, owner, delta) }
+        { question, lang, owner, delta -> StudyAssistant.generateSimilarQuestionStream(question, lang, owner, delta,
+            customPrompt = promptForSubject(question.categoryId)) }
 
     /**
      * 删除同类题会话中的消息。索引按界面渲染顺序：
@@ -3278,10 +3295,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         { model, messages, owner, onDelta -> StudyAssistant.chatStream(model, messages, documentStore = documentStore, owner = owner, onDelta = onDelta,
             task = "followup", thinkingEnabled = thinkingEnabled) }
 
-    fun sendSimilar(text: String, images: List<ByteArray> = emptyList()) {
-        val qTitle = similarQuestion ?: return
+    fun sendSimilar(text: String, images: List<ByteArray> = emptyList()): Boolean {
+        val qTitle = similarQuestion ?: return false
         val txt = text.trim()
-        if (txt.isEmpty() && images.isEmpty()) return
+        if (txt.isEmpty() && images.isEmpty()) return false
+        val prompt = customPromptText(currentReviewQuestion?.categoryId) ?: return false
         abortSimilar()
         similarMessages = similarMessages + ChatItem(
             similarMessages.size.toLong(),
@@ -3299,7 +3317,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val history = similarMessages.map { it.copy(images = it.images?.toList()) }
         val baseCount = history.size
         val msgs = buildList {
-            add(StudyAssistant.systemMessage(aiLang, customPromptText()))
+            add(StudyAssistant.systemMessage(aiLang, prompt))
             add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
             similarAnswer?.takeIf { it.isNotBlank() }?.let { add(DeepSeekMessage("assistant", JsonPrimitive(it))) }
             addAll(chatMessages(history))
@@ -3355,6 +3373,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (mySeq == similarSeq) { similarBusy = false; similarProgress = null }
             com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
         }
+        return true
     }
 
     // ---- 同类题：存错题本（逻辑与解题页一致：分类 + 标签，可取消保存）----
@@ -3663,8 +3682,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 手写重做：原题文字、可选题图和本次作答分别保留。
      */
     fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: QuestionId? = null,
-                       questionImageKeys: List<String> = emptyList()) {
+                       questionImageKeys: List<String> = emptyList(), categoryId: Long? = null) {
         prepareSession(grade = true)
+        currentQuestionCategoryId = categoryId
         pendingRedoFor = redoFor
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
         questionFromPhoto = false
@@ -3708,7 +3728,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val msgs = listOf(
-            StudyAssistant.languageSystemMessage(aiLang, customPromptText()),
+            StudyAssistant.languageSystemMessage(aiLang, customPromptText() ?: return),
             withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames))
         )
         busyIsGrade = true

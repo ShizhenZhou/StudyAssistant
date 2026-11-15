@@ -25,7 +25,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 - 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.
 - 🌐 Optional web search, link reading and answer sources.
 - 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.
-- 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.
+- 🧠 Choose fast or thinking mode, set AI output language, toggle custom instructions by subject, and view usage.
 - 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.
 - 🕘 Revisit solutions and grading with automatic short titles, or continue the conversation; keeps the latest 200 entries within 30 days.
 - 🏷 Organize tags with AI suggestions, merge previews and undo.

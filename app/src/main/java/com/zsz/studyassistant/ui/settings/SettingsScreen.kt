@@ -158,6 +158,12 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
             vm.openUpdatePage = false
         }
     }
+    LaunchedEffect(vm.customPromptEditor.openRequested) {
+        if (vm.customPromptEditor.openRequested) {
+            AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_PROMPT)
+            vm.customPromptEditor.consumeOpenRequest()
+        }
+    }
     val s = LocalStrings.current
     fun returnToParent() { AppNav.SettingsPages.back(settingsNav) }
     // Use the same NavHost predictive-back and interruption machinery as learning pages.
@@ -208,46 +214,8 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                         AppNav.SettingsPages.AI_SOLVE -> SettingsSubPage(s["settings.solveSettings"], { returnToParent() }) {
                             AiSolveModelSettings(vm)
                         }
-                        AppNav.SettingsPages.AI_PROMPT -> {
-                            val ctx = LocalContext.current
-                            // ★ 2026-10-13（用户要求 · 第 2 版）：自定义要求的文本 + "是否已修改"状态提到页面这一层，
-                            //   把「保存」做成**跟着键盘出现**的按钮：
-                            //     · 键盘**收起**时 → 保存按钮就在输入框下面（与改动前完全一样，页面底部不出现任何浮动条）
-                            //     · 键盘**弹出**时 → 保存按钮挪到键盘正上方（不用先收键盘就能点）
-                            //   ⚠️ 首版做成了"常驻底栏"，用户实测反馈"没弹键盘时它也在、还跟着乱跑" → 改为按 IME 可见性切换。
-                            var savedPrompt by remember { mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.customPrompt(ctx)) }
-                            val cpText = vm.customPromptDraft ?: savedPrompt
-                            val cpDirty = vm.customPromptDraft != null
-                            // 键盘（IME）当前是否可见：可见才给底栏
-                            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-                            val savePrompt = {
-                                com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(ctx, cpText)
-                                savedPrompt = cpText
-                                vm.customPromptDraft = null
-                            }
-                            // 键盘弹出时贴在键盘上方的那颗「保存」（没改动时置灰）
-                            val promptSaveBar: @Composable () -> Unit = {
-                                Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
-                            }
-                            SettingsSubPage(
-                                title = s["settings.customPrompt"],
-                                onBack = { returnToParent() },
-                                // ★ 关键：`takeIf` —— 键盘收起时传 null，底栏**整条都不渲染**（页面回到原来的样子）
-                                bottomBar = promptSaveBar.takeIf { imeVisible }
-                            ) {
-                                AiCustomPromptSettings(cpText, onText = { vm.customPromptDraft = it })
-                                // 键盘收起时：保存按钮留在输入框下面（原来的位置）—— 与浮动底栏二选一，绝不同时出现
-                                if (!imeVisible) {
-                                    Spacer(Modifier.height(8.dp))
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Button(onClick = savePrompt, enabled = cpDirty) { Text(s["common.save"]) }
-                                    }
-                                }
-                            }
+                        AppNav.SettingsPages.AI_PROMPT -> SettingsSubPage(s["settings.customPrompt"], { returnToParent() }) {
+                            SubjectPromptSettings(vm)
                         }
                         AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { returnToParent() }) { LanguageSettings(vm) }
                         AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { returnToParent() }) { ThemeSettings(vm) { AppNav.SettingsPages.open(settingsNav, it) } }
@@ -577,28 +545,6 @@ private fun AiSolveModelSettings(vm: MainViewModel) {
             Text(label, Modifier.padding(start = 8.dp))
         }
     }
-}
-
-/** ---- 自定义要求（Prompt）：会附加到每次 AI 请求 ---- */
-@Composable
-private fun AiCustomPromptSettings(text: String, onText: (String) -> Unit) {
-    val s = LocalStrings.current
-    Text(s["settings.customPrompt.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(
-        value = text,
-        onValueChange = onText,
-        // ★ 2026-10-13 修复「输入到底部被键盘挡住」：
-        //   给高度上限 → 内容超出时**输入框内部滚动**，光标始终留在可见区（原来只有 minLines=6、
-        //   字一多输入框就无限长高，光标会被顶到键盘下面）；配合 SettingsSubPage 的 imePadding() 整页避让。
-        modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp, max = 260.dp),
-        minLines = 6,
-        maxLines = 14,
-    )
-    // 保存按钮已**移到二级页的底部操作栏**（`SettingsSubPage(bottomBar = …)`）——
-    // 键盘弹出时它贴在键盘上方，不用先收键盘就能点（用户 2026-10-13 要求）。
-    // 这里留一点底部间距，免得输入框贴着底栏。
-    Spacer(Modifier.height(12.dp))
 }
 
 /** 自绘的对数滑条（含刻度标注，严格对齐） */

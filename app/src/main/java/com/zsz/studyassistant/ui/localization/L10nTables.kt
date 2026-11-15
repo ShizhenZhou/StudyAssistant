@@ -2861,7 +2861,7 @@ private val B10_ZH = mapOf(
         "· 📎 支持 PDF、Word、PPT 文件提问，本地保留原件并随备份保存。\n" +
         "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。\n" +
         "· 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。\n" +
-        "· 🧠 快速与思考模式，可设置 AI 输出语言、自定义要求并查看用量。\n" +
+        "· 🧠 快速与思考模式，可设置 AI 输出语言、按科目启停自定义要求并查看用量。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
         "· 🕘 按自动短标题回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
         "· 🏷 标签整理支持 AI 建议、预览确认和合并撤销。\n" +
@@ -2933,7 +2933,7 @@ private val B10_EN = mapOf(
         "· 📎 Ask about PDF, Word and PowerPoint files; originals stay on the device and are included in backups.\n" +
         "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.\n" +
         "· 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.\n" +
-        "· 🧠 Choose fast or thinking mode, set AI output language and custom instructions, and view usage.\n" +
+        "· 🧠 Choose fast or thinking mode, set AI output language, enable custom instructions by subject, and view usage.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
         "· 🕘 Revisit solutions and grading with automatic short titles, or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
         "· 🏷 Organize tags with AI suggestions, merge previews and undo.\n" +
@@ -3005,7 +3005,7 @@ private val B10_JA = mapOf(
         "· 📎 PDF・Word・PowerPoint ファイルで質問でき、原本を端末とバックアップに保存します。\n" +
         "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・簡単な SVG 図に対応。\n" +
         "· 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。\n" +
-        "· 🧠 高速・思考モード、AIの出力言語やカスタム指示の設定、使用量の確認。\n" +
+        "· 🧠 高速・思考モード、AIの出力言語の設定、科目別カスタム指示の有効・無効の切り替え、使用量の確認。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
         "· 🕘 自動の短いタイトルで解答・添削履歴を見直し、追加質問。30日以内の最新200件を保存。\n" +
         "· 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。\n" +
@@ -3077,7 +3077,7 @@ private val B10_KO = mapOf(
         "· 📎 PDF·Word·PowerPoint 파일로 질문하고 원본을 기기와 백업에 보관합니다.\n" +
         "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표와 간단한 SVG 그림을 지원합니다.\n" +
         "· 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.\n" +
-        "· 🧠 빠른 모드와 생각 모드, AI 출력 언어와 맞춤 지침 설정, 사용량 확인.\n" +
+        "· 🧠 빠른 모드와 생각 모드, AI 출력 언어 설정, 과목별 사용자 지정 지시 켜기·끄기, 사용량 확인.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
         "· 🕘 자동 짧은 제목으로 풀이·채점 기록을 찾고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
         "· 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.\n" +
@@ -3459,7 +3459,7 @@ private val UPDATE_CHANNEL_ZH = mapOf(
     "update.downloadBeta" to "下载测试版（可选）"
 )
 
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3518,7 +3518,7 @@ private val UPDATE_CHANNEL_EN = mapOf(
     "update.downloadBeta" to "Download test version (optional)"
 )
 
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3577,7 +3577,7 @@ private val UPDATE_CHANNEL_JA = mapOf(
     "update.downloadBeta" to "テスト版をダウンロード（任意）"
 )
 
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3636,4 +3636,4 @@ private val UPDATE_CHANNEL_KO = mapOf(
     "update.downloadBeta" to "테스트 버전 다운로드 (선택)"
 )
 
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO

@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,10 +64,14 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
     val s = LocalStrings.current
     var keyOk by remember { mutableStateOf(vm.hasApiKey()) }
     var showDialog by remember { mutableStateOf(false) }
+    var keyPromptSettled by remember { mutableStateOf(keyOk) }
+    val updateRelease by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState()
+    val requiredUpdate = updateRelease?.mandatory == true
     // 首次打开且未配 Key → 自动弹填 Key 对话框
     if (!preview) {
         LaunchedEffect(keyOk) { if (!keyOk) showDialog = true }
-        BackupSetupPrompt(vm, ready = keyOk && !showDialog)
+        val promptNoticeDone = PromptMigrationNotice(vm, nav, ready = keyPromptSettled && !showDialog && !requiredUpdate)
+        BackupSetupPrompt(vm, ready = keyOk && !showDialog && promptNoticeDone && !requiredUpdate)
     }
 
     Box(Modifier.fillMaxSize().rootPageBackground().statusBarsPadding()) {
@@ -153,10 +158,10 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
     }
 
     // 填 Key 对话框
-    if (showDialog) {
+    if (showDialog && !requiredUpdate) {
         var input by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { showDialog = false },
+            onDismissRequest = { showDialog = false; keyPromptSettled = true },
             title = { Text(s["home.key.title"]) },
             text = {
                 Column {
@@ -177,11 +182,12 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
                         ApiKeyStore.saveKey(context, input.trim())
                         keyOk = true
                         showDialog = false
+                        keyPromptSettled = true
                     }
                 }, enabled = input.isNotBlank()) { Text(s["home.key.save"]) }
             },
             dismissButton = {
-                TextButton(shape = smoothPill(), onClick = { showDialog = false }) { Text(s["home.key.later"]) }
+                TextButton(shape = smoothPill(), onClick = { showDialog = false; keyPromptSettled = true }) { Text(s["home.key.later"]) }
             }
         )
     }

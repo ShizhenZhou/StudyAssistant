@@ -314,9 +314,10 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     onRemoveImage = { selectedImages = selectedImages - it },
                     onPickImages = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
                     onSend = {
-                        vm.sendSimilar(input, selectedImages)
-                        input = ""
-                        selectedImages = emptyList()
+                        if (vm.sendSimilar(input, selectedImages)) {
+                            input = ""
+                            selectedImages = emptyList()
+                        } else vm.error?.let { feedback.show(it) }
                     },
                     busy = vm.similarBusy || pickingImages,
                     hint = s["similar.hint"],

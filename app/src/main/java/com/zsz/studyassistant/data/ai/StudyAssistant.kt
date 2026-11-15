@@ -726,11 +726,12 @@ object StudyAssistant {
         question: Question,
         lang: AiLang = AiLang.DEFAULT,
         owner: StreamOwner = StreamOwner(),
-        onDelta: suspend (String) -> Unit
+        onDelta: suspend (String) -> Unit,
+        customPrompt: String = ""
     ): SimilarResult {
         requireKey()
         val msgs = listOf(
-            systemMessage(lang),
+            systemMessage(lang, customPrompt),
             DeepSeekMessage("user", JsonPrimitive(similarPrompt(question)))
         )
         val out = chatStream(MODEL_TEXT, msgs, onDelta, owner = owner)

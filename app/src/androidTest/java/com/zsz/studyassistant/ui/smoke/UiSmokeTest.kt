@@ -628,6 +628,11 @@ class UiSmokeTest {
 
     @Test fun unsavedCustomPromptSurvivesRecreationUntilExplicitSave() {
         val old = com.zsz.studyassistant.data.CapturePrefs.customPrompt(context)
+        val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        val oldRules = prefs.getString("custom_prompt_rules_v1", null)
+        val hadAcknowledgement = prefs.contains("custom_prompt_legacy_reviewed")
+        val oldAcknowledgement = prefs.getBoolean("custom_prompt_legacy_reviewed", false)
+        val store = com.zsz.studyassistant.data.PromptRulesStore(context)
         val draft = "Synthetic draft preserved across window recreation ${java.util.UUID.randomUUID()}"
         fun editable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
             if (node == null) return null
@@ -636,9 +641,12 @@ class UiSmokeTest {
             return null
         }
         try {
+            store.save(emptyList())
             launch().use { scenario ->
                 tap(s["nav.settings"]); tap(s["settings.aiManage"]); tap(s["settings.customPrompt"])
                 waitFor(s["settings.customPrompt"])
+                waitUntilAbsent(s["promptRules.working"])
+                tap(s["promptRules.add"])
                 val deadline = android.os.SystemClock.uptimeMillis() + 8000
                 var input = editable(instrumentation.uiAutomation.rootInActiveWindow)
                 while (input == null && android.os.SystemClock.uptimeMillis() < deadline) {
@@ -651,24 +659,42 @@ class UiSmokeTest {
                 }))
                 waitFor(draft)
                 assertEquals(old, com.zsz.studyassistant.data.CapturePrefs.customPrompt(context))
+                assertTrue(store.read().isEmpty())
                 scenario.recreate()
                 waitFor(draft)
                 assertEquals(old, com.zsz.studyassistant.data.CapturePrefs.customPrompt(context))
+                assertTrue(store.read().isEmpty())
                 tap(s["common.save"])
-                assertEquals(draft, com.zsz.studyassistant.data.CapturePrefs.customPrompt(context))
+                val saveDeadline = android.os.SystemClock.uptimeMillis() + 8000
+                while (store.read().none { it.text == draft } && android.os.SystemClock.uptimeMillis() < saveDeadline) Thread.sleep(80)
+                assertEquals(draft, store.read().single().text)
+                assertEquals(old, com.zsz.studyassistant.data.CapturePrefs.customPrompt(context))
             }
-        } finally { com.zsz.studyassistant.data.CapturePrefs.setCustomPrompt(context, old) }
+        } finally {
+            prefs.edit().apply {
+                if (oldRules == null) remove("custom_prompt_rules_v1") else putString("custom_prompt_rules_v1", oldRules)
+                if (hadAcknowledgement) putBoolean("custom_prompt_legacy_reviewed", oldAcknowledgement)
+                else remove("custom_prompt_legacy_reviewed")
+            }.commit()
+        }
     }
 
     @Test fun largePromptDraftStaysInViewModelAcrossRecreation() {
         val draft = "synthetic-large-draft ".repeat(60_000)
         launch().use { scenario ->
-            scenario.onActivity {
-                androidx.lifecycle.ViewModelProvider(it)[com.zsz.studyassistant.MainViewModel::class.java].customPromptDraft = draft
+            lateinit var editor: SubjectPromptEditor
+            scenario.onActivity { editor = androidx.lifecycle.ViewModelProvider(it)[com.zsz.studyassistant.MainViewModel::class.java].customPromptEditor }
+            val loadDeadline = android.os.SystemClock.uptimeMillis() + 8000
+            var loaded = false
+            while (!loaded && android.os.SystemClock.uptimeMillis() < loadDeadline) {
+                scenario.onActivity { loaded = editor.loaded }
+                if (!loaded) Thread.sleep(80)
             }
+            assertTrue("Prompt settings load before editing", loaded)
+            scenario.onActivity { editor.add(draft) }
             scenario.recreate()
             scenario.onActivity {
-                assertEquals(draft, androidx.lifecycle.ViewModelProvider(it)[com.zsz.studyassistant.MainViewModel::class.java].customPromptDraft)
+                assertEquals(draft, androidx.lifecycle.ViewModelProvider(it)[com.zsz.studyassistant.MainViewModel::class.java].customPromptEditor.draft?.text)
             }
         }
     }
