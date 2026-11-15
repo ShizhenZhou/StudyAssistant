@@ -57,6 +57,14 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.3.5
+
+- 📎 Ask about TXT, Markdown, CSV and XLSX files; select Excel sheets and read existing formula results.
+- 📄 Preview and send selected PDF pages while retaining text layers; backups preserve originals and selection ranges.
+- 🧠 Export and import custom instructions separately with preview and subject mapping, clearer limits and less repeated parsing.
+- 📤 Improve conversation export recovery across screen recreation and file-picker returns, retaining selected content and filenames.
+- 📌 `versionCode` **128**.
+
 ### v0.7.3.4
 
 - ⚙️ Simplify custom requirement cards: edit, delete and toggle share one row, with red delete buttons.
