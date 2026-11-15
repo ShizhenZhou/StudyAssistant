@@ -129,4 +129,8 @@ JDK 25 的原生访问警告可能写入 stderr。本地 PowerShell 签名脚本
 
 PDF 导出由 `ui/conversation/ConversationPdfExport` 协调语义读取、公式资源和原生分页；同一公式在一次导出中只传递一次，后续使用资源编号。仅 APK 自带字体/CSS 缓存于进程内，不缓存用户导出内容。
 
+`ConversationExportViewModel` 持有跨 Activity 的导出状态；完整消息和产物落在应用私有检查点目录，不塞入 SavedState Bundle。界面仅负责渲染和 SAF 选择器，保存工作由 ViewModel 协程完成。
+
+文件选页使用 PDFBox-Android 2.0.27.0（Apache-2.0）复制 PDF 页面并保留正文文字层；Android PdfRenderer 负责预览。PDFBox 使用有限内存与本任务临时目录，选页仅移除批注/交互表单，不改原件。XLSX 使用已有 ZIP/SAX 能力本地读取，不引入完整 Office 套件，不执行公式或加载外部资源。独立的规则备份在确认后追加导入，题库备份格式不变。这些功能的定向设备用例只按需运行，不加入 CI 或日常必跑检查。
+
 用户明确指定旧客户端基准时，可用 `--legacy-delta-base <精确APK>` 替代该基准的 `--delta-base`，与其他新格式基准并列。每个基准只选一种格式，首次 start 后冻结；默认仍全部使用新格式。v0.7.3 按用户安排，code117 使用旧格式、code122 使用新格式。

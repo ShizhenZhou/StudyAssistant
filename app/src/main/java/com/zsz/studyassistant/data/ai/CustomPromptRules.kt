@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.util.Collections
 
 @Serializable
 data class CustomPromptRule(
@@ -19,11 +20,29 @@ private data class PromptRuleSettings(val version: Int = 1, val rules: List<Cust
 
 private val promptRulesJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
+internal const val MAX_PROMPT_RULES = 128
+internal const val MAX_PROMPT_RULE_TEXT = 65536
+internal const val MAX_PROMPT_RULES_ENCODED = 1024 * 1024
+
+internal enum class PromptRuleValidationError(val key: String) {
+    COUNT("promptRules.limit.count"),
+    TEXT_LENGTH("promptRules.limit.text"),
+    ENCODED_SIZE("promptRules.limit.total"),
+    INVALID_RULE("promptRules.invalidRule")
+}
+
+internal class PromptRuleValidationException(val reason: PromptRuleValidationError) :
+    IllegalArgumentException(reason.key)
+
+private fun checkPromptRule(valid: Boolean, reason: PromptRuleValidationError) {
+    if (!valid) throw PromptRuleValidationException(reason)
+}
+
 internal fun decodePromptRules(encoded: String?, legacy: String): List<CustomPromptRule> {
     // Absence alone means legacy. A deliberately saved empty list must stay empty.
     if (encoded == null) return if (legacy.isBlank()) emptyList()
         else listOf(CustomPromptRule("legacy-custom-prompt", legacy))
-    require(encoded.length <= 1024 * 1024)
+    checkPromptRule(encoded.length <= MAX_PROMPT_RULES_ENCODED, PromptRuleValidationError.ENCODED_SIZE)
     val settings = promptRulesJson.decodeFromString<PromptRuleSettings>(encoded)
     require(settings.version == 1)
     validatePromptRules(settings.rules)
@@ -33,25 +52,72 @@ internal fun decodePromptRules(encoded: String?, legacy: String): List<CustomPro
 internal fun encodePromptRules(rules: List<CustomPromptRule>): String {
     validatePromptRules(rules)
     return promptRulesJson.encodeToString(PromptRuleSettings(rules = rules)).also {
-        require(it.length <= 1024 * 1024)
+        checkPromptRule(it.length <= MAX_PROMPT_RULES_ENCODED, PromptRuleValidationError.ENCODED_SIZE)
     }
 }
 
 private fun validatePromptRules(rules: List<CustomPromptRule>) {
-    require(rules.size <= 128 && rules.map { it.id }.distinct().size == rules.size)
+    checkPromptRule(rules.size <= MAX_PROMPT_RULES, PromptRuleValidationError.COUNT)
+    checkPromptRule(rules.map { it.id }.distinct().size == rules.size, PromptRuleValidationError.INVALID_RULE)
     rules.forEach {
-        require(it.id.isNotBlank() && it.id.length <= 128)
-        require(it.text.length <= 65536)
-        require(it.categoryIds.size <= 1024 && it.categoryIds.all { id -> id > 0 })
-        require(it.allSubjects || it.categoryIds.isNotEmpty())
+        checkPromptRule(it.id.isNotBlank() && it.id.length <= 128, PromptRuleValidationError.INVALID_RULE)
+        checkPromptRule(it.text.length <= MAX_PROMPT_RULE_TEXT, PromptRuleValidationError.TEXT_LENGTH)
+        checkPromptRule(it.categoryIds.size <= 1024 && it.categoryIds.all { id -> id > 0 }, PromptRuleValidationError.INVALID_RULE)
+        checkPromptRule(it.allSubjects || it.categoryIds.isNotEmpty(), PromptRuleValidationError.INVALID_RULE)
+    }
+}
+
+/** One immutable decoded snapshot, with at most eight compiled subject variants. */
+internal class PromptRulesCache {
+    private data class Source(val encoded: String?, val legacy: String)
+    private var source: Source? = null
+    private var rules: List<CustomPromptRule> = emptyList()
+    private var subjects: List<Pair<Long, String>>? = null
+    private val compiled = LinkedHashMap<Long?, String>(8, 0.75f, true)
+
+    @Synchronized
+    fun read(encoded: String?, legacy: String): List<CustomPromptRule> {
+        val next = Source(encoded, legacy)
+        if (source != next) {
+            // Decode before replacing the cache: errors still surface without changing saved data.
+            val decoded = decodePromptRules(encoded, legacy)
+            rules = Collections.unmodifiableList(decoded.map { rule ->
+                rule.copy(categoryIds = Collections.unmodifiableList(ArrayList(rule.categoryIds)))
+            })
+            source = next
+            subjects = null
+            compiled.clear()
+        }
+        return rules
+    }
+
+    @Synchronized
+    fun compile(encoded: String?, legacy: String, categories: List<Category>, categoryId: Long?): String {
+        val currentRules = read(encoded, legacy)
+        val currentSubjects = categories.map { it.id to it.name }
+        if (subjects != currentSubjects) {
+            subjects = currentSubjects
+            compiled.clear()
+        }
+        return compiled.getOrPut(categoryId) {
+            compilePromptRules(currentRules, categories, categoryId)
+        }.also {
+            if (compiled.size > 8) compiled.remove(compiled.keys.first())
+        }
     }
 }
 
 /** Local preferences, separate from question/backup formats. Retain the old key as a migration copy. */
 class PromptRulesStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-    fun read(): List<CustomPromptRule> = decodePromptRules(
-        prefs.getString("custom_prompt_rules_v1", null), prefs.getString("custom_prompt", "").orEmpty())
+    fun read(): List<CustomPromptRule> = synchronized(writeLock) {
+        cache.read(prefs.getString("custom_prompt_rules_v1", null), prefs.getString("custom_prompt", "").orEmpty())
+    }
+
+    fun compile(categories: List<Category>, categoryId: Long?): String = synchronized(writeLock) {
+        cache.compile(prefs.getString("custom_prompt_rules_v1", null),
+            prefs.getString("custom_prompt", "").orEmpty(), categories, categoryId)
+    }
 
     /** Call on IO. Never replace an unreadable/unknown format or report a failed write as saved. */
     fun save(rules: List<CustomPromptRule>) = synchronized(writeLock) {
@@ -66,6 +132,8 @@ class PromptRulesStore(context: Context) {
                 .putBoolean("custom_prompt_legacy_reviewed", reviewed).apply()
             error("Cannot save prompt rules")
         }
+        // Refresh on the saving IO thread; subsequent requests reuse the decoded snapshot.
+        read()
     }
 
     fun needsLegacyReview(): Boolean = !prefs.getBoolean("custom_prompt_legacy_reviewed", false) &&
@@ -78,7 +146,10 @@ class PromptRulesStore(context: Context) {
         }
     }
 
-    private companion object { val writeLock = Any() }
+    private companion object {
+        val writeLock = Any()
+        val cache = PromptRulesCache()
+    }
 }
 
 /** No category inference request: unknown subjects receive explicitly conditional requirements. */

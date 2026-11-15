@@ -36,6 +36,117 @@ import java.util.concurrent.TimeUnit
 /** Optional, synthetic PDF artifact check. Not a CI gate or part of a default device suite. */
 @RunWith(AndroidJUnit4::class)
 class NativePdfExportTest {
+    @Test fun exportCheckpointSurvivesActivityRecreationAndFreshViewModel() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        check(context.packageName.endsWith(".integration.pdfcheck") || context.packageName.endsWith(".integration"))
+        val root = File(context.noBackupFilesDir, "conversation-export")
+        check(!File(root, "active.json").exists()) { "An existing export must not be replaced by this fixture" }
+        val selected = listOf(ChatMsg("user", "RECOVERQUESTION", messageKey = "recovery-question"),
+            ChatMsg("assistant", "RECOVERANSWER", quotedText = "RECOVERQUESTION",
+                sources = listOf(com.zsz.studyassistant.data.AiSource("Fixture", "https://example.com/")),
+                documents = listOf(com.zsz.studyassistant.data.ConversationDocument("a".repeat(64), "fixture.pdf", 123))))
+        val fixture = File(context.cacheDir, "export-recovery-fixture-${java.util.UUID.randomUUID()}")
+        check(fixture.mkdirs())
+        val source = File(fixture, "recovery-fixture.pdf")
+        runBlocking {
+            ConversationPdfWriter().use { writer ->
+                selected.forEach { message -> writer.append(JSONObject().put("user", message.role == "user")
+                    .put("blocks", JSONArray().put(JSONObject().put("kind", "text").put("runs",
+                        JSONArray().put(JSONObject().put("text", message.content)))))) }
+                source.outputStream().use(writer::writeTo)
+            }
+        }
+        fun awaitMain(label: String, condition: () -> Boolean) {
+            val deadline = SystemClock.uptimeMillis() + 15_000
+            while (SystemClock.uptimeMillis() < deadline) {
+                var ready = false
+                instrumentation.runOnMainSync { ready = condition() }
+                if (ready) return
+                SystemClock.sleep(20)
+            }
+            fail("Timed out: $label")
+        }
+        lateinit var original: ConversationExportViewModel
+        var startedModel: ConversationExportViewModel? = null
+        var recovered: ConversationExportViewModel? = null
+        val restoredStore = androidx.lifecycle.ViewModelStore()
+        var destination: android.net.Uri? = null
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                scenario.onActivity { activity ->
+                    activity.setContent { }
+                    original = androidx.lifecycle.ViewModelProvider(activity)[ConversationExportViewModel::class.java]
+                    original.begin(selected)
+                    startedModel = original
+                }
+                awaitMain("private snapshot") { original.session?.phase == ExportPhase.OPTIONS }
+                scenario.onActivity {
+                    original.edit(filename = "recovery-fixture", format = ConversationExportFormat.PDF)
+                    original.prepared(ConversationExportResult(fixture, listOf(source), "recovery-fixture", ConversationExportFormat.PDF))
+                }
+                awaitMain("durable PDF") { original.session?.phase == ExportPhase.READY }
+                lateinit var session: ConversationExportSession
+                var hostMounted = false
+                scenario.onActivity { activity ->
+                    assertTrue(original.picking())
+                    session = checkNotNull(original.session)
+                    activity.setContent { MaterialTheme {
+                        ConversationExportDialog(original, onFeedback = {})
+                        androidx.compose.runtime.DisposableEffect(Unit) {
+                            hostMounted = true
+                            onDispose { hostMounted = false }
+                        }
+                    } }
+                }
+                awaitMain("export host mounted") { hostMounted }
+                val output = File(root, "${session.id}/output/${session.files.single()}")
+                val preparedBytes = output.readBytes()
+                assertTrue(preparedBytes.isNotEmpty())
+                scenario.recreate()
+                scenario.onActivity { activity ->
+                    assertFalse("Old export composition was disposed", hostMounted)
+                    assertSame(original, androidx.lifecycle.ViewModelProvider(activity)[ConversationExportViewModel::class.java])
+                    assertEquals(ExportPhase.PICKER, original.session?.phase)
+                    assertEquals(selected, original.messages)
+                    // A fresh owner models process-local state loss without force-stopping the test runner.
+                    recovered = androidx.lifecycle.ViewModelProvider(restoredStore,
+                        androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(activity.application))[ConversationExportViewModel::class.java]
+                    assertEquals(session, recovered?.session)
+                }
+                assertArrayEquals("Activity disposal must retain prepared output", preparedBytes, output.readBytes())
+                val snapshot = kotlinx.serialization.json.Json.decodeFromString<List<ChatMsg>>(
+                    File(root, "${session.id}/messages.json").readText())
+                assertEquals("The complete frozen selection must remain recoverable", selected, snapshot)
+                val uri = checkNotNull(context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, "recovered-${session.id}.pdf")
+                        put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
+                        put(MediaStore.Downloads.IS_PENDING, 1)
+                    }))
+                destination = uri
+                instrumentation.runOnMainSync { checkNotNull(recovered).destination(uri) }
+                awaitMain("resumed save") { recovered?.session == null }
+                instrumentation.runOnMainSync { assertEquals("export.success", recovered?.feedback) }
+                assertArrayEquals(preparedBytes, context.contentResolver.openInputStream(uri)!!.use { it.readBytes() })
+                PdfRenderer(checkNotNull(context.contentResolver.openFileDescriptor(uri, "r"))).use { pdf ->
+                    assertTrue(pdf.pageCount > 0)
+                    val text = (0 until pdf.pageCount).joinToString("") { index -> pdf.openPage(index).use { page ->
+                        page.textContents.joinToString("") { it.text }
+                    } }.replace(Regex("[\\s\\p{Z}]"), "")
+                    assertTrue(text.contains("RECOVERQUESTION"))
+                    assertTrue(text.contains("RECOVERANSWER"))
+                }
+                assertFalse("Completion clears only its recovery journal", File(root, "active.json").exists())
+            }
+        } finally {
+            // Every removed item was created by this method; no app data or user export is cleared.
+            instrumentation.runOnMainSync { (recovered ?: startedModel)?.cancel(); restoredStore.clear() }
+            destination?.let { context.contentResolver.delete(it, null, null) }
+            fixture.deleteRecursively()
+        }
+    }
+
     @Test fun paginatesTablesWithHeadersAndWholeCellFragments() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName.endsWith(".integration.pdfcheck") || context.packageName.endsWith(".integration"))

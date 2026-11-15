@@ -1,0 +1,93 @@
+package com.zsz.studyassistant.ui
+
+internal val PROMPT_BACKUP_ZH = mapOf(
+    "promptBackup.ambiguousSubjects" to "要求引用了多个同名科目，无法准确导出对应关系。请先将这些科目改成不同名称。",
+    "promptBackup.export" to "导出自定义要求",
+    "promptBackup.import" to "导入自定义要求",
+    "promptBackup.description" to "独立保存要求内容、开关和科目名称，不含 API Key、题库或其他设置。导入前可预览并核对科目。",
+    "promptBackup.preview" to "预览导入的自定义要求",
+    "promptBackup.mergeHint" to "将新增 {n} 条要求，保留文件中的顺序和开关。不会覆盖或删除现有要求；重复导入也会新增副本。确认前请核对以下内容和科目映射。",
+    "promptBackup.mappingHint" to "左侧为文件中的科目，箭头后为本机科目。同名且唯一的科目已预选，可更改；请为其余科目选择对应项。",
+    "promptBackup.chooseSubject" to "选择本机科目",
+    "promptBackup.mapRequired" to "请完成所有科目映射。若缺少对应科目，请先到错题本添加，再重新导入；不会自动改成全部科目。",
+    "promptBackup.confirm" to "确认新增",
+    "promptBackup.enabled" to "已启用",
+    "promptBackup.disabled" to "已停用",
+    "promptBackup.exported" to "自定义要求已导出并核对。",
+    "promptBackup.imported" to "自定义要求已新增保存，原有要求已保留。",
+    "promptBackup.missingSubject" to "部分要求关联的科目已删除，无法完整导出。请先编辑并修正这些要求的科目。",
+    "promptBackup.tooLarge" to "自定义要求文件超过 4 MiB，无法读取或导出。请减少内容后重试。",
+    "promptBackup.invalid" to "文件不是受支持的自定义要求备份，或内容不完整。请选择本应用导出的版本 1 JSON 文件。",
+    "promptBackup.exportFailed" to "未能完成导出或读回核对。目标位置可能留下不完整文件；请重新导出。",
+    "promptBackup.importFailed" to "无法读取自定义要求文件。现有要求未修改，请检查文件访问权限后重试。",
+    "promptBackup.pickerFailed" to "无法打开文件选择器，请稍后重试。"
+)
+
+internal val PROMPT_BACKUP_EN = mapOf(
+    "promptBackup.ambiguousSubjects" to "Instructions reference different subjects with the same name. Give these subjects distinct names before exporting to preserve their mappings.",
+    "promptBackup.export" to "Export custom instructions",
+    "promptBackup.import" to "Import custom instructions",
+    "promptBackup.description" to "Save instruction text, switches and subject names separately, without your API key, notebook or other settings. Preview and check subjects before importing.",
+    "promptBackup.preview" to "Preview imported instructions",
+    "promptBackup.mergeHint" to "Add {n} instructions in the file's order, keeping their enabled states. Existing instructions will remain unchanged. Importing again adds more copies. Check the content and subject mappings before confirming.",
+    "promptBackup.mappingHint" to "The file's subjects appear before the arrows; local subjects appear after them. Unique exact name matches are preselected and can be changed. Select a local subject for each remaining name.",
+    "promptBackup.chooseSubject" to "Choose a local subject",
+    "promptBackup.mapRequired" to "Map every subject first. If a subject is missing, add it in the notebook and import again. Subject-specific instructions never become global automatically.",
+    "promptBackup.confirm" to "Confirm additions",
+    "promptBackup.enabled" to "Enabled",
+    "promptBackup.disabled" to "Disabled",
+    "promptBackup.exported" to "Custom instructions exported and verified.",
+    "promptBackup.imported" to "Custom instructions added and saved. Existing instructions were preserved.",
+    "promptBackup.missingSubject" to "Some instructions reference deleted subjects and cannot be fully exported. Edit those instructions to correct their subjects first.",
+    "promptBackup.tooLarge" to "The instructions file exceeds 4 MiB and cannot be read or exported. Reduce its content and try again.",
+    "promptBackup.invalid" to "This is not a supported instructions backup, or its content is incomplete. Choose a version 1 JSON file exported by this app.",
+    "promptBackup.exportFailed" to "Export or read-back verification failed. An incomplete file may remain at the destination. Please export again.",
+    "promptBackup.importFailed" to "Could not read the instructions file. Existing instructions are unchanged. Check file access and try again.",
+    "promptBackup.pickerFailed" to "Could not open the file picker. Please try again later."
+)
+
+internal val PROMPT_BACKUP_JA = mapOf(
+    "promptBackup.ambiguousSubjects" to "指示が同名の異なる科目を参照しています。対応関係を保つため、科目を別々の名前に変更してから書き出してください。",
+    "promptBackup.export" to "カスタム指示を書き出す",
+    "promptBackup.import" to "カスタム指示を読み込む",
+    "promptBackup.description" to "指示の内容、有効状態、科目名を個別に保存します。API キー、復習ノート、他の設定は含みません。読み込み前に内容と科目を確認できます。",
+    "promptBackup.preview" to "読み込むカスタム指示の確認",
+    "promptBackup.mergeHint" to "ファイルの順序と有効状態を保って {n} 件の指示を追加します。既存の指示は上書き・削除しません。再度読み込むと同じ指示が追加されます。内容と科目の対応を確認してください。",
+    "promptBackup.mappingHint" to "矢印の前はファイル内の科目、後は端末内の科目です。同名で一意の科目は選択済みですが変更できます。未選択の科目には対応先を選んでください。",
+    "promptBackup.chooseSubject" to "端末内の科目を選択",
+    "promptBackup.mapRequired" to "すべての科目の対応先を選んでください。科目がない場合は、復習ノートで追加してから再度読み込んでください。全科目には自動変更されません。",
+    "promptBackup.confirm" to "確認して追加",
+    "promptBackup.enabled" to "有効",
+    "promptBackup.disabled" to "無効",
+    "promptBackup.exported" to "カスタム指示の書き出しと検証が完了しました。",
+    "promptBackup.imported" to "カスタム指示を追加して保存しました。既存の指示は保持されています。",
+    "promptBackup.missingSubject" to "削除済みの科目を参照する指示があり、完全に書き出せません。先に該当する指示の科目を修正してください。",
+    "promptBackup.tooLarge" to "指示ファイルが 4 MiB を超えているため、読み込み・書き出しできません。内容を減らして再試行してください。",
+    "promptBackup.invalid" to "対応する指示のバックアップではないか、内容が不完全です。このアプリで書き出したバージョン 1 の JSON ファイルを選んでください。",
+    "promptBackup.exportFailed" to "書き出しまたは読み戻し検証に失敗しました。保存先に不完全なファイルが残っている可能性があります。再度書き出してください。",
+    "promptBackup.importFailed" to "指示ファイルを読み取れませんでした。既存の指示は変更されていません。ファイルへのアクセスを確認して再試行してください。",
+    "promptBackup.pickerFailed" to "ファイル選択画面を開けませんでした。後でもう一度お試しください。"
+)
+
+internal val PROMPT_BACKUP_KO = mapOf(
+    "promptBackup.ambiguousSubjects" to "지시가 이름이 같은 여러 과목을 참조합니다. 연결 관계를 보존하려면 과목 이름을 서로 다르게 변경한 뒤 내보내세요.",
+    "promptBackup.export" to "사용자 지정 지시 내보내기",
+    "promptBackup.import" to "사용자 지정 지시 가져오기",
+    "promptBackup.description" to "지시 내용, 사용 여부와 과목 이름을 별도로 저장합니다. API 키, 오답 노트나 기타 설정은 포함되지 않습니다. 가져오기 전에 내용과 과목을 확인할 수 있습니다.",
+    "promptBackup.preview" to "가져올 사용자 지정 지시 미리 보기",
+    "promptBackup.mergeHint" to "파일의 순서와 사용 여부를 유지하여 지시 {n}개를 추가합니다. 기존 지시는 덮어쓰거나 삭제하지 않습니다. 다시 가져오면 사본이 추가됩니다. 내용과 과목 연결을 확인하세요.",
+    "promptBackup.mappingHint" to "화살표 앞은 파일의 과목, 뒤는 기기의 과목입니다. 이름이 정확히 일치하는 과목이 하나뿐이면 미리 선택되며 변경할 수 있습니다. 나머지 과목의 연결 대상을 선택하세요.",
+    "promptBackup.chooseSubject" to "기기의 과목 선택",
+    "promptBackup.mapRequired" to "모든 과목의 연결 대상을 선택하세요. 과목이 없으면 오답 노트에서 추가한 뒤 다시 가져오세요. 전체 과목으로 자동 변경되지 않습니다.",
+    "promptBackup.confirm" to "확인 후 추가",
+    "promptBackup.enabled" to "사용 중",
+    "promptBackup.disabled" to "사용 안 함",
+    "promptBackup.exported" to "사용자 지정 지시를 내보내고 확인했습니다.",
+    "promptBackup.imported" to "사용자 지정 지시를 추가하고 저장했습니다. 기존 지시는 유지되었습니다.",
+    "promptBackup.missingSubject" to "삭제된 과목을 참조하는 지시가 있어 완전히 내보낼 수 없습니다. 먼저 해당 지시의 과목을 수정하세요.",
+    "promptBackup.tooLarge" to "지시 파일이 4 MiB를 초과하여 읽거나 내보낼 수 없습니다. 내용을 줄인 뒤 다시 시도하세요.",
+    "promptBackup.invalid" to "지원되는 지시 백업이 아니거나 내용이 불완전합니다. 이 앱에서 내보낸 버전 1 JSON 파일을 선택하세요.",
+    "promptBackup.exportFailed" to "내보내기 또는 다시 읽기 확인에 실패했습니다. 저장 위치에 불완전한 파일이 남아 있을 수 있습니다. 다시 내보내세요.",
+    "promptBackup.importFailed" to "지시 파일을 읽지 못했습니다. 기존 지시는 변경되지 않았습니다. 파일 접근 권한을 확인한 뒤 다시 시도하세요.",
+    "promptBackup.pickerFailed" to "파일 선택기를 열지 못했습니다. 나중에 다시 시도하세요."
+)

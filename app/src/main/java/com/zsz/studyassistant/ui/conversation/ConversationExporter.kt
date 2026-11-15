@@ -13,6 +13,7 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.*
 import org.json.JSONObject
 
+@kotlinx.serialization.Serializable
 internal enum class ConversationExportFormat(val width: Int, val height: Int) {
     PDF(1190, 1684), PNG(1080, 1920)
 }
@@ -102,7 +103,10 @@ internal suspend fun renderConversationExport(context: Context, view: WebView, m
 }
 
 /** PDF uses the user's CreateDocument destination; PNG gets a uniquely created folder. */
-internal suspend fun saveConversationExport(context: Context, result: ConversationExportResult, destination: Uri) = withContext(Dispatchers.IO) {
+internal suspend fun saveConversationExport(context: Context, result: ConversationExportResult, destination: Uri,
+    restoredFolder: Uri? = null, restoredFiles: Map<String, Uri> = emptyMap(),
+    onFolderCreated: (suspend (Uri) -> Unit)? = null,
+    onFileCreated: (suspend (String, Uri) -> Unit)? = null) = withContext(Dispatchers.IO) {
     val resolver = context.contentResolver
     suspend fun copy(file: File, uri: Uri) {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -143,16 +147,21 @@ internal suspend fun saveConversationExport(context: Context, result: Conversati
         }
         var name = result.name; var suffix = 2
         while (name in names) name = "${result.name}_${suffix++}"
-        val folder = checkNotNull(DocumentsContract.createDocument(resolver,
+        val folder = restoredFolder ?: checkNotNull(DocumentsContract.createDocument(resolver,
             DocumentsContract.buildDocumentUriUsingTree(destination, treeId), DocumentsContract.Document.MIME_TYPE_DIR, name))
-        check(DocumentsContract.getDocumentId(folder) !in existingIds)
+        if (restoredFolder == null) check(DocumentsContract.getDocumentId(folder) !in existingIds)
+        else check(folder.authority == destination.authority && DocumentsContract.getTreeDocumentId(folder) == treeId)
         try {
+            if (restoredFolder == null) onFolderCreated?.invoke(folder)
             result.files.forEach { file ->
                 ensureActive()
-                val uri = checkNotNull(DocumentsContract.createDocument(resolver, folder, "image/png", file.name))
+                val uri = restoredFiles[file.name] ?: checkNotNull(DocumentsContract.createDocument(resolver, folder, "image/png", file.name))
+                if (file.name !in restoredFiles) onFileCreated?.invoke(file.name, uri)
                 copy(file, uri)
             }
         } catch (error: Exception) {
+            // A ViewModel can be cleared while its durable export checkpoint remains recoverable.
+            if (error is CancellationException && onFolderCreated != null) throw error
             // This folder was newly created by this operation. Existing exports are never removed.
             runCatching { DocumentsContract.deleteDocument(resolver, folder) }
             throw error

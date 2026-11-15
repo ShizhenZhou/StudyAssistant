@@ -47,6 +47,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
+@kotlinx.serialization.Serializable
 data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null, val messageKey: String? = null, val quoteAnchor: com.zsz.studyassistant.QuoteAnchor? = null,
     val sources: List<com.zsz.studyassistant.data.AiSource> = emptyList(), val sourcesLabel: String = "",
     val documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList()) {

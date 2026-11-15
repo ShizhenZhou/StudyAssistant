@@ -42,6 +42,9 @@ import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.CustomPromptRule
 import com.zsz.studyassistant.data.PromptRulesStore
+import com.zsz.studyassistant.data.MAX_PROMPT_RULES
+import com.zsz.studyassistant.data.MAX_PROMPT_RULE_TEXT
+import com.zsz.studyassistant.data.PromptRuleValidationException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +55,7 @@ import kotlinx.coroutines.withContext
 /** Activity recreation retains drafts and in-flight writes without placing prompt text in a Bundle. */
 class SubjectPromptEditor(context: Context, private val scope: CoroutineScope) {
     private val store = PromptRulesStore(context.applicationContext)
+    val backup = PromptRuleBackupController(context.applicationContext, scope)
     var rules by mutableStateOf<List<CustomPromptRule>>(emptyList())
         private set
     var draft by mutableStateOf<CustomPromptRule?>(null)
@@ -110,9 +114,13 @@ class SubjectPromptEditor(context: Context, private val scope: CoroutineScope) {
         draft = rule
     }
 
-    fun add(text: String = "") = edit(CustomPromptRule(id = UUID.randomUUID().toString(), text = text))
+    fun add(text: String = "") {
+        if (busy || !loaded) return
+        if (rules.size >= MAX_PROMPT_RULES) { errorKey = "promptRules.limit.count"; return }
+        edit(CustomPromptRule(id = UUID.randomUUID().toString(), text = text))
+    }
 
-    fun changeDraft(rule: CustomPromptRule) { if (!busy) draft = rule }
+    fun changeDraft(rule: CustomPromptRule) { if (!busy) { draft = rule; errorKey = null } }
     fun cancelEdit() { if (!busy) { draft = null; errorKey = null } }
 
     fun saveDraft() {
@@ -127,7 +135,10 @@ class SubjectPromptEditor(context: Context, private val scope: CoroutineScope) {
     fun setEnabled(id: String, enabled: Boolean) = persist(rules.map { if (it.id == id) it.copy(enabled = enabled) else it })
     fun delete(id: String) = persist(rules.filterNot { it.id == id })
 
-    private fun persist(next: List<CustomPromptRule>, closeEditor: Boolean = false) {
+    fun appendImported(rules: List<CustomPromptRule>, onSaved: () -> Unit) =
+        persist(this.rules + rules, onSaved = onSaved)
+
+    private fun persist(next: List<CustomPromptRule>, closeEditor: Boolean = false, onSaved: () -> Unit = {}) {
         // Set synchronously before launching: another click cannot race this write or use a stale list.
         if (busy || !loaded) return
         busy = true
@@ -138,7 +149,9 @@ class SubjectPromptEditor(context: Context, private val scope: CoroutineScope) {
                 rules = next
                 legacyReviewPending = false
                 if (closeEditor) draft = null
+                onSaved()
             } catch (error: CancellationException) { throw error }
+            catch (error: PromptRuleValidationException) { errorKey = error.reason.key }
             catch (_: Exception) { errorKey = "promptRules.saveFailed" }
             finally { busy = false }
         }
@@ -156,12 +169,15 @@ internal fun SubjectPromptSettings(vm: MainViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(s["settings.customPrompt.desc"], style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(s["promptRules.limits"], style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { editor.add() }, enabled = editor.loaded && !editor.busy) { Text(s["promptRules.add"]) }
             OutlinedButton(onClick = { showTemplates = true }, enabled = editor.loaded && !editor.busy) {
                 Text(s["promptRules.templates"])
             }
         }
+        PromptRuleBackupActions(editor, categories)
         if (editor.busy) Text(s["promptRules.working"], style = MaterialTheme.typography.bodySmall)
         editor.errorKey?.let { key ->
             Text(s[key], color = MaterialTheme.colorScheme.error)
@@ -232,7 +248,8 @@ private fun PromptScopeLabel(text: String, unavailable: Boolean = false) {
 @Composable
 private fun PromptRuleEditDialog(editor: SubjectPromptEditor, draft: CustomPromptRule, categories: List<Category>) {
     val s = LocalStrings.current
-    val canSave = !editor.busy && draft.text.isNotBlank() && (draft.allSubjects || draft.categoryIds.isNotEmpty())
+    val textTooLong = draft.text.length > MAX_PROMPT_RULE_TEXT
+    val canSave = !editor.busy && !textTooLong && draft.text.isNotBlank() && (draft.allSubjects || draft.categoryIds.isNotEmpty())
     Dialog(onDismissRequest = editor::cancelEdit, properties = DialogProperties(usePlatformDefaultWidth = false,
         dismissOnBackPress = !editor.busy, dismissOnClickOutside = false)) {
         Surface(Modifier.fillMaxWidth().fillMaxHeight(0.94f).padding(12.dp), shape = MaterialTheme.shapes.extraLarge) {
@@ -241,6 +258,8 @@ private fun PromptRuleEditDialog(editor: SubjectPromptEditor, draft: CustomPromp
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(draft.text, onValueChange = { editor.changeDraft(draft.copy(text = it)) },
                         enabled = !editor.busy, label = { Text(s["promptRules.content"]) },
+                        isError = textTooLong,
+                        supportingText = { Text(if (textTooLong) s["promptRules.limit.text"] else "${draft.text.length} / $MAX_PROMPT_RULE_TEXT") },
                         minLines = 5, maxLines = 12, modifier = Modifier.fillMaxWidth())
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(s["promptRules.enabled"], Modifier.weight(1f))

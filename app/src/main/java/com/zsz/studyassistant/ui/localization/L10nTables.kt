@@ -2854,10 +2854,10 @@ private val B10_ZH = mapOf(
     "about.features.body" to (
         "· 🌐 可选联网搜索、链接阅读与答案来源查看。\n" +
         "· 📷 拍照或图文提问，支持图片框选、OCR 文字与公式校对和手写作答批改，保留原图。\n" +
-        "· 📎 支持 PDF、Word、PPT 文件提问，本地保留原件并随备份保存。\n" +
+        "· 📎 支持 PDF、Word、PPT、TXT、Markdown、CSV、XLSX 文件提问；可选 PDF 页面或 Excel 工作表，原件随备份保存。\n" +
         "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。\n" +
         "· 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。\n" +
-        "· 🧠 快速与思考模式，可设置 AI 输出语言、按科目启停自定义要求并查看用量。\n" +
+        "· 🧠 快速与思考模式，可设置 AI 输出语言、按科目启停自定义要求；要求可单独导入导出。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
         "· 🕘 按自动短标题回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
         "· 🏷 标签整理支持 AI 建议、预览确认和合并撤销。\n" +
@@ -2871,7 +2871,7 @@ private val B10_ZH = mapOf(
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
-        "· 📎 文件在点击发送后上传至 DeepSeek，OCR 由用户手动启动；解析可能按页计费，本地原件保留并纳入备份。\n" +
+        "· 📎 PDF 所选页面及 Word/PPT 整文件在发送提问时上传至 DeepSeek 解析；TXT、Markdown、CSV、XLSX 在本地提取所选内容后作为文字发送。OCR 仅在手动启动时发送裁剪图像；解析可能按页计费。原件保留并随备份保存。\n" +
         "· 图片重复使用时可上传至 DeepSeek 并设置 24 小时有效期，本地原图仍保留；联网搜索和链接阅读仅在开启后使用，工具另行计费。\n" +
         "· 📱 无账号、自有服务器或统计上报；错题、解题记录和复习数据库保存在本机\n" +
         "· 🤖 AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
@@ -2926,10 +2926,10 @@ private val B10_EN = mapOf(
     "about.features.body" to (
         "· 🌐 Optional web search, link reading and answer sources.\n" +
         "· 📷 Ask with photos or text and images, crop and correct OCR text and formulas, and grade handwritten work while retaining the original image.\n" +
-        "· 📎 Ask about PDF, Word and PowerPoint files; originals stay on the device and are included in backups.\n" +
+        "· 📎 Ask about PDF, Word, PowerPoint, TXT, Markdown, CSV and XLSX files; select PDF pages or Excel sheets, with originals included in backups.\n" +
         "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.\n" +
         "· 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.\n" +
-        "· 🧠 Choose fast or thinking mode, set AI output language, enable custom instructions by subject, and view usage.\n" +
+        "· 🧠 Choose fast or thinking mode, set AI output language, and toggle instructions by subject; export and import instructions separately.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
         "· 🕘 Revisit solutions and grading with automatic short titles, or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
         "· 🏷 Organize tags with AI suggestions, merge previews and undo.\n" +
@@ -2943,7 +2943,7 @@ private val B10_EN = mapOf(
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
-        "· 📎 Files upload to DeepSeek when sent; OCR starts only on request. Parsing may be billed per page. Originals stay locally and are included in backups.\n" +
+        "· 📎 Selected PDF pages and whole Word/PowerPoint files upload to DeepSeek for parsing when sent. TXT, Markdown, CSV and XLSX selections are extracted locally and sent as text. OCR sends the cropped image only when started manually; parsing may be billed per page. Originals remain on the device and in backups.\n" +
         "· Repeated images may be uploaded to DeepSeek with a 24-hour expiry; local originals remain available. Web search and link reading are opt-in, with separate tool charges.\n" +
         "· 📱 No accounts, developer backend or analytics reporting; notebook, history and review databases are stored locally\n" +
         "· 🤖 AI features send necessary question text, images, context, custom instructions, relevant category/label names and options directly to the official DeepSeek API, authenticated with your own key\n" +
@@ -2998,10 +2998,10 @@ private val B10_JA = mapOf(
     "about.features.body" to (
         "· 🌐 任意のウェブ検索・リンク閲覧と回答の参照元表示。\n" +
         "· 📷 写真や画像付きテキストで質問し、切り取り・OCR の文字と数式の校正・手書き解答の添削に対応。元画像も保持します。\n" +
-        "· 📎 PDF・Word・PowerPoint ファイルで質問でき、原本を端末とバックアップに保存します。\n" +
+        "· 📎 PDF・Word・PowerPoint・TXT・Markdown・CSV・XLSX で質問。PDF のページや Excel のシートを選択でき、原本もバックアップします。\n" +
         "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・簡単な SVG 図に対応。\n" +
         "· 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。\n" +
-        "· 🧠 高速・思考モード、AIの出力言語の設定、科目別カスタム指示の有効・無効の切り替え、使用量の確認。\n" +
+        "· 🧠 高速・思考モード、AI 出力言語、科目別カスタム指示に対応。指示は個別に書き出し・読み込みできます。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
         "· 🕘 自動の短いタイトルで解答・添削履歴を見直し、追加質問。30日以内の最新200件を保存。\n" +
         "· 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。\n" +
@@ -3015,7 +3015,7 @@ private val B10_JA = mapOf(
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
-        "· 📎 ファイルは送信時に DeepSeek へアップロードし、OCR は手動で開始します。解析はページ単位で課金される場合があります。原本は端末とバックアップに保持します。\n" +
+        "· 📎 選択した PDF ページと Word・PowerPoint の全ファイルは、送信時に DeepSeek で解析します。TXT・Markdown・CSV・XLSX は選択内容を端末で抽出してテキストとして送ります。OCR は手動実行時のみ切り取り画像を送信し、解析はページ単位で課金される場合があります。原本は端末とバックアップに保持します。\n" +
         "· 繰り返し使用する画像は有効期限24時間で DeepSeek にアップロードされる場合があります。元画像は端末に保持します。ウェブ検索とリンク閲覧は任意で、ツールは別料金です。\n" +
         "· 📱 アカウント・開発者サーバー・解析データ送信なし。ノート・履歴・復習のDBは端末に保存\n" +
         "· 🤖 AI機能は必要な問題文・画像・文脈・カスタム指示・関連する分類/タグ名・設定をDeepSeek公式APIへ直接送信し、自分のキーで認証\n" +
@@ -3070,10 +3070,10 @@ private val B10_KO = mapOf(
     "about.features.body" to (
         "· 🌐 선택적 웹 검색, 링크 읽기와 답변 출처 확인.\n" +
         "· 📷 사진 또는 이미지와 글로 질문하고 자르기, OCR 문자·수식 교정, 손글씨 채점을 지원하며 원본 이미지를 보관합니다.\n" +
-        "· 📎 PDF·Word·PowerPoint 파일로 질문하고 원본을 기기와 백업에 보관합니다.\n" +
+        "· 📎 PDF·Word·PowerPoint·TXT·Markdown·CSV·XLSX 파일 질문을 지원합니다. PDF 페이지나 Excel 시트를 선택하고 원본도 백업합니다.\n" +
         "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표와 간단한 SVG 그림을 지원합니다.\n" +
         "· 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.\n" +
-        "· 🧠 빠른 모드와 생각 모드, AI 출력 언어 설정, 과목별 사용자 지정 지시 켜기·끄기, 사용량 확인.\n" +
+        "· 🧠 빠른 모드와 생각 모드, AI 출력 언어 및 과목별 지시 설정. 지시는 별도로 내보내고 가져올 수 있습니다.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
         "· 🕘 자동 짧은 제목으로 풀이·채점 기록을 찾고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
         "· 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.\n" +
@@ -3087,7 +3087,7 @@ private val B10_KO = mapOf(
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (
-        "· 📎 파일은 전송할 때 DeepSeek에 업로드하며 OCR은 직접 시작합니다. 분석은 페이지별로 과금될 수 있습니다. 원본은 기기와 백업에 보관합니다.\n" +
+        "· 📎 선택한 PDF 페이지와 Word·PowerPoint 전체 파일은 전송 시 DeepSeek에서 분석합니다. TXT·Markdown·CSV·XLSX는 선택 내용을 기기에서 추출하여 텍스트로 보냅니다. OCR은 직접 실행할 때만 자른 이미지를 전송하며 분석은 페이지별로 과금될 수 있습니다. 원본은 기기와 백업에 보관합니다.\n" +
         "· 반복 사용하는 이미지는 24시간 만료 설정으로 DeepSeek에 업로드될 수 있으며 원본은 기기에 보관합니다. 웹 검색과 링크 읽기는 선택 사항이며 도구는 별도 과금됩니다.\n" +
         "· 📱 계정·개발자 서버·분석 정보 전송이 없으며 오답·기록·복습 DB는 기기에 저장\n" +
         "· 🤖 AI 기능은 필요한 문제 글·이미지·문맥·사용자 지시·관련 분류/태그 이름·설정을 DeepSeek 공식 API로 직접 보내고 본인의 키로 인증\n" +
@@ -3455,7 +3455,7 @@ private val UPDATE_CHANNEL_ZH = mapOf(
     "update.downloadBeta" to "下载测试版（可选）"
 )
 
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH + PROMPT_BACKUP_ZH + DOCUMENT_SELECTION_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3514,7 +3514,7 @@ private val UPDATE_CHANNEL_EN = mapOf(
     "update.downloadBeta" to "Download test version (optional)"
 )
 
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN + PROMPT_BACKUP_EN + DOCUMENT_SELECTION_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3573,7 +3573,7 @@ private val UPDATE_CHANNEL_JA = mapOf(
     "update.downloadBeta" to "テスト版をダウンロード（任意）"
 )
 
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA + PROMPT_BACKUP_JA + DOCUMENT_SELECTION_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3632,4 +3632,4 @@ private val UPDATE_CHANNEL_KO = mapOf(
     "update.downloadBeta" to "테스트 버전 다운로드 (선택)"
 )
 
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO + PROMPT_BACKUP_KO + DOCUMENT_SELECTION_KO

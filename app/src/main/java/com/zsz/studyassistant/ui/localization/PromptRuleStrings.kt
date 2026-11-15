@@ -1,6 +1,11 @@
 package com.zsz.studyassistant.ui
 
 internal val PROMPT_RULES_ZH = mapOf(
+    "promptRules.limits" to "最多 128 条要求，每条最多 65,536 个字符；全部配置序列化后最多 1,048,576 个字符。超限不会截断内容。",
+    "promptRules.limit.count" to "最多保存 128 条要求。请先删除不需要的条目，再添加或导入。",
+    "promptRules.limit.text" to "单条要求最多 65,536 个字符。请缩短内容后保存；当前内容不会被截断。",
+    "promptRules.limit.total" to "全部要求的序列化配置超过 1,048,576 个字符。请缩短或删除部分要求后重试，当前内容已保留。",
+    "promptRules.invalidRule" to "要求的编号或适用科目无效，无法保存。请检查条目和科目选择；当前内容已保留。",
     "promptRules.migration.title" to "自定义要求已升级",
     "promptRules.migration.message" to "原来的全部内容已完整保留为第一条要求，适用于全部科目且保持启用，没有拆分。现在可以逐条编辑、独立开关，并为每条选择科目。建议前往检查并调整。",
     "promptRules.migration.edit" to "前往修改",
@@ -42,6 +47,11 @@ internal val PROMPT_RULES_ZH = mapOf(
 )
 
 internal val PROMPT_RULES_EN = mapOf(
+    "promptRules.limits" to "Up to 128 instructions, 65,536 characters each, and 1,048,576 characters for the serialized settings. Content is never truncated.",
+    "promptRules.limit.count" to "You can save up to 128 instructions. Delete unused instructions before adding or importing more.",
+    "promptRules.limit.text" to "Each instruction allows up to 65,536 characters. Shorten it before saving; your text will not be truncated.",
+    "promptRules.limit.total" to "The serialized settings exceed 1,048,576 characters. Shorten or delete some instructions and retry. Your current content is preserved.",
+    "promptRules.invalidRule" to "An instruction ID or subject selection is invalid. Check the instructions and selected subjects before saving. Your current content is preserved.",
     "promptRules.migration.title" to "Custom instructions have been upgraded",
     "promptRules.migration.message" to "Your entire previous text is preserved as the first instruction, enabled for all subjects. It has not been split. You can now edit and switch instructions individually and choose subjects for each. Please review and adjust it.",
     "promptRules.migration.edit" to "Review instructions",
@@ -83,6 +93,11 @@ internal val PROMPT_RULES_EN = mapOf(
 )
 
 internal val PROMPT_RULES_JA = mapOf(
+    "promptRules.limits" to "指示は最大128件、1件あたり65,536文字まで、シリアル化した設定全体は1,048,576文字までです。超過しても内容は切り捨てません。",
+    "promptRules.limit.count" to "保存できる指示は最大128件です。追加・インポートする前に不要な指示を削除してください。",
+    "promptRules.limit.text" to "1件の指示は65,536文字までです。内容を短くしてから保存してください。編集中の内容は切り捨てません。",
+    "promptRules.limit.total" to "シリアル化した設定全体が1,048,576文字を超えています。一部の指示を短くするか削除して再試行してください。現在の内容は保持しています。",
+    "promptRules.invalidRule" to "指示のIDまたは対象科目が無効なため保存できません。指示と科目の選択を確認してください。現在の内容は保持しています。",
     "promptRules.migration.title" to "カスタム指示が新しくなりました",
     "promptRules.migration.message" to "以前の内容は分割せず、最初の指示として全文を保持しています。全科目で有効のままです。指示ごとに編集、有効・無効の切り替え、対象科目の選択ができます。内容をご確認のうえ調整してください。",
     "promptRules.migration.edit" to "確認・編集する",
@@ -124,6 +139,11 @@ internal val PROMPT_RULES_JA = mapOf(
 )
 
 internal val PROMPT_RULES_KO = mapOf(
+    "promptRules.limits" to "지시는 최대 128개, 각각 65,536자까지이며 직렬화된 전체 설정은 1,048,576자까지입니다. 초과한 내용은 자동으로 잘리지 않습니다.",
+    "promptRules.limit.count" to "지시는 최대 128개까지 저장할 수 있습니다. 추가하거나 가져오기 전에 불필요한 지시를 삭제하세요.",
+    "promptRules.limit.text" to "지시 하나는 최대 65,536자까지입니다. 내용을 줄인 후 저장하세요. 현재 내용은 자동으로 잘리지 않습니다.",
+    "promptRules.limit.total" to "직렬화된 전체 설정이 1,048,576자를 초과합니다. 일부 지시를 줄이거나 삭제한 후 다시 시도하세요. 현재 내용은 유지됩니다.",
+    "promptRules.invalidRule" to "지시 ID 또는 적용 과목이 유효하지 않아 저장할 수 없습니다. 지시와 선택한 과목을 확인하세요. 현재 내용은 유지됩니다.",
     "promptRules.migration.title" to "사용자 지정 지시가 새로워졌습니다",
     "promptRules.migration.message" to "기존 내용 전체를 나누지 않고 첫 번째 지시로 보존했으며, 전체 과목에 활성화되어 있습니다. 이제 지시별로 편집, 켜기·끄기, 과목 선택이 가능합니다. 내용을 확인하고 조정해 주세요.",
     "promptRules.migration.edit" to "확인 및 수정",
