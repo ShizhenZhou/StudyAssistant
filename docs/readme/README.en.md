@@ -57,6 +57,14 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.3.6
+
+- ⬇️ Update downloads preserve progress and support manual resuming; GitHub connection failures can fall back to a configurable mirror.
+- 📳 Add haptic feedback when holding the up arrow reaches the jump-to-bottom threshold.
+- 💬 Show one progress line in the solving screen and fix the incorrect file-import status during answer generation.
+- 📦 Remove unused cryptographic parameter resources to reduce APK size.
+- 📌 `versionCode` **129**.
+
 ### v0.7.3.5
 
 - 📎 Ask about TXT, Markdown, CSV and XLSX files; select Excel sheets and read existing formula results.

@@ -520,7 +520,7 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - 导出会话独立保存在 `noBackupFilesDir/conversation-export/active.json` 和本任务 UUID 目录中，含完整选中消息快照、格式、文件名、阶段、已生成文件及本任务取得的目标 URI 权限。Activity 重建继续使用同一 ViewModel，新进程按检查点恢复；未完成渲染从快照重新生成，已完成文件不因界面销毁而删除。系统不保留目标权限时需重新选位置。完成或主动取消仅清理当前任务，不清理其他任务、题库或备份；此临时数据不进入 Bak。
 
 
-## 更新断点续传与备用通道（待发布；DB v11 / Bak v4 不变）
+## 更新断点续传与备用通道（v0.7.3.6；DB v11 / Bak v4 不变）
 
 - `update_download/session` 沿用原任务及链式差分检查点。新下载由 WorkManager 调度，暂停时保留当前文件与已校验的前序差分结果；恢复仅作用于当前显示的任务。主动“重新下载当前文件”只丢弃当前半包，不重做已完成的差分步骤。
 - `update_resumable_transfers` 保存本机临时传输记录：官方 URL、精确大小/SHA、下载目标、任务 ID、执行代次、状态与可选旧 DownloadManager ID。新 ID 从 `2^62` 起，与旧系统下载 ID 区分；旧暂停任务仅在确认归属和半包长度一致后复制至私有目录，再移除旧系统任务。无法安全读取时保留旧数据并提示重试或重新下载，不假装续传成功。

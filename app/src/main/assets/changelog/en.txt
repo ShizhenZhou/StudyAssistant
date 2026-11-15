@@ -1,3 +1,9 @@
+v0.7.3.6
+· ⬇️ Update downloads preserve progress and support manual resuming; GitHub connection failures can fall back to a configurable mirror.
+· 📳 Add haptic feedback when holding the up arrow reaches the jump-to-bottom threshold.
+· 💬 Show one progress line in the solving screen and fix the incorrect file-import status during answer generation.
+· 📦 Remove unused cryptographic parameter resources to reduce APK size.
+
 v0.7.3.5
 · 📎 Ask about TXT, Markdown, CSV and XLSX files; select Excel sheets and read existing formula results.
 · 📄 Preview and send selected PDF pages while retaining text layers; backups preserve originals and selection ranges.
