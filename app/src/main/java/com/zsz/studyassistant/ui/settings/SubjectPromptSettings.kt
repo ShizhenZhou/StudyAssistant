@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -179,13 +180,15 @@ internal fun SubjectPromptSettings(vm: MainViewModel) {
                         }
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(s["promptRules.enabled"], Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.Start) {
+                            TextButton(onClick = { editor.edit(rule) }, enabled = !editor.busy) { Text(s["promptRules.edit"]) }
+                            TextButton(onClick = { deleting = rule.id }, enabled = !editor.busy,
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                Text(s["common.delete"])
+                            }
+                        }
                         Switch(rule.enabled, onCheckedChange = { editor.setEnabled(rule.id, it) }, enabled = !editor.busy,
                             modifier = Modifier.semantics { contentDescription = s["promptRules.enabled"] + ": " + rule.text })
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { editor.edit(rule) }, enabled = !editor.busy) { Text(s["promptRules.edit"]) }
-                        TextButton(onClick = { deleting = rule.id }, enabled = !editor.busy) { Text(s["common.delete"]) }
                     }
                 }
             }
@@ -210,7 +213,8 @@ internal fun SubjectPromptSettings(vm: MainViewModel) {
         onDismissRequest = { deleting = null },
         title = { Text(s["promptRules.deleteTitle"]) },
         text = { Text(s["promptRules.deleteMessage"]) },
-        confirmButton = { TextButton(onClick = { deleting = null; editor.delete(id) }, enabled = !editor.busy) { Text(s["common.delete"]) } },
+        confirmButton = { TextButton(onClick = { deleting = null; editor.delete(id) }, enabled = !editor.busy,
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(s["common.delete"]) } },
         dismissButton = { TextButton(onClick = { deleting = null }) { Text(s["common.cancel"]) } }
     ) }
 }

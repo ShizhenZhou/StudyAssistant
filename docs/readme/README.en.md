@@ -57,6 +57,12 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.3.4
+
+- ⚙️ Simplify custom requirement cards: edit, delete and toggle share one row, with red delete buttons.
+- 💬 Remove the unnecessary persistent long-conversation notice from the solve screen to free up input space.
+- 📌 `versionCode` **127**.
+
 ### v0.7.3.3
 
 - ✍️ Organize custom instructions into separate rules, each with its own switch and all-subject or multi-subject scope.

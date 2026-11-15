@@ -23,14 +23,9 @@ internal fun ConversationContextControls(items: List<ChatItem>, draft: SolveInpu
     val choices = remember(historical) { historical.distinctBy { it.sha256 } }
     val selected = historical.filterNot { it.sha256 in draft.excludedDocumentHashes } + draft.documents
     val duplicate = selected.groupingBy { it.sha256 }.eachCount().values.any { it > 1 }
-    // Characters are an advisory estimate, never a token estimate or a reason to truncate content.
-    val historyCharacters = remember(items) {
-        items.sumOf { it.content.length.toLong() + it.thinking.orEmpty().length }
-    }
-    val characters = historyCharacters + draft.text.length + draft.quote?.text.orEmpty().length
     var showFiles by remember(draft) { mutableStateOf(false) }
 
-    if (historical.isNotEmpty() || draft.documents.isNotEmpty() || characters >= 20_000) {
+    if (historical.isNotEmpty() || draft.documents.isNotEmpty()) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             if (historical.isNotEmpty() || draft.documents.isNotEmpty()) {
                 TextButton(onClick = { showFiles = true }, enabled = enabled && choices.isNotEmpty(),
@@ -40,8 +35,6 @@ internal fun ConversationContextControls(items: List<ChatItem>, draft: SolveInpu
             }
             if (duplicate) Text(s["context.duplicate"], style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary)
-            if (characters >= 20_000) Text(s.format("context.long", "n" to characters.toString()),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         }
     }
     if (showFiles) AlertDialog(
