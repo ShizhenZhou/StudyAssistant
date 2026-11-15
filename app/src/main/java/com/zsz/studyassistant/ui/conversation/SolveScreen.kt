@@ -394,7 +394,11 @@ fun SolveScreen(
         )
     }
     val documentAttachments: @Composable () -> Unit = {
-        DocumentAttachments(draft.documents, draft.importingDocuments || vm.busy || vm.dataBusy,
+        if (draft.importingDocuments && !vm.busy) Text(s["document.importing"],
+            style = MaterialTheme.typography.bodySmall, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+        DocumentAttachments(draft.documents, enabled = !draft.importingDocuments && !vm.busy && !vm.dataBusy,
             onRemove = { document -> draft.documents = draft.documents.filterNot { it.sha256 == document.sha256 } },
             onEdit = { document -> draft.documentSelection = document })
     }
@@ -982,9 +986,11 @@ fun SolveScreen(
                 }
                 if (vm.busy) {
                     Text(
-                        s["solve.generating"],
+                        s[vm.toolProgress?.takeIf { it.isNotBlank() } ?: "solve.generating"],
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.outline
                     )
                 }
@@ -1082,11 +1088,6 @@ fun SolveScreen(
             } else if (vm.chatItems.isNotEmpty() || vm.busy) {
                 // 输入栏（与同类题页共用组件：附图 + 公式键盘 + 图库 + 发送）
                 // ★ 生成中也显示：否则拍题后到首字出现之前，整条输入栏会被"答案生成中…"顶掉
-                vm.toolProgress?.takeIf { it.isNotBlank() }?.let { progress ->
-                    Text(s[progress], style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp))
-                }
                 ConversationContextControls(vm.chatItems, draft,
                     enabled = !vm.busy && !vm.dataBusy && !importingAttachments)
                 ConversationInputBar(

@@ -16,10 +16,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-/** Durable handle to an OS-owned transfer. Page/coroutine disposal must never cancel it. */
+/** Durable handle to a background transfer. Page/coroutine disposal must never cancel it. */
 internal class UpdateDownloads(
     context: Context,
-    private val backend: Backend = SystemBackend(context.applicationContext),
+    private val backend: Backend = ResumableUpdateBackend(context.applicationContext, SystemBackend(context.applicationContext)),
     private val installedApk: () -> File = { File(context.applicationInfo.sourceDir) },
     private val verifier: (File, UpdateChecker.ReleaseInfo) -> UpdateChecker.VerifyResult = { file, release ->
         UpdateChecker.verify(context.applicationContext, file, release.assetSha256, release.displayVersion, release.minSdk, release.versionCode)
@@ -30,12 +30,14 @@ internal class UpdateDownloads(
     enum class Phase { DOWNLOADING, WAITING, READY, FAILED }
     enum class TransferPhase { QUEUED, RUNNING, WAITING, SUCCESS, FAILED }
     data class Transfer(val id: Long, val url: String, val localUri: String?, val status: TransferPhase,
-        val bytes: Long, val total: Long, val token: String)
+        val bytes: Long, val total: Long, val token: String, val errorKey: String? = null)
     interface Backend {
         fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File, appNotification: Boolean): Long
         fun query(id: Long): Transfer?
         fun find(url: String, destination: File): Transfer?
         fun remove(id: Long)
+        fun resume(release: UpdateChecker.ReleaseInfo, destination: File, id: Long,
+            appNotification: Boolean): Long? = null
     }
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
         val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false)
@@ -150,6 +152,34 @@ internal class UpdateDownloads(
         catch (_: Exception) { status(record, Phase.WAITING, errorKey = "update.downloadUnavailable") }
     }
 
+    /** Resume only the displayed transfer; a stale tap cannot affect a replacement task. */
+    fun resume(expectedToken: String, restart: Boolean = false): kotlinx.coroutines.Deferred<Snapshot?> {
+        val revision = cancelRevision.get()
+        return handoffScope.async {
+            locked {
+                val record = read()?.takeIf { it.token == expectedToken } ?: return@locked null
+                if (revision != cancelRevision.get()) throw TransferCancelled()
+                checkTransfer(record)
+                val current = snapshotLocked(record)
+                if (current.phase != Phase.WAITING) return@locked current
+                val transfer = backend.query(record.id)
+                if (transfer == null || !owns(transfer, record)) return@locked current
+                if (restart) {
+                    // Keep verified earlier delta stages; discard only the current partial on request.
+                    val pending = record.copy(id = -1, enqueuePending = true)
+                    write(pending)
+                    backend.remove(record.id)
+                    return@locked enqueueLocked(pending)
+                }
+                val id = backend.resume(transferRelease(record), partial(record), record.id, record.appNotification)
+                    ?: return@locked current.copy(errorKey = "update.resumeUnavailable")
+                val resumed = record.copy(id = id, enqueuePending = false)
+                write(resumed)
+                snapshotLocked(resumed)
+            }
+        }
+    }
+
     suspend fun forInstall(): Snapshot? = locked {
         val record = read() ?: return@locked null
         UpdateChecker.compatibilityError(record.release)?.let { return@locked fail(record, it) }
@@ -209,8 +239,8 @@ internal class UpdateDownloads(
             .toInt().coerceIn(0, 100) else -1
         return when (transfer.status) {
             TransferPhase.QUEUED, TransferPhase.RUNNING -> status(record, Phase.DOWNLOADING, percent)
-            TransferPhase.WAITING -> status(record, Phase.WAITING, percent)
-            TransferPhase.FAILED -> fail(record, "update.downloadInterrupted")
+            TransferPhase.WAITING -> status(record, Phase.WAITING, percent, errorKey = transfer.errorKey)
+            TransferPhase.FAILED -> fail(record, transfer.errorKey ?: "update.downloadInterrupted")
             TransferPhase.SUCCESS -> complete(record)
         }
     }
@@ -338,7 +368,8 @@ internal class UpdateDownloads(
     private fun checking(record: Record) = File(UpdateChecker.downloadDir(context), "${record.token}.checking")
     private fun patchChecking(record: Record) = File(UpdateChecker.downloadDir(context), "${record.token}.patch-checking")
     private fun transferRelease(record: Record): UpdateChecker.ReleaseInfo = record.delta?.let {
-        record.release.copy(assetName = it.patchName, assetUrl = it.patchUrl, assetSha256 = it.patchSha256, assetSize = it.patchSize)
+        record.release.copy(tagName = record.steps.getOrNull(record.stepIndex)?.tagName ?: record.release.tagName,
+            assetName = it.patchName, assetUrl = it.patchUrl, assetSha256 = it.patchSha256, assetSize = it.patchSize)
     } ?: record.release
     private fun eligible(delta: UpdateDeltaInfo, release: UpdateChecker.ReleaseInfo): Boolean =
         UpdateDeltaStep(delta, release.assetSha256.orEmpty(), release.assetSize, release.tagName).valid()
@@ -430,7 +461,7 @@ internal class UpdateDownloads(
         .put("baseSha256", value.baseSha256).put("baseSize", value.baseSize).put("patchName", value.patchName)
         .put("patchUrl", value.patchUrl).put("patchSha256", value.patchSha256).put("patchSize", value.patchSize)
 
-    private class SystemBackend(private val context: Context) : Backend {
+    internal class SystemBackend(private val context: Context) : Backend {
         private val manager get() = checkNotNull(context.getSystemService(DownloadManager::class.java))
         override fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File, appNotification: Boolean): Long {
             val strings = stringsFor(UiLangStore.load(context))

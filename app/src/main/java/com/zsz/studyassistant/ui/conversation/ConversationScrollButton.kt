@@ -13,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
@@ -30,13 +32,17 @@ internal fun ConversationScrollButton(atTop: Boolean, onTop: () -> Unit, onBotto
     val s = LocalStrings.current
     val top by rememberUpdatedState(onTop)
     val bottom by rememberUpdatedState(onBottom)
+    val haptics by rememberUpdatedState(LocalHapticFeedback.current)
     var armed by remember { mutableStateOf(false) }
     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .92f),
         shadowElevation = 3.dp, modifier = Modifier.size(44.dp).semantics {
             role = Role.Button
             contentDescription = s[if (atTop || armed) "solve.jumpBottom" else "solve.jumpTop"]
             onClick { if (atTop) bottom() else top(); true }
-            if (!atTop) onLongClick(label = s["solve.jumpBottom"]) { bottom(); true }
+            if (!atTop) onLongClick(label = s["solve.jumpBottom"]) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                bottom(); true
+            }
         }.pointerInput(atTop) {
             coroutineScope {
                 awaitEachGesture {
@@ -44,7 +50,13 @@ internal fun ConversationScrollButton(atTop: Boolean, onTop: () -> Unit, onBotto
                     down.consume()
                     var cancelled = false
                     armed = false
-                    val timer = if (!atTop) launch { delay(1_000); if (!cancelled) armed = true } else null
+                    val timer = if (!atTop) launch {
+                        delay(1_000)
+                        if (!cancelled) {
+                            armed = true
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    } else null
                     try {
                         while (true) {
                             val event = awaitPointerEvent()

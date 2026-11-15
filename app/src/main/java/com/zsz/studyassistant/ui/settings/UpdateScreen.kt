@@ -166,6 +166,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     fun packageKey(rel: UpdateChecker.ReleaseInfo) = rel.assetUrl + "|" + rel.assetSha256
     var progress by remember { mutableIntStateOf(-1) }
     var message by remember { mutableStateOf<String?>(null) }
+    var recoveryError by remember { mutableStateOf<String?>(null) }
+    var recovering by remember { mutableStateOf(false) }
     var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
     var notificationsAllowed by remember { mutableStateOf(UpdateDownloadNotifications.canPost(context)) }
     var displayedTaskToken by remember { mutableStateOf<String?>(null) }
@@ -179,6 +181,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     }
 
     fun showDownload(task: UpdateDownloads.Snapshot) {
+        if (task.token != displayedTaskToken || task.phase != UpdateDownloads.Phase.WAITING) recoveryError = null
+        if (task.phase == UpdateDownloads.Phase.WAITING && task.errorKey != null) recoveryError = task.errorKey
         displayedTaskToken = task.token
         latest = task.release
         progress = task.progress
@@ -355,6 +359,28 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         }
     }
 
+    fun resumeDownload(restart: Boolean = false) {
+        val token = displayedTaskToken ?: return
+        if (phase != Phase.WAITING || recovering) return
+        val generation = ++operationGeneration
+        recovering = true
+        observingDownload = false
+        val handoff = downloads.resume(token, restart)
+        downloadActionJob = handoff
+        scope.launch {
+            try {
+                val task = handoff.await()
+                if (generation == operationGeneration && task != null) showDownload(task)
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+              catch (_: Exception) {
+                if (generation == operationGeneration) recoveryError = "update.downloadUnavailable"
+            } finally {
+                recovering = false
+                if (generation == operationGeneration) observingDownload = true
+            }
+        }
+    }
+
     // ── 当前版本 ──
     Text("Study Assistant v$installed", style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(4.dp))
@@ -484,7 +510,19 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                     Spacer(Modifier.height(8.dp))
                     Text(s["update.background"], style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline)
-                    androidx.compose.material3.TextButton(onClick = { cancelDownload() }) { Text(s["update.cancelDownload"]) }
+                    if (phase == Phase.WAITING) {
+                        recoveryError?.let { Text(s[it], style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Button(onClick = { resumeDownload() }, enabled = !recovering, shape = smoothPill()) {
+                            Text(s[if (recovering) "update.resuming" else "update.resume"])
+                        }
+                        if (recoveryError == "update.resumeUnsupported" || recoveryError == "update.resumeUnavailable") {
+                            androidx.compose.material3.TextButton(onClick = { resumeDownload(restart = true) }, enabled = !recovering) {
+                                Text(s["update.restartCurrent"])
+                            }
+                        }
+                    }
+                    androidx.compose.material3.TextButton(onClick = { cancelDownload() }, enabled = !recovering) { Text(s["update.cancelDownload"]) }
                 }
                 Phase.VERIFYING -> Text(s["update.verifying"], style = MaterialTheme.typography.bodyMedium)
                 Phase.READY -> {
@@ -521,6 +559,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         }
     }
 
+    Spacer(Modifier.height(12.dp))
+    UpdateMirrorSettings()
     Spacer(Modifier.height(12.dp))
     if (!notificationsAllowed) {
         androidx.compose.material3.TextButton(onClick = { UpdateDownloadNotifications.openSettings(context) }) {

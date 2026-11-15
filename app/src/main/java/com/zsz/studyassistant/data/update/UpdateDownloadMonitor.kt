@@ -18,7 +18,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-/** Keeps the notification fresh, never owns/cancels the actual DownloadManager transfer. */
+/** Keeps the notification fresh; the durable transfer continues independently of this service. */
 class UpdateDownloadMonitor : Service() {
     internal class Request {
         val ready = CompletableDeferred<Boolean>()

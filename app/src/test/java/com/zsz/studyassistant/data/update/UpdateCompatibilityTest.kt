@@ -6,6 +6,37 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
 class UpdateCompatibilityTest {
+    @Test fun mirrorTransportKeepsCanonicalIdentityAndOfficialFirstOrdering() {
+        val canonical = "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.7.3/app.apk"
+        val config = UpdateTransport.Config(baseUrl = "https://mirror.example.com/proxy")
+        assertEquals(listOf(canonical, "https://mirror.example.com/proxy/$canonical"), UpdateTransport.urls(canonical, config))
+        assertEquals(listOf(canonical), UpdateTransport.urls(canonical, config.copy(enabled = false)))
+        assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases?per_page=100&page=2"))
+        assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases/assets/42"))
+    }
+
+    @Test fun mirrorCannotReceiveOtherRepositoriesCredentialsOrEncodedPaths() {
+        val prefix = "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.7.3/"
+        for (url in listOf(prefix + "%2e%2e/file.apk", prefix + "app.apk?token=secret",
+            prefix.replace("ShizhenZhou", "OtherOwner") + "app.apk",
+            prefix.replace("github.com", "github.com.evil.test") + "app.apk",
+            prefix.replace("https://", "https://user:password@") + "app.apk",
+            "https://api.github.com/user", "https://raw.githubusercontent.com/Other/Repo/main/key")) {
+            assertFalse(url, UpdateTransport.isCanonicalUrl(url))
+        }
+    }
+
+    @Test fun mirrorSettingsRejectUnsafeAddressesWithoutResolvingOrSendingAnything() {
+        for (address in listOf("http://mirror.example.com", "https://user:password@mirror.example.com",
+            "https://mirror.example.com/?key=secret", "https://mirror.example.com/#fragment",
+            "https://localhost", "https://host.local", "https://127.0.0.1", "https://10.0.0.1",
+            "https://[::1]", "https://2130706433", "https://mirror.example.com/../proxy",
+            "https://mirror.example.com/%2e%2e/proxy")) {
+            assertNull(address, UpdateTransport.normalizedBaseUrl(address))
+        }
+        assertEquals("https://mirror.example.com/path/", UpdateTransport.normalizedBaseUrl(" https://mirror.example.com/path "))
+    }
+
     @Test fun malformedManifestCommentsStayHiddenWithoutRelaxingCompatibility() {
         val marker = "<!-- studyassistant-update-manifest"
         for (hidden in listOf("$marker {broken} -->", "$marker\r\n{broken}\r\n-->",

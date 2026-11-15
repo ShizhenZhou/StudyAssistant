@@ -30,12 +30,12 @@ internal val SOLVE_DOCUMENT_MIME_TYPES = arrayOf(
 @Composable
 internal fun DocumentAttachments(
     documents: List<ConversationDocument>,
-    importing: Boolean,
+    enabled: Boolean,
     onRemove: (ConversationDocument) -> Unit,
     modifier: Modifier = Modifier,
     onEdit: ((ConversationDocument) -> Unit)? = null
 ) {
-    if (documents.isEmpty() && !importing) return
+    if (documents.isEmpty()) return
     val s = LocalStrings.current
     val context = LocalContext.current
     Column(modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
@@ -44,7 +44,7 @@ internal fun DocumentAttachments(
                 Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                     Row(Modifier.widthIn(max = 260.dp).padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("📎", fontSize = 18.sp)
-                        Column(Modifier.weight(1f).clickable(enabled = !importing && onEdit != null) {
+                        Column(Modifier.weight(1f).clickable(enabled = enabled && onEdit != null) {
                             onEdit?.invoke(document)
                         }.padding(start = 6.dp, top = 6.dp, bottom = 6.dp)) {
                             Text(document.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -60,7 +60,7 @@ internal fun DocumentAttachments(
                             Text(selection, style = MaterialTheme.typography.labelSmall)
                             if (onEdit != null) Text(s["documentSelection.tapToEdit"], style = MaterialTheme.typography.labelSmall)
                         }
-                        IconButton(onClick = { onRemove(document) }, enabled = !importing,
+                        IconButton(onClick = { onRemove(document) }, enabled = enabled,
                             modifier = Modifier.semantics { contentDescription = s["document.remove"] + ": " + document.name }) {
                             Text("×", fontSize = 20.sp)
                         }
@@ -68,8 +68,6 @@ internal fun DocumentAttachments(
                 }
             }
         }
-        if (importing) Text(s["document.importing"], style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
         if (documents.isNotEmpty()) Text(s["document.sendHint"], style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
     }

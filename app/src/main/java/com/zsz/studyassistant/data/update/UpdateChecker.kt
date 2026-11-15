@@ -51,7 +51,9 @@ object UpdateChecker {
     enum class Channel { STABLE, BETA }
 
     data class AvailableReleases(val stable: ReleaseInfo? = null, val beta: ReleaseInfo? = null,
-                                 val historyComplete: Boolean = true) {
+                                 val historyComplete: Boolean = true,
+                                 /** Transient trust of metadata, independent of APK signature verification. */
+                                 val metadataTrusted: Boolean = true) {
         fun updates(eligible: (ReleaseInfo) -> Boolean): List<ReleaseInfo> {
             val release = stable?.takeIf(eligible)
             val preview = beta?.takeIf(eligible)
@@ -110,7 +112,7 @@ object UpdateChecker {
 
     internal fun isReleaseAssetUrl(url: String, tag: String): Boolean = runCatching {
         val uri = java.net.URI(url)
-        uri.scheme == "https" && uri.host == "github.com" && uri.userInfo == null && uri.port == -1 &&
+        UpdateTransport.isCanonicalUrl(url) && uri.host == "github.com" &&
             uri.query == null && uri.fragment == null &&
             uri.path.startsWith("/$REPO/releases/download/$tag/") &&
             uri.path.substringAfter("/$REPO/releases/download/$tag/").let { it.isNotEmpty() && '/' !in it }
@@ -230,32 +232,59 @@ object UpdateChecker {
         return failed(if (invalid) "update.compatibilityInvalid" else "update.compatibilityUnavailable")
     }
 
-    private fun fetchManifest(release: ReleaseInfo, assets: List<JsonObject>): ReleaseInfo =
-        resolveManifest(release, assets, ::readManifest)
+    /** One check snapshots settings and remembers failed routes; concurrent checks never share routing state. */
+    private class FetchSession(val config: UpdateTransport.Config) {
+        private val failedRoutes = mutableSetOf<String>()
+        var usedMirror = false
+            private set
 
-    private fun readManifest(endpoint: ManifestEndpoint): ManifestFetch {
-        return try {
-            val request = Request.Builder().url(endpoint.url).header("User-Agent", "StudyAssistant-Update")
-            if (endpoint.api) request.header("Accept", "application/octet-stream")
-                .header("X-GitHub-Api-Version", "2022-11-28")
-            manifestClient.newCall(request.build()).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "Update manifest HTTP ${response.code}; api=${endpoint.api}")
-                    return ManifestFetch.Unavailable
+        fun read(url: String, client: OkHttpClient, limit: Long, accept: String): ManifestFetch {
+            if (!UpdateTransport.isCanonicalUrl(url)) return ManifestFetch.Invalid
+            for ((index, address) in UpdateTransport.urls(url, config).withIndex()) {
+                val route = "${java.net.URI(url).host}:$index"
+                if (route in failedRoutes) continue
+                try {
+                    val request = Request.Builder().url(address)
+                        .header("User-Agent", "StudyAssistant-Update")
+                        .header("Accept", accept).header("X-GitHub-Api-Version", "2022-11-28").build()
+                    client.newCall(request).execute().use { response ->
+                        val body = response.body
+                        if (!response.isSuccessful || body == null) {
+                            failedRoutes += route
+                            return@use
+                        }
+                        val type = body.contentType()
+                        if (type?.subtype?.contains("html", ignoreCase = true) == true) {
+                            failedRoutes += route
+                            return@use
+                        }
+                        if (index > 0) usedMirror = true
+                        if (body.contentLength() > limit) return ManifestFetch.Invalid
+                        val source = body.source()
+                        source.request(limit + 1)
+                        if (source.buffer.size > limit) return ManifestFetch.Invalid
+                        val text = source.readUtf8()
+                        // Some gateway error pages omit or mislabel Content-Type.
+                        if (text.trimStart('\uFEFF', ' ', '\r', '\n', '\t').startsWith("<")) {
+                            failedRoutes += route
+                            return@use
+                        }
+                        return ManifestFetch.Body(text)
+                    }
+                } catch (_: java.io.IOException) {
+                    // Cache failures per origin/route so history does not repeat slow failures.
+                    failedRoutes += route
                 }
-                val body = response.body ?: return ManifestFetch.Unavailable
-                if (body.contentLength() > 65536) return ManifestFetch.Invalid
-                val source = body.source()
-                source.request(65537)
-                if (source.buffer.size > 65536) return ManifestFetch.Invalid
-                ManifestFetch.Body(source.readUtf8())
             }
-        } catch (error: java.io.IOException) {
-            // Do not log URL queries, payloads or other app/user data.
-            Log.w(TAG, "Update manifest ${error.javaClass.simpleName}; api=${endpoint.api}")
-            ManifestFetch.Unavailable
+            return ManifestFetch.Unavailable
         }
     }
+
+    private fun fetchManifest(release: ReleaseInfo, assets: List<JsonObject>, session: FetchSession): ReleaseInfo =
+        resolveManifest(release, assets) { endpoint ->
+            session.read(endpoint.url, manifestClient, 65536,
+                if (endpoint.api) "application/octet-stream" else "application/json")
+        }
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -267,13 +296,14 @@ object UpdateChecker {
 
     private val manifestClient: OkHttpClient by lazy {
         client.newBuilder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS)
-            .callTimeout(15, TimeUnit.SECONDS).build()
+            .callTimeout(15, TimeUnit.SECONDS).retryOnConnectionFailure(false).followSslRedirects(false).build()
     }
 
     // Bound the entire metadata response, including servers that keep trickling bytes.
     // APK downloads keep their existing streaming timeouts on the base client.
     private val metadataClient: OkHttpClient by lazy {
-        client.newBuilder().callTimeout(30, TimeUnit.SECONDS).build()
+        client.newBuilder().callTimeout(30, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false).followSslRedirects(false).build()
     }
 
     /** 当前已安装版本（PackageManager 读，避免与构建号不一致） */
@@ -445,26 +475,24 @@ object UpdateChecker {
                 ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.contentOrNull), channel = channel) to assets
     }.getOrNull()
 
-    private fun releaseDocument(url: String): JsonElement? = try {
-        val request = Request.Builder().url(url).header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28").build()
-        metadataClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val body = response.body ?: return null
-            val source = body.source()
-            source.request(2_000_001)
-            if (source.buffer.size > 2_000_000) return null
-            json.parseToJsonElement(source.readUtf8())
+    private fun releaseDocument(url: String, session: FetchSession): JsonElement? {
+        val response = session.read(url, metadataClient, 2_000_000, "application/vnd.github+json")
+        // Syntactically/semantically invalid JSON is not a transport failure: never mask it via a mirror.
+        return (response as? ManifestFetch.Body)?.let {
+            runCatching { json.parseToJsonElement(it.text) }.getOrNull()
         }
-    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-      catch (_: Exception) { null }
+    }
 
-    private fun hydrate(value: Pair<ReleaseInfo, List<JsonObject>>): ReleaseInfo =
-        fetchManifest(value.first, value.second).let { it.copy(notes = visibleReleaseNotes(it.notes)) }
+    private fun hydrate(value: Pair<ReleaseInfo, List<JsonObject>>, session: FetchSession): ReleaseInfo =
+        fetchManifest(value.first, value.second, session).let { it.copy(notes = visibleReleaseNotes(it.notes)) }
+
+    private fun latest(session: FetchSession): ReleaseInfo? =
+        (releaseDocument(API_LATEST, session) as? JsonObject)?.let(::parseRelease)?.let { hydrate(it, session) }
 
     /** Stable-only fallback remains compatible with existing published releases. */
-    suspend fun fetchLatest(): ReleaseInfo? = withContext(Dispatchers.IO) {
-        (releaseDocument(API_LATEST) as? JsonObject)?.let(::parseRelease)?.let(::hydrate)
+    suspend fun fetchLatest(context: Context? = null): ReleaseInfo? = withContext(Dispatchers.IO) {
+        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config())
+        latest(session)?.let { if (session.usedMirror) it.copy(mandatory = false) else it }
     }
 
     /** Attachment metadata may reveal that an apparent stable candidate is actually beta. */
@@ -495,20 +523,21 @@ object UpdateChecker {
     suspend fun fetchAvailable(context: Context? = null): AvailableReleases? = withContext(Dispatchers.IO) {
         // Releases are ordered by creation date, not version. Read every page so an old
         // installation cannot miss an ENF release beyond the first 30/100 entries.
+        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config())
         val parsed = mutableListOf<Pair<ReleaseInfo, List<JsonObject>>>()
         var complete = false
         for (page in 1..100) {
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            val document = releaseDocument("https://api.github.com/repos/$REPO/releases?per_page=100&page=$page") as? JsonArray
+            val document = releaseDocument("https://api.github.com/repos/$REPO/releases?per_page=100&page=$page", session) as? JsonArray
                 ?: break
             parsed += document.mapNotNull { (it as? JsonObject)?.let(::parseRelease) }
             if (document.size < 100) { complete = true; break }
         }
         val resolved = mutableMapOf<String, ReleaseInfo>()
         fun once(candidate: Pair<ReleaseInfo, List<JsonObject>>) =
-            resolved.getOrPut(candidate.first.assetUrl) { hydrate(candidate) }
+            resolved.getOrPut(candidate.first.assetUrl) { hydrate(candidate, session) }
         var result = resolveAvailable(parsed, ::once)
-        if (result.stable == null) fetchLatest()?.let { fallback ->
+        if (result.stable == null) latest(session)?.let { fallback ->
             result = if (fallback.channel == Channel.STABLE) result.copy(stable = fallback)
             else result.copy(beta = listOfNotNull(result.beta, fallback).maxWithOrNull(::compareReleases))
         }
@@ -546,8 +575,16 @@ object UpdateChecker {
             .flatMap { source -> source.deltas.mapNotNull { delta -> source.assetSha256?.let {
                 UpdateDeltaStep(delta, it, source.assetSize, source.tagName)
             } } }.distinct())
-        result.copy(stable = withDeltaHistory(result.stable), beta = withDeltaHistory(result.beta),
-            historyComplete = complete).takeIf { it.stable != null || it.beta != null }
+        // Mirror JSON is not signed. It can supply optional updates, but cannot establish a new
+        // mandatory lock or revoke a requirement previously confirmed directly with GitHub.
+        // UpdatePromptStore preserves that existing requirement when historyComplete is false.
+        fun transportPolicy(release: ReleaseInfo?) = release?.let {
+            if (session.usedMirror) it.copy(mandatory = false) else it
+        }
+        result.copy(stable = transportPolicy(withDeltaHistory(result.stable)),
+            beta = transportPolicy(withDeltaHistory(result.beta)),
+            historyComplete = complete && !session.usedMirror,
+            metadataTrusted = !session.usedMirror).takeIf { it.stable != null || it.beta != null }
     }
 
     /** 下载到 [dest]，[onProgress] 回调 0..100（-1 表示总长度未知） */

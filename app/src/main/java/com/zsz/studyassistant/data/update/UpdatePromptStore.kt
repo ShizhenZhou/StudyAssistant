@@ -60,7 +60,11 @@ object UpdatePromptStore {
         mutex.withLock {
             val previous = (mutableRelease.value ?: read(context))?.takeIf { eligible(context, it) }
             val candidate = releases.stable?.takeIf { eligible(context, it) }
-            val next = if (previous?.mandatory == true && !releases.historyComplete) {
+            val next = if (!releases.metadataTrusted) {
+                // Unsigned mirror metadata must neither create a lock nor replace its confirmed
+                // target with an invented newer build that the user can never install.
+                if (previous?.mandatory == true) previous else candidate?.copy(mandatory = false)
+            } else if (previous?.mandatory == true && !releases.historyComplete) {
                 // Partial/failed history cannot silently unlock the app. A newer valid
                 // target may still replace the cached target without losing the requirement.
                 if (candidate != null && UpdateChecker.compareReleases(candidate, previous) >= 0)

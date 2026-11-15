@@ -41,7 +41,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 Questions, history and review databases stay on the device. Necessary prompts, images, context, custom instructions, related category/tag names and parameters go directly to the **official DeepSeek API**, authenticated with your own key; there is no developer relay. Android Keystore encrypts the locally stored key.
 
-Explicitly choosing tag organization → AI analysis sends all tag IDs, names and associated question counts, but no question text, answers or images. Updates access GitHub without question content. No analytics reporting.
+Explicitly choosing tag organization → AI analysis sends all tag IDs, names and associated question counts, but no question text, answers or images. Updates try GitHub first, then a configurable mirror that can be disabled; neither question content nor API keys are sent. No analytics reporting.
 
 Automatic backups write only to your SAF-selected folder. The app does not initiate cloud sync; a cloud drive provider may sync its folder independently. Crash logs and AI diagnostics are exported only on request to your chosen location.
 

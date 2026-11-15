@@ -2876,7 +2876,7 @@ private val B10_ZH = mapOf(
         "· 📱 无账号、自有服务器或统计上报；错题、解题记录和复习数据库保存在本机\n" +
         "· 🤖 AI 功能将所需题干、图片、上下文、自定义要求、相关分类/标签名与参数直接发送到 DeepSeek 官方 API；使用自备 Key 认证\n" +
         "· 🏷️ 标签整理 AI 分析发送完整标签的编号、名称与关联题数，不发送题目正文、答案或图片\n" +
-        "· 🔐 检查更新和下载安装包访问 GitHub，不携带题目内容；Key 在本机以 Android Keystore 加密，不经过开发者服务器\n" +
+        "· 🔐 更新优先访问 GitHub，失败时可使用所配置的镜像，不携带题目内容；Key 在本机以 Android Keystore 加密，不经过开发者服务器\n" +
         "· 🗄️ 自动备份只写入所选 SAF 文件夹，本应用不主动云同步；网盘文件夹可能由网盘应用自行同步。崩溃日志和分析诊断仅在手动导出时写到所选位置"
         ),
     "update.current" to "当前版本",
@@ -2901,7 +2901,7 @@ private val B10_ZH = mapOf(
     "update.install" to "安装更新",
     "update.needPermission" to "需要先允许本应用「安装未知应用」",
     "update.grant" to "去允许",
-    "update.hint" to "更新包取自 GitHub 仓库，有时网络可能不稳定。",
+    "update.hint" to "更新包来自 GitHub；连接失败时可自动使用下方配置的镜像。",
     "update.openBrowser" to "在浏览器打开发布页",
     "update.netError" to "检查失败：网络不可用或无法访问 GitHub",
     // v0.6.1.3 更新页增强：新版本说明 / 跳过此版本 / 上次检查时间 / 失败重试
@@ -2948,7 +2948,7 @@ private val B10_EN = mapOf(
         "· 📱 No accounts, developer backend or analytics reporting; notebook, history and review databases are stored locally\n" +
         "· 🤖 AI features send necessary question text, images, context, custom instructions, relevant category/label names and options directly to the official DeepSeek API, authenticated with your own key\n" +
         "· 🏷️ AI label analysis sends the complete label IDs, names and linked-question counts, without question text, answers or images\n" +
-        "· 🔐 Update checks and APK downloads access GitHub without question content. Keys are encrypted locally with Android Keystore and never routed through a developer server\n" +
+        "· 🔐 Updates try GitHub first, with the configured mirror as fallback, without question content. Keys are encrypted locally with Android Keystore and never routed through a developer server\n" +
         "· 🗄️ Automatic backups only write to the chosen SAF folder; this app does not perform cloud sync. A cloud-drive app may sync its own folder. Crash logs and analysis diagnostics are written to a chosen location only on manual export"
         ),
     "update.current" to "Current version",
@@ -2973,7 +2973,7 @@ private val B10_EN = mapOf(
     "update.install" to "Install update",
     "update.needPermission" to "Please allow this app to install unknown apps first",
     "update.grant" to "Allow",
-    "update.hint" to "Update packages come from the GitHub repository; the network may be unstable at times.",
+    "update.hint" to "Updates come from GitHub; the configured mirror can be used automatically if the connection fails.",
     "update.openBrowser" to "Open the releases page in a browser",
     "update.netError" to "Check failed: network unavailable or GitHub unreachable",
     // v0.6.1.3 update page: release notes / skip this version / last check / retry
@@ -3020,7 +3020,7 @@ private val B10_JA = mapOf(
         "· 📱 アカウント・開発者サーバー・解析データ送信なし。ノート・履歴・復習のDBは端末に保存\n" +
         "· 🤖 AI機能は必要な問題文・画像・文脈・カスタム指示・関連する分類/タグ名・設定をDeepSeek公式APIへ直接送信し、自分のキーで認証\n" +
         "· 🏷️ タグ分析では全タグの番号・名称・関連問題数を送信。問題本文・解答・画像は送信しない\n" +
-        "· 🔐 更新確認とAPK取得はGitHubにアクセスし、問題内容は送信しない。キーはAndroid Keystoreで端末に暗号化保存し、開発者サーバーを経由しない\n" +
+        "· 🔐 更新はGitHubを優先し、失敗時は設定したミラーを利用できる。問題内容は送信しない。キーはAndroid Keystoreで端末に暗号化保存し、開発者サーバーを経由しない\n" +
         "· 🗄️ 自動バックアップは選択したSAFフォルダーへの書き込みのみで、本アプリはクラウド同期しない。クラウドアプリ側が同期する場合あり。クラッシュログと分析診断は手動出力時のみ選択先に書き込む"
         ),
     "update.current" to "現在のバージョン",
@@ -3045,7 +3045,7 @@ private val B10_JA = mapOf(
     "update.install" to "更新をインストール",
     "update.needPermission" to "先に「提供元不明のアプリ」のインストールを許可してください",
     "update.grant" to "許可する",
-    "update.hint" to "更新パッケージは GitHub リポジトリから取得します。ネットワークが不安定なことがあります。",
+    "update.hint" to "更新は GitHub から取得し、接続失敗時は設定したミラーへ自動切り替えできます。",
     "update.openBrowser" to "リリースページをブラウザで開く",
     "update.netError" to "確認に失敗しました：ネットワーク不可、または GitHub に接続できません",
     // v0.6.1.3 更新ページ拡張：更新内容 / このバージョンをスキップ / 前回確認 / 再試行
@@ -3092,7 +3092,7 @@ private val B10_KO = mapOf(
         "· 📱 계정·개발자 서버·분석 정보 전송이 없으며 오답·기록·복습 DB는 기기에 저장\n" +
         "· 🤖 AI 기능은 필요한 문제 글·이미지·문맥·사용자 지시·관련 분류/태그 이름·설정을 DeepSeek 공식 API로 직접 보내고 본인의 키로 인증\n" +
         "· 🏷️ 태그 분석은 전체 태그 번호·이름·연결 문제 수를 보내며 문제 본문·답안·이미지는 보내지 않음\n" +
-        "· 🔐 업데이트 확인과 APK 다운로드는 문제 내용을 보내지 않고 GitHub에 접근. 키는 Android Keystore로 로컬 암호화하며 개발자 서버를 거치지 않음\n" +
+        "· 🔐 업데이트는 GitHub에 먼저 연결하고 실패 시 설정된 미러를 사용하며 문제 내용은 보내지 않음. 키는 Android Keystore로 로컬 암호화하며 개발자 서버를 거치지 않음\n" +
         "· 🗄️ 자동 백업은 선택한 SAF 폴더에만 쓰며 앱 자체는 클라우드 동기화를 하지 않음. 클라우드 앱이 자체 폴더를 동기화할 수 있음. 크래시 로그와 분석 진단은 수동 내보내기 때만 선택한 위치에 기록"
         ),
     "update.current" to "현재 버전",
@@ -3117,7 +3117,7 @@ private val B10_KO = mapOf(
     "update.install" to "업데이트 설치",
     "update.needPermission" to "먼저 이 앱의 '알 수 없는 앱 설치'를 허용해 주세요",
     "update.grant" to "허용",
-    "update.hint" to "업데이트 패키지는 GitHub 저장소에서 받습니다. 네트워크가 불안정할 수 있습니다.",
+    "update.hint" to "GitHub에서 업데이트를 받으며, 연결 실패 시 설정된 미러로 자동 전환할 수 있습니다.",
     "update.openBrowser" to "브라우저에서 릴리스 페이지 열기",
     "update.netError" to "확인 실패: 네트워크 불가 또는 GitHub 접속 실패",
     // v0.6.1.3 업데이트 페이지 확장: 업데이트 내용 / 이 버전 건너뛰기 / 마지막 확인 / 다시 시도
@@ -3455,7 +3455,7 @@ private val UPDATE_CHANNEL_ZH = mapOf(
     "update.downloadBeta" to "下载测试版（可选）"
 )
 
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH + PROMPT_BACKUP_ZH + DOCUMENT_SELECTION_ZH
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH + PROMPT_BACKUP_ZH + DOCUMENT_SELECTION_ZH + UPDATE_RECOVERY_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3514,7 +3514,7 @@ private val UPDATE_CHANNEL_EN = mapOf(
     "update.downloadBeta" to "Download test version (optional)"
 )
 
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN + PROMPT_BACKUP_EN + DOCUMENT_SELECTION_EN
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN + PROMPT_BACKUP_EN + DOCUMENT_SELECTION_EN + UPDATE_RECOVERY_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3573,7 +3573,7 @@ private val UPDATE_CHANNEL_JA = mapOf(
     "update.downloadBeta" to "テスト版をダウンロード（任意）"
 )
 
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA + PROMPT_BACKUP_JA + DOCUMENT_SELECTION_JA
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA + PROMPT_BACKUP_JA + DOCUMENT_SELECTION_JA + UPDATE_RECOVERY_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "Android 16+ · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3632,4 +3632,4 @@ private val UPDATE_CHANNEL_KO = mapOf(
     "update.downloadBeta" to "테스트 버전 다운로드 (선택)"
 )
 
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO + PROMPT_BACKUP_KO + DOCUMENT_SELECTION_KO
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO + PROMPT_BACKUP_KO + DOCUMENT_SELECTION_KO + UPDATE_RECOVERY_KO
