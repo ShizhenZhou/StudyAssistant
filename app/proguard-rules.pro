@@ -8,6 +8,12 @@
 -dontwarn retrofit2.**
 -dontwarn org.jetbrains.annotations.**
 
+# PDFBox's optional JPEG2000 codec is not used: PdfRenderer draws previews and
+# page selection copies encoded image streams without decoding/re-encoding them.
+# Keep this scoped to the two optional classes; all other missing types remain errors.
+-dontwarn com.gemalto.jp2.JP2Decoder
+-dontwarn com.gemalto.jp2.JP2Encoder
+
 # ---------- kotlinx.serialization（会话 JSON、请求/响应）----------
 -dontnote kotlinx.serialization.**
 -keepclassmembers class kotlinx.serialization.json.** {
