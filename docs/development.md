@@ -26,6 +26,12 @@ Release APK 显式压缩 DEX（`packaging.dex.useLegacyPackaging`），降低完
 
 流式对话渲染复用未变更的 DOM 子树，并以 2 MiB / 128 项上限缓存公式与图形的 HTML。Markdown 结构改变时仍以完整解析结果校正节点，避免增量追加破坏表格、代码块或未完成公式。PDF 表格只重复明确的表头，超高行按完整文字/公式行分片，每个单元格每页绘制一段边框；这些运行时优化不增加默认测试或发布门禁。
 
+交互会话图片由每个 WebView 独立的 `ConversationImageStore` 提供短地址，原件按需流式读取，点击放大也只传地址。普通文件、网络地址仍被 WebView 拦截；退出或重建后释放地址映射。数据库、备份与独立导出继续保留原图片格式。`SolveSessionState` 集中管理当前会话显示与图片引用，生成任务和持久化仍由 ViewModel 协调。
+
+更新断点下载由执行中的 WorkManager 任务维护前台进度，网络等待／重试退避期间仅留普通通知；完成胶囊最多显示两分钟，点击进入或安装后移除。历史 DownloadManager 任务仍沿用旧监控以兼容升级中的下载。通知卡片使用 SA 大图标，胶囊保留语义线条小图标，最终位置由系统决定。
+
+主导航按当前窗口可用宽高选择底栏或侧栏，内容保留同一组合位置；短横屏相机将拍摄操作移到侧边，普通手机竖屏保持现有布局。
+
 当前运行依赖：Compose BOM 2026.09.00、Lifecycle 2.11.0、Navigation Compose 2.10.2、CameraX 1.6.2、Retrofit 3.0.0、OkHttp 5.5.1、kotlinx.serialization 1.13.0、WorkManager 2.12.0（备份与6小时周期更新通知）。离线 KaTeX 0.19.1 的来源与打包说明见 [third-party-assets.md](third-party-assets.md)。版本声明以 `gradle/libs.versions.toml` 为准。
 
 GitHub Actions 直接使用官方 Google Maven、Maven Central 与 Gradle Plugin Portal；国内本地开发保留原镜像优先配置。定向 JVM 的实际任务为 `testIntegrationUnitTest`（AGP 9 对应 `testBuildType = integration`），仍由 `-TestClass` 显式选择，不启动设备。

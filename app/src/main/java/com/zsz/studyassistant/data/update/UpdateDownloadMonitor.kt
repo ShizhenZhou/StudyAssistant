@@ -151,6 +151,14 @@ class UpdateDownloadMonitor : Service() {
         @Synchronized internal fun request(context: Context): Request? {
             if (!UpdateDownloadNotifications.canReplaceNative(context)) return null
             val lease = Request()
+            // New transfers are scheduled workers. Their notification lifetime follows execution,
+            // so an offline/queued transfer does not need a separate foreground service.
+            lease.ready.complete(true)
+            return lease
+        }
+        @Synchronized private fun requestLegacy(context: Context): Request? {
+            if (!UpdateDownloadNotifications.canReplaceNative(context)) return null
+            val lease = Request()
             latestRequest = lease
             return try {
                 ContextCompat.startForegroundService(context.applicationContext, Intent(context, UpdateDownloadMonitor::class.java))
@@ -158,12 +166,12 @@ class UpdateDownloadMonitor : Service() {
             } catch (_: Exception) { lease.aborted(); null }
         }
         @Synchronized internal fun ensureForRestored(context: Context, task: UpdateDownloads.Snapshot) {
-            if (!task.appNotification || running || task.phase !in setOf(UpdateDownloads.Phase.DOWNLOADING, UpdateDownloads.Phase.WAITING)) return
+            if (task.resumable || !task.appNotification || running || task.phase !in setOf(UpdateDownloads.Phase.DOWNLOADING, UpdateDownloads.Phase.WAITING)) return
             if (latestRequest?.ready?.isCompleted == false) return
             val now = SystemClock.elapsedRealtime()
             if (now - lastRestoreAttempt < 5000) return
             lastRestoreAttempt = now
-            request(context)?.bound(task)
+            requestLegacy(context)?.bound(task)
         }
     }
 }

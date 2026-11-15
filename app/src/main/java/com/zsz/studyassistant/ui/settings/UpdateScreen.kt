@@ -24,7 +24,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -159,7 +159,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     var phase by remember { mutableStateOf(Phase.RESTORING) }
     var operationGeneration by remember { mutableIntStateOf(0) }
     var downloadActionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val promptRelease = com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState().value
+    val promptRelease = com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsStateWithLifecycle().value
     var latest by remember { mutableStateOf(promptRelease) }
     var offers by remember { mutableStateOf(listOfNotNull(promptRelease)) }
     val fullPackageChoices = remember { mutableStateMapOf<String, Boolean>() }

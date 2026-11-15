@@ -97,6 +97,7 @@ internal object UpdateDownloadNotifications {
                 else -> com.zsz.studyassistant.R.drawable.ic_stat_download
             })
             .setColor(color)
+            .setLargeIcon(NotificationArtwork.application(context))
             .setContentTitle(title).setContentText(notificationText(text, caution = failed || messageKey != null))
             .setContentIntent(NotificationIntents.update(context, task?.token, completed))
             .addExtras(android.os.Bundle().apply { putString(TOKEN_EXTRA, task?.token) })
@@ -159,13 +160,14 @@ internal object UpdateDownloadNotifications {
             .filter { it.isNotEmpty() && it != token }.takeLast(15) + token
         prefs.edit().putString(ACKNOWLEDGED_TOKENS, tokens.joinToString(",")).apply()
         UpdateDownloadMonitor.dismissAcknowledgedCompletion(token)
+        UpdateTransferNotification.acknowledge(context, token)
         clearToken(context, token)
     }
 
     internal fun clearToken(context: Context, token: String) {
         runCatching {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
-            manager.activeNotifications.filter { it.id in setOf(NOTIFICATION_ID, TERMINAL_ID) &&
+            manager.activeNotifications.filter {
                 it.notification.extras.getString(TOKEN_EXTRA) == token }.forEach { manager.cancel(it.id) }
         }
     }

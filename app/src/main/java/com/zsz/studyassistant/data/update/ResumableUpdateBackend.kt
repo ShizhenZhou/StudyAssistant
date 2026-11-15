@@ -9,9 +9,10 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.Worker
+import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -22,7 +23,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 
-/** Owns durable bytes; WorkManager owns scheduling, and the existing monitor owns notifications. */
+/** Owns durable bytes; the executing worker owns progress, without a waiting foreground service. */
 internal class ResumableUpdateBackend(context: Context, private val legacy: UpdateDownloads.Backend) : UpdateDownloads.Backend {
     private val context = context.applicationContext
     private val prefs get() = context.getSharedPreferences("update_resumable_transfers", Context.MODE_PRIVATE)
@@ -94,7 +95,8 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
             current
         }
         if (record == null) { if (id < ID_BASE) legacy.remove(id); return }
-        work.cancelUniqueWork(workName(record.id))
+        // Completing a transfer tidies its bytes while its worker finishes notification handoff.
+        if (record.phase != UpdateDownloads.TransferPhase.SUCCESS) work.cancelUniqueWork(workName(record.id))
     }
 
     private fun schedule(record: Record) {
@@ -315,16 +317,24 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
 }
 
 /** Ordinary bounded work also runs when the user has disabled notifications. */
-class ResumableUpdateWorker(context: Context, parameters: WorkerParameters) : Worker(context, parameters) {
-    override fun doWork(): Result {
+class ResumableUpdateWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
+    override suspend fun doWork(): Result {
         val id = inputData.getLong("transfer", -1)
         val generation = inputData.getString("generation") ?: return Result.success()
         if (id < ResumableUpdateBackend.ID_BASE) return Result.success()
         val backend = ResumableUpdateBackend(applicationContext, UpdateDownloads.SystemBackend(applicationContext))
-        return if (backend.run(id, generation, runAttemptCount) { isStopped }) Result.retry() else Result.success()
-    }
-    override fun onStopped() {
-        ResumableUpdateBackend.stop(inputData.getLong("transfer", -1), inputData.getString("generation").orEmpty())
-        super.onStopped()
+        return coroutineScope {
+            val cancellation = launch(start = CoroutineStart.UNDISPATCHED) {
+                try { awaitCancellation() }
+                finally { ResumableUpdateBackend.stop(id, generation) }
+            }
+            try {
+                UpdateTransferNotification.run(this@ResumableUpdateWorker, id) {
+                    withContext(Dispatchers.IO) {
+                        if (backend.run(id, generation, runAttemptCount) { isStopped }) Result.retry() else Result.success()
+                    }
+                }
+            } finally { cancellation.cancel() }
+        }
     }
 }

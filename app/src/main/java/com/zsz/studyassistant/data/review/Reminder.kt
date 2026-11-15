@@ -90,6 +90,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     val text = notificationText(s.format("notif.review.text", "today" to "$today", "week" to "$week"))
                     val notification = NotificationCompat.Builder(c, ReminderScheduler.CHANNEL_ID)
                         .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_review).setContentTitle(s["notif.review.channel"])
+                        .setLargeIcon(NotificationArtwork.application(c))
                         .setCategory(NotificationCompat.CATEGORY_REMINDER)
                         .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text))
                         .setContentIntent(NotificationIntents.reviewReminder(c))

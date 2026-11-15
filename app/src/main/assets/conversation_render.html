@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src data: file:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="katex/katex.min.css">
 <script src="katex/katex.min.js"></script>
@@ -237,7 +237,7 @@ function renderMath(text){
 }
 function openImg(el){
   try{
-    var b=el.getAttribute('data-b64');
+    var b=el.getAttribute('data-image');
     if(b && window.Android && Android.openImage){ Android.openImage(b); }
   }catch(e){}
 }
@@ -599,9 +599,9 @@ window.thinkDone = {};       // 每个气泡的思考是否已结束（决定标
 window.thinkFirstKey = null; // 会话标识：换会话时清空上面的状态，避免旧下标串味
 function msgKey(m){
   var imgs = (m.images && m.images.length) ? m.images.length : 0;
-  var firstLen = (m.images && m.images.length && m.images[0]) ? m.images[0].length : 0;
+  var imageKey = (m.images||[]).map(function(image){return image.indexOf('file:///android_asset/session-image/')===0?image:image.length;}).join(',');
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
-  return (m.messageKey||'') + '|' + JSON.stringify(m.quoteAnchor||null) + '|' + m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + firstLen
+  return (m.messageKey||'') + '|' + JSON.stringify(m.quoteAnchor||null) + '|' + m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + imageKey
        + '|' + JSON.stringify(m.documents||[]) + '|' + JSON.stringify(m.sources||[]) + '|' + (m.sourcesLabel||'') + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
 }
 // Reconcile against a fresh parse, rather than guessing where a streamed Markdown block is final.
@@ -644,10 +644,12 @@ function bubbleHtml(m, idx){
     var imgs = '';
     for(var j=0;j<m.images.length;j++){
       var b64=m.images[j];
-      // Only base64 image bytes may reach either HTML attribute, even with a malformed legacy row.
-      if(typeof b64!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) continue;
-      // data-b64 供点击放大时回传给原生；多选态下点图 = 切换选中，否则打开全屏查看
-      imgs+='<img class="msgimg" style="cursor:zoom-in" data-b64="'+b64+'" src="data:image/jpeg;base64,'+b64+'" onclick="imgTap(event,this,'+idx+')">';
+      if(typeof b64!=='string') continue;
+      // Interactive views use opaque local handles; standalone exports retain embedded image data.
+      var local=/^file:\/\/\/android_asset\/session-image\/[0-9a-f-]{36}\/[0-9]+$/.test(b64);
+      if(!local && !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) continue;
+      var src=local?b64:('data:image/jpeg;base64,'+b64);
+      imgs+='<img class="msgimg" style="cursor:zoom-in" data-image="'+(local?esc(b64):'')+'" src="'+esc(src)+'" onclick="imgTap(event,this,'+idx+')">';
     }
     // ★ 默认折叠原图：题目以「文字 + 公式」为主（提高易读性），点开才看原始拍摄的图片。
     //   AI 回复里的附图（如追问带图）保持原样直接显示。

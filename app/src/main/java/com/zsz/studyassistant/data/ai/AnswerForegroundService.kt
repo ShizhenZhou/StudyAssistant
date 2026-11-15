@@ -43,6 +43,7 @@ class AnswerForegroundService : Service() {
             )
             return NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_answer)
+                .setLargeIcon(NotificationArtwork.application(context))
                 .setCategory(NotificationCompat.CATEGORY_PROGRESS)
                 .setColor(0xFF2563EB.toInt())
                 // Colorized backgrounds make Android 16 notifications ineligible for promotion.

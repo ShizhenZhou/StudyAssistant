@@ -139,7 +139,8 @@ fun ConversationWebView(
     var rendererGeneration by remember { mutableStateOf(0) }
     var rendererFailed by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
-    val payload = remember { ConversationPayload() }
+    val imageStore = remember { ConversationImageStore() }
+    val payload = remember { ConversationPayload(imageStore) }
     var zoomImage by remember { mutableStateOf<String?>(null) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
     val bridgeHandler = remember { Handler(Looper.getMainLooper()) }
@@ -273,8 +274,8 @@ fun ConversationWebView(
                         }
 
                         @JavascriptInterface
-                        fun openImage(b64: String) {
-                            bridgeHandler.post { if (webRef === bridgeView) zoomImage = b64 }
+                        fun openImage(url: String) {
+                            bridgeHandler.post { if (webRef === bridgeView) zoomImage = imageStore.original(url) }
                         }
 
                         /** 气泡末尾的蓝色「继续生成」被点击 */
@@ -318,7 +319,7 @@ fun ConversationWebView(
                             // 占位：网页会尝试回调高度，这里无需处理
                         }
                     }, "Android")
-                    webViewClient = object : ConversationAssetClient() {
+                    webViewClient = object : ConversationAssetClient(imageStore) {
                         override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
                             if (webRef === view) {
                                 webRef = null
@@ -373,17 +374,17 @@ fun ConversationWebView(
 }
 
 /** Keep immutable prefix messages on the JS side; no repeated Base64 serialization while streaming. */
-internal class ConversationPayload {
+internal class ConversationPayload(private val images: ConversationImageStore? = null) {
     private var previous: List<ChatMsg> = emptyList()
     private var options: String? = null
-    fun reset() { previous = emptyList(); options = null }
+    fun reset() { previous = emptyList(); options = null; images?.clear() }
     fun javascript(messages: List<ChatMsg>, selection: String, labels: String,
                    dark: Boolean, scale: Float, thinkPref: String): String? {
         var prefix = 0
         while (prefix < previous.size && prefix < messages.size && previous[prefix] == messages[prefix]) prefix++
         val args = "$selection, $labels, $dark, $scale, ${JSONObject.quote(thinkPref)}"
         if (prefix == previous.size && prefix == messages.size && options == args) return null
-        val tail = buildMessagesJson(messages.drop(prefix))
+        val tail = buildMessagesJson((images?.messages(messages) ?: messages).drop(prefix))
         previous = messages.toList()
         options = args
         return "patchMessages($prefix, $tail, $args);"
@@ -541,9 +542,9 @@ internal fun configureConversationWebView(view: WebView) {
     }
 }
 
-internal open class ConversationAssetClient : WebViewClient() {
+internal open class ConversationAssetClient(private val images: ConversationImageStore? = null) : WebViewClient() {
     private val assets = Regex("file:///android_asset/(conversation_render\\.html|quote_navigation\\.js|svg_diagrams\\.js|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
-    private fun resource(url: String): WebResourceResponse? = if (assets.matches(url)) null else
+    private fun resource(url: String): WebResourceResponse? = images?.response(url) ?: if (assets.matches(url)) null else
         WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(), java.io.ByteArrayInputStream(byteArrayOf()))
 
     override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? = resource(request.url.toString())

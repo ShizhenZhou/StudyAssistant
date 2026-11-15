@@ -34,6 +34,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -111,7 +115,8 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasPermission = granted }
 
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val shortLandscape = maxWidth > maxHeight && maxHeight < 500.dp
         val previewView = remember { PreviewView(context) }
         val imageCapture = remember { ImageCapture.Builder().build() }
         val lifecycleOwner = LocalLifecycleOwner.current
@@ -340,8 +345,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                 text = String.format(java.util.Locale.ROOT, "%.1f×", ratio),
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.align(Alignment.BottomCenter)
-                    .navigationBarsPadding().padding(bottom = 112.dp)
+                modifier = Modifier.align(if (shortLandscape) Alignment.BottomStart else Alignment.BottomCenter)
+                    .navigationBarsPadding().padding(start = if (shortLandscape) 16.dp else 0.dp,
+                        bottom = if (shortLandscape) 16.dp else 112.dp)
                     .background(Color.Black.copy(alpha = .65f), RoundedCornerShape(20.dp))
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             )
@@ -417,9 +423,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .navigationBarsPadding()
-                .padding(start = 20.dp, bottom = 28.dp)
+                .align(if (shortLandscape) Alignment.CenterEnd else Alignment.BottomStart)
+                .then(if (shortLandscape) Modifier.safeDrawingPadding().padding(end = 28.dp).offset(y = (-84).dp)
+                    else Modifier.navigationBarsPadding().padding(start = 20.dp, bottom = 28.dp))
                 .size(60.dp)
                 .semantics { contentDescription = s["camera.gallery"] }
         ) {
@@ -460,9 +466,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(20.dp)
+                .align(if (shortLandscape) Alignment.CenterEnd else Alignment.BottomCenter)
+                .then(if (shortLandscape) Modifier.safeDrawingPadding().padding(end = 20.dp)
+                    else Modifier.navigationBarsPadding().padding(20.dp))
                 .size(76.dp)
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -479,9 +485,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(end = 20.dp, bottom = 36.dp)
+                .align(if (shortLandscape) Alignment.CenterEnd else Alignment.BottomEnd)
+                .then(if (shortLandscape) Modifier.safeDrawingPadding().padding(end = 20.dp).offset(y = 76.dp)
+                    else Modifier.navigationBarsPadding().padding(end = 20.dp, bottom = 36.dp))
                 .height(44.dp)
         ) {
             Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
@@ -500,8 +506,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
                     if (gradeMode) s["grade.hint.twoFirst"] else s["camera.hint.twoFirst"]
                 },
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
+                    .align(if (shortLandscape) Alignment.TopStart else Alignment.TopCenter)
                     .statusBarsPadding()
+                    .then(if (shortLandscape) Modifier.widthIn(max = maxWidth - 132.dp) else Modifier)
                     .padding(top = 72.dp, start = 16.dp, end = 16.dp),
                 firstPath = vm.cropPaths.firstOrNull().takeIf { vm.cropNeedsMore },
                 enabled = !vm.busy && !captureInFlight,
@@ -525,8 +532,9 @@ fun CameraScreen(nav: NavHostController, vm: MainViewModel) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .align(Alignment.TopEnd)
+                .align(if (shortLandscape) Alignment.TopStart else Alignment.TopEnd)
                 .statusBarsPadding()
+                .then(if (shortLandscape) Modifier.padding(start = 88.dp) else Modifier)
                 .padding(8.dp)
                 .background(Color.Black.copy(alpha = .65f), RoundedCornerShape(24.dp))
                 .padding(horizontal = 12.dp)

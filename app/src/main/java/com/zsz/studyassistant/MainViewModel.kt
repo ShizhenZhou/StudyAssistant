@@ -373,11 +373,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val tagNames: List<String> get() = tags.value.map { it.name }
 
     // ---- 对话流状态 ----
-    var imageBytes by mutableStateOf<ByteArray?>(null)
-    private var sessionItems by mutableStateOf<List<ChatItem>>(emptyList())
-    var chatItems: List<ChatItem>
-        get() = sessionItems
-        private set(value) { sessionItems = withStableMessageKeys(value) }
+    private val sessionState = SolveSessionState()
+    var imageBytes by sessionState::imageBytes
+    var chatItems by sessionState::chatItems
+        private set
     var busy by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
         private set
@@ -402,13 +401,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     /** 供界面判断：当前会话是否来自"拍照搜题"（返回时决定回拍题页还是返回来处） */
     val isPhotoSession: Boolean get() = isPhoto
-    private var questionText = ""
+    private var questionText by sessionState::questionText
     /** 只读访问当前题干（B9 查重等界面逻辑用；questionText 本身保持私有以免被误改） */
     val questionTextForUi: String get() = questionText
     /** 直接提问携带的附图（文字 + 多图） */
-    private var directImages: List<ByteArray> = emptyList()
+    private var directImages by sessionState::directImages
     /** 拍照搜题（多张）携带的图，作为题目一起识别 */
-    private var multiImages: List<ByteArray> = emptyList()
+    private var multiImages by sessionState::multiImages
 
     /**
      * 当前会话对应的**搜题记录** id（`solve_sessions.id`）——用于"一次会话只落一条"。
@@ -925,21 +924,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     /** 推理模型的思考流（浅灰小字展示；非推理模型为 null） */
-    var thinkingText by mutableStateOf<String?>(null)
+    var thinkingText by sessionState::thinkingText
         private set
     /** 思考是否已结束（结束后不再自动跟随、并触发跳转到答案开头） */
-    var thinkingDone by mutableStateOf(false)
+    var thinkingDone by sessionState::thinkingDone
         private set
     /** 正在做兜底分类请求（C）：防止重复发起 */
     private var classifying = false
 
     /** 供界面显示的"题目图"（base64）：原题/我的提问附图，统一作为浅绿用户气泡显示。
      *  只用于显示，不写入会话 JSON（避免数据库膨胀），旧题由 loadQuestion 从 imageBytes 注入。 */
-    var questionImages by mutableStateOf<List<String>>(emptyList())
+    var questionImages by sessionState::questionImages
         private set
 
     /** 当前这道题是否"拍照题"：是则题目气泡只显示原图，不显示 AI 转译题干（题干仍保存，供错题本/搜索/编辑用） */
-    var questionFromPhoto by mutableStateOf(false)
+    var questionFromPhoto by sessionState::questionFromPhoto
         private set
 
     /** AI 推测的科目（存题时作为默认分类建议，可改/可暂不分类） */
@@ -1600,9 +1599,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentNotebookBaseline=null
         sessionRecordBinding = SolveSessionBinding()
         askMode = false
-        chatItems = emptyList()
-        imageBytes = null
-        questionText = ""
+        sessionState.clearQuestion()
         error = null
         savedToNotebook = false
         savedQuestionId = null
@@ -1616,21 +1613,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCreatedAt = 0L
         reviewMode = false
         gradeMode = false
-        directImages = emptyList()
-        multiImages = emptyList()
-        questionImages = emptyList()
-        questionFromPhoto = false
     }
 
     /**
      * 流式生成的中间文本：非 null 时界面把它当作「正在生成」的助手气泡实时渲染。
      * null = 当前没有流式（常规整段等待，或已结束）。
      */
-    var streamingText by mutableStateOf<String?>(null)
+    var streamingText by sessionState::streamingText
         private set
 
     /** 生成被中断（用户点「中止生成」或网络异常），已生成内容保留、可点「继续生成」 */
-    var streamInterrupted by mutableStateOf(false)
+    var streamInterrupted by sessionState::streamInterrupted
         private set
 
     private var callJob: Job? = null
@@ -1924,6 +1917,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         streamOwner?.let { it.cancel(); com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(),it.id) }
         similarStreamOwner?.let { it.cancel(); com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(),it.id) }
+        sessionState.clear()
         super.onCleared()
     }
 

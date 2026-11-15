@@ -57,6 +57,15 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.3.7
+
+- ⬇️ Reduce background work during update downloads: keep only a regular notification while waiting for the network, and improve cancellation and completion cleanup.
+- 🖼️ Load conversation images on demand to reduce repeated transfers and memory use.
+- 📐 Use side navigation in wide windows and improve camera controls in short landscape windows.
+- 🔔 Restore SA artwork on notification cards while retaining line icons for live updates.
+- 🧩 Consolidate conversation state and reduce unnecessary updates on background screens.
+- 📌 `versionCode` **130**.
+
 ### v0.7.3.6
 
 - ⬇️ Update downloads preserve progress and support manual resuming; GitHub connection failures can fall back to a configurable mirror.

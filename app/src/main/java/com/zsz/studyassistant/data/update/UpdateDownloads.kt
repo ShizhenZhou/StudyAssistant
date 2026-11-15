@@ -40,7 +40,8 @@ internal class UpdateDownloads(
             appNotification: Boolean): Long? = null
     }
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
-        val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false)
+        val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false,
+        val resumable: Boolean = false)
     private data class Record(val token: String, val release: UpdateChecker.ReleaseInfo,
         val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false,
         val delta: UpdateDeltaInfo? = null, val transferToken: String = token, val enqueuePending: Boolean = false,
@@ -126,6 +127,10 @@ internal class UpdateDownloads(
         checkTransfer(initial)
         var pending = initial
         write(pending) // A crash around enqueue can recover by this exact destination token.
+        if (pending.appNotification && backend is ResumableUpdateBackend) {
+            runCatching { UpdateDownloadNotifications.postTerminal(context,
+                UpdateDownloadNotifications.build(context, status(pending, Phase.WAITING))) }
+        }
         val destination = partial(pending)
         destination.parentFile?.mkdirs()
         // The caller has already established that this transfer token has no OS row.
@@ -150,6 +155,13 @@ internal class UpdateDownloads(
         catch (_: TransferCancelled) { null }
         catch (error: kotlinx.coroutines.CancellationException) { throw error }
         catch (_: Exception) { status(record, Phase.WAITING, errorKey = "update.downloadUnavailable") }
+    }
+
+    /** A worker must never observe, advance or publish a replacement transfer. */
+    internal suspend fun snapshotForTransfer(id: Long): Snapshot? = locked {
+        val record = read()?.takeIf { it.id == id } ?: return@locked null
+        try { snapshotLocked(record) }
+        catch (_: TransferCancelled) { null }
     }
 
     /** Resume only the displayed transfer; a stale tap cannot affect a replacement task. */
@@ -346,6 +358,8 @@ internal class UpdateDownloads(
         partial(record).delete(); ready(record).delete(); checking(record).delete(); patchChecking(record).delete()
         UpdateArchiveDelta.cleanup(checking(record))
         check(prefs.edit().remove("session").commit())
+        UpdateTransferNotification.acknowledge(context, record.token)
+        UpdateDownloadNotifications.clearToken(context, record.token)
     }
     private fun removeOwned(record: Record) {
         val current = if (record.id >= 0) backend.query(record.id) else backend.find(transferRelease(record).assetUrl, partial(record))
@@ -358,7 +372,8 @@ internal class UpdateDownloads(
         }.getOrDefault(false))
 
     private fun status(record: Record, phase: Phase, progress: Int = -1, file: File? = null, errorKey: String? = null) =
-        Snapshot(record.token, record.release, phase, progress, file, errorKey, record.appNotification)
+        Snapshot(record.token, record.release, phase, progress, file, errorKey, record.appNotification,
+            record.id >= ResumableUpdateBackend.ID_BASE)
 
     private fun partial(record: Record): File {
         val root = checkNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))

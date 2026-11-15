@@ -47,6 +47,7 @@ object BackupNotifications {
                 .putExtra(AppNav.OPEN_BACKUP_EXTRA, true)
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_backup_warning)
+                .setLargeIcon(NotificationArtwork.application(context))
                 .setContentTitle(strings["data.backupNotifyFailed"])
                 .setCategory(NotificationCompat.CATEGORY_ERROR)
                 .setContentText(notificationText(strings["data.backupNotifyBody"], caution = true))

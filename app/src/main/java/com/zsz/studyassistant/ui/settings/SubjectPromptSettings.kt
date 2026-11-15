@@ -26,7 +26,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -163,7 +163,7 @@ class SubjectPromptEditor(context: Context, private val scope: CoroutineScope) {
 internal fun SubjectPromptSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     val editor = vm.customPromptEditor
-    val categories by vm.categories.collectAsState()
+    val categories by vm.categories.collectAsStateWithLifecycle()
     var showTemplates by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

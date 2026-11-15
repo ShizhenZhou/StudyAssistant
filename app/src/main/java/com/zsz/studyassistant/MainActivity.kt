@@ -33,7 +33,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -246,7 +246,7 @@ class MainActivity : ComponentActivity() {
                     }
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
-                    val updatePrompt by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState()
+                    val updatePrompt by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsStateWithLifecycle()
                     val requiredUpdate = updatePrompt?.mandatory == true
                     var requiredBackToast by remember { mutableStateOf<android.widget.Toast?>(null) }
                     fun showRequiredBackHint() {
@@ -381,14 +381,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    Column(Modifier.fillMaxSize()) {
+                    com.zsz.studyassistant.ui.AdaptiveMainLayout(showBottomBar, current, { selectTab(it) }) { bottomBar ->
                         // The sibling NavigationBar already owns the bottom system inset.
                         // Pass that ownership to child Scaffolds, keeping top/side insets intact.
                         RootTabSwipeHost(
                             route = current,
                             enabled = updatePolicyReady && !requiredUpdate && !navBlocking.value && current in AppNav.rootTabs &&
                                 (current != AppNav.SETTINGS || settingsAtRoot),
-                            modifier = Modifier.weight(1f).then(if (showBottomBar)
+                            modifier = Modifier.fillMaxSize().then(if (bottomBar)
                                 Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                                 else Modifier),
                             onSelect = { target ->
@@ -486,40 +486,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         } // RootTabSwipeHost
-                        if (showBottomBar) {
-                            NavigationBar {
-                                NavigationBarItem(
-                                    selected = AppNav.rootTab(current) == AppNav.HOME,
-                                    onClick = { selectTab(AppNav.HOME) },
-                                    icon = { Text("📚") },
-                                    label = { Text(strings["nav.learn"]) }
-                                )
-                                NavigationBarItem(
-                                    selected = current == AppNav.STATS,
-                                    onClick = { selectTab(AppNav.STATS) },
-                                    icon = { Text("📊") },
-                                    label = { Text(strings["nav.stats"]) }
-                                )
-                                NavigationBarItem(
-                                    selected = current == AppNav.SETTINGS,
-                                    onClick = { selectTab(AppNav.SETTINGS) },
-                                    icon = {
-                                        // 有可用更新时，在「设置」图标右上角叠一个红点①（Canvas 精确居中）
-                                        Box {
-                                            Text("⚙️")
-                                            if (UpdateBadgeState.availableVersion != null) {
-                                                UpdateBadgeDot(
-                                                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp),
-                                                    size = 12.dp,
-                                                    fontSize = 8.sp
-                                                )
-                                            }
-                                        }
-                                    },
-                                    label = { Text(strings["nav.settings"]) }
-                                )
-                            }
-                        }
                     }
                     com.zsz.studyassistant.ui.RootBackExitHandler(
                         enabled = !requiredUpdate && current in AppNav.rootTabs && (current != AppNav.SETTINGS || settingsAtRoot),

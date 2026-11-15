@@ -87,6 +87,7 @@ object UpdateNotifications {
         val s = stringsFor(UiLangStore.load(context))
         val note = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_update)
+            .setLargeIcon(NotificationArtwork.application(context))
             .setContentTitle(s.format("notify.update.title", "version" to release.displayVersion))
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentText(notificationText(s["notify.update.body"]))
