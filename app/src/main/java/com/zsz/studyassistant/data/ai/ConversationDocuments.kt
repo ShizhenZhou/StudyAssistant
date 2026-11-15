@@ -15,7 +15,15 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
 @Serializable
-data class ConversationDocument(val sha256: String, val name: String, val size: Long)
+data class ConversationDocument(val sha256: String, val name: String, val size: Long,
+    val pages: List<Int>? = null, val sheets: List<String>? = null) {
+    /** The original remains the storage identity; each selection has an independent upload cache. */
+    val requestKey: String get() = if (pages == null) sha256 else MessageDigest.getInstance("SHA-256")
+        .digest(("pdf-pages-v1:$sha256:" + pages.sorted().joinToString(",")).toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+}
+
+internal val DOCUMENT_EXTENSIONS = setOf("pdf", "doc", "docx", "ppt", "pptx", "txt", "md", "markdown", "csv", "xlsx")
 
 class DocumentProblem(val messageKey: String, internal val uploadRejected: Boolean = false) : IOException(messageKey)
 
@@ -23,11 +31,15 @@ fun validateDocument(document: ConversationDocument) {
     require(document.sha256.matches(Regex("[0-9a-f]{64}")))
     require(document.size in 1..DocumentStore.MAX_BYTES)
     require(document.name.length in 1..200 && document.name.none { it == '/' || it == '\\' || it.code < 32 })
-    require(document.name.substringAfterLast('.', "").lowercase() in setOf("pdf", "doc", "docx", "ppt", "pptx"))
+    val extension = document.name.substringAfterLast('.', "").lowercase()
+    require(extension in DOCUMENT_EXTENSIONS)
+    document.pages?.let { require(extension == "pdf" && it.isNotEmpty() && it.size <= 1000 && it.distinct().size == it.size && it.all { page -> page in 0..999 }) }
+    document.sheets?.let { require(extension == "xlsx" && it.isNotEmpty() && it.size <= 256 && it.distinct().size == it.size && it.all { name -> name.isNotBlank() && name.length <= 128 }) }
 }
 
 /** Immutable originals, addressed by content hash. Remote file IDs never replace these files. */
 class DocumentStore(context: Context) {
+    internal val context = context.applicationContext
     val directory = File(context.filesDir, "ai-documents")
     internal val referenceCache = DocumentReferenceCache(File(context.noBackupFilesDir, "ai-document-references-v1/state.json"))
     private val resolver = context.applicationContext.contentResolver
@@ -45,7 +57,7 @@ class DocumentStore(context: Context) {
         }
         val name = displayName?.substringAfterLast('/')?.substringAfterLast('\\')?.filter { it.code >= 32 }
             ?.takeIf { it.length in 1..200 } ?: throw DocumentProblem("document.invalid")
-        if (name.substringAfterLast('.', "").lowercase() !in setOf("pdf", "doc", "docx", "ppt", "pptx")) throw DocumentProblem("document.invalid")
+        if (name.substringAfterLast('.', "").lowercase() !in DOCUMENT_EXTENSIONS) throw DocumentProblem("document.invalid")
         ensureDirectory()
         val temp = File.createTempFile("import-", ".tmp", directory)
         try {
@@ -117,6 +129,8 @@ class DocumentStore(context: Context) {
         if (Files.isSymbolicLink(directory.toPath()) || (!directory.isDirectory && !directory.mkdirs())) throw IOException("Cannot create document storage")
     }
 
+    internal val selectionDirectory = File(context.cacheDir, "document-selections")
+
     companion object {
         private val originalsLock = Any()
         internal fun <T> withOriginalsLock(block: () -> T): T = synchronized(originalsLock) { block() }
@@ -142,43 +156,72 @@ internal object ConversationDocumentUploads {
         onProgress: (suspend (String) -> Unit)?): List<DeepSeekMessage> = lock.withLock {
         val count = messages.sumOf { it.localDocuments.size }
         if (count > 20) throw DocumentProblem("document.tooMany")
+        var extractedCharacters = 0L
         messages.map { message ->
             if (message.localDocuments.isEmpty()) return@map message
             require(message.role == "user")
-            val references = message.localDocuments.map { document ->
-                currentCoroutineContext().ensureActive()
+            val references = mutableListOf<RemoteAiFile>()
+            val textParts = mutableListOf<String>()
+            for (document in message.localDocuments) {
+                val coroutine = currentCoroutineContext()
+                coroutine.ensureActive()
                 validateDocument(document)
+                val file = store.file(document)
+                if (LocalDocumentText.supports(document.name)) {
+                    if (DocumentStore.hash(file) { coroutine.ensureActive() } != document.sha256) throw DocumentProblem("document.damaged")
+                    val text = LocalDocumentText.read(file, document.name, document.sheets) { coroutine.ensureActive() }
+                    textParts += "[Attached document: ${document.name}]\n$text\n[End of attached document]"
+                    extractedCharacters += textParts.last().length
+                    if (extractedCharacters > LocalDocumentText.MAX_TEXT_CHARS) throw DocumentProblem("document.textTooLarge")
+                    continue
+                }
                 val scope = aiAccountScope(key)
                 val purpose = DocumentRecognition.TEXT_AND_FIGURES
                 val now = System.currentTimeMillis() / 1000
-                val file = store.file(document)
-                store.referenceCache.find(scope, document.sha256, purpose.wireValue, now) ?: run {
-                    val coroutine = currentCoroutineContext()
+                val cacheKey = document.requestKey
+                val reference = store.referenceCache.find(scope, cacheKey, purpose.wireValue, now) ?: run {
                     if (DocumentStore.hash(file) { coroutine.ensureActive() } != document.sha256) throw DocumentProblem("document.damaged")
-                    onProgress?.invoke("document.uploading")
-                    // A disconnected upload may still be parsed and billed. Do not retry immediately.
-                    store.referenceCache.begin(scope, document.sha256, purpose.wireValue, now)
-                    val reference = try {
-                        AiFileSession(ApiClient.files, ApiClient.ocr, key)
-                            .uploadDocument(file, purpose = purpose, filename = document.name)
-                    } catch (failure: DocumentProblem) {
-                        // A received HTTP rejection is a known failure, so it needs no uncertain-upload delay.
-                        if (failure.uploadRejected) store.referenceCache.invalidate(scope, setOf(document.sha256),
+                    var selected: File? = null
+                    try {
+                        val uploadFile = if (document.pages != null) {
+                            require(store.selectionDirectory.isDirectory || store.selectionDirectory.mkdirs())
+                            File.createTempFile("selected-", ".pdf", store.selectionDirectory).also {
+                                selected = it
+                                PdfDocumentSelection.writeSelected(store.context, file, document.pages, it) { coroutine.ensureActive() }
+                            }
+                        } else file
+                        coroutine.ensureActive()
+                        onProgress?.invoke("document.uploading")
+                        // Persist the marker only after local processing succeeds, before the paid request.
+                        store.referenceCache.begin(scope, cacheKey, purpose.wireValue, now)
+                        val remote = try {
+                            AiFileSession(ApiClient.files, ApiClient.ocr, key)
+                                .uploadDocument(uploadFile, purpose = purpose, filename = document.name)
+                        } catch (failure: DocumentProblem) {
+                            if (failure.uploadRejected) store.referenceCache.invalidate(scope, setOf(cacheKey),
+                                System.currentTimeMillis() / 1000)
+                            throw failure
+                        }
+                        store.referenceCache.complete(scope, cacheKey, purpose.wireValue, remote,
                             System.currentTimeMillis() / 1000)
-                        throw failure
-                    }
-                    store.referenceCache.complete(scope, document.sha256, purpose.wireValue, reference,
-                        System.currentTimeMillis() / 1000)
-                    currentCoroutineContext().ensureActive()
-                    reference
+                        coroutine.ensureActive()
+                        remote
+                    } finally { selected?.delete() }
                 }
+                references += reference
             }
-            attachDocuments(listOf(message.copy(localDocuments = emptyList())), references, key).single()
+            val content = if (textParts.isEmpty()) message.content else {
+                val existing = (message.content as? JsonArray)?.toList() ?: listOf(buildJsonObject {
+                    put("type", "text"); put("text", (message.content as? JsonPrimitive)?.content.orEmpty())
+                })
+                JsonArray(existing + textParts.map { text -> buildJsonObject { put("type", "text"); put("text", text) } })
+            }
+            attachDocuments(listOf(message.copy(content = content, localDocuments = emptyList())), references, key).single()
         }
     }
 
     suspend fun invalidate(messages: List<DeepSeekMessage>, key: String, store: DocumentStore) = lock.withLock {
-        store.referenceCache.invalidate(aiAccountScope(key), messages.flatMap { it.localDocuments }.map { it.sha256 }.toSet(),
+        store.referenceCache.invalidate(aiAccountScope(key), messages.flatMap { it.localDocuments }.map { it.requestKey }.toSet(),
             System.currentTimeMillis() / 1000)
     }
 

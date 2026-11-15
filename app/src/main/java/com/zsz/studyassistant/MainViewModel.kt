@@ -1023,7 +1023,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return try {
             val document = withContext(Dispatchers.IO) { documentStore.importUri(uri) }
             if (solveInputDraft !== owner || busy || dataBusy) false else {
-                owner.documents = (owner.documents + document).distinctBy { it.sha256 }
+                if (document.name.substringAfterLast('.').lowercase() == "pdf" ||
+                    com.zsz.studyassistant.data.LocalDocumentText.supports(document.name)) {
+                    owner.documentSelection = document
+                } else owner.documents = (owner.documents + document).distinctBy { it.sha256 }
                 true
             }
         } catch (cancelled: CancellationException) { throw cancelled }
@@ -1457,9 +1460,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *   `languageSystemMessage(aiLang, customPrompt)`（合成一条 system 消息）。
      */
     private fun promptForSubject(categoryId: Long?): String = try {
-        com.zsz.studyassistant.data.compilePromptRules(
-            com.zsz.studyassistant.data.PromptRulesStore(getApplication()).read(),
-            categories.value, categoryId)
+        com.zsz.studyassistant.data.PromptRulesStore(getApplication()).compile(categories.value, categoryId)
     } catch (_: Exception) {
         throw com.zsz.studyassistant.data.DocumentProblem("prompt.readFailed")
     }
@@ -1979,7 +1980,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!canInspectDocumentStorage) return
         dataBusy = true
         documentStorageMessage = null
-        val hashes = (chatItems.flatMap { it.documents } + solveInputDraft.documents).map { it.sha256 }.toSet()
+        val hashes = (chatItems.flatMap { it.documents } + solveInputDraft.documents +
+            listOfNotNull(solveInputDraft.documentSelection)).map { it.sha256 }.toSet()
         viewModelScope.launch {
             try {
                 val result = dataMaintenanceMutex.withLock {

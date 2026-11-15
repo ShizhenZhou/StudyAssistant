@@ -4,6 +4,54 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PromptRulesTest {
+    @Test fun validationExplainsCountTextAndSerializedLimitsWithoutTruncating() {
+        val maximumText = "文".repeat(MAX_PROMPT_RULE_TEXT)
+        val rule = CustomPromptRule("one", maximumText)
+        assertEquals(maximumText, decodePromptRules(encodePromptRules(listOf(rule)), "").single().text)
+        encodePromptRules(List(MAX_PROMPT_RULES) { CustomPromptRule("$it", "ok") })
+        assertEquals(PromptRuleValidationError.COUNT, assertThrows(PromptRuleValidationException::class.java) {
+            encodePromptRules(List(MAX_PROMPT_RULES + 1) { CustomPromptRule("$it", "ok") })
+        }.reason)
+        assertEquals(PromptRuleValidationError.TEXT_LENGTH, assertThrows(PromptRuleValidationException::class.java) {
+            encodePromptRules(listOf(rule.copy(text = maximumText + "文")))
+        }.reason)
+        // Escaping counts toward the serialized limit even when each raw instruction fits.
+        val escapedText = "\"".repeat(MAX_PROMPT_RULE_TEXT)
+        assertEquals(PromptRuleValidationError.ENCODED_SIZE, assertThrows(PromptRuleValidationException::class.java) {
+            encodePromptRules(List(8) { CustomPromptRule("$it", escapedText) })
+        }.reason)
+        assertEquals(MAX_PROMPT_RULE_TEXT, rule.text.length)
+    }
+
+    @Test fun cachedRulesAreImmutableAndLegacyAndEncodedChangesInvalidateThem() {
+        val cache = PromptRulesCache()
+        val legacy = cache.read(null, "  original\n ")
+        assertSame(legacy, cache.read(null, "  original\n "))
+        assertEquals("  original\n ", legacy.single().text)
+        assertEquals("changed", cache.read(null, "changed").single().text)
+        val encoded = encodePromptRules(listOf(CustomPromptRule("scoped", "text", allSubjects = false, categoryIds = listOf(1))))
+        val decoded = cache.read(encoded, "changed")
+        assertSame(decoded, cache.read(encoded, "changed"))
+        assertThrows(UnsupportedOperationException::class.java) { (decoded as MutableList<*>).clear() }
+        assertThrows(UnsupportedOperationException::class.java) { (decoded.single().categoryIds as MutableList<*>).clear() }
+        assertTrue(cache.read(encodePromptRules(emptyList()), "changed").isEmpty())
+    }
+
+    @Test fun compiledCacheTracksRuleChangesSubjectRenameDeletionAndSelectedSubject() {
+        val cache = PromptRulesCache()
+        val rule = CustomPromptRule("scoped", "math-only", allSubjects = false, categoryIds = listOf(1))
+        val encoded = encodePromptRules(listOf(rule))
+        val subjects = listOf(Category(id = 1, name = "Math"))
+        val original = cache.compile(encoded, "", subjects, null)
+        assertSame(original, cache.compile(encoded, "", subjects.toList(), null))
+        assertTrue(cache.compile(encoded, "", listOf(Category(id = 1, name = "Renamed")), null).contains("Renamed"))
+        assertFalse(cache.compile(encoded, "", subjects, 1).contains("Math"))
+        assertEquals("", cache.compile(encoded, "", subjects, 2))
+        assertEquals("", cache.compile(encoded, "", emptyList(), null))
+        assertEquals("", cache.compile(encodePromptRules(listOf(rule.copy(enabled = false))), "", subjects, null))
+        assertEquals("", cache.compile(encodePromptRules(listOf(rule.copy(categoryIds = listOf(2)))), "", subjects, 1))
+    }
+
     @Test fun legacyRequirementsSurviveAndSavedEmptyListDoesNotResurrectThem() {
         val original = "  分步讲解\n保留公式  "
         val migrated = decodePromptRules(null, original)

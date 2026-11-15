@@ -211,7 +211,7 @@ fun SolveScreen(
     }
 
     // Freeze the selected messages before opening the system destination picker.
-    var exportMessages by remember(draft) { mutableStateOf<List<ChatMsg>?>(null) }
+    val conversationExport = conversationExportViewModel()
 
     // 退出本页时：若已加入错题本，把当前完整对话更新保存
     DisposableEffect(Unit) {
@@ -386,7 +386,7 @@ fun SolveScreen(
             webEnabled = vm.webEnabled,
             onToggleWeb = { vm.updateWebEnabled(!vm.webEnabled) },
             onPickDocument = ::pickDocument,
-            onExport = { exportMessages = allExportMessages },
+            onExport = { conversationExport.begin(allExportMessages) },
             onInsert = { draft.text += it },
             canToggleWeb = !vm.busy && !vm.streamInterrupted,
             canPickDocument = !vm.busy && !vm.dataBusy && !importingAttachments,
@@ -394,12 +394,19 @@ fun SolveScreen(
         )
     }
     val documentAttachments: @Composable () -> Unit = {
-        DocumentAttachments(draft.documents, draft.importingDocuments,
-            onRemove = { document -> draft.documents = draft.documents.filterNot { it.sha256 == document.sha256 } })
+        DocumentAttachments(draft.documents, draft.importingDocuments || vm.busy || vm.dataBusy,
+            onRemove = { document -> draft.documents = draft.documents.filterNot { it.sha256 == document.sha256 } },
+            onEdit = { document -> draft.documentSelection = document })
     }
-    exportMessages?.let { selected ->
-        ConversationExportDialog(selected, onDismiss = { exportMessages = null }, onFeedback = { feedback.show(it) })
+    draft.documentSelection?.let { document ->
+        DocumentSelectionDialog(document, onDismiss = { draft.documentSelection = null }, onConfirm = { selected ->
+            draft.documents = if (draft.documents.any { it.sha256 == selected.sha256 })
+                draft.documents.map { if (it.sha256 == selected.sha256) selected else it }
+            else draft.documents + selected
+            draft.documentSelection = null
+        })
     }
+    ConversationExportDialog(conversationExport, onFeedback = { feedback.show(it) })
 
     Scaffold(
         modifier = Modifier.onGloballyPositioned { screenOrigin = it.positionInRoot() }.pointerInput(Unit) {
@@ -491,7 +498,7 @@ fun SolveScreen(
                     if (cfg.showPracticeSimilar) {
                         TextButton(onClick = { vm.startSimilar(); nav.navigate(AppNav.SIMILAR) }, contentPadding = smallPad, modifier = actionModifier) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
-                        TextButton(onClick = { exportMessages = selectedIndices.sorted().mapNotNull(messages::getOrNull) },
+                        TextButton(onClick = { conversationExport.begin(selectedIndices.sorted().mapNotNull(messages::getOrNull)) },
                             enabled = selectedIndices.isNotEmpty() && !vm.busy, contentPadding = smallPad, modifier = actionModifier) {
                             Text(s["solve.export"], fontSize = BTN_LABEL_SOLVE)
                         }

@@ -1,7 +1,6 @@
 package com.zsz.studyassistant.ui
 
 import android.graphics.Color
-import android.net.Uri
 import android.view.View
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
@@ -19,71 +18,74 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.*
 
 @Composable
+internal fun conversationExportViewModel(): ConversationExportViewModel =
+    androidx.lifecycle.viewmodel.compose.viewModel(viewModelStoreOwner = checkNotNull(
+        androidx.activity.compose.LocalActivity.current as? androidx.lifecycle.ViewModelStoreOwner))
+
+/** Compatibility entry point for callers that open a dialog with a fixed selection. */
+@Composable
 internal fun ConversationExportDialog(messages: List<ChatMsg>, onDismiss: () -> Unit, onFeedback: (String) -> Unit) {
-    val context = LocalContext.current
+    val export = conversationExportViewModel()
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { export.begin(messages); started = true }
+    ConversationExportDialog(export, onFeedback)
+    LaunchedEffect(started, export.session) { if (started && export.session == null) onDismiss() }
+}
+
+/** Always mounted by SolveScreen, so SAF callbacks remain registered through every export phase. */
+@Composable
+internal fun ConversationExportDialog(export: ConversationExportViewModel, onFeedback: (String) -> Unit) {
     val s = LocalStrings.current
-    val scope = rememberCoroutineScope()
-    val fallback = remember { "StudyAssistant-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(Date()) }
-    var filename by remember { mutableStateOf("") }
-    var format by remember { mutableStateOf(ConversationExportFormat.PDF) }
-    var rendering by remember { mutableStateOf(false) }
-    var saving by remember { mutableStateOf(false) }
-    var prepared by remember { mutableStateOf<ConversationExportResult?>(null) }
-    var safeName by remember { mutableStateOf(fallback) }
-    DisposableEffect(prepared) {
-        val result = prepared
-        onDispose { result?.directory?.deleteRecursively() }
+    val pngPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree(), export::destination)
+    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf"), export::destination)
+    LaunchedEffect(export.feedback) {
+        export.feedback?.let { onFeedback(s[it]); export.consumeFeedback() }
     }
-    fun save(uri: Uri?) {
-        val result = prepared ?: return
-        if (uri == null) { onDismiss(); return }
-        saving = true
-        scope.launch {
+    val state = export.session ?: return
+    LaunchedEffect(state.id, state.phase) {
+        if (state.phase == ExportPhase.READY && export.picking()) {
             try {
-                saveConversationExport(context, result, uri)
-                onFeedback(s["export.success"])
-            } catch (error: CancellationException) { throw error }
-            catch (_: Exception) { onFeedback(s["export.failed"]) }
-            finally { saving = false; onDismiss() }
+                if (state.format == ConversationExportFormat.PDF) pdfPicker.launch("${state.name}.pdf")
+                else pngPicker.launch(null)
+            } catch (_: Exception) { export.fail() }
         }
     }
-    val pngPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { save(it) }
-    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { save(it) }
-
-    if (rendering) {
-        ConversationExportRenderer(messages, format, safeName, onDismiss, onReady = { result ->
-            prepared = result; rendering = false
-            try {
-                if (result.format == ConversationExportFormat.PDF) pdfPicker.launch("${result.name}.pdf")
-                else pngPicker.launch(null)
-            } catch (_: Exception) { onFeedback(s["export.failed"]); onDismiss() }
-        }, onError = { onFeedback(s["export.failed"]); onDismiss() })
-    } else if (saving) {
-        AlertDialog(onDismissRequest = {}, title = { Text(s["export.saving"]) },
-            text = { LinearProgressIndicator(Modifier.fillMaxWidth()) }, confirmButton = {})
-    } else if (prepared == null) {
-        AlertDialog(onDismissRequest = onDismiss, title = { Text(s["export.title"]) }, text = {
+    val messages = export.messages
+    if (state.phase == ExportPhase.RENDERING && messages != null) {
+        ConversationExportRenderer(messages, state.format, state.name, export::cancel,
+            onReady = export::prepared, onError = export::fail)
+    } else if (state.phase in listOf(ExportPhase.SNAPSHOT, ExportPhase.RENDERING, ExportPhase.STORING, ExportPhase.SAVING)) {
+        val saving = state.phase == ExportPhase.SAVING
+        AlertDialog(onDismissRequest = { if (!saving) export.cancel() },
+            title = { Text(s[if (saving) "export.saving" else "export.preparing"]) },
+            text = { LinearProgressIndicator(Modifier.fillMaxWidth()) }, confirmButton = {},
+            dismissButton = { if (!saving) TextButton(onClick = export::cancel) { Text(s["common.cancel"]) } })
+    } else if (state.phase == ExportPhase.OPTIONS) {
+        AlertDialog(onDismissRequest = export::cancel, title = { Text(s["export.title"]) }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ConversationExportFormat.entries.forEach { option ->
-                        Row(Modifier.weight(1f).clickable { format = option }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = format == option, onClick = { format = option }); Text(option.name)
+                        Row(Modifier.weight(1f).clickable { export.edit(format = option) }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = state.format == option, onClick = { export.edit(format = option) }); Text(option.name)
                         }
                     }
                 }
-                Text(s[if (format == ConversationExportFormat.PDF) "export.pdfHint" else "export.pngHint"], style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(value = filename, onValueChange = { filename = it.take(160) }, singleLine = true,
-                    label = { Text(s["export.filename"]) }, placeholder = { Text(fallback) }, modifier = Modifier.fillMaxWidth())
+                Text(s[if (state.format == ConversationExportFormat.PDF) "export.pdfHint" else "export.pngHint"], style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = state.filename, onValueChange = { export.edit(filename = it.take(160)) }, singleLine = true,
+                    label = { Text(s["export.filename"]) }, placeholder = { Text(state.fallback) }, modifier = Modifier.fillMaxWidth())
             }
         }, confirmButton = {
-            Button(onClick = { safeName = conversationExportName(filename, fallback); rendering = true }) { Text(s["export.action"]) }
-        }, dismissButton = { TextButton(onClick = onDismiss) { Text(s["common.cancel"]) } })
+            Button(onClick = export::render) { Text(s["export.action"]) }
+        }, dismissButton = { TextButton(onClick = export::cancel) { Text(s["common.cancel"]) } })
+    } else if (state.phase == ExportPhase.PICKER) {
+        // Also offers a way forward after a cold launch where Android no longer owns a pending picker.
+        AlertDialog(onDismissRequest = export::cancel, title = { Text(s["export.title"]) },
+            text = { Text(state.name) },
+            confirmButton = { TextButton(onClick = export::chooseDestinationAgain) { Text(s["export.action"]) } },
+            dismissButton = { TextButton(onClick = export::cancel) { Text(s["common.cancel"]) } })
     }
 }
 
