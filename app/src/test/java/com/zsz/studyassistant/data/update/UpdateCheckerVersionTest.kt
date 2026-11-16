@@ -29,7 +29,7 @@ class UpdateCheckerVersionTest {
             assertFalse(UpdateChecker.isNewer(old.displayVersion, newer.displayVersion))
         }
         val candidates = listOf(second, stable, tenth, first).map { it to emptyList<kotlinx.serialization.json.JsonObject>() }
-        assertEquals(UpdateChecker.AvailableReleases(stable, tenth), UpdateChecker.resolveAvailable(candidates) { it.first })
+        assertEquals(UpdateChecker.AvailableReleases(stable, tenth), UpdateChecker.resolveAvailable(candidates, distribution = "main") { it.first })
         assertEquals(base, UpdateChecker.skipIdentity(legacy.displayVersion))
         assertEquals("${base}_beta1", UpdateChecker.skipIdentity(first.displayVersion))
         assertEquals("${base}_beta2", UpdateChecker.skipIdentity(second.displayVersion))

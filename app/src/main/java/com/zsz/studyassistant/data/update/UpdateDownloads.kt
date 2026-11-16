@@ -413,7 +413,7 @@ internal class UpdateDownloads(
     private fun sameAsset(a: UpdateChecker.ReleaseInfo, b: UpdateChecker.ReleaseInfo) =
         a.tagName == b.tagName && a.version == b.version && a.assetName == b.assetName && a.assetUrl == b.assetUrl &&
             a.assetSha256 == b.assetSha256 && a.assetSize == b.assetSize && a.assetUploadedAt == b.assetUploadedAt &&
-            a.minSdk == b.minSdk && a.versionCode == b.versionCode
+            a.minSdk == b.minSdk && a.maxSdk == b.maxSdk && a.distribution == b.distribution && a.versionCode == b.versionCode
 
     private fun read(): Record? = runCatching {
         val stored = prefs.getString("session", null) ?: return null
@@ -428,8 +428,11 @@ internal class UpdateDownloads(
             if (obj.has("minSdk")) obj.optInt("minSdk").takeIf { it > 0 } else UpdateChecker.legacyMinSdk(obj.getString("version")),
             obj.optLong("versionCode").takeIf { it > 0 },
             channel = if (obj.optString("channel") == "beta") UpdateChecker.Channel.BETA else UpdateChecker.Channel.STABLE,
-            mandatory = obj.optBoolean("mandatory", false))
+            mandatory = obj.optBoolean("mandatory", false),
+            distribution = obj.optString("distribution", "main"),
+            maxSdk = obj.optInt("maxSdk").takeIf { it > 0 })
         require(UpdateChecker.isReleaseAssetUrl(release.assetUrl, release.tagName))
+        require(UpdateChecker.compatibilityError(release) == null)
         val delta = obj.optJSONObject("delta")?.let(::readDelta)
         val entries = obj.optJSONArray("steps")
         val steps = if (entries == null) emptyList() else (0 until entries.length()).map { index ->
@@ -451,7 +454,7 @@ internal class UpdateDownloads(
         }
         Record(token, release, obj.getLong("id"), obj.optBoolean("ready"),
             obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted",
-                "update.incompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false),
+                "update.incompatible", "update.distributionIncompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false),
             delta, transferToken, obj.optBoolean("enqueuePending", false), steps, stepIndex)
     }.getOrNull()
     private fun write(record: Record) {
@@ -461,6 +464,7 @@ internal class UpdateDownloads(
             .put("name", rel.assetName).put("url", rel.assetUrl).put("sha", rel.assetSha256 ?: "")
             .put("size", rel.assetSize).put("uploaded", rel.assetUploadedAt)
             .put("minSdk", rel.minSdk ?: 0).put("versionCode", rel.versionCode ?: 0)
+            .put("distribution", rel.distribution).put("maxSdk", rel.maxSdk)
             .put("channel", if (rel.channel == UpdateChecker.Channel.BETA) "beta" else "stable")
             .put("mandatory", rel.mandatory).put("transferToken", record.transferToken).put("enqueuePending", record.enqueuePending)
         record.delta?.let { obj.put("delta", writeDelta(it)) }

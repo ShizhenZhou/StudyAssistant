@@ -54,6 +54,41 @@ class UpdateCompatibilityTest {
         "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.6.8/fixture.apk", null, 7)
     private fun manifest(min: Int = 36) = """{"schema":1,"version":"0.6.8","versionCode":78,"minSdk":$min,"apkName":"fixture.apk","apkSha256":"${"a".repeat(64)}","apkSize":7}"""
 
+    @Test fun compatibilityDistributionSeparatesMandatoryTargetsAndRejectsAmbiguousSchema() {
+        val text = manifest(28).replace("\"schema\":1", "\"schema\":2").dropLast(1) +
+            """, "distribution":"compat", "maxSdk":35, "mandatory":true}"""
+        val candidate = release.copy(tagName = "compat_v0.6.8")
+        val compat = UpdateChecker.withManifest(candidate, text)!!
+        assertNull(UpdateChecker.compatibilityError(compat, 28, "compat"))
+        assertNull(UpdateChecker.compatibilityError(compat, 35, "compat"))
+        assertEquals("update.distributionIncompatible", UpdateChecker.compatibilityError(compat, 36, "compat"))
+        assertEquals("update.distributionIncompatible", UpdateChecker.compatibilityError(compat, 28, "main"))
+        assertNull(UpdateChecker.withManifest(candidate, text.replace("\"schema\":2", "\"schema\":1")))
+        val main = release.copy(minSdk = 36, versionCode = 999, mandatory = true)
+        val optional = compat.copy(mandatory = false)
+        assertEquals(optional, UpdateChecker.stableUpdate(listOf(main, optional), 28, "compat") { true })
+        assertEquals(main, UpdateChecker.stableUpdate(listOf(compat, main), 36, "main") { true })
+    }
+
+    @Test fun mainSelectionSkipsCompatWithHigherCodeInBothChannels() {
+        val main = release.copy(minSdk = 36, versionCode = 100)
+        val beta = main.copy(channel = UpdateChecker.Channel.BETA, versionCode = 101)
+        val compat = main.copy(distribution = "compat", minSdk = 28, maxSdk = 35, versionCode = 999)
+        val candidates = listOf(compat, compat.copy(channel = UpdateChecker.Channel.BETA), main, beta)
+        assertEquals(UpdateChecker.AvailableReleases(main, beta),
+            UpdateChecker.resolveAvailable(candidates.map { it to emptyList() }, "main") { it.first })
+    }
+
+    @Test fun compatTagRetainsVersionForNewClientsAndZeroForLegacyClients() {
+        val tag = "compat_v0.99.99.99"
+        assertEquals("0.99.99.99", UpdateChecker.normalizeVersion(tag))
+        // Frozen v0.7.4.1 normalization, before distribution support was added.
+        val legacyVersion = tag.trim().removePrefix("v").removePrefix("V").substringBefore('_').trim()
+        assertEquals("compat", legacyVersion)
+        assertFalse(UpdateChecker.isNewer(legacyVersion, "0.7.4.1"))
+        assertEquals("0.99.99.99", release.copy(tagName = tag).displayVersion)
+    }
+
     @Test fun mandatoryNeedsAnExplicitBooleanAndStableChannel() {
         assertFalse(UpdateChecker.withManifest(release, manifest())!!.mandatory)
         val required = manifest().dropLast(1) + """, "mandatory":true}"""
@@ -72,10 +107,10 @@ class UpdateCompatibilityTest {
         val future = latest.copy(tagName = "v0.8.0", versionCode = 120, minSdk = 37)
         val preview = future.copy(minSdk = 36, channel = UpdateChecker.Channel.BETA, mandatory = true)
         val history = listOf(preview, future, latest, old)
-        assertEquals(latest.copy(mandatory = true), UpdateChecker.stableUpdate(history, 36) { it.versionCode!! > 111 })
-        assertEquals(latest, UpdateChecker.stableUpdate(history, 36) { it.versionCode!! > 112 })
-        assertNull(UpdateChecker.stableUpdate(history, 35) { true })
-        assertNull(UpdateChecker.stableUpdate(history, 36) { false })
+        assertEquals(latest.copy(mandatory = true), UpdateChecker.stableUpdate(history, 36, "main") { it.versionCode!! > 111 })
+        assertEquals(latest, UpdateChecker.stableUpdate(history, 36, "main") { it.versionCode!! > 112 })
+        assertNull(UpdateChecker.stableUpdate(history, 35, "main") { true })
+        assertNull(UpdateChecker.stableUpdate(history, 36, "main") { false })
     }
 
     @Test fun malformedDeltaFallsBackToFullApkWithoutDroppingCompatibility() {
@@ -131,7 +166,7 @@ class UpdateCompatibilityTest {
         val stable=release.copy(tagName="v0.6.9",version="0.6.9",versionCode=90)
         val explicitBeta=release.copy(tagName="v0.7.1",version="0.7.1",versionCode=92,channel=UpdateChecker.Channel.BETA)
         val calls=mutableListOf<String>()
-        val result=UpdateChecker.resolveAvailable(listOf(hiddenBeta,stable,explicitBeta).map { it to emptyList() }) {
+        val result=UpdateChecker.resolveAvailable(listOf(hiddenBeta,stable,explicitBeta).map { it to emptyList() }, distribution = "main") {
             calls+=it.first.version
             if (it.first==hiddenBeta) hiddenBeta.copy(channel=UpdateChecker.Channel.BETA,versionCode=91) else it.first
         }
@@ -141,8 +176,8 @@ class UpdateCompatibilityTest {
     }
     @Test fun android16ReleaseIsBlockedBeforeDownloadOnAndroid15() {
         val parsed = UpdateChecker.withManifest(release, manifest())!!
-        assertEquals("update.incompatible", UpdateChecker.compatibilityError(parsed, 35))
-        assertNull(UpdateChecker.compatibilityError(parsed, 36))
+        assertEquals("update.incompatible", UpdateChecker.compatibilityError(parsed, 35, "main"))
+        assertNull(UpdateChecker.compatibilityError(parsed, 36, "main"))
         assertEquals("a".repeat(64), parsed.assetSha256)
     }
     @Test fun utf8BomAndAdditionalReleaseProvenanceDoNotBlockCompatibleUpdates() {
@@ -150,7 +185,7 @@ class UpdateCompatibilityTest {
             """, "provenance":{"sourceCommit":"${"b".repeat(40)}","runId":42}}"""
         val parsed = UpdateChecker.withManifest(release, text)
         assertNotNull(parsed)
-        assertNull(UpdateChecker.compatibilityError(parsed!!, 36))
+        assertNull(UpdateChecker.compatibilityError(parsed!!, 36, "main"))
     }
     private fun asset(url: String = release.assetUrl.substringBeforeLast('/') + "/update-manifest.json",
                       size: Int = 200) = Json.parseToJsonElement("""
@@ -195,15 +230,15 @@ class UpdateCompatibilityTest {
     @Test fun unavailableAndInvalidMetadataStayBlockedWithDistinctReasons() {
         val unavailable = UpdateChecker.resolveManifest(release, listOf(asset())) { UpdateChecker.ManifestFetch.Unavailable }
         val invalid = UpdateChecker.resolveManifest(release, listOf(asset())) { UpdateChecker.ManifestFetch.Body("not JSON") }
-        assertEquals("update.compatibilityUnavailable", UpdateChecker.compatibilityError(unavailable, 99))
-        assertEquals("update.compatibilityInvalid", UpdateChecker.compatibilityError(invalid, 99))
+        assertEquals("update.compatibilityUnavailable", UpdateChecker.compatibilityError(unavailable, 99, "main"))
+        assertEquals("update.compatibilityInvalid", UpdateChecker.compatibilityError(invalid, 99, "main"))
     }
     @Test fun staleInlineMetadataMustNotAuthorizeAnotherApk() {
         val parsed = UpdateChecker.resolveManifest(release.copy(notes = inline(manifest().replace("fixture.apk", "old.apk"))), listOf(asset())) {
             UpdateChecker.ManifestFetch.Unavailable
         }
         assertNull(parsed.minSdk)
-        assertEquals("update.compatibilityInvalid", UpdateChecker.compatibilityError(parsed, 99))
+        assertEquals("update.compatibilityInvalid", UpdateChecker.compatibilityError(parsed, 99, "main"))
     }
     @Test fun invalidOrDuplicateInlineDataCanRecoverOnlyThroughValidIndependentMetadata() {
         for (notes in listOf(inline("{}"), inline() + "\n" + inline())) {
@@ -216,17 +251,17 @@ class UpdateCompatibilityTest {
     @Test fun invalidAttachmentUrlsAndOversizedMetadataDoNotCauseRequests() {
         for (entry in listOf(asset(url = "https://evil.test/update-manifest.json"), asset(size = 65537))) {
             val parsed = UpdateChecker.resolveManifest(release, listOf(entry)) { error("Invalid metadata must not be fetched") }
-            assertEquals("update.compatibilityInvalid", UpdateChecker.compatibilityError(parsed, 99))
+            assertEquals("update.compatibilityInvalid", UpdateChecker.compatibilityError(parsed, 99, "main"))
         }
         assertNull(UpdateChecker.withManifest(release, manifest() + " ".repeat(65536)))
     }
     @Test fun missingMetadataFailsClosedExceptKnownLegacyVersions() {
-        assertEquals("update.compatibilityUnknown", UpdateChecker.compatibilityError(release, 99))
+        assertEquals("update.compatibilityUnknown", UpdateChecker.compatibilityError(release, 99, "main"))
         assertEquals(28, UpdateChecker.legacyMinSdk("0.6.7.8"))
         assertNull(UpdateChecker.legacyMinSdk("0.6.7.9"))
         assertNull(UpdateChecker.legacyMinSdk("garbage"))
         assertNull(UpdateChecker.legacyMinSdk("0.6.7.8_beta"))
-        assertEquals("update.incompatible", UpdateChecker.compatibilityError(release.copy(minSdk = 28), 27))
+        assertEquals("update.incompatible", UpdateChecker.compatibilityError(release.copy(minSdk = 28), 27, "main"))
     }
     @Test fun manifestMustBindExactAssetAndVersion() {
         for (text in listOf(manifest().replace("fixture.apk", "other.apk"),

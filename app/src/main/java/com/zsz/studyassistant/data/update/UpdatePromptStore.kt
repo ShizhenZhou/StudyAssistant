@@ -51,7 +51,9 @@ object UpdatePromptStore {
     private fun persist(context: Context, value: UpdateChecker.ReleaseInfo?) {
         val editor = prefs(context).edit()
         if (value?.mandatory == true) {
-            val obj = JSONObject().put("schema", 1).put("tag", value.tagName).put("version", value.version)
+            val obj = JSONObject().put("schema", if (value.distribution == "compat") 2 else 1)
+                .put("distribution", value.distribution).put("maxSdk", value.maxSdk)
+                .put("tag", value.tagName).put("version", value.version)
                 .put("notes", value.notes).put("url", value.assetUrl).put("apkName", value.assetName)
                 .put("apkSize", value.assetSize).put("apkSha256", value.assetSha256)
                 .put("minSdk", value.minSdk).put("versionCode", value.versionCode)

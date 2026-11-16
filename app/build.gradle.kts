@@ -30,6 +30,8 @@ abstract class GenerateBuildStamp : DefaultTask() {
         val stamp = DateTimeFormatter.ofPattern("uuuuMMddHHmmss")
             .withZone(ZoneOffset.UTC).format(Instant.now())
         directory.resolve("build-time-utc.txt").writeText(stamp, Charsets.UTF_8)
+        directory.resolve("distribution.json").writeText(
+            """{"distribution":"main","minSdk":36}""", Charsets.UTF_8)
     }
 }
 val buildStampDirectory = layout.buildDirectory.dir("generated/build-stamp/assets")
@@ -71,6 +73,7 @@ android {
         targetSdk = 37
         versionCode = 135
         versionName = appVersionName
+        buildConfigField("String", "DISTRIBUTION", "\"main\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -119,6 +122,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

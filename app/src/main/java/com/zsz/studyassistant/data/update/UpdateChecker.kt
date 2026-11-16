@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import com.zsz.studyassistant.BuildConfig
 import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
@@ -91,10 +92,12 @@ object UpdateChecker {
         val mandatory: Boolean = false,
         val deltas: List<UpdateDeltaInfo> = emptyList(),
         /** In-memory graph from already fetched, compatible official release manifests. */
-        val deltaHistory: List<UpdateDeltaStep> = emptyList()
+        val deltaHistory: List<UpdateDeltaStep> = emptyList(),
+        val distribution: String = "main",
+        val maxSdk: Int? = null
     ) {
         /** Display the published suffix; keep numeric normalization for compatibility/comparison only. */
-        val displayVersion: String get() = tagName.removePrefix("v").removePrefix("V").ifBlank { version }
+        val displayVersion: String get() = tagName.removePrefix("compat_").removePrefix("v").removePrefix("V").ifBlank { version }
     }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -104,9 +107,13 @@ object UpdateChecker {
         if (Regex("0\\.\\d+\\.\\d+(?:\\.\\d+)?").matches(version) &&
             version.split('.').all { it.toIntOrNull() != null } && !isNewer(version, "0.6.7.8")) 28 else null
 
-    fun compatibilityError(release: ReleaseInfo, deviceSdk: Int = Build.VERSION.SDK_INT): String? = when {
+    fun compatibilityError(release: ReleaseInfo, deviceSdk: Int = Build.VERSION.SDK_INT,
+                           distribution: String = BuildConfig.DISTRIBUTION): String? = when {
+        release.distribution != distribution -> "update.distributionIncompatible"
         release.minSdk == null || release.minSdk <= 0 -> release.compatibilityIssue ?: "update.compatibilityUnknown"
         release.minSdk > deviceSdk -> "update.incompatible"
+        release.maxSdk != null && deviceSdk > release.maxSdk -> "update.distributionIncompatible"
+        release.distribution == "compat" && (release.minSdk != 28 || release.maxSdk != 35) -> "update.distributionIncompatible"
         else -> null
     }
 
@@ -123,7 +130,12 @@ object UpdateChecker {
         require(text.toByteArray(Charsets.UTF_8).size <= 65536)
         val root = json.parseToJsonElement(text.removePrefix("\uFEFF")).jsonObject
         fun value(key: String) = root[key]!!.jsonPrimitive.content
-        require(value("schema") == "1" && value("version") == release.version)
+        val distribution = root["distribution"]?.jsonPrimitive?.content ?: "main"
+        require(distribution in setOf("main", "compat"))
+        require(release.tagName.startsWith("compat_") == (distribution == "compat"))
+        // Schema 2 also protects existing main clients, which ignore distribution and
+        // otherwise compare the globally increasing versionCode before versionName.
+        require(value("schema") == (if (distribution == "compat") "2" else "1") && value("version") == release.version)
         val channel = root["channel"]?.jsonPrimitive?.content
         require(channel == null || channel in setOf("stable", "beta"))
         val mandatory = root["mandatory"]?.let {
@@ -132,6 +144,8 @@ object UpdateChecker {
             flag.booleanOrNull ?: error("Invalid mandatory flag")
         } ?: false
         val min = value("minSdk").toInt().also { require(it > 0) }
+        val max = root["maxSdk"]?.jsonPrimitive?.content?.toInt()?.also { require(it >= min) }
+        require(distribution != "compat" || (min == 28 && max == 35))
         val code = value("versionCode").toLong().also { require(it > 0) }
         val digest = value("apkSha256").lowercase().also { require(Regex("[0-9a-f]{64}").matches(it)) }
         require(value("apkName") == release.assetName && value("apkSize").toLong() == release.assetSize && release.assetSize > 0)
@@ -154,7 +168,7 @@ object UpdateChecker {
                 UpdateDeltaInfo(format, baseSha, baseSize, name, url, patchSha, patchSize)
             }.getOrNull()
         }.orEmpty().distinctBy { it.baseSha256 to it.format }
-        release.copy(minSdk = min, versionCode = code, assetSha256 = digest, compatibilityIssue = null,
+        release.copy(minSdk = min, maxSdk = max, distribution = distribution, versionCode = code, assetSha256 = digest, compatibilityIssue = null,
             channel = if (channel == "beta" || release.channel == Channel.BETA) Channel.BETA else Channel.STABLE,
             mandatory = mandatory && channel != "beta" && release.channel == Channel.STABLE, deltas = deltas)
     }.getOrNull()
@@ -271,6 +285,10 @@ object UpdateChecker {
                         }
                         return ManifestFetch.Body(text)
                     }
+                } catch (_: SecurityException) {
+                    // Some systems deny network access with EACCES rather than IOException.
+                    // Changing routes cannot restore permission; keep the last confirmed update state.
+                    return ManifestFetch.Unavailable
                 } catch (_: java.io.IOException) {
                     // Cache failures per origin/route so history does not repeat slow failures.
                     failedRoutes += route
@@ -315,7 +333,7 @@ object UpdateChecker {
 
     /** 去掉前缀 v，并截掉 `_beta` 这类后缀，便于比较 */
     fun normalizeVersion(raw: String): String =
-        raw.trim().removePrefix("v").removePrefix("V").substringBefore('_').trim()
+        raw.trim().removePrefix("compat_").removePrefix("v").removePrefix("V").substringBefore('_').trim()
 
     private val betaSuffix = Regex("_beta([1-9][0-9]*)?$")
 
@@ -371,6 +389,7 @@ object UpdateChecker {
 
     /** 是否有更新：**版本更高**，或**同一版本但发布物是更晚的新构建** */
     fun hasUpdate(context: Context, rel: ReleaseInfo): Boolean {
+        if (rel.distribution != BuildConfig.DISTRIBUTION) return false
         val installed = installedVersion(context)
         val code = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode }.getOrNull()
         if (code != null && rel.versionCode != null && code != rel.versionCode) return rel.versionCode > code
@@ -459,7 +478,7 @@ object UpdateChecker {
         val assets = root["assets"]!!.jsonArray.mapNotNull { it as? JsonObject }
         val apks = assets.filter { it["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk") == true }
         val asset = apks.filter { it["name"]!!.jsonPrimitive.content.startsWith("StudyAssistant-") }
-            .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, tag.trim().removePrefix("v").removePrefix("V")) }
+            .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, tag.trim().removePrefix("compat_").removePrefix("v").removePrefix("V")) }
             ?: apks.firstOrNull() ?: return null
         val name = asset["name"]!!.jsonPrimitive.content
         val url = asset["browser_download_url"]!!.jsonPrimitive.content
@@ -472,7 +491,8 @@ object UpdateChecker {
         ReleaseInfo(tag, version, notes, name, url, digest?.takeIf { Regex("[0-9a-f]{64}").matches(it) },
             asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
             parseIsoMillis(asset["updated_at"]?.jsonPrimitive?.contentOrNull).takeIf { it > 0 }
-                ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.contentOrNull), channel = channel) to assets
+                ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.contentOrNull), channel = channel,
+            distribution = if (tag.startsWith("compat_")) "compat" else "main") to assets
     }.getOrNull()
 
     private fun releaseDocument(url: String, session: FetchSession): JsonElement? {
@@ -491,30 +511,41 @@ object UpdateChecker {
 
     /** Stable-only fallback remains compatible with existing published releases. */
     suspend fun fetchLatest(context: Context? = null): ReleaseInfo? = withContext(Dispatchers.IO) {
+        if (BuildConfig.DISTRIBUTION == "compat") return@withContext fetchAvailable(context)?.stable
         val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config())
-        latest(session)?.let { if (session.usedMirror) it.copy(mandatory = false) else it }
+        latest(session)?.takeIf { inCurrentDistribution(it) }?.let { if (session.usedMirror) it.copy(mandatory = false) else it }
     }
 
     /** Attachment metadata may reveal that an apparent stable candidate is actually beta. */
     internal fun resolveAvailable(candidates: List<Pair<ReleaseInfo,List<JsonObject>>>,
+        distribution: String = BuildConfig.DISTRIBUTION,
         hydrateCandidate: (Pair<ReleaseInfo,List<JsonObject>>) -> ReleaseInfo): AvailableReleases {
         val previews=mutableListOf<ReleaseInfo>()
         val order=Comparator<Pair<ReleaseInfo,List<JsonObject>>> { a,b -> compareReleases(b.first,a.first) }
         var stable: ReleaseInfo?=null
-        for (candidate in candidates.filter { it.first.channel==Channel.STABLE }.sortedWith(order)) {
+        for (candidate in candidates.filter { it.first.channel==Channel.STABLE && it.first.distribution==distribution }.sortedWith(order)) {
             val resolved=hydrateCandidate(candidate)
+            if (!inCurrentDistribution(resolved, distribution)) continue
             if (resolved.channel==Channel.STABLE) { stable=resolved; break }
             previews+=resolved
         }
-        candidates.filter { it.first.channel==Channel.BETA }.minWithOrNull(order)?.let { previews+=hydrateCandidate(it) }
+        for (candidate in candidates.filter { it.first.channel==Channel.BETA && it.first.distribution==distribution }.sortedWith(order)) {
+            val resolved = hydrateCandidate(candidate)
+            if (inCurrentDistribution(resolved, distribution)) { previews += resolved; break }
+        }
         return AvailableReleases(stable,previews.maxWithOrNull(::compareReleases))
     }
 
+    private fun inCurrentDistribution(release: ReleaseInfo, distribution: String = BuildConfig.DISTRIBUTION): Boolean =
+        release.distribution == distribution &&
+            (distribution != "compat" || compatibilityError(release, distribution = distribution) == null)
+
     /** A missed required release applies to the latest *installable* stable, never to a beta. */
     internal fun stableUpdate(candidates: List<ReleaseInfo>, deviceSdk: Int,
+                              distribution: String = BuildConfig.DISTRIBUTION,
                               eligible: (ReleaseInfo) -> Boolean): ReleaseInfo? {
         val updates = candidates.filter { it.channel == Channel.STABLE &&
-            compatibilityError(it, deviceSdk) == null && eligible(it) }
+            compatibilityError(it, deviceSdk, distribution) == null && eligible(it) }
         return updates.maxWithOrNull(::compareReleases)?.let { latest ->
             latest.copy(mandatory = updates.any { it.mandatory })
         }
@@ -536,14 +567,15 @@ object UpdateChecker {
         val resolved = mutableMapOf<String, ReleaseInfo>()
         fun once(candidate: Pair<ReleaseInfo, List<JsonObject>>) =
             resolved.getOrPut(candidate.first.assetUrl) { hydrate(candidate, session) }
-        var result = resolveAvailable(parsed, ::once)
-        if (result.stable == null) latest(session)?.let { fallback ->
+        var result = resolveAvailable(parsed, hydrateCandidate = ::once)
+        if (result.stable == null) latest(session)?.takeIf { inCurrentDistribution(it) }?.let { fallback ->
             result = if (fallback.channel == Channel.STABLE) result.copy(stable = fallback)
             else result.copy(beta = listOfNotNull(result.beta, fallback).maxWithOrNull(::compareReleases))
         }
         if (context != null) {
             val installed = installedVersion(context)
-            val history = parsed.filter { it.first.channel == Channel.STABLE }.mapNotNull { candidate ->
+            val history = parsed.filter { it.first.channel == Channel.STABLE &&
+                it.first.distribution == BuildConfig.DISTRIBUTION }.mapNotNull { candidate ->
                 // Modern releases carry verified inline metadata: no per-release request.
                 // Older unrelated releases need no attachment fetch. ENF names are a hint
                 // to fetch metadata, never sufficient authority to require an update.
