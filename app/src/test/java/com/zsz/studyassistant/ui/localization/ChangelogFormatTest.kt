@@ -97,11 +97,11 @@ class ChangelogFormatTest {
     @Test
     fun android16RequirementUsesOneSharedBoundaryInReadmeAndApp() {
         val notices = listOf(
-            "README.md" to "以上版本仅支持Android 16+",
-            "docs/readme/README.zh-TW.md" to "以上版本僅支持Android 16+",
-            "docs/readme/README.en.md" to "The versions above support Android 16+ only.",
-            "docs/readme/README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。",
-            "docs/readme/README.ko.md" to "위 버전은 Android 16 이상만 지원합니다."
+            "README.md" to "以上版本仅支持Android 16+，兼容版本见Compatible分支",
+            "docs/readme/README.zh-TW.md" to "以上版本僅支持Android 16+，兼容版本見Compatible分支",
+            "docs/readme/README.en.md" to "The versions above support Android 16+ only. For compatible releases, see the Compatible branch.",
+            "docs/readme/README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。互換版は Compatible ブランチをご覧ください。",
+            "docs/readme/README.ko.md" to "위 버전은 Android 16 이상만 지원합니다. 호환 버전은 Compatible 브랜치를 확인하세요."
         )
         for ((index, item) in notices.withIndex()) {
             val (file, notice) = item
@@ -111,7 +111,7 @@ class ChangelogFormatTest {
                 Triple(file, readme, "### v0.6.7.9"),
                 Triple(tables[index].first, app, "v0.6.7.9\n")
             )) {
-                val above = text.substringBefore(boundary)
+                val above = text.replace("\r\n", "\n").substringBefore(boundary)
                 assertTrue("$label missing shared requirement", above.contains("**$notice**"))
                 assertTrue("$label requirement must follow v0.6.8", above.lastIndexOf(notice) > above.lastIndexOf("v0.6.8\n"))
                 assertTrue("$label repeats per-version requirements", !above.lineSequence().any {

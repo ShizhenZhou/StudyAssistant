@@ -14,7 +14,7 @@
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载最后兼容版 v0.6.7.9](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+- **Android 9–15** · [下载兼容版 v0.7.4.1](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
 
 [全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -391,7 +391,7 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 - 🛠️ 精简旧系统兼容分支，完善按构建身份续跑的发布校验与显式同版本替换流程。
 - 📌 `versionCode` **80**。
 
-**以上版本仅支持Android 16+**
+**以上版本仅支持Android 16+，兼容版本见Compatible分支**
 
 ---
 
@@ -402,7 +402,6 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 - 📦 发布自动生成最低系统版本与安装包摘要清单，避免依靠版本号或更新说明猜测兼容性。
 - 🔒 修复特殊字符导致对话显示中断的问题，更新公式组件以修补已知拒绝服务漏洞，并收紧对话页面访问权限。
 - ⬆️ 修复升级后进入更新页时，已安装版本的旧下载记录误报“无法确认系统要求”；新版本兼容拦截保持有效。
-- **这是 Android 9–15 版本的最后一次更新。**
 
 ### v0.6.7.8
 

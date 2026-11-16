@@ -14,7 +14,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the last compatible release (v0.6.7.9)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+- **Android 9–15** · [Download the compatible release (v0.7.4.1)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -390,7 +390,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
 - 📌 `versionCode` **80**.
 
-**The versions above support Android 16+ only.**
+**The versions above support Android 16+ only. For compatible releases, see the Compatible branch.**
 
 ---
 
@@ -400,7 +400,6 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 📦 Releases automatically include the minimum Android version and APK digest, without guessing compatibility from version numbers or release notes.
 - 🔒 Fix conversation rendering failures caused by special characters, update the math renderer to address a known denial-of-service vulnerability, and restrict page access permissions.
 - ⬆️ Fix an incorrect system-requirements warning caused by an already installed download record when reopening the update page after upgrading; keep compatibility checks for newer releases.
-- **This is the final update for Android 9–15.**
 
 ### v0.6.7.8
 - 📷 Fix rotated-photo downsampling crashes on Android 9 and unify orientation and black-and-white crop detection. Photo capture decodes, compresses and imports images in the background; preserve order and progress if any input cannot be read.

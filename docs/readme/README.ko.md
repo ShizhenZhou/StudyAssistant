@@ -14,7 +14,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [마지막 호환 버전 v0.6.7.9 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+- **Android 9–15** · [호환 버전 v0.7.4.1 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -390,7 +390,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
 - 📌 `versionCode` **80**.
 
-**위 버전은 Android 16 이상만 지원합니다.**
+**위 버전은 Android 16 이상만 지원합니다. 호환 버전은 Compatible 브랜치를 확인하세요.**
 
 ---
 
@@ -400,7 +400,6 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 📦 배포 시 최소 Android 버전과 APK 해시를 자동 생성하여 버전 번호나 설명으로 호환성을 추측하지 않습니다.
 - 🔒 특수 문자로 대화 표시가 중단되는 문제를 수정하고, 수식 렌더러의 알려진 서비스 거부 취약점을 해결하며 페이지 접근 권한을 제한했습니다.
 - ⬆️ 업그레이드 후 업데이트 화면에서 이미 설치한 버전의 다운로드 기록 때문에 시스템 요구 사항 경고가 표시되는 문제를 수정했습니다. 새 버전의 호환성 검사는 유지됩니다.
-- **Android 9~15를 위한 마지막 업데이트입니다.**
 
 ### v0.6.7.8
 - 📷 Android 9에서 회전 사진 축소 시 발생하는 충돌을 수정하고 사진 방향 및 흑백 이미지의 자동 선택 영역을 개선했습니다. 촬영 화면의 이미지 읽기와 압축을 백그라운드에서 수행하며, 읽기 실패 시 순서와 진행 상태를 유지합니다.
