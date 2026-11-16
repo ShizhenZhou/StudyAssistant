@@ -1,6 +1,7 @@
 package com.zsz.studyassistant.ui
 
 internal val UPDATE_RECOVERY_ZH = mapOf(
+    "update.usingMirror" to "正在使用镜像站连接",
     "update.resume" to "恢复下载",
     "update.resuming" to "正在恢复…",
     "update.resumeUnsupported" to "服务器未接受续传，已有进度保留。可更换镜像后重试，或重新下载当前文件。",
@@ -10,6 +11,7 @@ internal val UPDATE_RECOVERY_ZH = mapOf(
     "update.waiting" to "下载已暂停，已有进度保留。"
 )
 internal val UPDATE_RECOVERY_EN = mapOf(
+    "update.usingMirror" to "Connected via mirror",
     "update.resume" to "Resume download",
     "update.resuming" to "Resuming…",
     "update.resumeUnsupported" to "The server did not accept resuming. Your progress is saved. Try another mirror or restart the current file.",
@@ -19,6 +21,7 @@ internal val UPDATE_RECOVERY_EN = mapOf(
     "update.waiting" to "Download paused; your progress is saved."
 )
 internal val UPDATE_RECOVERY_JA = mapOf(
+    "update.usingMirror" to "ミラー経由で接続中",
     "update.resume" to "ダウンロードを再開",
     "update.resuming" to "再開中…",
     "update.resumeUnsupported" to "サーバーが再開要求を受け付けませんでした。進捗は保存されています。ミラーを変更するか、現在のファイルを最初から取得してください。",
@@ -28,6 +31,7 @@ internal val UPDATE_RECOVERY_JA = mapOf(
     "update.waiting" to "ダウンロードを一時停止しました。進捗は保存されています。"
 )
 internal val UPDATE_RECOVERY_KO = mapOf(
+    "update.usingMirror" to "미러를 통해 연결 중",
     "update.resume" to "다운로드 재개",
     "update.resuming" to "재개 중…",
     "update.resumeUnsupported" to "서버가 이어받기를 허용하지 않았습니다. 진행률은 보존됩니다. 미러를 변경하거나 현재 파일을 처음부터 받으세요.",

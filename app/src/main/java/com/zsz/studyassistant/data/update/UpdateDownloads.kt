@@ -30,7 +30,8 @@ internal class UpdateDownloads(
     enum class Phase { DOWNLOADING, WAITING, READY, FAILED }
     enum class TransferPhase { QUEUED, RUNNING, WAITING, SUCCESS, FAILED }
     data class Transfer(val id: Long, val url: String, val localUri: String?, val status: TransferPhase,
-        val bytes: Long, val total: Long, val token: String, val errorKey: String? = null)
+        val bytes: Long, val total: Long, val token: String, val errorKey: String? = null,
+        val usingMirror: Boolean = false)
     interface Backend {
         fun enqueue(release: UpdateChecker.ReleaseInfo, destination: File, appNotification: Boolean): Long
         fun query(id: Long): Transfer?
@@ -41,7 +42,7 @@ internal class UpdateDownloads(
     }
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
         val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false,
-        val resumable: Boolean = false)
+        val resumable: Boolean = false, val usingMirror: Boolean = false)
     private data class Record(val token: String, val release: UpdateChecker.ReleaseInfo,
         val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false,
         val delta: UpdateDeltaInfo? = null, val transferToken: String = token, val enqueuePending: Boolean = false,
@@ -251,6 +252,7 @@ internal class UpdateDownloads(
             .toInt().coerceIn(0, 100) else -1
         return when (transfer.status) {
             TransferPhase.QUEUED, TransferPhase.RUNNING -> status(record, Phase.DOWNLOADING, percent)
+                .copy(usingMirror = transfer.status == TransferPhase.RUNNING && transfer.usingMirror)
             TransferPhase.WAITING -> status(record, Phase.WAITING, percent, errorKey = transfer.errorKey)
             TransferPhase.FAILED -> fail(record, transfer.errorKey ?: "update.downloadInterrupted")
             TransferPhase.SUCCESS -> complete(record)

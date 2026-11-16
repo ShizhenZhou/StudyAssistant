@@ -74,7 +74,9 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
             if (info == null || info.state != androidx.work.WorkInfo.State.RUNNING) phase = UpdateDownloads.TransferPhase.WAITING
         }
         return UpdateDownloads.Transfer(record.id, record.url, Uri.fromFile(File(record.destination)).toString(), phase,
-            partial(record.id).length(), record.size, File(record.destination).nameWithoutExtension, record.error)
+            partial(record.id).length(), record.size, File(record.destination).nameWithoutExtension, record.error,
+            usingMirror = phase == UpdateDownloads.TransferPhase.RUNNING &&
+                active[record.id]?.let { it.generation == record.generation && it.usingMirror } == true)
     }
 
     override fun find(url: String, destination: File): UpdateDownloads.Transfer? {
@@ -188,6 +190,7 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
                         call.timeout().timeout((deadline - System.nanoTime()).coerceAtLeast(1), TimeUnit.NANOSECONDS)
                         execution.call = call
                         check()
+                        execution.usingMirror = url != record.url
                         call.execute().use { response ->
                             val body = response.body ?: throw IOException("Empty update response")
                             UpdateRangeTransfer.append(response.code, response.header("Content-Range"), body.contentLength(),
@@ -201,7 +204,7 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
                   catch (error: Exception) {
                       if (lastError !is UpdateRangeTransfer.Rejected || error is UpdateRangeTransfer.Rejected) lastError = error
                   }
-                finally { execution.call = null }
+                finally { execution.usingMirror = false; execution.call = null }
             }
             lastError?.let { throw it }
             check()
@@ -299,7 +302,10 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
 
     private class Stopped : IOException()
     private class WindowEnded : IOException()
-    private class Execution(val generation: String) { @Volatile var call: Call? = null }
+    private class Execution(val generation: String) {
+        @Volatile var call: Call? = null
+        @Volatile var usingMirror: Boolean = false
+    }
     companion object {
         internal const val ID_BASE = 1L shl 62
         private const val MAX_RETRIES = 10

@@ -393,17 +393,33 @@ internal fun SettingsMain(scroll: androidx.compose.foundation.ScrollState = reme
         Spacer(Modifier.height(12.dp))
         BackupHealthEntry(onOpen)
 
+        SettingGroupTitle(s["settings.group.general"])
         SettingEntry(s["settings.aiManage"]) { onOpen(AppNav.SettingsPages.AI) }
-        SettingEntry(s["settings.theme"]) { onOpen(AppNav.SettingsPages.THEME) }
         SettingEntry(s["settings.group.notifyBackground"]) { onOpen(AppNav.SettingsPages.NOTIFY) }
 
         Spacer(Modifier.height(14.dp))
+        SettingGroupTitle(s["settings.group.personalize"])
+        SettingEntry(s["settings.theme"]) { onOpen(AppNav.SettingsPages.THEME) }
+
+        Spacer(Modifier.height(26.dp))
         SettingEntry(s["settings.data"]) { onOpen(AppNav.SettingsPages.DATA) }
+        Spacer(Modifier.height(14.dp))
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
         SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
+        Spacer(Modifier.height(14.dp))
         SettingEntry(s["settings.about"]) { onOpen(AppNav.SettingsPages.ABOUT) }
     }
     }
+}
+
+@Composable
+private fun SettingGroupTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
+    )
 }
 
 /** Surface failed automatic backups on settings home, without a startup dialog. */

@@ -1,6 +1,7 @@
 package com.zsz.studyassistant.ui
 
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
 
@@ -14,6 +15,27 @@ import java.io.File
  * 所以这里把规则钉成用例：**任何版本标题行，上面一行必须是空行**（第一个版本除外）。
  */
 class ChangelogFormatTest {
+
+    @Test
+    fun currentFamilyAndDevelopingBetasRemainVisibleWithoutDuplicatingHistory() {
+        val versions = listOf("0.7.4_beta10", "0.7.4_beta2", "0.7.4_beta", "0.7.3.10", "0.7.3.2", "0.7.3", "0.7.2.5")
+        val source = versions.joinToString("\n\n") { "v$it\n· change" }
+        fun visible(installed: String): List<String> {
+            val result = changelogSections(source, installed)
+            val current = result.current.lineSequence().filter { it.startsWith("v") }.toList()
+            val older = result.older.lineSequence().filter { it.startsWith("v") }.toList()
+            assertEquals(versions.map { "v$it" }.toSet(), (current + older).toSet())
+            assertTrue(current.intersect(older.toSet()).isEmpty())
+            return current
+        }
+        assertEquals(listOf("v0.7.3.2", "v0.7.3"), visible("0.7.3.2"))
+        assertEquals(listOf("v0.7.3"), visible("0.7.3"))
+        assertEquals(listOf("v0.7.4_beta2", "v0.7.4_beta", "v0.7.3.10", "v0.7.3.2", "v0.7.3"), visible("0.7.4_beta2"))
+        assertEquals(versions.dropLast(1).map { "v$it" }, visible("0.7.4_beta10"))
+        assertEquals(listOf("v0.7.4", "v0.7.4.1"),
+            changelogSections("v0.7.4\n· base\n\nv0.7.4.1\n· patch\n\n$source", "0.7.4.1")
+                .current.lineSequence().filter { it.startsWith("v") }.toList())
+    }
 
     private val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
         .first { File(it, "settings.gradle.kts").isFile }

@@ -42,6 +42,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -165,6 +168,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     val fullPackageChoices = remember { mutableStateMapOf<String, Boolean>() }
     fun packageKey(rel: UpdateChecker.ReleaseInfo) = rel.assetUrl + "|" + rel.assetSha256
     var progress by remember { mutableIntStateOf(-1) }
+    var usingMirror by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var recoveryError by remember { mutableStateOf<String?>(null) }
     var recovering by remember { mutableStateOf(false) }
@@ -186,6 +190,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         displayedTaskToken = task.token
         latest = task.release
         progress = task.progress
+        usingMirror = task.usingMirror
         verifiedSha = task.phase == UpdateDownloads.Phase.READY && task.release.assetSha256 != null
         message = task.errorKey?.let { s.format(it, "api" to (task.release.minSdk?.toString() ?: "")) }
         phase = when (task.phase) {
@@ -330,7 +335,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         latest = rel
         compatibilityMessage(rel)?.let { message = it; phase = Phase.FAILED; return }
         val generation = ++operationGeneration
-        phase = Phase.DOWNLOADING; progress = 0; message = null
+        phase = Phase.DOWNLOADING; progress = 0; message = null; usingMirror = false
         observingDownload = false
         val notification = UpdateDownloadMonitor.request(context)
         val handoff = downloads.enqueue(rel, notification = notification,
@@ -494,8 +499,17 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                 }
                 Phase.DOWNLOADING, Phase.WAITING -> {
                     Text(
-                        if (phase == Phase.WAITING) s["update.waiting"]
-                        else if (progress >= 0) s.format("update.downloading", "p" to "$progress") else s["update.download"],
+                        buildAnnotatedString {
+                            append(if (phase == Phase.WAITING) s["update.waiting"]
+                                else if (progress >= 0) s.format("update.downloading", "p" to "$progress") else s["update.download"])
+                            if (phase == Phase.DOWNLOADING && usingMirror) {
+                                append("  ")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary,
+                                    fontSize = (MaterialTheme.typography.bodyMedium.fontSize.value - 1).sp)) {
+                                    append(s["update.usingMirror"])
+                                }
+                            }
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(10.dp))
@@ -580,20 +594,26 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     }
 
     Spacer(Modifier.height(24.dp))
-    // Load and lay out the long history only when requested.
+    // Keep this release family visible; only format/layout older entries when expanded.
     var historyExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    androidx.compose.material3.TextButton(onClick = { historyExpanded = !historyExpanded }) {
-        Text(settingsStructureStrings(LocalUiLang.current)[if (historyExpanded) "hideHistory" else "history"])
-    }
-    if (historyExpanded) {
-    Spacer(Modifier.height(8.dp))
     val lang = LocalUiLang.current
-    val history by produceState(AnnotatedString(""), lang, context.assets) {
+    val history by produceState(ChangelogSections(), lang, installed, context.assets) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            changelogAnnotated(changelogText(lang, context.assets::open))
+            changelogSections(changelogText(lang, context.assets::open), installed)
         }
     }
-    Text(history, style = MaterialTheme.typography.bodySmall)
+    if (history.current.isNotBlank()) {
+        Text(remember(history.current) { changelogAnnotated(history.current) }, style = MaterialTheme.typography.bodySmall)
+    }
+    if (history.older.isNotBlank()) {
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.material3.TextButton(onClick = { historyExpanded = !historyExpanded }) {
+            Text(settingsStructureStrings(lang)[if (historyExpanded) "hideHistory" else "history"])
+        }
+        if (historyExpanded) {
+            Spacer(Modifier.height(8.dp))
+            Text(remember(history.older) { changelogAnnotated(history.older) }, style = MaterialTheme.typography.bodySmall)
+        }
     }
     Spacer(Modifier.height(24.dp))
 }

@@ -38,7 +38,10 @@
     return /^(?:none|currentColor|transparent|[a-zA-Z]{1,24}|#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9.,%\s+-]+\))$/.test(value);
   }
   function clean(raw){
-    if(raw.length>65536 || new TextEncoder().encode(raw).length>65536 || /<!|<\?/.test(raw)) return null;
+    if(raw.length>65536 || new TextEncoder().encode(raw).length>65536) return null;
+    // Comments are inert metadata. Ignore them for the declaration check, but
+    // parse the original XML so malformed comments still fail validation.
+    if(/<!|<\?/.test(raw.replace(/<!--[\s\S]*?-->/g,''))) return null;
     var source=new DOMParser().parseFromString(raw,'image/svg+xml'),root=source.documentElement;
     if(!root || root.localName!=='svg' || source.querySelector('parsererror')) return null;
     var doc=document.implementation.createDocument(NS,'svg',null),target=doc.documentElement;
@@ -82,6 +85,7 @@
       return true;
     }
     function copy(node,parent,depth,inDefinition){
+      if(node.nodeType===8) return; // Do not include comments in the rendered image.
       if(node.nodeType===3){parent.appendChild(doc.createTextNode(node.nodeValue));return;}
       if(node.nodeType!==1 || depth>20 || ++count>512) throw Error('Unsupported SVG node');
       var tag=node.localName;

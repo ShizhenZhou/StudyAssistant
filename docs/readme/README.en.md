@@ -57,6 +57,14 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.4_beta3
+
+- ⚙️ Restore General and Personalization groups in settings, with more space between backup, updates and about entries.
+- 📜 Show the current stable release family and developing beta notes by default; expand older entries with View more update history.
+- ⬇️ Add a smaller, theme-colored mirror connection label beside download progress when a mirror is in use.
+- 🖼️ Fix SVG diagrams falling back to source code when they contain ordinary comments, while retaining security filtering.
+- 📌 `versionCode` **133**.
+
 ### v0.7.4_beta2
 
 - ⚙️ Organize settings into six entries, show solving options directly, and separate interface language from AI response language.
