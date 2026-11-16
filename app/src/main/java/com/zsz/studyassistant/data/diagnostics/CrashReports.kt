@@ -7,9 +7,22 @@ import android.os.Build
 object CrashReports {
     private const val PREFS = "crash_report_reminder"
     private const val SEEN = "last_seen"
+    private const val PENDING = "pending_crash"
+    private const val INSTALLATION = "crash_installation"
 
-    fun pending(context: Context): String? = CrashLogger.files(context).firstOrNull()?.name?.takeIf {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SEEN, null) != it
+    fun pending(context: Context): String? {
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return pendingCrashForInstallation(
+            preferences.getString(PENDING, null), preferences.getLong(INSTALLATION, 0),
+            UpdateChecker.installedLastUpdateTime(context), preferences.getString(SEEN, null)
+        )?.takeIf { id -> CrashLogger.files(context).any { it.name == id } }
+    }
+
+    /** Only the uncaught-exception handler creates a reminder; old files alone never do. */
+    internal fun record(context: Context, id: String, installation: Long) {
+        // The process is about to terminate, so this must be durable before forwarding to Android.
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(PENDING, id).putLong(INSTALLATION, installation).remove(SEEN).commit()
     }
 
     fun acknowledge(context: Context, id: String) {

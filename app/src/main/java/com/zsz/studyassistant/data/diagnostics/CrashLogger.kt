@@ -34,9 +34,11 @@ object CrashLogger {
         if (installed) return
         installed = true
         val app = context.applicationContext
+        // Capture before the process runs; an APK replacement must not relabel an old process's crash.
+        val installation = UpdateChecker.installedLastUpdateTime(app)
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
-            runCatching { write(app, t, e) }.onFailure { Log.w(TAG, "写崩溃日志失败: ${it.message}") }
+            runCatching { write(app, t, e, installation) }.onFailure { Log.w(TAG, "写崩溃日志失败: ${it.message}") }
             // 交回原 handler：让系统照常结束进程 / 弹系统崩溃框
             prev?.uncaughtException(t, e)
         }
@@ -86,7 +88,7 @@ object CrashLogger {
         "study-assistant-crash-" + FILE_TS.format(Date()) + ".txt"
 
     /** 真正的落盘：记录 App 版本、设备、线程、异常与完整堆栈 */
-    private fun write(context: Context, thread: Thread, e: Throwable) {
+    private fun write(context: Context, thread: Thread, e: Throwable, installation: Long) {
         val ts = FILE_TS.format(Date())
         val f = File(dir(context), "crash-$ts.txt")
         // Separate public-safe diagnostics at the source, before messages are flattened into raw text.
@@ -108,6 +110,7 @@ object CrashLogger {
             append("\n--- 堆栈 ---\n")
             append(Log.getStackTraceString(e))
         })
+        CrashReports.record(context, f.name, installation)
         prune(context)
     }
 
