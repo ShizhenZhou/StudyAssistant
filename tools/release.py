@@ -808,7 +808,8 @@ class Release:
             folder.mkdir(parents=True)
             command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/sign-release.ps1",
                 "-InApk", candidate, "-OutDir", folder], root=self.root, log=folder / "signing.log", timeout=120)
-            signed = folder / f"StudyAssistant-{manifest['version']}-{manifest['buildUtc']}.apk"
+            prefix = "SACompat" if manifest.get("distribution") == "compat" else "StudyAssistant"
+            signed = folder / f"{prefix}-{manifest['version']}-{manifest['buildUtc']}.apk"
             if mandatory_release(self.state):
                 enforced = signed.with_name(signed.stem + "-ENF.apk")
                 signed.rename(enforced)

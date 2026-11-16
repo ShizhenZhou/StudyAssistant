@@ -11,12 +11,12 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前本機候選為 v0.7.4.1（versionCode 134）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。相容候選尚未公開發布，下方舊版入口保留供參考。
+> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.4.1（versionCode 135，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載舊相容版本 v0.6.7.9](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+- **Android 9–15** · [下載相容版本 v0.7.4.1](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -73,7 +73,7 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 - ⬇️ 更新支援正式／測試渠道、直接及鏈式差分、斷點續傳和可設定 GitHub 映像站連線。
 - 🎨 主頁支援左右滑動，最佳化平移過渡、設定分組與桌布背景，改善多選和捲動操作。
 - 🐞 新增可預覽、複製和匯出的崩潰報告，最佳化資料庫、長對話與圖片處理。
-- 📌 `versionCode` **134**.
+- 📌 `versionCode` **135**.
 
 **以上版本開始為兼容分支**
 

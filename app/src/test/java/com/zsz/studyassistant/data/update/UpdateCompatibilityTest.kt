@@ -87,6 +87,14 @@ class UpdateCompatibilityTest {
         assertEquals("compat", legacyVersion)
         assertFalse(UpdateChecker.isNewer(legacyVersion, "0.7.4.1"))
         assertEquals("0.99.99.99", release.copy(tagName = tag).displayVersion)
+        val assetName = "SACompat-0.99.99.99-20261116160000.apk"
+        val root = Json.parseToJsonElement("""{"tag_name":"$tag","assets":[
+            {"name":"SACompat-0.99.99.99-20261116150000.apk","size":7,"browser_download_url":"https://github.com/ShizhenZhou/StudyAssistant/releases/download/$tag/SACompat-0.99.99.99-20261116150000.apk"},
+            {"name":"$assetName","size":7,"browser_download_url":"https://github.com/ShizhenZhou/StudyAssistant/releases/download/$tag/$assetName"}
+        ]}""").jsonObject
+        val parsed = UpdateChecker.parseRelease(root)!!.first
+        assertEquals(assetName, parsed.assetName)
+        assertEquals("compat", parsed.distribution)
     }
 
     @Test fun mandatoryNeedsAnExplicitBooleanAndStableChannel() {

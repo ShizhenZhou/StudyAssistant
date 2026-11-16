@@ -101,7 +101,7 @@ schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时
 
 ### Android 9–15 兼容发行例外
 
-长期分支固定为 `Compatible`，基于当前业务代码维护，不整支合入 main。主线仍支持 Android 16+。兼容版与主线使用同一 applicationId、原证书及 lineage，不能并装；不清数据、不卸载。兼容版显示版本与主线同步，当前兼容候选为 `0.7.4.1` / code134，主线同名版本为 code135。后续交付检查两线已分配 code，使用递增且不冲突的新值；转回主线需要主线包的 versionCode 更高。兼容 Git tag 独立使用 `compat_v<VERSION>`，主线继续 `v<VERSION>`，版本相同也不会覆盖标签；发布说明使用 `.local-notes/releases/RELEASE-compat_v<VERSION>.md`。Beta 后缀仅按用户当次安排使用。
+长期分支固定为 `Compatible`，基于当前业务代码维护，不整支合入 main。主线仍支持 Android 16+。兼容版与主线使用同一 applicationId、原证书及 lineage，不能并装；不清数据、不卸载。兼容版显示版本与主线同步，当前兼容版为 `0.7.4.1` / code135，与主线同名版本对齐。后续交付按各发行线递增 versionCode，渠道与 SDK 范围隔离不能依赖两线 code 不同；转回主线不得降级安装。兼容公开 APK 使用 `SACompat-<版本>-<UTC构建时间>.apk`，主线暂时仍用原包名，待 v0.7.4.2 发布后再调整。兼容 Git tag 独立使用 `compat_v<VERSION>`，主线继续 `v<VERSION>`，版本相同也不会覆盖标签；发布说明使用 `.local-notes/releases/RELEASE-compat_v<VERSION>.md`。Beta 后缀仅按用户当次安排使用。
 
 兼容线仅在用户明确安排发布后，以已推送的干净专用分支执行 `./tools/release.ps1 start --version VERSION --distribution compat`，Beta 另加 `--channel beta`；同一次 run 继续 status/publish。此例外不放宽其他分支，也不要求合并 main。复用单个手动 CI 构建，CI 输入必须显式 `release_distribution=compat` 及 stable/beta 渠道。候选 schema3 清单增加 `distribution=compat`、`maxSdk=35`，并与 APK 内 `assets/distribution.json`、真实 minSdk=28、精确提交及原签名核对。正式兼容 Release 为 prerelease=false，Beta 为 true，两者始终 make_latest=false；Latest 保留主线。
 

@@ -61,7 +61,7 @@ class DeliveryTest(unittest.TestCase):
 
     def test_compat_distribution_is_bound_to_apk_and_never_latest_or_cross_line_delta(self):
         value = self.manifest()
-        value.update(distribution="compat", minSdk=28, maxSdk=35, version="0.7.4.1", versionCode=134,
+        value.update(distribution="compat", minSdk=28, maxSdk=35, version="0.7.4.1", versionCode=135,
                      candidate="StudyAssistant-0.7.4.1-20261030120000-candidate.apk")
         self.assertEqual("compat_v0.7.4.1", release_tag(value["version"], "compat"))
         self.assertEqual("v0.7.4.1", release_tag(value["version"]))

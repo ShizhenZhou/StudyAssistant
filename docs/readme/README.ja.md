@@ -11,12 +11,12 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> `Compatible` ブランチは **Android 9–15（API 28–35）** 向けです。現在のローカル候補は v0.7.4.1（versionCode 134）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換ブランチの更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。この候補はまだ公開していないため、下記の旧版リンクを参考として残しています。
+> `Compatible` ブランチは **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.4.1（versionCode 135、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換ブランチの更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [旧対応版 v0.6.7.9 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+- **Android 9–15** · [互換版 v0.7.4.1 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -73,7 +73,7 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 - ⬇️ 正式版／テスト版、直接・連鎖差分、ダウンロード再開、設定可能な GitHub ミラーに対応。
 - 🎨 ホーム間の左右スワイプに対応。スライド遷移、設定の分類、壁紙背景、複数選択とスクロールを改善。
 - 🐞 クラッシュレポートのプレビュー・コピー・出力を追加し、データベース、長い会話、画像処理を改善。
-- 📌 `versionCode` **134**.
+- 📌 `versionCode` **135**.
 
 **上記のバージョンから互換ブランチです。**
 

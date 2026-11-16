@@ -11,12 +11,12 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current local candidate is v0.7.4.1 (versionCode 134). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest. This compatibility candidate is not publicly released yet; the legacy download below remains for reference.
+> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current release is v0.7.4.1 (versionCode 135, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest.
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the legacy compatible release (v0.6.7.9)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+- **Android 9–15** · [Download the compatible release (v0.7.4.1)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -73,7 +73,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - ⬇️ Updates support stable/beta channels, direct and chained deltas, resumable downloads and configurable GitHub mirrors.
 - 🎨 Swipe between home tabs; improved slide transitions, settings groups, wallpaper backgrounds, selection and scrolling.
 - 🐞 Preview, copy and export crash reports; improved database, long-conversation and image handling.
-- 📌 `versionCode` **134**.
+- 📌 `versionCode` **135**.
 
 **Versions above this line belong to the compatibility branch.**
 

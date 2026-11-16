@@ -122,6 +122,7 @@ $apkMinSdk = [int]$Matches[1]
 if ($apkMinSdk -lt 28 -or [int]$RotationMinSdk -gt $apkMinSdk) { throw 'APK minimum SDK is incompatible with the existing signing lineage policy.' }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $stampArchive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($InApk))
+$apkPrefix = 'StudyAssistant'
 try {
     $stampEntry = $stampArchive.GetEntry('assets/build-time-utc.txt')
     if (-not $stampEntry) { throw 'APK has no UTC build identity. Rebuild before signing.' }
@@ -129,8 +130,21 @@ try {
     try { $ts = $stampReader.ReadToEnd().Trim() } finally { $stampReader.Dispose() }
     if ($ts -notmatch '^[0-9]{14}$') { throw 'Invalid APK UTC build identity.' }
     [DateTime]::ParseExact($ts, 'yyyyMMddHHmmss', [Globalization.CultureInfo]::InvariantCulture) | Out-Null
+    $distributionEntry = $stampArchive.GetEntry('assets/distribution.json')
+    if ($distributionEntry) {
+        $distributionReader = [IO.StreamReader]::new($distributionEntry.Open())
+        try { $distribution = $distributionReader.ReadToEnd() | ConvertFrom-Json } finally { $distributionReader.Dispose() }
+        if ($distribution.distribution -eq 'compat') {
+            if ($apkMinSdk -ne 28 -or $distribution.minSdk -ne 28 -or $distribution.maxSdk -ne 35) {
+                throw 'Compatibility APK SDK identity is invalid.'
+            }
+            $apkPrefix = 'SACompat'
+        } elseif ($distribution.distribution -ne 'main') {
+            throw 'Unknown APK distribution.'
+        }
+    }
 } finally { $stampArchive.Dispose() }
-$out = Join-Path $OutDir ("StudyAssistant-$ver-$ts.apk")
+$out = Join-Path $OutDir ("$apkPrefix-$ver-$ts.apk")
 
 Write-Step "输入：$InApk"
 Write-Step "输出：$out"

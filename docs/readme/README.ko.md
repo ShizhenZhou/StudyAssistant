@@ -11,12 +11,12 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> `Compatible` 브랜치는 **Android 9–15(API 28–35)** 용입니다. 현재 로컬 후보는 v0.7.4.1(versionCode 134)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 브랜치의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다. 이 후보는 아직 공개하지 않았으므로 아래 이전 버전 링크를 참고용으로 유지합니다.
+> `Compatible` 브랜치는 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.4.1(versionCode 135, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 브랜치의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [이전 호환 버전 v0.6.7.9 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.6.7.9)
+- **Android 9–15** · [호환 버전 v0.7.4.1 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -73,7 +73,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - ⬇️ 정식/테스트 채널, 직접·연쇄 차분, 다운로드 재개 및 설정 가능한 GitHub 미러를 지원합니다.
 - 🎨 홈 화면 좌우 스와이프를 지원하고 슬라이드 전환, 설정 그룹, 배경화면, 다중 선택과 스크롤을 개선했습니다.
 - 🐞 미리 보기·복사·내보내기가 가능한 충돌 보고서를 추가하고 데이터베이스, 긴 대화와 이미지 처리를 개선했습니다.
-- 📌 `versionCode` **134**.
+- 📌 `versionCode` **135**.
 
 **위 버전부터 호환 브랜치에 해당합니다.**
 

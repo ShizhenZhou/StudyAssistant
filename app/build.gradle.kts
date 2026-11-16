@@ -71,7 +71,7 @@ android {
         applicationId = "com.zsz.studyassistant"
         minSdk = 28
         targetSdk = 37
-        versionCode = 134
+        versionCode = 135
         versionName = appVersionName
         buildConfigField("String", "DISTRIBUTION", "\"compat\"")
         buildConfigField("int", "SUPPORTED_MAX_SDK", "35")
