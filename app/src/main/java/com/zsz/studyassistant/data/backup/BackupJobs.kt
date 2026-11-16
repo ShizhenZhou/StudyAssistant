@@ -46,10 +46,12 @@ object BackupJobs {
         var expectedTree: android.net.Uri? = null
         var expectedGeneration: Long? = null
         var expectedToken: String? = null
+        var expectedScanRevision = 0L
         fun stillCurrent(): Boolean = prefs(context).let { p ->
             expectedGeneration != null && AutoBackup.treeUri(context) == expectedTree &&
                 p.getLong(PREFIX + "generation", 0) == expectedGeneration &&
                 p.getString(PREFIX + "token", null) == expectedToken &&
+                p.getLong(PREFIX + "scan_revision", 0) == expectedScanRevision &&
                 AutoBackup.isEnabled(context) && !p.getBoolean(PREFIX + "active", false)
         }
         try {
@@ -57,17 +59,50 @@ object BackupJobs {
                 if (!AutoBackup.isEnabled(context)) return
                 val tree = AutoBackup.treeUri(context) ?: return
                 val p = prefs(context)
+                val now = System.currentTimeMillis()
+                val today = AutoBackup.dayKey(now)
+                // A canceled automatic backup must not hash the entire directory again today.
+                if (p.getString(PREFIX + "phase", null) == "data.backupJob.canceled" &&
+                    p.getString(PREFIX + "attempt_day", null) == today) return
                 if (p.getBoolean(PREFIX + "active", false) && !reconcile(context)) return
-                if (p.getString(PREFIX + "error", null) != null && !p.getBoolean(PREFIX + "dispatch_failed", false)) return
+                if (p.getString(PREFIX + "error", null) != null && !p.getBoolean(PREFIX + "dispatch_failed", false) &&
+                    !BackupTaskPolicy.canRetryInventory(p.getString(PREFIX + "error", null),
+                        p.getBoolean(PREFIX + "scan_failed", false), today, p.getString(PREFIX + "scan_day", null),
+                        p.getInt(PREFIX + "scan_failures", 0), now, p.getLong(PREFIX + "scan_retry_at", 0))) return
                 expectedTree = tree
                 expectedGeneration = p.getLong(PREFIX + "generation", 0)
                 expectedToken = p.getString(PREFIX + "token", null)
+                expectedScanRevision = p.getLong(PREFIX + "scan_revision", 0)
                 tree
             }
             if (!withContext(Dispatchers.IO) { hasActiveQuestions(context) }) return
             if (!synchronized(this) { stillCurrent() }) return
-            val summary = readSummary?.invoke(context, opening)
-                ?: BackupRetention.observedFolderSummary(context, opening)
+            val summary = try {
+                readSummary?.invoke(context, opening) ?: BackupRetention.observedFolderSummary(context, opening)
+            } catch (error: Exception) {
+                if (error !is IOException && !(error is BackupWriteException &&
+                        error.messageKey == "data.autoBackup.folderMissing")) throw error
+                // Do not classify DB reads, validation failures or worker failures as retryable.
+                val health = withContext(Dispatchers.IO) { BackupFolderAccess.check(context, opening) }
+                if (health.state == BackupFolderAccess.State.INVALID) throw error
+                synchronized(this) {
+                    if (stillCurrent()) {
+                        val p = prefs(context)
+                        val now = System.currentTimeMillis()
+                        val today = AutoBackup.dayKey(now)
+                        val count = if (p.getString(PREFIX + "scan_day", null) == today)
+                            p.getInt(PREFIX + "scan_failures", 0) + 1 else 1
+                        p.edit().putBoolean(PREFIX + "scan_failed", true).putString(PREFIX + "scan_day", today)
+                            .remove(PREFIX + "dispatch_failed")
+                            .putInt(PREFIX + "scan_failures", count)
+                            .putLong(PREFIX + "scan_revision", expectedScanRevision + 1)
+                            .putLong(PREFIX + "scan_retry_at", now + TimeUnit.MINUTES.toMillis(if (count == 1) 15 else 30))
+                            .putString(PREFIX + "error", "data.autoBackup.snapshotFailed")
+                            .putString(PREFIX + "phase", "data.backupJob.failed").commit()
+                    }
+                }
+                return
+            }
             // A long provider scan can overlap edits. Re-read outside the monitor; the worker
             // also checks emptiness immediately before capture, so this is only scheduling input.
             val hasQuestions = withContext(Dispatchers.IO) { hasActiveQuestions(context) }
@@ -75,6 +110,7 @@ object BackupJobs {
             synchronized(this) {
                 val p = prefs(context)
                 if (!stillCurrent()) return
+                clearInventoryFailure(p)
                 val today = AutoBackup.dayKey(System.currentTimeMillis())
                 val latestDay = today.takeIf { it in summary.backupDays }
                 if (latestDay == today) {
@@ -219,6 +255,7 @@ object BackupJobs {
         try {
             val safeKey = if (key == "data.autoBackup.snapshotFailed") key else "data.autoBackup.storageFailed"
             val edit = prefs(context).edit().putString(PREFIX + "error", safeKey)
+                .remove(PREFIX + "scan_failed").remove(PREFIX + "dispatch_failed")
             if (terminal) edit.putBoolean(PREFIX + "active", false).putString(PREFIX + "phase", "data.backupJob.failed")
             edit.commit()
             AutoBackup.recordFailure(context, safeKey)
@@ -242,10 +279,18 @@ object BackupJobs {
     }
     @Synchronized fun invalidate(context: Context) {
         val p = prefs(context)
+        clearInventoryFailure(p)
         p.edit().putLong(PREFIX + "generation", p.getLong(PREFIX + "generation", 0) + 1)
             .putBoolean(PREFIX + "active", false).remove(PREFIX + "stop_reason").remove(PREFIX + "system_deferred").remove(PREFIX + "token").remove(PREFIX + "checked_day").commit()
         try { WorkManager.getInstance(context).cancelUniqueWork(WORK) }
         catch (_: Exception) { recordSchedulingFailure(context, false, "data.autoBackup.storageFailed") }
+    }
+    private fun clearInventoryFailure(p: android.content.SharedPreferences) {
+        val edit = p.edit().remove(PREFIX + "scan_failed").remove(PREFIX + "scan_day")
+            .remove(PREFIX + "scan_failures").remove(PREFIX + "scan_retry_at")
+        if (p.getBoolean(PREFIX + "scan_failed", false) &&
+            p.getString(PREFIX + "error", null) == "data.autoBackup.snapshotFailed") edit.remove(PREFIX + "error")
+        edit.commit()
     }
     @Synchronized fun configurationChanged(context: Context) {
         invalidate(context)

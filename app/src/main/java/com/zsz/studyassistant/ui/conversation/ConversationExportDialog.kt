@@ -30,7 +30,7 @@ internal fun conversationExportViewModel(): ConversationExportViewModel =
 internal fun ConversationExportDialog(messages: List<ChatMsg>, onDismiss: () -> Unit, onFeedback: (String) -> Unit) {
     val export = conversationExportViewModel()
     var started by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { export.begin(messages); started = true }
+    LaunchedEffect(Unit) { export.begin(messages).join(); started = true }
     ConversationExportDialog(export, onFeedback)
     LaunchedEffect(started, export.session) { if (started && export.session == null) onDismiss() }
 }
@@ -50,13 +50,13 @@ internal fun ConversationExportDialog(export: ConversationExportViewModel, onFee
             try {
                 if (state.format == ConversationExportFormat.PDF) pdfPicker.launch("${state.name}.pdf")
                 else pngPicker.launch(null)
-            } catch (_: Exception) { export.fail() }
+            } catch (_: Exception) { export.fail(state.id) }
         }
     }
     val messages = export.messages
     if (state.phase == ExportPhase.RENDERING && messages != null) {
         ConversationExportRenderer(messages, state.format, state.name, export::cancel,
-            onReady = export::prepared, onError = export::fail)
+            onReady = { export.prepared(state.id, it) }, onError = { export.fail(state.id) })
     } else if (state.phase in listOf(ExportPhase.SNAPSHOT, ExportPhase.RENDERING, ExportPhase.STORING, ExportPhase.SAVING)) {
         val saving = state.phase == ExportPhase.SAVING
         AlertDialog(onDismissRequest = { if (!saving) export.cancel() },

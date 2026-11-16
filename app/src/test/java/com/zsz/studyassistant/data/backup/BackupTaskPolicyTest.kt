@@ -5,6 +5,18 @@ import org.junit.Test
 import kotlinx.coroutines.*
 
 class BackupTaskPolicyTest {
+    @Test fun inventoryRetryIsBoundedAndDoesNotReopenTerminalFailures() {
+        fun retry(error: String? = "data.autoBackup.snapshotFailed", marked: Boolean = true,
+            day: String = "today", count: Int = 1, now: Long = 100) =
+            BackupTaskPolicy.canRetryInventory(error, marked, "today", day, count, now, 100)
+        assertFalse(retry(now = 99))
+        assertTrue(retry())
+        assertFalse(retry(count = 3))
+        assertTrue(retry(day = "yesterday", count = 3, now = 0))
+        assertFalse(retry(error = "data.autoBackup.permissionFailed"))
+        assertFalse(retry(error = "data.autoBackup.storageFailed"))
+        assertFalse(retry(marked = false)) // Includes old, unclassified snapshot failures.
+    }
     @Test fun overlappingSummaryReadsShareOnlyMatchingUnfinishedWork() = runBlocking {
         val reads = BackupSummaryReads<String, Int>()
         val finish = CompletableDeferred<Unit>()

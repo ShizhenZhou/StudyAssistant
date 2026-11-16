@@ -3,6 +3,12 @@ package com.zsz.studyassistant.data
 /** Pure decisions shared by the UI trigger and the durable worker. */
 data class BackupSetStamp(val id:String,val at:Long,val complete:Boolean,val automatic:Boolean)
 object BackupTaskPolicy {
+    /** Only a marked inventory IO failure may bypass the terminal-error stop on app open. */
+    fun canRetryInventory(error: String?, inventoryFailure: Boolean, today: String,
+        failureDay: String?, failures: Int, now: Long, retryAt: Long): Boolean =
+        inventoryFailure && error == "data.autoBackup.snapshotFailed" &&
+            (today != failureDay || (failures < 3 && now >= retryAt))
+
     fun shouldSchedule(enabled:Boolean,hasFolder:Boolean,today:String,active:Boolean,hasQuestions:Boolean=true,
         latestBackupDay:String?=null,canceledDay:String?=null):Boolean =
         enabled && hasFolder && hasQuestions && !active && today!=latestBackupDay && today!=canceledDay
