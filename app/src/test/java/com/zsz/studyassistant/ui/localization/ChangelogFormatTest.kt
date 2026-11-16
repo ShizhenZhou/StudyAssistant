@@ -35,6 +35,13 @@ class ChangelogFormatTest {
         assertEquals(listOf("v0.7.4", "v0.7.4.1"),
             changelogSections("v0.7.4\n· base\n\nv0.7.4.1\n· patch\n\n$source", "0.7.4.1")
                 .current.lineSequence().filter { it.startsWith("v") }.toList())
+        val combined = "v0.6.8→→→v0.7.4.1\n· combined\n\nv0.6.7.9\n· legacy"
+        val range = changelogSections(combined, "0.7.4.1")
+        assertEquals("v0.6.8→→→v0.7.4.1\n· combined", range.current)
+        assertEquals("v0.6.7.9\n· legacy", range.older)
+        val nextPatch = changelogSections("v0.7.4.2\n· next\n\n$combined", "0.7.4.2")
+        assertTrue(nextPatch.current.contains("v0.6.8→→→v0.7.4.1\n· combined"))
+        assertEquals(range.older, nextPatch.older)
     }
 
     private val root = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
@@ -95,13 +102,13 @@ class ChangelogFormatTest {
     }
 
     @Test
-    fun android16RequirementUsesOneSharedBoundaryInReadmeAndApp() {
+    fun compatibilityHistoryUsesOneSharedBoundaryInReadmeAndApp() {
         val notices = listOf(
-            "README.md" to "以上版本仅支持Android 16+",
-            "docs/readme/README.zh-TW.md" to "以上版本僅支持Android 16+",
-            "docs/readme/README.en.md" to "The versions above support Android 16+ only.",
-            "docs/readme/README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。",
-            "docs/readme/README.ko.md" to "위 버전은 Android 16 이상만 지원합니다."
+            "README.md" to "以上版本开始为兼容分支",
+            "docs/readme/README.zh-TW.md" to "以上版本開始為兼容分支",
+            "docs/readme/README.en.md" to "Versions above this line belong to the compatibility branch.",
+            "docs/readme/README.ja.md" to "上記のバージョンから互換ブランチです。",
+            "docs/readme/README.ko.md" to "위 버전부터 호환 브랜치에 해당합니다."
         )
         for ((index, item) in notices.withIndex()) {
             val (file, notice) = item
@@ -111,7 +118,7 @@ class ChangelogFormatTest {
                 Triple(file, readme, "### v0.6.7.9"),
                 Triple(tables[index].first, app, "v0.6.7.9\n")
             )) {
-                val above = text.substringBefore(boundary)
+                val above = text.replace("\r\n", "\n").substringBefore(boundary)
                 assertTrue("$label missing shared requirement", above.contains("**$notice**"))
                 assertTrue("$label requirement must follow v0.6.8", above.lastIndexOf(notice) > above.lastIndexOf("v0.6.8\n"))
                 assertTrue("$label repeats per-version requirements", !above.lineSequence().any {
@@ -129,7 +136,7 @@ class ChangelogFormatTest {
             .find(File(root, "app/build.gradle.kts").readText())!!.groupValues[1]
         for ((lang, text) in tables) {
             assertTrue("$lang 的更新内容为空", text.trim().isNotEmpty())
-            assertTrue("$lang 少了当前版本 v$version", text.lineSequence().first { it.isNotBlank() } == "v$version")
+            assertTrue("$lang 少了当前版本 v$version", text.lineSequence().first { it.isNotBlank() }.substringAfterLast("→") == "v$version")
         }
     }
 }
