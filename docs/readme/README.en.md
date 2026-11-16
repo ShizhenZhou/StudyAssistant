@@ -57,6 +57,14 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.4_beta
+
+- ↔️ Use sliding transitions without page scaling, with smoother home swipe starts and release settling.
+- ⚙️ Rename the update mirror switch to “Use a GitHub mirror when needed” and remove the duplicate solving settings heading.
+- 🐞 Add feedback and crash reports to About, with a one-time reminder after a crash and brief diagnostics to preview, copy or export.
+- 📝 Add GitHub bug and feature request templates; reports are never uploaded automatically.
+- 📌 `versionCode` **131**.
+
 ### v0.7.3.7
 
 - ⬇️ Reduce background work during update downloads: keep only a regular notification while waiting for the network, and improve cancellation and completion cleanup.

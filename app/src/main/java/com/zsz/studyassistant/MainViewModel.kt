@@ -2250,6 +2250,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     internal var backupSetupChecked = false
 
     var openUpdatePage by mutableStateOf(false)
+    var openCrashReportPage by mutableStateOf(false)
 
     var openDataUpgradePage by mutableStateOf(false)
 

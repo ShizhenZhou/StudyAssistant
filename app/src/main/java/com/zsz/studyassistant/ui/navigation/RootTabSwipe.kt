@@ -2,6 +2,7 @@ package com.zsz.studyassistant.ui
 
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.sign
+import kotlin.math.roundToInt
 
 /** Live neighbour preview, without another navigation stack or offscreen page actions. */
 @Composable
@@ -56,14 +59,19 @@ internal fun RootTabSwipeHost(
             job?.cancel(); offset = 0f; settling = false; dragOrigin = null
         }
     }
-    fun finish(commit: Boolean) {
+    fun finish(commit: Boolean, releaseVelocity: Float = 0f) {
         val target = AppNav.adjacentRootTab(dragOrigin, next = offset < 0f)
         val end = if (commit && target != null) (if (offset < 0f) -width else width).toFloat() else 0f
         settling = true
         job?.cancel()
         job = scope.launch {
             try {
-                animate(offset, end, animationSpec = tween(180)) { value, _ -> offset = value }
+                val distance = abs(end - offset)
+                val duration = (90 + 110 * (distance / width.coerceAtLeast(1))).roundToInt().coerceIn(90, 200)
+                val flingDuration = if (releaseVelocity * (end - offset) > 0f)
+                    (1000 * distance / abs(releaseVelocity)).roundToInt().coerceIn(70, duration) else duration
+                // Decelerate immediately after release; short remaining travel finishes sooner.
+                animate(offset, end, animationSpec = tween(flingDuration, easing = LinearOutSlowInEasing)) { value, _ -> offset = value }
                 if (end != 0f && target != null) {
                     handoffTarget = target
                     select(target)
@@ -98,8 +106,10 @@ internal fun RootTabSwipeHost(
                     }
                     if (dragging) {
                         change.consume()
-                        offset = if (AppNav.adjacentRootTab(route, next = delta.x < 0f) != null)
-                            delta.x.coerceIn(-size.width.toFloat(), size.width.toFloat()) else 0f
+                        // Consume the recognition slop instead of jumping by it on the first frame.
+                        val travel = sign(delta.x) * (abs(delta.x) - viewConfiguration.touchSlop).coerceAtLeast(0f)
+                        offset = if (AppNav.adjacentRootTab(route, next = travel < 0f) != null)
+                            travel.coerceIn(-size.width.toFloat(), size.width.toFloat()) else 0f
                     }
                     if (!change.pressed) {
                         released = true
@@ -107,7 +117,7 @@ internal fun RootTabSwipeHost(
                             val vx = velocity.calculateVelocity().x
                             val forwardFling = abs(vx) > 700.dp.toPx() && vx * offset > 0 && abs(offset) > 24.dp.toPx()
                             val reversing = abs(vx) > 300.dp.toPx() && vx * offset < 0
-                            finish(!reversing && (abs(offset) >= size.width * .25f || forwardFling))
+                            finish(!reversing && (abs(offset) >= size.width * .25f || forwardFling), vx)
                         }
                         break
                     }

@@ -269,6 +269,15 @@ class MainActivity : ComponentActivity() {
                             AppNav.switchTab(nav, AppNav.SETTINGS)
                         }
                     }
+                    LaunchedEffect(viewModel.openCrashReportPage) {
+                        if (viewModel.openCrashReportPage && nav.currentDestination?.route != AppNav.SETTINGS) {
+                            AppNav.switchTab(nav, AppNav.SETTINGS)
+                        }
+                    }
+                    com.zsz.studyassistant.ui.CrashReminder(
+                        enabled = updatePolicyReady && updatePrompt == null && !viewModel.showUpgradePrompt,
+                        onOpenReport = { viewModel.openCrashReportPage = true }
+                    )
                     val homeScroll = androidx.compose.foundation.rememberScrollState()
                     val statsScroll = androidx.compose.foundation.rememberScrollState()
                     val settingsScroll = androidx.compose.foundation.rememberScrollState()

@@ -158,6 +158,12 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
             vm.openUpdatePage = false
         }
     }
+    LaunchedEffect(vm.openCrashReportPage) {
+        if (vm.openCrashReportPage) {
+            AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.ABOUT_REPORT)
+            vm.openCrashReportPage = false
+        }
+    }
     LaunchedEffect(vm.customPromptEditor.openRequested) {
         if (vm.customPromptEditor.openRequested) {
             AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_PROMPT)
@@ -227,7 +233,12 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                         AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { returnToParent() }) { DataUpgradePage(vm) }
                         AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { returnToParent() }) { TagMergePage(vm) }
                         AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { returnToParent() }) { UpdatePage() }
-                        AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { returnToParent() }) { AboutPage() }
+                        AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { returnToParent() }) {
+                            AboutPage { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.ABOUT_REPORT) }
+                        }
+                        AppNav.SettingsPages.ABOUT_REPORT -> SettingsSubPage(crashReportStrings(LocalUiLang.current)["title"], { returnToParent() }) {
+                            CrashReportPage()
+                        }
                         else -> SettingsMain(rootScroll) { AppNav.SettingsPages.open(settingsNav, it) }
                     }
                 }
@@ -241,11 +252,13 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
 
 /** ℹ️ 关于：上面「应用信息」，下面「功能」说明（更新历史移到「应用更新」页） */
 @Composable
-private fun AboutPage() {
+private fun AboutPage(onReport: () -> Unit) {
     val s = LocalStrings.current
     Text(s["about.info"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     AboutSettings()
+    Spacer(Modifier.height(12.dp))
+    SettingEntry(crashReportStrings(LocalUiLang.current)["title"], onClick = onReport)
     Spacer(Modifier.height(20.dp))
     Text(s["about.tech"], style = MaterialTheme.typography.titleMedium)
     val aboutContext = LocalContext.current
@@ -523,9 +536,6 @@ private fun AiCropTimeoutSettings() {
 private fun AiSolveModelSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     val ctx = LocalContext.current
-    Spacer(Modifier.height(22.dp))
-    Text(s["settings.solveModel"], style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(4.dp))
     Text(s["settings.solveModel.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(8.dp))
     AiWebToggle(vm, explain = true)

@@ -201,10 +201,11 @@ object AppNav {
         const val DATA_TAG_MERGE = "data.tags"
         const val UPDATE = "update"
         const val ABOUT = "about"
+        const val ABOUT_REPORT = "about.report"
 
         /** Complete registry, including leaf settings pages without children. */
         val all = setOf(MAIN, AI, AI_API, AI_CROP, AI_SOLVE, AI_PROMPT, LANG, THEME, NOTIFY,
-            DATA, DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT)
+            DATA, DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT, ABOUT_REPORT)
 
         /** Direct notification/repair entries must retain the same Back parents as menu entries. */
         fun path(page: String): List<String> = buildList {
@@ -245,6 +246,7 @@ object AppNav {
             MAIN -> MAIN
             AI_API, AI_CROP, AI_SOLVE, AI_PROMPT -> AI
             DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
+            ABOUT_REPORT -> ABOUT
             else -> MAIN
         }
     }

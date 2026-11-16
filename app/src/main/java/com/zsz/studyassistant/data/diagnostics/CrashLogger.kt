@@ -47,7 +47,8 @@ object CrashLogger {
 
     /** 现有崩溃文件，**新的在前** */
     fun files(context: Context): List<File> =
-        dir(context).listFiles()?.filter { it.isFile }?.sortedByDescending { it.name } ?: emptyList()
+        dir(context).listFiles()?.filter { it.isFile && it.name.matches(Regex("crash-[0-9]{8}-[0-9]{6}\\.txt")) }
+            ?.sortedByDescending { it.name } ?: emptyList()
 
     fun count(context: Context): Int = files(context).size
 
@@ -73,7 +74,10 @@ object CrashLogger {
     /** 清空全部崩溃日志，返回删除的文件个数 */
     fun clear(context: Context): Int {
         var n = 0
-        for (f in files(context)) if (runCatching { f.delete() }.getOrDefault(false)) n++
+        for (f in files(context)) if (runCatching {
+            reportFile(f).delete()
+            f.delete()
+        }.getOrDefault(false)) n++
         return n
     }
 
@@ -85,6 +89,15 @@ object CrashLogger {
     private fun write(context: Context, thread: Thread, e: Throwable) {
         val ts = FILE_TS.format(Date())
         val f = File(dir(context), "crash-$ts.txt")
+        // Separate public-safe diagnostics at the source, before messages are flattened into raw text.
+        runCatching {
+            reportFile(f).writeText(buildString {
+                appendLine("Crash time: ${READABLE_TS.format(Date())}")
+                appendLine("Crash app version: ${UpdateChecker.installedVersion(context)}")
+                appendLine("Crash build time (UTC epoch ms): ${UpdateChecker.installedBuildTime(context)}")
+                appendLine(CrashReportText.fromThrowable(e))
+            }, Charsets.UTF_8)
+        }
         f.writeText(buildString {
             append("时间：").append(READABLE_TS.format(Date())).append('\n')
             append("应用版本：").append(UpdateChecker.installedVersion(context)).append('\n')
@@ -102,9 +115,11 @@ object CrashLogger {
     private fun prune(context: Context) {
         val list = files(context)
         if (list.size <= KEEP) return
-        for (f in list.drop(KEEP)) runCatching { f.delete() }
+        for (f in list.drop(KEEP)) runCatching { reportFile(f).delete(); f.delete() }
     }
 
-    private val FILE_TS = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
-    private val READABLE_TS = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+    internal fun reportFile(crash: File): File = File(crash.parentFile, crash.nameWithoutExtension + ".report.txt")
+
+    private val FILE_TS get() = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+    private val READABLE_TS get() = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 }

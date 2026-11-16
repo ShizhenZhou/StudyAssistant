@@ -5,22 +5,22 @@ internal fun updateTransportStrings(language: UiLang): Strings {
     val lang = if (language == UiLang.SYSTEM) systemUiLang() else language
     val values = when (lang) {
         UiLang.EN -> listOf(
-            "GitHub mirror fallback",
+            "Use a GitHub mirror when needed",
             "Try GitHub first, then the mirror if unavailable. The third party receives your IP and public update URLs, never your API key or study data. APK verification still applies.",
             "Mirror prefix URL", "Save address", "Enter a public HTTPS address without credentials, query parameters or fragments.",
             "Use a mirror that supports GitHub release files and API requests. Changes apply to the next check or download.", "Configure", "Collapse")
         UiLang.JA -> listOf(
-            "GitHub ミラーへの自動切り替え",
+            "必要な場合に GitHub ミラーへ接続",
             "まず GitHub に接続し、利用できない場合はミラーに切り替えます。第三者には IP と公開更新 URL が送られますが、API キーや学習データは送られません。APK の検証は維持されます。",
             "ミラーの URL プレフィックス", "アドレスを保存", "認証情報・クエリ・フラグメントを含まない公開 HTTPS アドレスを入力してください。",
             "GitHub のリリースファイルと API に対応するミラーを指定してください。変更は次の更新確認またはダウンロードから適用されます。", "設定", "閉じる")
         UiLang.KO -> listOf(
-            "GitHub 미러 자동 전환",
+            "필요할 때 GitHub 미러에 연결",
             "GitHub에 먼저 연결하고 사용할 수 없으면 미러로 전환합니다. 제3자에게 IP와 공개 업데이트 URL이 전달되며, API 키나 학습 데이터는 전송하지 않습니다. APK 검증은 유지됩니다.",
             "미러 URL 접두사", "주소 저장", "인증 정보, 쿼리, 프래그먼트가 없는 공개 HTTPS 주소를 입력하세요.",
             "GitHub 릴리스 파일과 API를 지원하는 미러를 지정하세요. 다음 업데이트 확인 또는 다운로드부터 적용됩니다.", "설정", "접기")
         else -> listOf(
-            "GitHub 镜像回退",
+            "必要时连接GitHub镜像站",
             "优先连接 GitHub，连接失败时自动使用镜像。第三方会收到你的 IP 和公开更新地址，不会收到 API Key 或学习数据；安装包仍须通过校验。",
             "镜像前缀地址", "保存地址", "请输入公开 HTTPS 地址，不含账号密码、查询参数或片段。",
             "镜像须支持 GitHub 发布文件及 API 请求。更改将在下次检查或下载时生效。", "设置", "收起")
