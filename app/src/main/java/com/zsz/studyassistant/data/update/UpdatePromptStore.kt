@@ -14,6 +14,20 @@ object UpdatePromptStore {
     private val mutex = Mutex()
     private val mutableRelease = MutableStateFlow<UpdateChecker.ReleaseInfo?>(null)
     val release = mutableRelease.asStateFlow()
+    private val manuallyChecked = MutableStateFlow<String?>(null)
+    private val manualMonitor = Any()
+    private var foregroundCycle = 0L
+    val manualCheckIdentity = manuallyChecked.asStateFlow()
+    fun manualCheckCycle(): Long = synchronized(manualMonitor) { foregroundCycle }
+    fun invalidateManualChecks() = synchronized(manualMonitor) {
+        foregroundCycle++
+        manuallyChecked.value = null
+    }
+    fun wasManuallyChecked(value: UpdateChecker.ReleaseInfo) = manuallyChecked.value == identity(value)
+    fun consumeManualCheck(value: UpdateChecker.ReleaseInfo): Boolean {
+        val pending = manuallyChecked.value
+        return pending == identity(value) && manuallyChecked.compareAndSet(pending, null)
+    }
     private const val KEY = "required_release"
     private fun prefs(context: Context) = context.applicationContext
         .getSharedPreferences("update_prompt", Context.MODE_PRIVATE)
@@ -56,7 +70,8 @@ object UpdatePromptStore {
         }
     }
 
-    suspend fun accept(context: Context, releases: UpdateChecker.AvailableReleases) = withContext(Dispatchers.IO) {
+    suspend fun accept(context: Context, releases: UpdateChecker.AvailableReleases,
+        manualCheckCycle: Long? = null) = withContext(Dispatchers.IO) {
         mutex.withLock {
             val previous = (mutableRelease.value ?: read(context))?.takeIf { eligible(context, it) }
             val candidate = releases.stable?.takeIf { eligible(context, it) }
@@ -71,6 +86,11 @@ object UpdatePromptStore {
                     candidate.copy(mandatory = true) else previous
             } else candidate
             persist(context, next)
+            // Publish this before the release flow: the update page already presents these results.
+            synchronized(manualMonitor) {
+                if (manualCheckCycle != null && manualCheckCycle == foregroundCycle)
+                    manuallyChecked.value = next?.let(::identity)
+            }
             mutableRelease.value = next
         }
     }

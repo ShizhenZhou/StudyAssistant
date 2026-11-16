@@ -57,6 +57,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.4.1
+
+- ⬇️ Manual update checks show results directly on the update page without a duplicate dialog.
+- 💾 Recover from temporary backup scan failures and skip repeated scans after cancellation for the day.
+- 📄 Move export checkpoints to background I/O and improve interrupted export recovery and temporary file cleanup.
+- 📌 `versionCode` **135**.
+
 ### v0.7.4
 
 - ↔️ Use sliding page and back transitions, with smoother starts and release motion when swiping between home tabs.

@@ -287,6 +287,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
 
     fun startCheck() {
         val generation = ++operationGeneration
+        val promptCycle = com.zsz.studyassistant.data.UpdatePromptStore.manualCheckCycle()
         observingDownload = false
         phase = Phase.CHECKING
         message = null
@@ -298,7 +299,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                 message = s["update.netError"]
                 return@launch
             }
-            com.zsz.studyassistant.data.UpdatePromptStore.accept(context, releases)
+            com.zsz.studyassistant.data.UpdatePromptStore.accept(context, releases, manualCheckCycle = promptCycle)
             // Same-version comparison may hash the installed APK. Keep disk/package
             // reads off the UI thread, and reject a result superseded while suspended.
             val eligible = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

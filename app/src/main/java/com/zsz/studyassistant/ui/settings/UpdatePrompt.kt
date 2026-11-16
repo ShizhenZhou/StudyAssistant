@@ -25,6 +25,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zsz.studyassistant.data.BuildIdentity
 import com.zsz.studyassistant.data.UpdateChecker
 import com.zsz.studyassistant.data.UpdatePromptStore
@@ -40,10 +41,25 @@ fun StableUpdatePrompt(release: UpdateChecker.ReleaseInfo?, atRequiredPage: Bool
     val key = release?.let(UpdatePromptStore::identity)
     var dismissed by remember { mutableStateOf<String?>(null) }
     var allowedRequiredPage by remember(key) { mutableStateOf(false) }
+    val manualIdentity by UpdatePromptStore.manualCheckIdentity.collectAsStateWithLifecycle()
+    // Also observe checks whose release content is unchanged. Read the current marker so separate
+    // flow collectors cannot briefly present a dialog before the manual-check emission arrives.
+    val manualCheck = release?.let(UpdatePromptStore::wasManuallyChecked) == true
+    LaunchedEffect(key, manualIdentity, manualCheck) {
+        if (release != null && manualCheck && UpdatePromptStore.consumeManualCheck(release)) {
+            if (release.mandatory) {
+                allowedRequiredPage = true
+                onOpenUpdate(true)
+            } else dismissed = key
+        }
+    }
     DisposableEffect(lifecycle, key) {
         val observer = LifecycleEventObserver { _, event ->
             // Returning from the launcher must still explain why this update is required.
-            if (event == Lifecycle.Event.ON_STOP) allowedRequiredPage = false
+            if (event == Lifecycle.Event.ON_STOP) {
+                allowedRequiredPage = false
+                UpdatePromptStore.invalidateManualChecks()
+            }
         }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
@@ -52,6 +68,7 @@ fun StableUpdatePrompt(release: UpdateChecker.ReleaseInfo?, atRequiredPage: Bool
         if (!atRequiredPage) allowedRequiredPage = false
     }
     if (release == null || release.channel != UpdateChecker.Channel.STABLE) return
+    if (manualCheck) return
     val required = release.mandatory
     if (required && atRequiredPage && allowedRequiredPage) return
     if (!required && (dismissed == key || UpdateChecker.isSkipped(context, release))) return
