@@ -105,7 +105,9 @@ class ChangelogFormatTest {
         )
         for ((index, item) in notices.withIndex()) {
             val (file, notice) = item
-            val readme = File(root, file).readText()
+            val readme = File(root, file).readText().replace(
+                Regex("\\[([^]]+)]\\(https://github\\.com/ShizhenZhou/StudyAssistant/tree/Compatible\\)")
+            ) { it.groupValues[1] }
             val app = tables[index].second
             for ((label, text, boundary) in listOf(
                 Triple(file, readme, "### v0.6.7.9"),

@@ -15,6 +15,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [Download the compatible release (v0.7.4.1)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- [Android 9–15 compatibility branch (Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -56,6 +57,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.7.4.2
+
+- ⬆️ Check main and Android 9–15 compatibility updates separately; isolate mandatory updates, delta paths and download recovery to prevent cross-branch updates.
+- 🌐 Handle system network restrictions during update checks while keeping the last confirmed update state.
+- 📖 Add a compatibility branch link and clarify supported Android versions and release history.
+- 📌 `versionCode` **136**.
 
 ### v0.7.4.1
 
@@ -390,7 +398,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
 - 📌 `versionCode` **80**.
 
-**The versions above support Android 16+ only. For compatible releases, see the Compatible branch.**
+**The versions above support Android 16+ only. For compatible releases, see the [Compatible branch](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible).**
 
 ---
 
@@ -400,6 +408,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 📦 Releases automatically include the minimum Android version and APK digest, without guessing compatibility from version numbers or release notes.
 - 🔒 Fix conversation rendering failures caused by special characters, update the math renderer to address a known denial-of-service vulnerability, and restrict page access permissions.
 - ⬆️ Fix an incorrect system-requirements warning caused by an already installed download record when reopening the update page after upgrading; keep compatibility checks for newer releases.
+- 📌 `versionCode` **79**.
 
 ### v0.6.7.8
 - 📷 Fix rotated-photo downsampling crashes on Android 9 and unify orientation and black-and-white crop detection. Photo capture decodes, compresses and imports images in the background; preserve order and progress if any input cannot be read.

@@ -15,6 +15,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [호환 버전 v0.7.4.1 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- [Android 9–15 호환 브랜치(Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -56,6 +57,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
+
+### v0.7.4.2
+
+- ⬆️ 메인 버전과 Android 9–15 호환 버전의 업데이트 확인을 분리하고, 필수 업데이트·차분 경로·다운로드 복구가 다른 브랜치와 섞이지 않도록 개선했습니다.
+- 🌐 시스템이 네트워크를 제한할 때 업데이트 확인을 개선하고 마지막으로 확인된 업데이트 상태를 유지합니다.
+- 📖 호환 브랜치 링크를 추가하고 Android 지원 범위와 버전 기록을 정리했습니다.
+- 📌 `versionCode` **136**.
 
 ### v0.7.4.1
 
@@ -390,7 +398,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
 - 📌 `versionCode` **80**.
 
-**위 버전은 Android 16 이상만 지원합니다. 호환 버전은 Compatible 브랜치를 확인하세요.**
+**위 버전은 Android 16 이상만 지원합니다. 호환 버전은 [Compatible 브랜치](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)를 확인하세요.**
 
 ---
 
@@ -400,6 +408,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 📦 배포 시 최소 Android 버전과 APK 해시를 자동 생성하여 버전 번호나 설명으로 호환성을 추측하지 않습니다.
 - 🔒 특수 문자로 대화 표시가 중단되는 문제를 수정하고, 수식 렌더러의 알려진 서비스 거부 취약점을 해결하며 페이지 접근 권한을 제한했습니다.
 - ⬆️ 업그레이드 후 업데이트 화면에서 이미 설치한 버전의 다운로드 기록 때문에 시스템 요구 사항 경고가 표시되는 문제를 수정했습니다. 새 버전의 호환성 검사는 유지됩니다.
+- 📌 `versionCode` **79**.
 
 ### v0.6.7.8
 - 📷 Android 9에서 회전 사진 축소 시 발생하는 충돌을 수정하고 사진 방향 및 흑백 이미지의 자동 선택 영역을 개선했습니다. 촬영 화면의 이미지 읽기와 압축을 백그라운드에서 수행하며, 읽기 실패 시 순서와 진행 상태를 유지합니다.

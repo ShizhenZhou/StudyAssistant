@@ -1,3 +1,8 @@
+v0.7.4.2
+· ⬆️ Check main and Android 9–15 compatibility updates separately; isolate mandatory updates, delta paths and download recovery to prevent cross-branch updates.
+· 🌐 Handle system network restrictions during update checks while keeping the last confirmed update state.
+· 📖 Add a compatibility branch link and clarify supported Android versions and release history.
+
 v0.7.4.1
 · ⬇️ Manual update checks show results directly on the update page without a duplicate dialog.
 · 💾 Recover from temporary backup scan failures and skip repeated scans after cancellation for the day.

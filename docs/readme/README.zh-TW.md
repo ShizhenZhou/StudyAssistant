@@ -15,6 +15,7 @@
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [下載相容版本 v0.7.4.1](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- [Android 9–15 相容分支（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -56,6 +57,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 構建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 
 ## 版本記錄
+
+### v0.7.4.2
+
+- ⬆️ 主線與 Android 9–15 相容版分別檢查更新，隔離強制更新、差分路徑與下載恢復，避免跨分支誤更新。
+- 🌐 改善系統限制連網時的更新檢查處理，保留已確認的更新狀態。
+- 📖 增加相容分支入口，完善系統支援範圍與歷史版本說明。
+- 📌 `versionCode` **136**.
 
 ### v0.7.4.1
 
@@ -391,7 +399,7 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 - 🛠️ 精簡舊系統兼容分支，完善按構建身份續跑的發布校驗與顯式同版本替換流程。
 - 📌 `versionCode` **80**。
 
-**以上版本僅支持Android 16+，兼容版本見Compatible分支**
+**以上版本僅支持Android 16+，兼容版本見[Compatible分支](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)**
 
 ---
 
@@ -402,6 +410,7 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 - 📦 發布自動生成最低系統版本與安裝包摘要清單，避免依靠版本號或更新說明猜測兼容性。
 - 🔒 修復特殊字符導致對話顯示中斷的問題，更新公式組件以修補已知拒絕服務漏洞，並收緊對話頁面訪問權限。
 - ⬆️ 修復升級後進入更新頁時，已安裝版本的舊下載記錄誤報“無法確認系統要求”；新版本兼容攔截保持有效。
+- 📌 `versionCode` **79**.
 
 ### v0.6.7.8
 

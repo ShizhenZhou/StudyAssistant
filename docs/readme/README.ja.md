@@ -15,6 +15,7 @@ zsz が DeepSeek と GPT の支援で開発。
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [互換版 v0.7.4.1 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- [Android 9–15 互換ブランチ（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -56,6 +57,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
+
+### v0.7.4.2
+
+- ⬆️ メイン版と Android 9–15 互換版の更新確認を分離し、必須更新・差分経路・ダウンロード再開で別ブランチの更新が混在しないようにしました。
+- 🌐 システムによる通信制限時の更新確認を改善し、最後に確認できた更新状態を保持します。
+- 📖 互換ブランチへのリンクを追加し、対応 Android バージョンと更新履歴の説明を整理しました。
+- 📌 `versionCode` **136**.
 
 ### v0.7.4.1
 
@@ -390,7 +398,7 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 - 🛠️ 旧OSの互換分岐を整理し、ビルド単位で再開できるリリース検証と明示的な同バージョン置換を改善。
 - 📌 `versionCode` **80**。
 
-**上記のバージョンは Android 16 以降にのみ対応しています。互換版は Compatible ブランチをご覧ください。**
+**上記のバージョンは Android 16 以降にのみ対応しています。互換版は [Compatible ブランチ](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)をご覧ください。**
 
 ---
 
@@ -400,6 +408,7 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 - 📦 リリース時に最低AndroidバージョンとAPKのハッシュを自動生成し、バージョン番号や説明文による推測を不要に。
 - 🔒 特殊文字で会話表示が停止する問題を修正。数式描画の既知のサービス拒否脆弱性を修正し、ページのアクセス権限を制限。
 - ⬆️ 更新後に更新画面を開くと、インストール済みの古いダウンロード記録でシステム要件の警告が出る問題を修正。新バージョンの互換性確認は維持。
+- 📌 `versionCode` **79**.
 
 ### v0.6.7.8
 - 📷 Android 9 で回転写真の縮小時に発生するクラッシュを修正し、写真の向きと白黒画像の自動選択範囲を改善。撮影画面の画像読込・圧縮をバックグラウンドで行い、読込失敗時は順序と進捗を保持。
