@@ -129,9 +129,21 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     var filterTagIds by rememberSaveable(stateSaver = listSaver<Set<Long>, Long>(
         save = { it.toList() }, restore = { it.toSet() }
     )) { mutableStateOf<Set<Long>>(emptySet()) }
+    val notebookEntry = remember(nav) { nav.getBackStackEntry(AppNav.NOTEBOOK) }
+    val tagResult by remember(notebookEntry) {
+        notebookEntry.savedStateHandle.getStateFlow<LongArray?>(AppNav.NOTEBOOK_TAG_RESULT, null)
+    }.collectAsStateWithLifecycle()
+    LaunchedEffect(tagResult) {
+        tagResult?.let { existingIds ->
+            // Use the completed merge's inventory, not a transient empty Room flow on re-entry.
+            filterTagIds = filterTagIds.intersect(existingIds.toSet())
+            notebookEntry.savedStateHandle[AppNav.NOTEBOOK_TAG_RESULT] = null
+        }
+    }
     var query by rememberSaveable { mutableStateOf("") }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
     val sortMode by vm.notebookSort.collectAsStateWithLifecycle()
     // 列表滚动状态：切换排序后**主动回到顶部**。
     // 不这样做的话，LazyVerticalStaggeredGrid 会按"第一个可见项的 key"锚定滚动位置：
@@ -270,9 +282,18 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                                     }
                                 }
                             }
-                            // 管理：科目（分类）管理
-                            TextButton(onClick = { page = "manage"; searchOpen = false }) {
-                                Text(s["notebook.manage"], fontSize = BTN_LABEL_SOLVE)
+                            Box {
+                                TextButton(onClick = { moreMenu = true }) {
+                                    Text(settingsStructureStrings(LocalUiLang.current)["more"], fontSize = BTN_LABEL_SOLVE)
+                                }
+                                DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                                    DropdownMenuItem(text = { Text(s["catManage.title"]) }, onClick = {
+                                        moreMenu = false; page = "manage"; searchOpen = false
+                                    })
+                                    DropdownMenuItem(text = { Text(s["tagMerge.title"]) }, onClick = {
+                                        moreMenu = false; AppNav.openNotebookTags(nav)
+                                    })
+                                }
                             }
                         }
                     }

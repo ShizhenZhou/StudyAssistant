@@ -29,7 +29,11 @@ internal fun CrashReportPage() {
     var report by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf(false) }
     var hasCrash by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
+    var revision by remember { mutableIntStateOf(0) }
+    var showLogs by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(revision) {
+        report = null
+        failed = false
         try {
             val result = withContext(Dispatchers.IO) {
                 (CrashLogger.count(context) > 0) to CrashReports.preview(context)
@@ -81,6 +85,11 @@ internal fun CrashReportPage() {
     Button(onClick = { openUrl(context, UpdateChecker.REPO_URL + "/issues/new/choose") }) {
         Text(s["github"])
     }
+    Spacer(Modifier.height(16.dp))
+    TextButton(onClick = { showLogs = !showLogs }) {
+        Text(settingsStructureStrings(LocalUiLang.current)[if (showLogs) "hideLogs" else "logs"])
+    }
+    if (showLogs) CrashLogSettings(onCleared = { report = null; revision++ })
 }
 
 @Composable

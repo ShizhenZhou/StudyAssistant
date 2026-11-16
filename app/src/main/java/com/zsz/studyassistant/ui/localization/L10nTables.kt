@@ -579,7 +579,7 @@ private val B0_ZH = mapOf(
     "home.key.later" to "稍后",
 
     "settings.title" to "设置",
-    "settings.api" to "🔑 API 管理",
+    "settings.api" to "🔑 API 与用量",
     "settings.group.general" to "通用",
     "settings.group.personalize" to "个性化",
     "settings.group.notifyBackground" to "🔔 通知与后台",
@@ -602,7 +602,7 @@ private val B0_ZH = mapOf(
     "settings.aiCrop.desc" to "滑到最右端，越过 5 秒后的阻尼即可选择 ∞。手动调框、换图或离开可结束等待。",
     "settings.aiCrop.snapHint" to "磁吸点：500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 语言设置",
-    "settings.theme" to "🎨 应用主题",
+    "settings.theme" to "🎨 外观与语言",
     "settings.theme.mode" to "主题模式",
     "settings.theme.color" to "主题配色",
     "settings.theme.custom" to "自定义颜色",
@@ -618,7 +618,7 @@ private val B0_ZH = mapOf(
     "settings.notify" to "🔔 复习提醒",
     "settings.background" to "🔋 后台运行",
     "settings.changelog" to "📝 更新内容",
-    "settings.about" to "ℹ️ 关于",
+    "settings.about" to "ℹ️ 关于与反馈",
 
     "lang.title" to "🌐 语言设置",
     "lang.ui" to "应用语言",
@@ -707,7 +707,7 @@ private val B0_EN = mapOf(
     "home.key.later" to "Later",
 
     "settings.title" to "Settings",
-    "settings.api" to "🔑 API management",
+    "settings.api" to "🔑 API & usage",
     "settings.group.general" to "General",
     "settings.group.personalize" to "Personalization",
     "settings.group.notifyBackground" to "🔔 Notifications & background",
@@ -730,7 +730,7 @@ private val B0_EN = mapOf(
     "settings.aiCrop.desc" to "Slide past the stop after 5 s to select ∞. Adjust the crop, switch images or leave to stop waiting.",
     "settings.aiCrop.snapHint" to "Snap points: 500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 Language",
-    "settings.theme" to "🎨 App theme",
+    "settings.theme" to "🎨 Appearance & language",
     "settings.theme.mode" to "Theme mode",
     "settings.theme.color" to "Theme colour",
     "settings.theme.custom" to "Custom colour",
@@ -746,7 +746,7 @@ private val B0_EN = mapOf(
     "settings.notify" to "🔔 Review reminder",
     "settings.background" to "🔋 Background running",
     "settings.changelog" to "📝 What's new",
-    "settings.about" to "ℹ️ About",
+    "settings.about" to "ℹ️ About & feedback",
 
     "lang.title" to "🌐 Language",
     "lang.ui" to "App language",
@@ -835,7 +835,7 @@ private val B0_JA = mapOf(
     "home.key.later" to "後で",
 
     "settings.title" to "設定",
-    "settings.api" to "🔑 API 管理",
+    "settings.api" to "🔑 API と使用量",
     "settings.group.general" to "一般",
     "settings.group.personalize" to "パーソナライズ",
     "settings.group.notifyBackground" to "🔔 通知とバックグラウンド",
@@ -858,7 +858,7 @@ private val B0_JA = mapOf(
     "settings.aiCrop.desc" to "5秒の先の段差を越えると ∞ になります。手動調整、画像の切り替え、終了で待機を中止できます。",
     "settings.aiCrop.snapHint" to "スナップ点：500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 言語設定",
-    "settings.theme" to "🎨 アプリテーマ",
+    "settings.theme" to "🎨 外観と言語",
     "settings.theme.mode" to "テーマモード",
     "settings.theme.color" to "テーマカラー",
     "settings.theme.custom" to "カスタムカラー",
@@ -874,7 +874,7 @@ private val B0_JA = mapOf(
     "settings.notify" to "🔔 復習リマインダー",
     "settings.background" to "🔋 バックグラウンド実行",
     "settings.changelog" to "📝 更新内容",
-    "settings.about" to "ℹ️ このアプリについて",
+    "settings.about" to "ℹ️ 情報とフィードバック",
 
     "lang.title" to "🌐 言語設定",
     "lang.ui" to "アプリの言語",
@@ -963,7 +963,7 @@ private val B0_KO = mapOf(
     "home.key.later" to "나중에",
 
     "settings.title" to "설정",
-    "settings.api" to "🔑 API 관리",
+    "settings.api" to "🔑 API 및 사용량",
     "settings.group.general" to "일반",
     "settings.group.personalize" to "개인 설정",
     "settings.group.notifyBackground" to "🔔 알림 및 백그라운드",
@@ -986,7 +986,7 @@ private val B0_KO = mapOf(
     "settings.aiCrop.desc" to "5초 뒤의 걸림 구간을 지나 오른쪽 끝으로 밀면 ∞를 선택합니다. 영역 조정, 이미지 전환 또는 화면 종료로 대기를 끝낼 수 있습니다.",
     "settings.aiCrop.snapHint" to "스냅 지점: 500 ms · 1 s · 3 s",
     "settings.lang" to "🌐 언어 설정",
-    "settings.theme" to "🎨 앱 테마",
+    "settings.theme" to "🎨 외관 및 언어",
     "settings.theme.mode" to "테마 모드",
     "settings.theme.color" to "테마 색상",
     "settings.theme.custom" to "사용자 지정 색",
@@ -1002,7 +1002,7 @@ private val B0_KO = mapOf(
     "settings.notify" to "🔔 복습 알림",
     "settings.background" to "🔋 백그라운드 실행",
     "settings.changelog" to "📝 업데이트 내역",
-    "settings.about" to "ℹ️ 정보",
+    "settings.about" to "ℹ️ 정보 및 피드백",
 
     "lang.title" to "🌐 언어 설정",
     "lang.ui" to "앱 언어",
@@ -2159,7 +2159,7 @@ private val B7_ZH = mapOf(
     "data.autoBackup.snapshotFailed" to "无法生成备份快照，请稍后重试。",
     "data.autoBackup.permissionFailed" to "备份文件夹的访问权限已失效，请重新选择文件夹。",
     "data.autoBackup.healthWarning" to "最近一次备份失败（{t}）：{reason} 成功备份后此警示会消失。",
-    "settings.data" to "💾 数据管理",
+    "settings.data" to "💾 备份与数据",
     "about.changelog" to "更新内容",
     "about.info" to "应用信息",
 
@@ -2190,7 +2190,7 @@ private val B7_ZH = mapOf(
     "data.backup" to "🗂 备份管理",
     "data.autoBackupDesc" to "每天首次启动时自动备份一份到所选文件夹",
     "data.crashLogDesc" to "导出 / 清空本机崩溃记录（不上传）",
-    "data.upgradePage" to "🛠 数据升级 / 修复",
+    "data.upgradePage" to "🛠 数据维护",
     "data.upgradeDesc" to "把旧数据整理到新结构（原图入库）。幂等，可重复执行。",
     "data.upgradeBtn" to "一键升级",
     "data.repairDesc" to "检查并补全可恢复的原图，保留已有题目和图片。",
@@ -2293,7 +2293,7 @@ private val B7_EN = mapOf(
     "data.autoBackup.snapshotFailed" to "Could not prepare a backup snapshot. Please retry.",
     "data.autoBackup.permissionFailed" to "Backup folder access was denied. Please select the folder again.",
     "data.autoBackup.healthWarning" to "Last backup attempt failed ({t}): {reason} This warning clears after a successful backup.",
-    "settings.data" to "💾 Data",
+    "settings.data" to "💾 Backup & data",
     "about.changelog" to "What's new",
     "about.info" to "App info",
 
@@ -2324,7 +2324,7 @@ private val B7_EN = mapOf(
     "data.backup" to "🗂 Backup",
     "data.autoBackupDesc" to "Back up once a day into the folder you choose",
     "data.crashLogDesc" to "Export / clear crash logs stored on this device (never uploaded)",
-    "data.upgradePage" to "🛠 Upgrade / Repair",
+    "data.upgradePage" to "🛠 Data maintenance",
     "data.upgradeDesc" to "Move old data into the new structure (images into the DB). Idempotent — safe to run repeatedly.",
     "data.upgradeBtn" to "Upgrade now",
     "data.repairDesc" to "Check and recover available original images while preserving existing problems and images.",
@@ -2427,7 +2427,7 @@ private val B7_JA = mapOf(
     "data.autoBackup.snapshotFailed" to "バックアップのスナップショットを作成できません。再試行してください。",
     "data.autoBackup.permissionFailed" to "バックアップ先へのアクセスが拒否されました。フォルダーを選び直してください。",
     "data.autoBackup.healthWarning" to "直近のバックアップに失敗しました（{t}）：{reason} 成功するとこの警告は消えます。",
-    "settings.data" to "💾 データ管理",
+    "settings.data" to "💾 バックアップとデータ",
     "about.changelog" to "更新内容",
     "about.info" to "アプリ情報",
 
@@ -2458,7 +2458,7 @@ private val B7_JA = mapOf(
     "data.backup" to "🗂 バックアップ管理",
     "data.autoBackupDesc" to "毎日最初の起動時に選んだフォルダへ1回バックアップします",
     "data.crashLogDesc" to "端末内のクラッシュログを書き出し / 消去します（アップロードしません）",
-    "data.upgradePage" to "🛠 データ更新 / 修復",
+    "data.upgradePage" to "🛠 データメンテナンス",
     "data.upgradeDesc" to "古いデータを新しい構造へ整理します（原図を DB に保存）。何度実行しても安全です。",
     "data.upgradeBtn" to "一括更新",
     "data.repairDesc" to "復元可能な元画像を確認して補完します。既存の問題と画像は保持します。",
@@ -2560,7 +2560,7 @@ private val B7_KO = mapOf(
     "data.autoBackup.snapshotFailed" to "백업 스냅샷을 만들 수 없습니다. 다시 시도하세요.",
     "data.autoBackup.permissionFailed" to "백업 폴더 접근이 거부되었습니다. 폴더를 다시 선택하세요.",
     "data.autoBackup.healthWarning" to "최근 백업 실패({t}): {reason} 백업에 성공하면 이 경고가 사라집니다.",
-    "settings.data" to "💾 데이터 관리",
+    "settings.data" to "💾 백업 및 데이터",
     "about.changelog" to "업데이트 내역",
     "about.info" to "앱 정보",
 
@@ -2591,7 +2591,7 @@ private val B7_KO = mapOf(
     "data.backup" to "🗂 백업 관리",
     "data.autoBackupDesc" to "매일 처음 실행할 때 선택한 폴더로 자동 백업합니다",
     "data.crashLogDesc" to "기기 내 크래시 로그를 내보내기 / 지우기 (업로드하지 않음)",
-    "data.upgradePage" to "🛠 데이터 업그레이드 / 복구",
+    "data.upgradePage" to "🛠 데이터 유지 관리",
     "data.upgradeDesc" to "오래된 데이터를 새 구조로 정리합니다(원본 이미지를 DB에 저장). 여러 번 실행해도 안전합니다.",
     "data.upgradeBtn" to "한 번에 업그레이드",
     "data.repairDesc" to "복구 가능한 원본 이미지를 확인하고 보완합니다. 기존 문제와 이미지는 유지합니다.",
@@ -2847,7 +2847,7 @@ private val B9_KO = mapOf(
 // B10：设置结构调整（AI 管理 / 应用更新）+ 关于页功能栏 + 应用更新页（0.6.1）
 // ===========================================================================
 private val B10_ZH = mapOf(
-    "settings.aiManage" to "🤖 AI 管理",
+    "settings.aiManage" to "🤖 AI 与解题",
     "settings.update" to "⬆️ 应用更新",
     "about.features" to "📋 功能",
     "about.repoLabel" to "项目主页：",
@@ -2919,7 +2919,7 @@ private val B10_ZH = mapOf(
 )
 
 private val B10_EN = mapOf(
-    "settings.aiManage" to "🤖 AI management",
+    "settings.aiManage" to "🤖 AI & solving",
     "settings.update" to "⬆️ App update",
     "about.features" to "📋 Features",
     "about.repoLabel" to "Project: ",
@@ -2991,7 +2991,7 @@ private val B10_EN = mapOf(
 )
 
 private val B10_JA = mapOf(
-    "settings.aiManage" to "🤖 AI 管理",
+    "settings.aiManage" to "🤖 AI と解答",
     "settings.update" to "⬆️ アプリ更新",
     "about.features" to "📋 機能",
     "about.repoLabel" to "プロジェクト：",
@@ -3063,7 +3063,7 @@ private val B10_JA = mapOf(
 )
 
 private val B10_KO = mapOf(
-    "settings.aiManage" to "🤖 AI 관리",
+    "settings.aiManage" to "🤖 AI 및 풀이",
     "settings.update" to "⬆️ 앱 업데이트",
     "about.features" to "📋 기능",
     "about.repoLabel" to "프로젝트: ",

@@ -199,10 +199,13 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                 Box(Modifier.fillMaxSize().then(moving)) {
                     when (destination) {
                         AppNav.SettingsPages.AI -> SettingsSubPage(s["settings.aiManage"], { returnToParent() }) {
+                            AiSolveModelSettings(vm)
+                            Spacer(Modifier.height(12.dp))
+                            LanguageChoice(vm, ai = true)
+                            Spacer(Modifier.height(16.dp))
+                            SettingEntry(s["settings.customPrompt"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_PROMPT) }
                             SettingEntry(s["settings.api"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_API) }
                             SettingEntry(s["settings.aiCropPage"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_CROP) }
-                            SettingEntry(s["settings.solveSettings"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_SOLVE) }
-                            SettingEntry(s["settings.customPrompt"]) { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.AI_PROMPT) }
                         }
                         AppNav.SettingsPages.AI_API -> SettingsSubPage(s["settings.api"], { returnToParent() }) {
                             ApiSettings(vm)
@@ -223,13 +226,14 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                         AppNav.SettingsPages.AI_PROMPT -> SettingsSubPage(s["settings.customPrompt"], { returnToParent() }) {
                             SubjectPromptSettings(vm)
                         }
-                        AppNav.SettingsPages.LANG -> SettingsSubPage(s["lang.title"], { returnToParent() }) { LanguageSettings(vm) }
-                        AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { returnToParent() }) { ThemeSettings(vm) { AppNav.SettingsPages.open(settingsNav, it) } }
+                        AppNav.SettingsPages.LANG -> SettingsSubPage(s["settings.theme"], { returnToParent() }) { ThemeSettings(vm) }
+                        AppNav.SettingsPages.THEME -> SettingsSubPage(s["settings.theme"], { returnToParent() }) { ThemeSettings(vm) }
                         AppNav.SettingsPages.NOTIFY -> SettingsSubPage(s["settings.group.notifyBackground"], { returnToParent() }) { NotifyBackgroundSettings() }
-                        // 数据管理：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 标签整理
+                        // Backup/data, storage and maintenance; old crash route remains a compatibility entry.
                         AppNav.SettingsPages.DATA -> SettingsSubPage(s["settings.data"], { returnToParent() }) { DataMenu(vm) { AppNav.SettingsPages.open(settingsNav, it) } }
                         AppNav.SettingsPages.DATA_BACKUP -> SettingsSubPage(s["data.backup"], { returnToParent() }) { DataSettings(vm) }
-                        AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(s["data.crash"], { returnToParent() }) { DataSettings(vm, "crash") }
+                        AppNav.SettingsPages.DATA_CRASH -> SettingsSubPage(crashReportStrings(LocalUiLang.current)["title"], { returnToParent() }) { CrashReportPage() }
+                        AppNav.SettingsPages.DATA_STORAGE -> SettingsSubPage(settingsStructureStrings(LocalUiLang.current)["storage"], { returnToParent() }) { DocumentStorageSettings(vm) }
                         AppNav.SettingsPages.DATA_UPGRADE -> SettingsSubPage(s["data.upgradePage"], { returnToParent() }) { DataUpgradePage(vm) }
                         AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { returnToParent() }) { TagMergePage(vm) }
                         AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { returnToParent() }) { UpdatePage() }
@@ -389,21 +393,11 @@ internal fun SettingsMain(scroll: androidx.compose.foundation.ScrollState = reme
         Spacer(Modifier.height(12.dp))
         BackupHealthEntry(onOpen)
 
-        // ── 通用 ──
-        SettingGroupTitle(s["settings.group.general"])
-        // API 管理已并入「AI 管理」二级菜单（放在该页最顶端）
         SettingEntry(s["settings.aiManage"]) { onOpen(AppNav.SettingsPages.AI) }
-        // 通知与后台：已合并为一个二级菜单，归入「通用」大类
+        SettingEntry(s["settings.theme"]) { onOpen(AppNav.SettingsPages.THEME) }
         SettingEntry(s["settings.group.notifyBackground"]) { onOpen(AppNav.SettingsPages.NOTIFY) }
 
         Spacer(Modifier.height(14.dp))
-        // ── 个性化 ──
-        SettingGroupTitle(s["settings.group.personalize"])
-        SettingEntry(s["settings.theme"]) { onOpen(AppNav.SettingsPages.THEME) }
-        SettingEntry(s["settings.lang"]) { onOpen(AppNav.SettingsPages.LANG) }
-
-        Spacer(Modifier.height(26.dp))
-        // ── 数据管理 / 应用更新 / 关于（分立，不归入大类；上方多留一行） ──
         SettingEntry(s["settings.data"]) { onOpen(AppNav.SettingsPages.DATA) }
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
         SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
@@ -432,17 +426,6 @@ private fun BackupHealthEntry(onOpen: (String) -> Unit) {
         TextButton(onClick = { onOpen(AppNav.SettingsPages.DATA_BACKUP) }) { Text(s["data.backup"]) }
         Spacer(Modifier.height(8.dp))
     }
-}
-
-/** 分组标题（小号主色文字） */
-@Composable
-private fun SettingGroupTitle(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
-    )
 }
 
 /**
@@ -783,9 +766,7 @@ private fun ApiSettings(vm: MainViewModel) {
 private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
-    var showClearConfirm by remember { mutableStateOf(false) }
-    // 一级页只显示自己的结果（清空）；导出/导入、升级/修复的文案分别归各自子页（不再串页显示）
-    LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearMenuMessage() }
+    LaunchedEffect(Unit) { vm.refreshDataSummary() }
     val summary = vm.dataSummary
     Text(
         if (summary == null) s["data.summary"].replace("{q}", "…").replace("{c}", "…").replace("{t}", "…")
@@ -806,11 +787,17 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
         }
     }
     SettingEntry(s["data.backup"]) { go(AppNav.SettingsPages.DATA_BACKUP) }
-    SettingEntry(s["data.crash"]) { go(AppNav.SettingsPages.DATA_CRASH) }
-    SettingEntry(s["data.upgradePage"]) { go(AppNav.SettingsPages.DATA_UPGRADE) }
+    SettingEntry(settingsStructureStrings(LocalUiLang.current)["storage"]) { go(AppNav.SettingsPages.DATA_STORAGE) }
     SettingEntry(s["tagMerge.title"]) { go(AppNav.SettingsPages.DATA_TAG_MERGE) }
+    SettingEntry(s["data.upgradePage"]) { go(AppNav.SettingsPages.DATA_UPGRADE) }
+}
 
-    // ★ 2026-10-17（用户要求）：清空所有数据**从「备份管理」挪到这一级菜单**上
+@Composable
+private fun ClearDataSettings(vm: MainViewModel) {
+    val s = LocalStrings.current
+    var showClearConfirm by remember { mutableStateOf(false) }
+    val summary = vm.dataSummary
+    LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearMenuMessage() }
     Spacer(Modifier.height(10.dp))
     SettingEntry("🗑 " + s["data.clear"], danger = true) { showClearConfirm = true }
 
@@ -861,7 +848,6 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
         )
     }
 }
-
 
 /**
  * 🛠 数据升级 / 修复；展示应用支持版本与实际数据库结构版本。
@@ -914,42 +900,42 @@ private fun DataUpgradePage(vm: MainViewModel) {
             color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFFFFC107) else Color(0xFF9C6500)
         )
     }
+    Spacer(Modifier.height(24.dp))
+    ClearDataSettings(vm)
 }
 
 /** 💾 Backup management contains both manual export/import and automatic backup settings. */
 @Composable
-private fun DataSettings(vm: MainViewModel, section: String = "backup") {
-    if (section == "crash") {
-        CrashLogSettings(vm)
-    } else {
-        val s = LocalStrings.current
-        Text(s["data.manualBackup"], style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        BackupSettings(vm)
-        androidx.compose.material3.HorizontalDivider()
-        Spacer(Modifier.height(16.dp))
-        Text(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        AutoBackupSettings(vm)
-        androidx.compose.material3.HorizontalDivider()
-        Spacer(Modifier.height(16.dp))
-        Text(s["document.storage"], style = MaterialTheme.typography.titleMedium)
-        vm.documentStorageSummary?.let { summary ->
-            Text(s.format("document.storageSummary", "n" to summary.totalCount.toString(),
-                "size" to android.text.format.Formatter.formatFileSize(LocalContext.current, summary.totalBytes)))
-        }
-        Text(s["document.storageHint"], style = MaterialTheme.typography.bodySmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { vm.inspectDocumentStorage() }, enabled = vm.canInspectDocumentStorage) {
-                Text(s["document.scan"])
-            }
-            OutlinedButton(onClick = { vm.inspectDocumentStorage(clean = true) },
-                enabled = vm.canInspectDocumentStorage && vm.documentStorageSummary != null) {
-                Text(s["document.cleanup"])
-            }
-        }
-        vm.documentStorageMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+private fun DataSettings(vm: MainViewModel) {
+    val s = LocalStrings.current
+    Text(s["data.manualBackup"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    BackupSettings(vm)
+    androidx.compose.material3.HorizontalDivider()
+    Spacer(Modifier.height(16.dp))
+    Text(s["data.autoBackup"], style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    AutoBackupSettings(vm)
+}
+
+@Composable
+private fun DocumentStorageSettings(vm: MainViewModel) {
+    val s = LocalStrings.current
+    vm.documentStorageSummary?.let { summary ->
+        Text(s.format("document.storageSummary", "n" to summary.totalCount.toString(),
+            "size" to android.text.format.Formatter.formatFileSize(LocalContext.current, summary.totalBytes)))
     }
+    Text(s["document.storageHint"], style = MaterialTheme.typography.bodySmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { vm.inspectDocumentStorage() }, enabled = vm.canInspectDocumentStorage) {
+            Text(s["document.scan"])
+        }
+        OutlinedButton(onClick = { vm.inspectDocumentStorage(clean = true) },
+            enabled = vm.canInspectDocumentStorage && vm.documentStorageSummary != null) {
+            Text(s["document.cleanup"])
+        }
+    }
+    vm.documentStorageMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }
 
 /** Backup management uses a private, validated tree before any picker or database write. */
@@ -1269,7 +1255,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
 }
 /** 🐞 崩溃日志子页：导出 / 清空（本机记录，不上传） */
 @Composable
-private fun CrashLogSettings(vm: MainViewModel) {
+internal fun CrashLogSettings(onCleared: () -> Unit) {
     val context = LocalContext.current
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
@@ -1331,6 +1317,7 @@ private fun CrashLogSettings(vm: MainViewModel) {
                 TextButton(shape = smoothPill(), onClick = {
                     CrashLogger.clear(context)
                     crashCount = 0
+                    onCleared()
                     feedback.show(s["data.crash.clearDone"])
                     showCrashClearConfirm = false
                 }) { Text(s["common.ok"]) }
@@ -1340,46 +1327,45 @@ private fun CrashLogSettings(vm: MainViewModel) {
     }
 }
 
-/** 🌐 语言设置：应用语言（界面文案） + AI 生成语言（回答语言） */
+/** App language and AI response language remain independent settings. */
 @Composable
-private fun LanguageSettings(vm: MainViewModel) {
+private fun LanguageChoice(vm: MainViewModel, ai: Boolean) {
     val s = LocalStrings.current
-
-    Text(s["lang.ui"], style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(4.dp))
-    Text(s["lang.ui.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-    Spacer(Modifier.height(8.dp))
-    UiLang.values().forEach { lang ->
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .selectable(selected = vm.uiLang == lang, onClick = { vm.updateUiLang(lang) })
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RadioButton(selected = vm.uiLang == lang, onClick = { vm.updateUiLang(lang) })
-            Text(lang.displayLabel(s), Modifier.padding(start = 8.dp))
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val title = s[if (ai) "lang.ai" else "lang.ui"]
+    val selected = if (ai) aiLangLabel(vm.aiLang, s) else vm.uiLang.displayLabel(s)
+    Surface(Modifier.fillMaxWidth().clickable { expanded = true }, shape = smoothShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(selected, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge)
         }
     }
-
-    Spacer(Modifier.height(20.dp))
-
-    Text(s["lang.ai"], style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(4.dp))
-    Text(s["lang.ai.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-    Spacer(Modifier.height(8.dp))
-    AiLang.values().forEach { lang ->
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .selectable(selected = vm.aiLang == lang, onClick = { vm.updateAiLang(lang) })
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RadioButton(selected = vm.aiLang == lang, onClick = { vm.updateAiLang(lang) })
-            Text(aiLangLabel(lang, s), Modifier.padding(start = 8.dp))
-        }
-    }
+    if (expanded) AlertDialog(
+        onDismissRequest = { expanded = false }, title = { Text(title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (ai) AiLang.entries.forEach { language ->
+                    Row(Modifier.fillMaxWidth().selectable(selected = vm.aiLang == language, onClick = {
+                        vm.updateAiLang(language); expanded = false
+                    }).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(vm.aiLang == language, onClick = null)
+                        Text(aiLangLabel(language, s), Modifier.padding(start = 8.dp))
+                    }
+                } else UiLang.entries.forEach { language ->
+                    Row(Modifier.fillMaxWidth().selectable(selected = vm.uiLang == language, onClick = {
+                        vm.updateUiLang(language); expanded = false
+                    }).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(vm.uiLang == language, onClick = null)
+                        Text(language.displayLabel(s), Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { expanded = false }) { Text(s["common.cancel"]) } }
+    )
 }
 
 /** AI 语言在设置页的显示名（跟随模式本地化，固定语言用自称） */
@@ -1404,7 +1390,7 @@ private fun systemLangLabel(): String {
 
 /** 🎨 应用主题 */
 @Composable
-private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
+private fun ThemeSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     var showPicker by remember { mutableStateOf(false) }   // 自定义取色盘
     // ① 主题模式
@@ -1500,6 +1486,8 @@ private fun ThemeSettings(vm: MainViewModel, onOpen: (String) -> Unit) {
     }
     Spacer(Modifier.height(6.dp))
     Text(s["settings.fontSize.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Spacer(Modifier.height(18.dp))
+    LanguageChoice(vm, ai = false)
 
     if (showPicker) {
         ThemeColorPickerDialog(
@@ -1630,6 +1618,9 @@ private fun NotifyBackgroundSettings() {
     Text(s["notify.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
     Spacer(Modifier.height(20.dp))
     UpdateNotificationSettings()
+    TextButton(onClick = { com.zsz.studyassistant.data.UpdateDownloadNotifications.openSettings(context) }) {
+        Text(settingsStructureStrings(LocalUiLang.current)["notifications"])
+    }
     Spacer(Modifier.height(20.dp))
     // ── 后台运行（与提醒强相关：后台权限不到位就收不到提醒） ──
     val powerManager = context.getSystemService(android.os.PowerManager::class.java)

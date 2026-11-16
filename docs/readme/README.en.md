@@ -57,6 +57,14 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.4_beta2
+
+- ⚙️ Organize settings into six entries, show solving options directly, and separate interface language from AI response language.
+- 🗂️ Give attachment storage its own page, group upgrades, repairs and clearing under data maintenance, and merge local logs into crash reports.
+- 🏷️ Open tag organization from the notebook’s More menu; keep version history and local log management collapsed by default.
+- 🐞 Fix historical crash logs triggering a warning after updates; only newly recorded crashes from the current installation trigger reminders.
+- 📌 `versionCode` **132**.
+
 ### v0.7.4_beta
 
 - ↔️ Use sliding transitions without page scaling, with smoother home swipe starts and release settling.

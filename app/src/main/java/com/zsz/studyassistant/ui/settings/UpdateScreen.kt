@@ -580,8 +580,12 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     }
 
     Spacer(Modifier.height(24.dp))
-    // ── 更新历史（原来「关于」页里的全部更新内容）──
-    Text(s["about.changelog"], style = MaterialTheme.typography.titleMedium)
+    // Load and lay out the long history only when requested.
+    var historyExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    androidx.compose.material3.TextButton(onClick = { historyExpanded = !historyExpanded }) {
+        Text(settingsStructureStrings(LocalUiLang.current)[if (historyExpanded) "hideHistory" else "history"])
+    }
+    if (historyExpanded) {
     Spacer(Modifier.height(8.dp))
     val lang = LocalUiLang.current
     val history by produceState(AnnotatedString(""), lang, context.assets) {
@@ -590,6 +594,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         }
     }
     Text(history, style = MaterialTheme.typography.bodySmall)
+    }
     Spacer(Modifier.height(24.dp))
 }
 

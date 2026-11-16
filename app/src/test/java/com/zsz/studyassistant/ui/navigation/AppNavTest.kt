@@ -78,11 +78,13 @@ class AppNavTest {
         val sp = AppNav.SettingsPages
         for (p in listOf(sp.AI_API, sp.AI_CROP, sp.AI_SOLVE, sp.AI_PROMPT)) assertEquals(sp.AI, sp.parent(p))
         assertEquals(sp.DATA, sp.parent(sp.DATA_BACKUP))
-        assertEquals(sp.DATA, sp.parent(sp.DATA_CRASH))
+        assertEquals(sp.ABOUT, sp.parent(sp.DATA_CRASH))
+        assertEquals(sp.DATA, sp.parent(sp.DATA_STORAGE))
+        assertEquals(sp.THEME, sp.parent(sp.LANG))
         assertEquals(sp.DATA, sp.parent(sp.DATA_UPGRADE))
         assertEquals(sp.DATA, sp.parent(sp.DATA_TAG_MERGE))
         assertEquals(sp.MAIN, sp.parent(sp.DATA))
-        for (p in listOf(sp.AI, sp.LANG, sp.THEME, sp.NOTIFY, sp.UPDATE, sp.ABOUT)) {
+        for (p in listOf(sp.AI, sp.THEME, sp.NOTIFY, sp.UPDATE, sp.ABOUT)) {
             assertEquals("$p 的上一级应为设置主页", sp.MAIN, sp.parent(p))
         }
         assertEquals(sp.MAIN, sp.parent(sp.MAIN))
@@ -126,6 +128,8 @@ class AppNavTest {
         assertEquals(listOf(pages.MAIN, pages.DATA, pages.DATA_BACKUP), pages.path(pages.DATA_BACKUP))
         assertEquals(listOf(pages.MAIN, pages.AI, pages.AI_PROMPT), pages.path(pages.AI_PROMPT))
         assertEquals(listOf(pages.MAIN, pages.UPDATE), pages.path(pages.UPDATE))
+        assertEquals(listOf(pages.MAIN, pages.DATA, pages.DATA_STORAGE), pages.path(pages.DATA_STORAGE))
+        assertEquals(listOf(pages.MAIN, pages.ABOUT, pages.ABOUT_REPORT), pages.path(pages.ABOUT_REPORT))
         assertEquals(listOf(pages.MAIN), pages.path(pages.MAIN))
         for (page in pages.all) {
             val path = pages.path(page)

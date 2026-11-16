@@ -49,6 +49,8 @@ object AppNav {
     const val HISTORY = "history"
     const val NOTEBOOK = "notebook"
     const val NOTEBOOK_PRACTICE = "notebookPractice"
+    const val NOTEBOOK_TAGS = "notebookTags"
+    const val NOTEBOOK_TAG_RESULT = "notebook_tag_ids"
     const val REVIEW = "review"
     const val SIMILAR = "similar"
     const val STATS = "stats"
@@ -71,7 +73,11 @@ object AppNav {
         STATS -> STATS
         else -> HOME
     }
-    fun showsBottomBar(route: String?): Boolean = route in rootTabs || route in setOf(NOTEBOOK, REVIEW, HISTORY)
+    fun showsBottomBar(route: String?): Boolean = route in rootTabs || route in setOf(NOTEBOOK, NOTEBOOK_TAGS, REVIEW, HISTORY)
+
+    fun openNotebookTags(nav: NavHostController) {
+        nav.navigate(NOTEBOOK_TAGS) { launchSingleTop = true }
+    }
 
     /**
      * 解题页的**来路** = 页面树上 `solve` 的父节点。
@@ -169,19 +175,16 @@ object AppNav {
      * 「设置」页内部 NavHost 的子页树。
      * ```
      * 设置(main)
-     * ├── ai          AI 管理 ──┬── ai.api     API 管理（含用量统计）
-     * │                        ├── ai.crop    AI 切图
-     * │                        ├── ai.solve   解题设置
-     * │                        └── ai.prompt  自定义要求
-     * ├── lang        语言设置
-     * ├── theme       应用主题
+     * ├── ai          AI 与解题（模式/联网/回答语言）── ai.api / ai.crop / ai.prompt
+     * ├── theme       外观与界面语言
      * ├── notify      通知与后台
-     * ├── data        数据管理 ──┬── data.backup   备份管理（含自动备份）
+     * ├── data        备份与数据 ──┬── data.backup   备份管理（含自动备份）
      * │                        ├── data.tags     标签整理
-     * │                        ├── data.crash    崩溃日志
-     * │                        └── data.upgrade  数据升级 / 修复
+     * │                        ├── data.storage  附件存储
+     * │                        └── data.upgrade  数据维护（升级/修复/清空）
      * ├── update      应用更新（下载通知可直达，返回设置主页）
-     * └── about       关于
+     * └── about       关于与反馈 ── about.report  报告与本地日志
+     * 隐藏兼容入口：ai.solve / lang / data.crash
      * ```
      */
     object SettingsPages {
@@ -196,6 +199,7 @@ object AppNav {
         const val NOTIFY = "notify"
         const val DATA = "data"
         const val DATA_BACKUP = "data.backup"
+        const val DATA_STORAGE = "data.storage"
         const val DATA_CRASH = "data.crash"
         const val DATA_UPGRADE = "data.upgrade"
         const val DATA_TAG_MERGE = "data.tags"
@@ -205,7 +209,7 @@ object AppNav {
 
         /** Complete registry, including leaf settings pages without children. */
         val all = setOf(MAIN, AI, AI_API, AI_CROP, AI_SOLVE, AI_PROMPT, LANG, THEME, NOTIFY,
-            DATA, DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT, ABOUT_REPORT)
+            DATA, DATA_BACKUP, DATA_STORAGE, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT, ABOUT_REPORT)
 
         /** Direct notification/repair entries must retain the same Back parents as menu entries. */
         fun path(page: String): List<String> = buildList {
@@ -241,12 +245,13 @@ object AppNav {
             if (current != MAIN && !nav.popBackStack(parent(current), false)) open(nav, parent(current))
         }
 
-        /** 所有设置页的唯一父节点：AI 子页 → AI 管理，数据子页 → 数据管理，其余 → 设置主页。 */
+        /** Legacy routes remain registered for restored navigation; menus use the consolidated pages. */
         fun parent(page: String): String = when (page) {
             MAIN -> MAIN
             AI_API, AI_CROP, AI_SOLVE, AI_PROMPT -> AI
-            DATA_BACKUP, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
-            ABOUT_REPORT -> ABOUT
+            DATA_BACKUP, DATA_STORAGE, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
+            DATA_CRASH, ABOUT_REPORT -> ABOUT
+            LANG -> THEME
             else -> MAIN
         }
     }

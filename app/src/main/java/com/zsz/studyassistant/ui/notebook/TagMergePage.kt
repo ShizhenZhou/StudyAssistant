@@ -20,7 +20,7 @@ import com.zsz.studyassistant.TagMergeViewModel
 
 /** Lives inside the settings scroll container; nested lists always have bounded height. */
 @Composable
-fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
+fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel(), onTagsChanged: (Set<Long>) -> Unit = {}) {
     val s = LocalStrings.current
     val language = LocalUiLang.current.name
     val liveTags by main.tags.collectAsStateWithLifecycle()
@@ -39,7 +39,12 @@ fun TagMergePage(main: MainViewModel, model: TagMergeViewModel = viewModel()) {
     }
     LaunchedEffect(model) { model.load() }
     DisposableEffect(model) { onDispose { model.cancelAnalysis() } }
-    LaunchedEffect(model.changeRevision) { if (model.changeRevision > 0) main.onNotebookTagsChanged() }
+    LaunchedEffect(model.changeRevision) {
+        if (model.changeRevision > 0) {
+            main.onNotebookTagsChanged()
+            model.inventory?.let { onTagsChanged(it.tags.map { tag -> tag.id }.toSet()) }
+        }
+    }
 
     Text(s["tagMerge.description"], style = MaterialTheme.typography.bodyMedium)
     Spacer(Modifier.height(8.dp))

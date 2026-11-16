@@ -70,6 +70,8 @@ import com.zsz.studyassistant.ui.HomeScreen
 import com.zsz.studyassistant.ui.LocalStrings
 import com.zsz.studyassistant.ui.LocalUiLang
 import com.zsz.studyassistant.ui.NotebookScreen
+import com.zsz.studyassistant.ui.SettingsSubPage
+import com.zsz.studyassistant.ui.TagMergePage
 import com.zsz.studyassistant.ui.ReviewScreen
 import com.zsz.studyassistant.ui.SettingsTab
 import com.zsz.studyassistant.ui.UpdateBadgeDot
@@ -442,6 +444,14 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable(AppNav.HISTORY) { SolveHistoryScreen(nav, viewModel) }
                                     composable(AppNav.NOTEBOOK) { NotebookScreen(nav, viewModel) }
+                                    composable(AppNav.NOTEBOOK_TAGS) {
+                                        SettingsSubPage(strings["tagMerge.title"], { nav.popBackStack() }) {
+                                            TagMergePage(viewModel, onTagsChanged = { ids ->
+                                                nav.previousBackStackEntry?.takeIf { it.destination.route == AppNav.NOTEBOOK }
+                                                    ?.savedStateHandle?.set(AppNav.NOTEBOOK_TAG_RESULT, ids.toLongArray())
+                                            })
+                                        }
+                                    }
                                     composable(AppNav.NOTEBOOK_PRACTICE) { com.zsz.studyassistant.ui.NotebookPracticeScreen(nav, viewModel) }
                                     composable(AppNav.REVIEW) { ReviewScreen(nav, viewModel) }
                                     composable(AppNav.SIMILAR) { SimilarScreen(nav, viewModel) }

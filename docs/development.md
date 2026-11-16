@@ -16,6 +16,8 @@
 
 ## 日常开发
 
+设置首页为 AI 与解题、外观与语言、通知与后台、备份与数据、应用更新、关于与反馈六个入口。AI 回答语言和界面语言各归其对应页面；附件存储独立于备份，清空数据位于数据维护，原始崩溃日志管理折叠于精简报告下方。旧设置路由保留用于恢复兼容；错题本的标签整理快捷入口使用独立导航节点，返回错题本。更新历史仅在展开时加载。
+
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.5.1、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
 
 AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 3.0.3 使用 KSP 2.3.12 生成 Kotlin DAO，通过 AndroidSQLiteDriver 使用系统 SQLite，不改变数据库格式。少量分段读取和备份 SQL 使用官方 room3-sqlite-wrapper 兼容接口；写操作仍在 Room 的 withWriteTransaction 内执行。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
