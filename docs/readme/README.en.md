@@ -57,29 +57,15 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
-### v0.7.4_beta3
+### v0.7.4
 
-- ⚙️ Restore General and Personalization groups in settings, with more space between backup, updates and about entries.
-- 📜 Show the current stable release family and developing beta notes by default; expand older entries with View more update history.
-- ⬇️ Add a smaller, theme-colored mirror connection label beside download progress when a mirror is in use.
-- 🖼️ Fix SVG diagrams falling back to source code when they contain ordinary comments, while retaining security filtering.
-- 📌 `versionCode` **133**.
-
-### v0.7.4_beta2
-
-- ⚙️ Organize settings into six entries, show solving options directly, and separate interface language from AI response language.
-- 🗂️ Give attachment storage its own page, group upgrades, repairs and clearing under data maintenance, and merge local logs into crash reports.
-- 🏷️ Open tag organization from the notebook’s More menu; keep version history and local log management collapsed by default.
-- 🐞 Fix historical crash logs triggering a warning after updates; only newly recorded crashes from the current installation trigger reminders.
-- 📌 `versionCode` **132**.
-
-### v0.7.4_beta
-
-- ↔️ Use sliding transitions without page scaling, with smoother home swipe starts and release settling.
-- ⚙️ Rename the update mirror switch to “Use a GitHub mirror when needed” and remove the duplicate solving settings heading.
-- 🐞 Add feedback and crash reports to About, with a one-time reminder after a crash and brief diagnostics to preview, copy or export.
-- 📝 Add GitHub bug and feature request templates; reports are never uploaded automatically.
-- 📌 `versionCode` **131**.
+- ↔️ Use sliding page and back transitions, with smoother starts and release motion when swiping between home tabs.
+- ⚙️ Group settings under General and Personalization, consolidate solving and language options, separate attachment storage, and group upgrade, repair and clear actions under data maintenance.
+- 🏷️ Open subject management and tag organization from the notebook’s More menu, preserving valid filters when returning.
+- 🐞 Add feedback and crash reports with a one-time reminder, diagnostic preview, copy and export, and manual GitHub feedback; prevent historical crashes from triggering reminders after updates.
+- ⬇️ Clarify mirror settings and show a mirror label during downloads; display the current release family’s notes by default, with older history expandable.
+- 🖼️ Fix SVG diagrams containing ordinary comments failing to render, while retaining security filtering.
+- 📌 `versionCode` **134**.
 
 ### v0.7.3.7
 

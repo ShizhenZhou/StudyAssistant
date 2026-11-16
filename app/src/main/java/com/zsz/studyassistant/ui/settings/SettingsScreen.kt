@@ -406,7 +406,6 @@ internal fun SettingsMain(scroll: androidx.compose.foundation.ScrollState = reme
         Spacer(Modifier.height(14.dp))
         // 有可用更新时显示红色气泡「1」（启动时静默检查写入 UpdateBadgeState）
         SettingEntry(s["settings.update"], badge = UpdateBadgeState.availableVersion != null) { onOpen(AppNav.SettingsPages.UPDATE) }
-        Spacer(Modifier.height(14.dp))
         SettingEntry(s["settings.about"]) { onOpen(AppNav.SettingsPages.ABOUT) }
     }
     }
