@@ -27,7 +27,7 @@ object BackupNotifications {
         )
     }
 
-    fun needsPermission(context: Context): Boolean =
+    fun needsPermission(context: Context): Boolean = android.os.Build.VERSION.SDK_INT >= 33 &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
 
     fun canNotify(context: Context): Boolean {

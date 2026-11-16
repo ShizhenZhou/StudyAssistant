@@ -160,6 +160,13 @@ class ReliabilityIntegrationTest {
             old.execSQL("INSERT INTO solve_sessions (id,createdAt,updatedAt,source,text,answer,conversationJson,savedQuestionId) VALUES (?,?,?,?,?,?,?,?)",
                 arrayOf<Any>(id, 10000, 11000, "text", "Complete original question", "preserved answer",
                     """[{"id":0,"role":"question","content":"Complete original question","conversationTitle":"Migrated title"}]""", id))
+            // More than one migration batch; one conversation exceeds CursorWindow size.
+            repeat(65) { index ->
+                val payload = if (index == 64) "x".repeat(2_200_000) else "fixture"
+                old.execSQL("INSERT INTO solve_sessions (id,createdAt,updatedAt,source,text,answer,conversationJson) VALUES (?,?,?,?,?,?,?)",
+                    arrayOf<Any>(QuestionIdentity.create(30000L + index), 30000L + index, 30000L + index,
+                        "text", "fixture", "answer", """[{"content":"$payload","conversationTitle":"Batch $index"}]"""))
+            }
             old.version = 10
         }
         open()
@@ -175,6 +182,8 @@ class ReliabilityIntegrationTest {
         assertEquals(11, db.getSupportWrapper().version)
         val migrated = db.questionDao().solveSessionOnce(id)!!
         assertEquals("Migrated title", migrated.title)
+        assertEquals(66, db.questionDao().countSolveSessions())
+        assertEquals("Batch 64", db.questionDao().solveSessionsLightOnce().single { it.createdAt == 30064L }.title)
         assertEquals("Complete original question", migrated.text)
         assertEquals(10000L, migrated.createdAt)
         assertEquals(11000L, migrated.updatedAt)
@@ -183,21 +192,67 @@ class ReliabilityIntegrationTest {
         assertEquals(id, db.questionDao().allQuestionsOnce().single().id)
         assertEquals("Migrated title", db.questionDao().sessionLightOnce(id)!!.title)
         val sql = db.getSupportWrapper()
-        // Backup v4 inserts its existing column whitelist; triggers rebuild the excluded cache.
+        // DAO writes derive the cache without SQLite JSON extensions. Bak v4 has its own
+        // bounded row hydration (covered by archiveRoundTripPreservesFieldsAndGlobalImageDedup).
         val restoredId = QuestionIdentity.create(20000)
-        sql.execSQL("INSERT INTO solve_sessions (id,createdAt,updatedAt,source,text,answer,conversationJson) VALUES (?,?,?,?,?,?,?)",
-            arrayOf<Any>(restoredId, 20000, 20000, "text", "Restored source", "Restored answer",
-                """[{"id":0,"role":"question","content":"Restored source","conversationTitle":"Restored title"}]"""))
+        val restored = SolveSession(restoredId, 20000, 20000, "text", "Restored source", "Restored answer",
+            """[{"id":0,"role":"question","content":"Restored source","conversationTitle":"Restored title"}]""")
+        db.questionDao().insertSolveSessions(listOf(restored.copy(title = "stale cache")))
         assertEquals("Restored title", db.questionDao().sessionLightOnce(restoredId)!!.title)
-        for (invalid in listOf("not-json", "[]", """[{"conversationTitle":{"unexpected":"object"}}]""")) {
-            sql.execSQL("UPDATE solve_sessions SET conversationJson=? WHERE id=?", arrayOf<Any>(invalid, restoredId))
+        for (invalid in listOf("not-json", "[]", """[{"conversationTitle":{"unexpected":"object"}}]""",
+            """[{"conversationTitle":"valid prefix"}] trailing""")) {
+            db.questionDao().updateSolveSession(restored.copy(conversationJson = invalid))
             assertNull(db.questionDao().sessionLightOnce(restoredId)!!.title)
         }
         db.questionDao().updateSolveSession(migrated.copy(title = "stale cache"))
         assertEquals("Migrated title", db.questionDao().sessionLightOnce(id)!!.title)
-        sql.execSQL("UPDATE solve_sessions SET conversationJson=? WHERE id=?",
-            arrayOf<Any>("""[{"conversationTitle":"Updated title"}]""", restoredId))
+        db.questionDao().updateSolveSession(restored.copy(conversationJson = """[{"conversationTitle":"Updated title"}]"""))
         assertEquals("Updated title", db.questionDao().sessionLightOnce(restoredId)!!.title)
+        sql.query("SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'solve_sessions_title_%'").use {
+            assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0))
+        }
+        sql.execSQL("CREATE TRIGGER solve_sessions_title_update AFTER UPDATE OF conversationJson ON solve_sessions " +
+            "BEGIN SELECT RAISE(ABORT, 'legacy JSON1 trigger must be removed'); END")
+        reopen()
+        db.questionDao().updateSolveSession(restored)
+        assertEquals("Restored title", db.questionDao().sessionLightOnce(restoredId)!!.title)
+    }
+
+    @Test fun documentCleanupStreamsLargeReferencesAndFailsClosedOnMalformedJson() = runBlocking {
+        val work = File(context.cacheDir, "document-maintenance-${UUID.randomUUID()}").apply { mkdirs() }
+        val storageContext = object : android.content.ContextWrapper(context) {
+            override fun getFilesDir() = File(work, "files").apply { mkdirs() }
+            override fun getNoBackupFilesDir() = File(work, "private").apply { mkdirs() }
+        }
+        try {
+            val originals = File(storageContext.filesDir, "ai-documents").apply { mkdirs() }
+            val hash = "a".repeat(64)
+            val original = File(originals, hash).apply { writeText("synthetic original") }
+            val old = System.currentTimeMillis() - 9L * 24 * 60 * 60 * 1000
+            assertTrue(original.setLastModified(old))
+            val registry = File(storageContext.noBackupFilesDir, "ai-document-maintenance-v1/state.json")
+            registry.parentFile!!.mkdirs()
+            val observed = """{"version":1,"entries":[{"sha256":"$hash","bytes":${original.length()},"modifiedAt":${original.lastModified()},"firstUnreferencedAt":$old}]}"""
+            registry.writeText(observed)
+            val body = "x".repeat(2_200_000)
+            val valid = """[{"content":"$body","documents":[{"sha256":"${"b".repeat(64)}","localDocuments":[{"sha256":"$hash"}]}]}]"""
+            val row = Question(id, "synthetic", "answer", conversationJson = valid, deleted = true)
+            db.questionDao().insert(row)
+            val result = DocumentStorageMaintenance.inspect(storageContext, db, emptySet(), clean = true)
+            assertEquals(0, result.removedCount)
+            assertTrue(original.isFile)
+            for (invalid in listOf("not-json", """[{"documents":null}]""",
+                """[{"documents":[{"sha256":"$hash","sha256":"$hash"}]}]""")) {
+                db.getSupportWrapper().execSQL("UPDATE questions SET conversationJson=? WHERE id=?", arrayOf(invalid, id))
+                registry.writeText(observed) // otherwise eligible for deletion on this pass
+                try {
+                    DocumentStorageMaintenance.inspect(storageContext, db, emptySet(), clean = true)
+                    fail("Unsafe attachment scan accepted")
+                } catch (_: DocumentProblem) { }
+                assertTrue(original.isFile)
+                assertEquals(observed, registry.readText())
+            }
+        } finally { work.deleteRecursively() }
     }
 
     @Test fun actualRoomUpgradeKeepsOldQuestionsAndImageBytes() = runBlocking {

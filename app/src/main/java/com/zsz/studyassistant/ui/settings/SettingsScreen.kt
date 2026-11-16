@@ -1087,7 +1087,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         val needsRuntimePermission = com.zsz.studyassistant.data.BackupNotifications.needsPermission(context)
         val activity = context as? android.app.Activity
         val mayRequestAgain = !preferences.getBoolean("backup_failure_permission_asked", false) ||
-            (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity,
+            (android.os.Build.VERSION.SDK_INT >= 33 && activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity,
                 android.Manifest.permission.POST_NOTIFICATIONS))
         if (needsRuntimePermission && mayRequestAgain) {
             preferences.edit().putBoolean("backup_failure_permission_asked", true).apply()
@@ -1604,7 +1604,7 @@ private fun NotifyBackgroundSettings() {
         prefs.edit().putBoolean("notify_enabled", enabled).apply()
         notifyEnabled = enabled
         ReminderScheduler.applySchedule(context)
-        if (enabled) {
+        if (enabled && android.os.Build.VERSION.SDK_INT >= 33) {
             notifyPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
@@ -1712,7 +1712,7 @@ private fun UpdateNotificationSettings() {
         alerts.ensureChannel(context)
         val activity = context as? android.app.Activity
         val mayAsk = !prefs.getBoolean("update_notification_permission_asked", false) ||
-            (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+            (android.os.Build.VERSION.SDK_INT >= 33 && activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
                 activity, Manifest.permission.POST_NOTIFICATIONS))
         if (alerts.needsPermission(context) && mayAsk) {
             prefs.edit().putBoolean("update_notification_permission_asked", true).apply()

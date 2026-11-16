@@ -27,3 +27,9 @@
 - 正式 APK 使用现有自有证书及 lineage；不得重新生成替代签名。发布后下载核对 SHA，并归档到 history_apk。发布说明取 `.local-notes/releases/RELEASE-v<版本>.md` 的“更新内容”。设计、排查、逐版本发布过程只在 `.local-notes/` 本地归档，不在仓库根目录新增此类 MD、不提交到 GitHub。必要的代码维护/测试说明可以保留在 docs/。
 
 `.local-notes/legacy-deepseek/` 是本机历史档案，其中的旧版本、旧路径、只交补丁或禁止构建等陈述不代表当前工作流程。仅在追溯特定历史问题时读取。
+
+## Android 9–15 兼容分支
+
+`Compatible` 是用户指定的长期兼容分支，支持 API 28–35；主线保留 Android 16+。两线显示版本同步，本次兼容 v0.7.4.1 / versionCode 134，主线同版本 code135。日常可在 Compatible 开发，不把整条兼容分支合入 main；必要的通用修复单独移植。
+
+兼容发布显式使用 `--distribution compat`，只允许干净且已推送的 Compatible；Git tag 使用 `compat_v<版本>`，正式版与测试版均不得设为 Latest。主线保留 `v<版本>` 与 Latest。兼容发布说明在 `.local-notes/releases/RELEASE-compat_v<版本>.md`，更新清单绑定 distribution=compat、API28–35 及 APK 摘要。两线更新、ENF 和差分基线互相隔离；旧 v0.6.7.9 首次手动安装完整兼容包。未指定发布时只做本地候选，不推送 Release。

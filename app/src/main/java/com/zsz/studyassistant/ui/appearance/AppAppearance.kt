@@ -21,7 +21,7 @@ internal fun Modifier.readablePage(maxWidth: Dp = 840.dp): Modifier =
 /** Show only the system wallpaper surface, never another application's Activity. */
 internal fun applyWallpaperBackground(window: Window, enabled: Boolean, surface: Color) {
     val attributes = window.attributes
-    attributes.setWallpaperTouchEventsEnabled(false)
+    if (android.os.Build.VERSION.SDK_INT >= 34) attributes.setWallpaperTouchEventsEnabled(false)
     window.attributes = attributes
     if (enabled) {
         window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))

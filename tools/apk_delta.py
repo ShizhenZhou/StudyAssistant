@@ -181,10 +181,13 @@ def apply_raw(base, source, target_size, *, max_size=MAX_APK_SIZE):
 
 
 def read_base(apk):
+    from release_common import distribution_identity
     apk = Path(apk).resolve()
     metadata = json.loads(apk.with_name(apk.stem + "-update-manifest.json").read_text(encoding="utf-8"))
     data = apk.read_bytes()
-    if (metadata.get("schema") != 1 or metadata.get("channel", "stable") not in ("stable", "beta") or
+    distribution_identity(metadata)
+    expected_schema = 2 if metadata.get("distribution") == "compat" else 1
+    if (metadata.get("schema") != expected_schema or metadata.get("channel", "stable") not in ("stable", "beta") or
         metadata.get("apkName") != apk.name or metadata.get("apkSha256") != digest(data) or
         metadata.get("apkSize") != len(data) or type(metadata.get("versionCode")) is not int):
         raise ValueError("Base APK differs from its archived release manifest")

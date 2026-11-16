@@ -31,7 +31,7 @@ abstract class GenerateBuildStamp : DefaultTask() {
             .withZone(ZoneOffset.UTC).format(Instant.now())
         directory.resolve("build-time-utc.txt").writeText(stamp, Charsets.UTF_8)
         directory.resolve("distribution.json").writeText(
-            """{"distribution":"main","minSdk":36}""", Charsets.UTF_8)
+            """{"distribution":"compat","minSdk":28,"maxSdk":35}""", Charsets.UTF_8)
     }
 }
 val buildStampDirectory = layout.buildDirectory.dir("generated/build-stamp/assets")
@@ -69,11 +69,12 @@ android {
 
     defaultConfig {
         applicationId = "com.zsz.studyassistant"
-        minSdk = 36
+        minSdk = 28
         targetSdk = 37
-        versionCode = 135
+        versionCode = 134
         versionName = appVersionName
-        buildConfigField("String", "DISTRIBUTION", "\"main\"")
+        buildConfigField("String", "DISTRIBUTION", "\"compat\"")
+        buildConfigField("int", "SUPPORTED_MAX_SDK", "35")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

@@ -21,23 +21,16 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
-// Derived only on writes/migration. List queries read the small title column directly.
-private const val SOLVE_SESSION_TITLE_SQL = "CASE WHEN typeof(conversationJson) = 'text' THEN " +
-    "CASE WHEN json_valid(conversationJson) THEN " +
-    "CASE WHEN json_type(conversationJson, '$[0].conversationTitle') = 'text' THEN " +
-    "substr(json_extract(conversationJson, '$[0].conversationTitle'),1,256) END END END"
-
-/** Covers DAO writes and raw SQL backup restores without changing Bak v4's row format. */
-private fun installSolveSessionTitleTriggers(connection: SQLiteConnection) {
-    for ((suffix, event) in listOf("insert" to "INSERT", "update" to "UPDATE OF conversationJson")) {
-        connection.execSQL("CREATE TRIGGER IF NOT EXISTS solve_sessions_title_$suffix AFTER $event ON solve_sessions " +
-            "BEGIN UPDATE solve_sessions SET title = $SOLVE_SESSION_TITLE_SQL WHERE id = NEW.id; END")
-    }
+/** Mainline DB11 files may already contain JSON1 triggers. Remove them before any write:
+ * Android 9's system SQLite need not have JSON1. DAO/restore writers derive the same cache. */
+private fun removeSolveSessionTitleTriggers(connection: SQLiteConnection) {
+    connection.execSQL("DROP TRIGGER IF EXISTS solve_sessions_title_insert")
+    connection.execSQL("DROP TRIGGER IF EXISTS solve_sessions_title_update")
 }
 
 val SOLVE_SESSION_TITLE_CALLBACK = object : RoomDatabase.Callback() {
-    override suspend fun onCreate(connection: SQLiteConnection) = installSolveSessionTitleTriggers(connection)
-    override suspend fun onOpen(connection: SQLiteConnection) = installSolveSessionTitleTriggers(connection)
+    override suspend fun onCreate(connection: SQLiteConnection) = removeSolveSessionTitleTriggers(connection)
+    override suspend fun onOpen(connection: SQLiteConnection) = removeSolveSessionTitleTriggers(connection)
 }
 
 @Entity(tableName = "questions")
@@ -422,8 +415,8 @@ interface QuestionDao {
     @androidx.room3.Transaction
     suspend fun allSolveSessionsOnce(): List<SolveSession> = allSessionIdsOnce().mapNotNull { solveSessionOnce(it) }
 
-    @Insert
-    suspend fun insertSolveSessions(list: List<SolveSession>): List<Long>
+    @androidx.room3.Transaction
+    suspend fun insertSolveSessions(list: List<SolveSession>): List<Long> = list.map { insertSolveSession(it) }
 
     @Query("DELETE FROM solve_sessions")
     suspend fun clearSolveSessions()
@@ -510,12 +503,20 @@ interface QuestionDao {
 
     // ---- 搜题记录（solve_sessions，方案 B：与 questions 完全隔离）----
 
+    @androidx.room3.Transaction
+    suspend fun insertSolveSession(s: SolveSession): Long =
+        insertSolveSessionRow(s.copy(title = SolveSessionTitle.fromJson(s.conversationJson)))
+
     @Insert
-    suspend fun insertSolveSession(s: SolveSession): Long
+    suspend fun insertSolveSessionRow(s: SolveSession): Long
 
     /** 按 id 更新整条记录（追问/继续生成时把最新 text/answer/conversationJson 写回同一条） */
+    @androidx.room3.Transaction
+    suspend fun updateSolveSession(s: SolveSession) =
+        updateSolveSessionRow(s.copy(title = SolveSessionTitle.fromJson(s.conversationJson)))
+
     @Update
-    suspend fun updateSolveSession(s: SolveSession)
+    suspend fun updateSolveSessionRow(s: SolveSession)
 
     /**
      * ★ 列表用的**轻查询**：**绝不能 `SELECT *`** —— 本表同样有 `imageBytes`(BLOB)
@@ -692,8 +693,7 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
 val MIGRATION_10_11 = object : Migration(10, 11) {
     override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("ALTER TABLE solve_sessions ADD COLUMN title TEXT")
-        db.execSQL("UPDATE solve_sessions SET title = $SOLVE_SESSION_TITLE_SQL")
-        installSolveSessionTitleTriggers(db)
+        SolveSessionTitle.migrate(db)
     }
 }
 

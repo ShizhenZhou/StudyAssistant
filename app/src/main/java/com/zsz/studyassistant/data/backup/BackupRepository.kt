@@ -4,6 +4,7 @@ import androidx.room3.support.getSupportWrapper
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import android.os.Build
 import androidx.room3.withWriteTransaction
 import java.io.*
 import java.util.concurrent.Executors
@@ -36,7 +37,7 @@ class BackupRepository(private val context: Context, private val db: AppDatabase
                 // Wrapper creation alone does not open/validate the Room database.
                 kotlin.check(opened.version == AppDatabase.SCHEMA_VERSION)
                 val sourcePath=opened.path
-                if (!sourcePath.isNullOrEmpty() && sourcePath != ":memory:") {
+                if (Build.VERSION.SDK_INT >= 35 && !sourcePath.isNullOrEmpty() && sourcePath != ":memory:") {
                     val dispatcher=Executors.newSingleThreadExecutor { runnable -> Thread(runnable,"backup-read-snapshot") }.asCoroutineDispatcher()
                     try { withContext(dispatcher) {
                         SQLiteDatabase.openDatabase(sourcePath,null,SQLiteDatabase.OPEN_READONLY).use { source ->

@@ -148,32 +148,36 @@ internal object DocumentStorageMaintenance {
 
     private fun scanDatabase(source: SupportSQLiteDatabase, references: MutableSet<String>, check: () -> Unit) {
         for (table in listOf("questions", "solve_sessions")) {
-            check()
-            source.query("SELECT 1 FROM $table WHERE conversationJson IS NOT NULL AND NOT json_valid(conversationJson) LIMIT 1").use {
-                require(!it.moveToFirst())
-            }
-            source.query("SELECT 1 FROM $table WHERE conversationJson IS NOT NULL AND json_type(conversationJson) <> 'array' LIMIT 1").use {
-                require(!it.moveToFirst())
-            }
-            source.query("SELECT 1 FROM $table AS t, json_tree(t.conversationJson) AS a " +
-                "WHERE a.key IN ('documents','localDocuments') AND a.type <> 'array' LIMIT 1").use {
-                require(!it.moveToFirst())
-            }
-            // All JSON expansion stays inside SQLite; CursorWindow receives only a SHA or NULL.
-            source.query("SELECT CASE WHEN d.type = 'object' THEN CASE " +
-                "WHEN (SELECT count(*) FROM json_each(d.value) WHERE key = 'sha256') = 1 " +
-                "AND json_type(d.value,'$.sha256') = 'text' AND length(json_extract(d.value,'$.sha256')) = 64 " +
-                "THEN json_extract(d.value,'$.sha256') ELSE NULL END ELSE NULL END " +
-                "FROM $table AS t, json_tree(t.conversationJson) AS a, " +
-                "json_each(CASE WHEN a.key IN ('documents','localDocuments') AND a.type = 'array' THEN a.value ELSE '[]' END) AS d").use {
-                while (it.moveToNext()) { check(); require(!it.isNull(0)); addHash(references, it.getString(0)) }
+            var after: Long? = null
+            while (true) {
+                check()
+                val rows = source.query("SELECT rowid FROM $table WHERE conversationJson IS NOT NULL" +
+                    (if (after == null) "" else " AND rowid>?") + " ORDER BY rowid LIMIT 64",
+                    after?.let { arrayOf<Any>(it) } ?: emptyArray()).use { cursor ->
+                    buildList { while (cursor.moveToNext()) add(cursor.getLong(0)) }
+                }
+                if (rows.isEmpty()) break
+                for (row in rows) {
+                    check()
+                    val sourceReader = requireNotNull(StoredConversationJson.open(source, table, row, check))
+                    JsonReader(StoredConversationJson.bounded(sourceReader)).use { reader ->
+                        reader.beginArray()
+                        while (reader.hasNext()) {
+                            require(reader.peek() == JsonToken.BEGIN_OBJECT)
+                            scanValue(reader, references, check, 1)
+                        }
+                        reader.endArray()
+                        require(reader.peek() == JsonToken.END_DOCUMENT)
+                    }
+                }
+                after = rows.last()
             }
         }
     }
 
     private fun scanDraft(file: File, references: MutableSet<String>, check: () -> Unit) {
         Files.newInputStream(file.toPath(), NOFOLLOW_LINKS).use { stream ->
-            JsonReader(InputStreamReader(stream, Charsets.UTF_8.newDecoder())).use { reader ->
+            JsonReader(StoredConversationJson.bounded(InputStreamReader(stream, Charsets.UTF_8.newDecoder()))).use { reader ->
                 reader.beginObject()
                 var id: String? = null
                 var createdAt: Long? = null
@@ -235,7 +239,7 @@ internal object DocumentStorageMaintenance {
                 while (reader.hasNext()) {
                     check()
                     when (reader.nextName()) {
-                        "documents", "localDocuments" -> scanDocuments(reader, references, check)
+                        "documents", "localDocuments" -> scanDocuments(reader, references, check, depth + 1)
                         else -> scanValue(reader, references, check, depth + 1)
                     }
                 }
@@ -250,18 +254,25 @@ internal object DocumentStorageMaintenance {
         }
     }
 
-    private fun scanDocuments(reader: JsonReader, references: MutableSet<String>, check: () -> Unit) {
+    private fun scanDocuments(reader: JsonReader, references: MutableSet<String>, check: () -> Unit, depth: Int = 1) {
+        require(depth <= 128)
         reader.beginArray()
         while (reader.hasNext()) {
             check()
             reader.beginObject()
             var found = false
             while (reader.hasNext()) {
-                if (reader.nextName() == "sha256") {
-                    require(reader.peek() == JsonToken.STRING)
-                    addHash(references, reader.nextString())
-                    found = true
-                } else reader.skipValue()
+                check()
+                when (reader.nextName()) {
+                    "sha256" -> {
+                        require(!found)
+                        require(reader.peek() == JsonToken.STRING)
+                        addHash(references, reader.nextString())
+                        found = true
+                    }
+                    "documents", "localDocuments" -> scanDocuments(reader, references, check, depth + 1)
+                    else -> scanValue(reader, references, check, depth + 1)
+                }
             }
             reader.endObject()
             require(found)

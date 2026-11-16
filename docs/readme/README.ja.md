@@ -6,10 +6,12 @@
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
 ![CI](https://github.com/ShizhenZhou/StudyAssistant/actions/workflows/build.yml/badge.svg)
-![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/Android-9%E2%80%9315%20(API%2028%E2%80%9335)-3DDC84?logo=android&logoColor=white)
 
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
+
+> `Compatible` ブランチは **Android 9–15（API 28–35）** 向けです。現在のローカル候補は v0.7.4.1（versionCode 134）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換ブランチの更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。この候補はまだ公開していないため、下記の旧版リンクを参考として残しています。
 
 ## APK のダウンロード
 

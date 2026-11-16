@@ -6,10 +6,12 @@
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
 ![CI](https://github.com/ShizhenZhou/StudyAssistant/actions/workflows/build.yml/badge.svg)
-![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/Android-9%E2%80%9315%20(API%2028%E2%80%9335)-3DDC84?logo=android&logoColor=white)
 
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
+
+> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current local candidate is v0.7.4.1 (versionCode 134). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest. This compatibility candidate is not publicly released yet; the legacy download below remains for reference.
 
 ## Download the APK
 

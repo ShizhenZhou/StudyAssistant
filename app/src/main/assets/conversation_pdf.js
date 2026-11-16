@@ -82,7 +82,7 @@
         flush();var i=1;
         for(var li of node.children) {
           var content=await blocks(li,s), prefix=node.tagName==='OL'?((li.getAttribute('value')||i)+'. '):'• ';
-          if(content[0]?.kind==='text') content[0].runs.unshift({text:prefix});
+          if(content[0] && content[0].kind==='text') content[0].runs.unshift({text:prefix});
           else content.unshift({kind:'text',runs:[{text:prefix}]});
           result.push({kind:'indent',blocks:content});i++;
         } return;

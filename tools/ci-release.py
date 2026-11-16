@@ -6,17 +6,21 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-from release_common import apk_identity, apk_payload, sha256, validate_manifest
+from release_common import apk_identity, apk_payload, apk_distribution, release_branch_allowed, sha256, validate_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 def main():
     ref = os.environ.get("GITHUB_REF")
-    if os.environ.get("CI") != "true" or not (ref == "refs/heads/main" or
-            (ref == "refs/heads/Develop" and os.environ.get("RELEASE_CHANNEL") == "beta")):
+    distribution = os.environ.get("RELEASE_DISTRIBUTION", "main")
+    if os.environ.get("CI") != "true" or not release_branch_allowed(
+            (ref or "").removeprefix("refs/heads/"), os.environ.get("RELEASE_CHANNEL", "stable"), distribution):
         raise RuntimeError("Candidate creation is a CI-only operation")
     source = ROOT / "app/build/outputs/apk/release/app-release-unsigned.apk"
     tools = android_build_tools(os.environ["ANDROID_HOME"], ROOT)
     identity = apk_identity(subprocess.check_output([str(tools / "aapt"), "dump", "badging", str(source)], text=True))
+    identity.update(apk_distribution(source))
+    if identity.get("distribution", "main") != distribution:
+        raise RuntimeError("Requested distribution differs from APK payload")
     check = subprocess.run([str(tools / "apksigner"), "verify", str(source)], capture_output=True)
     if check.returncode == 0:
         raise RuntimeError("CI release candidate must not carry an official signature")

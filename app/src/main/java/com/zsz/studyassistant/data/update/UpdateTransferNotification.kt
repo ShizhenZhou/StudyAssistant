@@ -44,7 +44,9 @@ internal object UpdateTransferNotification {
             try {
                 if (!foregroundAttempted) {
                     foregroundAttempted = true
-                    worker.setForeground(ForegroundInfo(notificationId, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
+                    worker.setForeground(if (android.os.Build.VERSION.SDK_INT >= 29)
+                        ForegroundInfo(notificationId, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                    else ForegroundInfo(notificationId, note))
                     foreground = true
                 } else manager?.notify(notificationId, note)
                 UpdateDownloadNotifications.clearTerminal(context)

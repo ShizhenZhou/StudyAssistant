@@ -6,10 +6,12 @@
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
 ![CI](https://github.com/ShizhenZhou/StudyAssistant/actions/workflows/build.yml/badge.svg)
-![Platform](https://img.shields.io/badge/Android-16%2B%20(API%2036)-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/Android-9%E2%80%9315%20(API%2028%E2%80%9335)-3DDC84?logo=android&logoColor=white)
 
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
+
+> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前本機候選為 v0.7.4.1（versionCode 134）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。相容候選尚未公開發布，下方舊版入口保留供參考。
 
 ## 下載 APK
 

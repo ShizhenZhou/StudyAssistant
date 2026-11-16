@@ -20,7 +20,7 @@
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.5.1、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
 
-AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 3.0.3 使用 KSP 2.3.12 生成 Kotlin DAO，通过 AndroidSQLiteDriver 使用系统 SQLite，不改变数据库格式。少量分段读取和备份 SQL 使用官方 room3-sqlite-wrapper 兼容接口；写操作仍在 Room 的 withWriteTransaction 内执行。Java/Kotlin 字节码目标仍为 17，minSdk 36、compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
+AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 3.0.3 使用 KSP 2.3.12 生成 Kotlin DAO，通过 AndroidSQLiteDriver 使用系统 SQLite，不改变数据库格式。少量分段读取和备份 SQL 使用官方 room3-sqlite-wrapper 兼容接口；写操作仍在 Room 的 withWriteTransaction 内执行。Java/Kotlin 字节码目标仍为 17，主线 minSdk 36、兼容线 minSdk 28（支持 API 28–35），compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
 
 Room 结构快照由正常 KSP 编译导出至 `app/schemas/com.zsz.studyassistant.data.AppDatabase/<数据库版本>.json`，随源码提交，从 DB v10 开始保留（当前 DB v11）。各构建变体共用相同结构；目录不加入应用资源，不打入正式 APK。以后变更表结构时新增对应版本快照并保留旧文件，不手工编造历史版本；无需为导出单独增加测试或 CI 门禁。
 
@@ -98,6 +98,16 @@ git push origin main
 也可快进到已有规范提交。正式版 start 只接受已推送的干净 main；显式 `--channel beta` 也接受已推送的干净 Develop，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job；Develop 可在用户要求时构建一次 development-build，成功后规范合并 main，合并不自动重跑。正式发布候选仍只能由 main 生成：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
 
 schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时间、SHA、签名后保持的代码资源摘要与预期证书，不含JVM/设备通过结论。旧schema1/2仅保留历史读取兼容；不要求为新版本下载旧测试证据，不对新流程回退全量。
+
+### Android 9–15 兼容发行例外
+
+长期分支固定为 `Compatible`，基于当前业务代码维护，不整支合入 main。主线仍支持 Android 16+。兼容版与主线使用同一 applicationId、原证书及 lineage，不能并装；不清数据、不卸载。兼容版显示版本与主线同步，当前兼容候选为 `0.7.4.1` / code134，主线同名版本为 code135。后续交付检查两线已分配 code，使用递增且不冲突的新值；转回主线需要主线包的 versionCode 更高。兼容 Git tag 独立使用 `compat_v<VERSION>`，主线继续 `v<VERSION>`，版本相同也不会覆盖标签；发布说明使用 `.local-notes/releases/RELEASE-compat_v<VERSION>.md`。Beta 后缀仅按用户当次安排使用。
+
+兼容线仅在用户明确安排发布后，以已推送的干净专用分支执行 `./tools/release.ps1 start --version VERSION --distribution compat`，Beta 另加 `--channel beta`；同一次 run 继续 status/publish。此例外不放宽其他分支，也不要求合并 main。复用单个手动 CI 构建，CI 输入必须显式 `release_distribution=compat` 及 stable/beta 渠道。候选 schema3 清单增加 `distribution=compat`、`maxSdk=35`，并与 APK 内 `assets/distribution.json`、真实 minSdk=28、精确提交及原签名核对。正式兼容 Release 为 prerelease=false，Beta 为 true，两者始终 make_latest=false；Latest 保留主线。
+
+公开更新清单与 CI 候选清单是两种协议：主线公开清单保持 schema1；兼容公开清单使用 schema2，并明确 `distribution=compat`、`minSdk=28`、`maxSdk=35`。现有主线客户端优先比较 versionCode 且不识别 distribution，schema2 使其拒绝读取兼容包的 code；旧客户端再将 tag 按首个下划线截成 `compat`，版本比较值为0，所以未来与主线同步的兼容名称也不会误报更新。不能改为 `compat-v` 前缀，否则旧解析器可能保留后续数字段。新客户端识别 `compat_` 前缀，并要求清单身份与 tag 对应，在正式、Beta、强更历史、下载恢复和差分图中先筛选发行线与 SDK 范围，再比较版本和精确 APK 摘要；主线强更不能锁住兼容线用户。
+
+v0.6.7.9 只查询 Latest，首次转入兼容线必须手动安装完整 APK；不为 code79 生成首包差分。后续兼容差分只选择带 schema2 兼容清单的同线精确已公开 APK，沿用 `apk-gdiff1-gzip`，禁止跨线基准。主线与历史冻结发布的清单、附件、标签及差分恢复规则保持原样。两线隔离、原签名、下载 SHA 与归档核对属于原有身份检查，不增加自动测试或 CI 门禁。
 
 ## 签名与发布底线
 
