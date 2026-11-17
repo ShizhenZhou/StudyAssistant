@@ -3,12 +3,89 @@ package com.zsz.studyassistant.data
 import java.time.Instant
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.coroutines.*
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class AppNoticesTest {
     private val now = Instant.parse("2026-11-17T00:00:00Z").toEpochMilli()
     private val rule = AppNotice("20261117-173000-01", 1, listOf("main"), listOf("stable"),
         versions = listOf("v0.7.4.2"), expiresAt = "2026-12-01T00:00:00Z",
         title = mapOf("zh-CN" to "测试公告"), body = mapOf("zh-CN" to "人工数据"))
+
+    @Test fun foregroundRefreshUsesFifteenMinutesAndRetriesFailuresAfterOneMinute() {
+        val minute = 60_000L
+        assertFalse(AppNoticeRefreshPolicy.shouldRefresh(now + 14 * minute, now, now - 1, true, false))
+        assertTrue(AppNoticeRefreshPolicy.shouldRefresh(now + 15 * minute, now, now - 1, true, false))
+        assertTrue(AppNoticeRefreshPolicy.shouldRefresh(now + minute, now, now - 1, true, true))
+        assertFalse(AppNoticeRefreshPolicy.shouldRefresh(now + 14_999, 0, now, false, true))
+        assertFalse(AppNoticeRefreshPolicy.shouldRefresh(now + minute - 1, now - minute, now, true, false))
+        assertTrue(AppNoticeRefreshPolicy.shouldRefresh(now + minute, now - minute, now, true, false))
+        assertTrue(AppNoticeRefreshPolicy.shouldRefresh(now, now + minute, now + minute, true, false))
+    }
+
+    @Test fun leavingUpdatePageDoesNotCancelOfficialFailureMirrorFallback() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val unblock = CountDownLatch(1)
+        val finished = CompletableDeferred<AppNoticeFetchResult>()
+        val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val session = AppNoticeRefreshSession(appScope)
+        val requests = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val body = """{"schema":1,"revision":2,"announcements":[],"unstableVersions":[]}"""
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            requests += request.url.toString()
+            assertEquals("no-cache", request.header("Cache-Control"))
+            if (request.url.host == "raw.githubusercontent.com") {
+                assertEquals("old-etag", request.header("If-None-Match"))
+                started.complete(Unit)
+                check(unblock.await(5, TimeUnit.SECONDS))
+                throw IOException("Artificial official endpoint failure")
+            }
+            assertNull(request.header("If-None-Match"))
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .header("ETag", "mirror-etag").body(body.toResponseBody()).build()
+        }.build()
+        try {
+            val page = launch {
+                session.run {
+                    val result = AppNoticeFetcher(client).fetch(
+                        UpdateTransport.urls(AppNoticeStore.URL, UpdateTransport.Config()),
+                        body.replace("\"revision\":2", "\"revision\":1"), AppNoticeStore.URL, "old-etag")
+                    finished.complete(result!!)
+                }
+            }
+            withTimeout(5_000) { started.await() }
+            page.cancelAndJoin()
+            unblock.countDown()
+            val result = withTimeout(5_000) { finished.await() }
+            assertEquals(2L, result.document.revision)
+            assertEquals("mirror-etag", result.etag)
+            assertEquals(UpdateTransport.urls(AppNoticeStore.URL, UpdateTransport.Config()), requests)
+        } finally { unblock.countDown(); appScope.cancel() }
+    }
+
+    @Test fun disabledMirrorDoesNotSendFallbackAndInvalidOfficialContentDoesFallBack() = runBlocking {
+        var count = 0
+        val valid = """{"schema":1,"revision":2,"announcements":[],"unstableVersions":[]}"""
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            count++
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .body((if (chain.request().url.host == "raw.githubusercontent.com") "<html>unavailable</html>" else valid)
+                    .toResponseBody()).build()
+        }.build()
+        val fetcher = AppNoticeFetcher(client)
+        assertNull(fetcher.fetch(UpdateTransport.urls(AppNoticeStore.URL, UpdateTransport.Config(enabled = false)), null, null, null))
+        assertEquals(1, count)
+        count = 0
+        assertEquals(2L, fetcher.fetch(UpdateTransport.urls(AppNoticeStore.URL, UpdateTransport.Config()), null, null, null)!!.document.revision)
+        assertEquals(2, count)
+    }
 
     @Test fun exactVersionChannelAndDistributionStayIndependent() {
         assertTrue(AppNotices.matches(rule, "0.7.4.2", 136, "main", now))
