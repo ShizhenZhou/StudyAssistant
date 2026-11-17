@@ -276,10 +276,6 @@ class MainActivity : ComponentActivity() {
                             AppNav.switchTab(nav, AppNav.SETTINGS)
                         }
                     }
-                    com.zsz.studyassistant.ui.CrashReminder(
-                        enabled = updatePolicyReady && updatePrompt == null && !viewModel.showUpgradePrompt,
-                        onOpenReport = { viewModel.openCrashReportPage = true }
-                    )
                     val homeScroll = androidx.compose.foundation.rememberScrollState()
                     val statsScroll = androidx.compose.foundation.rememberScrollState()
                     val settingsScroll = androidx.compose.foundation.rememberScrollState()
@@ -314,6 +310,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) {
                         try { com.zsz.studyassistant.data.UpdatePromptStore.restore(this@MainActivity) }
                         finally { updatePolicyReady = true }
+                        launch { com.zsz.studyassistant.data.AppNoticeStore.refresh(this@MainActivity) }
                         silentUpdateCheck(this@MainActivity)
                     }
 
@@ -521,6 +518,19 @@ class MainActivity : ComponentActivity() {
                             androidx.compose.material3.CircularProgressIndicator()
                         }
                     } else com.zsz.studyassistant.ui.StableUpdatePrompt(updatePrompt, current == AppNav.REQUIRED_UPDATE,
+                        whenHidden = {
+                            com.zsz.studyassistant.ui.CrashReminder(
+                                enabled = !requiredUpdate && !viewModel.showUpgradePrompt,
+                                whenHidden = {
+                                    com.zsz.studyassistant.ui.AppNoticePrompt(
+                                        enabled = !viewModel.busy && current in AppNav.rootTabs &&
+                                            (current != AppNav.SETTINGS || settingsAtRoot) &&
+                                            !viewModel.openUpdatePage && !viewModel.openCrashReportPage,
+                                        canOpenUpdate = updatePrompt != null,
+                                        onOpenUpdate = { viewModel.openUpdatePage = true })
+                                },
+                                onOpenReport = { viewModel.openCrashReportPage = true })
+                        },
                         onRequiredBack = { showRequiredBackHint() }) { required ->
                         if (required) AppNav.openRequiredUpdate(nav)
                         else viewModel.openUpdatePage = true

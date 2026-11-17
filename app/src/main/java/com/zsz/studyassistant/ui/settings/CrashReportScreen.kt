@@ -93,15 +93,20 @@ internal fun CrashReportPage() {
 }
 
 @Composable
-fun CrashReminder(enabled: Boolean, onOpenReport: () -> Unit) {
+fun CrashReminder(enabled: Boolean, whenHidden: @Composable () -> Unit = {}, onOpenReport: () -> Unit) {
     val context = LocalContext.current
     val s = crashReportStrings(LocalUiLang.current)
     var pending by remember { mutableStateOf<String?>(null) }
+    var loaded by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         pending = withContext(Dispatchers.IO) { CrashReports.pending(context) }
+        loaded = true
     }
+    if (!enabled || !loaded) return
     val id = pending
-    if (enabled && id != null) {
+    if (id == null) {
+        whenHidden()
+    } else {
         // Persist once it is displayed, so returning from background or rotating never repeats it.
         LaunchedEffect(id) {
             withFrameNanos { }

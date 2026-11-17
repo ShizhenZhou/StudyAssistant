@@ -2916,6 +2916,11 @@ private val B10_ZH = mapOf(
     "solve.reloadConversation" to "重新显示对话",
     "update.chainSize" to "所有差分包共 {size}",
     "update.currentPackageSize" to "当前下载包：{size}",
+    "notices.title" to "应用公告",
+    "notices.unstableTitle" to "当前版本存在已知问题",
+    "notices.unstableHint" to "此版本已被标记为不稳定，你仍可继续使用。",
+    "notices.acknowledge" to "知道了",
+    "notices.openUpdate" to "前往更新",
     "update.deltaPlanning" to "正在选择差分更新路径…",
     "update.redownload" to "重新下载"
 )
@@ -2990,6 +2995,11 @@ private val B10_EN = mapOf(
     "solve.reloadConversation" to "Reload conversation",
     "update.chainSize" to "All delta packages: {size} total",
     "update.currentPackageSize" to "Current download package: {size}",
+    "notices.title" to "App announcement",
+    "notices.unstableTitle" to "Known issues in this version",
+    "notices.unstableHint" to "This version is marked as unstable. You can continue using the app.",
+    "notices.acknowledge" to "Got it",
+    "notices.openUpdate" to "View update",
     "update.deltaPlanning" to "Selecting a delta update path…",
     "update.redownload" to "Download again"
 )
@@ -3064,6 +3074,11 @@ private val B10_JA = mapOf(
     "solve.reloadConversation" to "会話を再表示",
     "update.chainSize" to "差分パッケージ合計 {size}",
     "update.currentPackageSize" to "現在のダウンロードパッケージ：{size}",
+    "notices.title" to "アプリのお知らせ",
+    "notices.unstableTitle" to "このバージョンの既知の問題",
+    "notices.unstableHint" to "このバージョンは不安定とされていますが、引き続き利用できます。",
+    "notices.acknowledge" to "確認しました",
+    "notices.openUpdate" to "更新を確認",
     "update.deltaPlanning" to "差分更新の経路を選択中…",
     "update.redownload" to "再ダウンロード"
 )
@@ -3138,6 +3153,11 @@ private val B10_KO = mapOf(
     "solve.reloadConversation" to "대화 다시 표시",
     "update.chainSize" to "전체 차등 패키지 합계 {size}",
     "update.currentPackageSize" to "현재 다운로드 패키지: {size}",
+    "notices.title" to "앱 공지",
+    "notices.unstableTitle" to "현재 버전의 알려진 문제",
+    "notices.unstableHint" to "이 버전은 불안정으로 표시되었지만 앱을 계속 사용할 수 있습니다.",
+    "notices.acknowledge" to "확인",
+    "notices.openUpdate" to "업데이트 보기",
     "update.deltaPlanning" to "차등 업데이트 경로 선택 중…",
     "update.redownload" to "다시 다운로드"
 )

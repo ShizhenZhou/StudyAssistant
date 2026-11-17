@@ -294,6 +294,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         phase = Phase.CHECKING
         message = null
         scope.launch {
+            // User-triggered check also refreshes public notices, independently of release availability.
+            if (fetchReleases == null) launch { com.zsz.studyassistant.data.AppNoticeStore.refresh(context, force = true) }
             val releases = if (fetchReleases != null) fetchReleases() else UpdateChecker.fetchAvailable(context)
             if (generation != operationGeneration) return@launch
             if (releases == null) {

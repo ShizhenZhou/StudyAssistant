@@ -13,6 +13,13 @@ import org.junit.Test
  *   ③ 新增文案出现繁体字表里没收录的简体字 → 繁體界面残留简体字（v0.6.0 就漏过一次）。
  */
 class L10nTableTest {
+    @Test fun publicNoticeLabelsAreLocalized() {
+        for (key in listOf("notices.title", "notices.unstableTitle", "notices.unstableHint", "notices.acknowledge", "notices.openUpdate"))
+            for (table in listOf(ZH, EN, JA, KO)) assertTrue(table.getValue(key).isNotBlank())
+        assertTrue(stringsFor(UiLang.ZH_TW)["notices.unstableHint"].contains("不穩定"))
+        assertEquals("應用公告", stringsFor(UiLang.ZH_TW)["notices.title"])
+    }
+
     @Test fun deltaDownloadLabelsUseTotalAndCurrentPackageSize() {
         for (table in listOf(ZH, EN, JA, KO)) {
             assertTrue(table.getValue("update.chainSize").contains("{size}"))

@@ -109,7 +109,9 @@ class UpdateNotificationWorker(context: Context, parameters: WorkerParameters) :
     override suspend fun doWork(): Result {
         val context = applicationContext
         UpdateNotifications.ensureChannel(context)
-        if (!UpdateNotifications.isEnabled(context) || !UpdateNotifications.canNotify(context)) return Result.success()
+        if (!UpdateNotifications.isEnabled(context)) return Result.success()
+        AppNoticeStore.refresh(context)
+        if (!UpdateNotifications.canNotify(context)) return Result.success()
         // The same history policy as the foreground check; notifications remain stable-only.
         val releases = UpdateChecker.fetchAvailable(context) ?: return Result.success()
         UpdatePromptStore.accept(context, releases)

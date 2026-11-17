@@ -56,6 +56,7 @@ object UpdateTransport {
                 else -> uri.query == null &&
                     Regex("/repos/${Regex.escape(repo)}/releases/assets/[1-9][0-9]*").matches(uri.path)
             }
+            "raw.githubusercontent.com" -> value == AppNoticeStore.URL
             "github.com" -> uri.query == null &&
                 Regex("/${Regex.escape(repo)}/releases/download/[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*")
                     .matches(uri.path)
