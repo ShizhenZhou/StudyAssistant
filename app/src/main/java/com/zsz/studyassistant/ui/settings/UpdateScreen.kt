@@ -169,6 +169,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     fun packageKey(rel: UpdateChecker.ReleaseInfo) = rel.assetUrl + "|" + rel.assetSha256
     var progress by remember { mutableIntStateOf(-1) }
     var usingMirror by remember { mutableStateOf(false) }
+    var currentPackageSize by remember { mutableStateOf(0L) }
     var message by remember { mutableStateOf<String?>(null) }
     var recoveryError by remember { mutableStateOf<String?>(null) }
     var recovering by remember { mutableStateOf(false) }
@@ -191,6 +192,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         latest = task.release
         progress = task.progress
         usingMirror = task.usingMirror
+        currentPackageSize = task.currentPackageSize
         verifiedSha = task.phase == UpdateDownloads.Phase.READY && task.release.assetSha256 != null
         message = task.errorKey?.let { s.format(it, "api" to (task.release.minSdk?.toString() ?: "")) }
         phase = when (task.phase) {
@@ -336,7 +338,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         latest = rel
         compatibilityMessage(rel)?.let { message = it; phase = Phase.FAILED; return }
         val generation = ++operationGeneration
-        phase = Phase.DOWNLOADING; progress = 0; message = null; usingMirror = false
+        phase = Phase.DOWNLOADING; progress = 0; message = null; usingMirror = false; currentPackageSize = 0L
         observingDownload = false
         val notification = UpdateDownloadMonitor.request(context)
         val handoff = downloads.enqueue(rel, notification = notification,
@@ -452,8 +454,11 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         val sizeText = s.format("update.fullSize", "size" to formatUpdateSize(rel.assetSize)) +
                             (plan?.let { " · " + if (it.steps.size == 1)
                                 s.format("update.deltaSize", "size" to formatUpdateSize(it.downloadSize))
-                            else s.format("update.chainSize", "count" to it.steps.size.toString(), "size" to formatUpdateSize(it.downloadSize)) } ?: "")
-                        val names = rel.assetName + (plan?.steps?.singleOrNull()?.let { "\n" + it.delta.patchName } ?: "")
+                            else s.format("update.chainSize", "size" to formatUpdateSize(it.downloadSize)) } ?: "")
+                        val deltaDetail = plan?.let {
+                            if (it.steps.size > 1) it.versionPath(installed) else it.steps.singleOrNull()?.delta?.patchName
+                        }
+                        val names = rel.assetName + (deltaDetail?.let { "\n" + it } ?: "")
                         Text(names + "\n" + sizeText,
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                         if (planning) Text(s["update.deltaPlanning"], style = MaterialTheme.typography.bodySmall)
@@ -513,6 +518,9 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         },
                         style = MaterialTheme.typography.bodyMedium
                     )
+                    if (currentPackageSize > 0) Text(
+                        s.format("update.currentPackageSize", "size" to formatUpdateSize(currentPackageSize)),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                     Spacer(Modifier.height(10.dp))
                     if (progress >= 0) {
                         LinearProgressIndicator(

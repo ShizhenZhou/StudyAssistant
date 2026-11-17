@@ -2914,7 +2914,8 @@ private val B10_ZH = mapOf(
     "update.unskip" to "取消跳过",
     "update.retry" to "重试",
     "solve.reloadConversation" to "重新显示对话",
-    "update.chainSize" to "链式差分（{count} 个包）：{size}",
+    "update.chainSize" to "所有差分包共 {size}",
+    "update.currentPackageSize" to "当前下载包：{size}",
     "update.deltaPlanning" to "正在选择差分更新路径…",
     "update.redownload" to "重新下载"
 )
@@ -2987,7 +2988,8 @@ private val B10_EN = mapOf(
     "update.unskip" to "Don't skip",
     "update.retry" to "Retry",
     "solve.reloadConversation" to "Reload conversation",
-    "update.chainSize" to "Chained delta ({count} packages): {size}",
+    "update.chainSize" to "All delta packages: {size} total",
+    "update.currentPackageSize" to "Current download package: {size}",
     "update.deltaPlanning" to "Selecting a delta update path…",
     "update.redownload" to "Download again"
 )
@@ -3060,7 +3062,8 @@ private val B10_JA = mapOf(
     "update.unskip" to "スキップを解除",
     "update.retry" to "再試行",
     "solve.reloadConversation" to "会話を再表示",
-    "update.chainSize" to "連鎖差分（{count} 個）：{size}",
+    "update.chainSize" to "差分パッケージ合計 {size}",
+    "update.currentPackageSize" to "現在のダウンロードパッケージ：{size}",
     "update.deltaPlanning" to "差分更新の経路を選択中…",
     "update.redownload" to "再ダウンロード"
 )
@@ -3133,7 +3136,8 @@ private val B10_KO = mapOf(
     "update.unskip" to "건너뛰기 해제",
     "update.retry" to "다시 시도",
     "solve.reloadConversation" to "대화 다시 표시",
-    "update.chainSize" to "연속 차등({count}개): {size}",
+    "update.chainSize" to "전체 차등 패키지 합계 {size}",
+    "update.currentPackageSize" to "현재 다운로드 패키지: {size}",
     "update.deltaPlanning" to "차등 업데이트 경로 선택 중…",
     "update.redownload" to "다시 다운로드"
 )

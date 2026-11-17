@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class StreamCompletionTest {
+    @Test fun similarQuestionKeepsAllLinesAndFormulaBeforeAnswer() {
+        val question = "求下列两项：\n(1) 电流 I\n(2) 电压 U = IR"
+        val result = StudyAssistant.parseSimilar("题目：$question\n\n解答：逐项计算。")
+        assertEquals(question, result.question)
+        assertEquals("逐项计算。", result.answer)
+        assertEquals(question, StudyAssistant.parseSimilar("$question\n解答:结果").question)
+    }
+
     @org.junit.Test fun boundedReaderPreservesUtf8AndRejectsOversizedLines() {
         val input = okio.Buffer().writeUtf8("你好\r\n末行")
         org.junit.Assert.assertEquals("你好", readStreamLine(input, 8))

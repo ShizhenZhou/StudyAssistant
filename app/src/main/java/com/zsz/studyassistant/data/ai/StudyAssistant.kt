@@ -685,8 +685,8 @@ object StudyAssistant {
             "原题：${question.text}\n\n请先输出一行“题目：<新题>”，再输出“解答：<完整步骤与结论>”。数学公式用 LaTeX。"
 
     /** 解析出题结果（流式/非流式共用） */
-    private fun parseSimilar(out: String): SimilarResult {
-        val q = Regex("题目[:：]\\s*(.+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out.take(120)
+    internal fun parseSimilar(out: String): SimilarResult {
+        val q = similarQuestionPortion(out).trim()
         val a = Regex("解答[:：]([\\s\\S]+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out
         return SimilarResult(q, a)
     }
@@ -727,14 +727,15 @@ object StudyAssistant {
         lang: AiLang = AiLang.DEFAULT,
         owner: StreamOwner = StreamOwner(),
         onDelta: suspend (String) -> Unit,
-        customPrompt: String = ""
+        customPrompt: String = "",
+        thinkingEnabled: Boolean = true
     ): SimilarResult {
         requireKey()
         val msgs = listOf(
             systemMessage(lang, customPrompt),
             DeepSeekMessage("user", JsonPrimitive(similarPrompt(question)))
         )
-        val out = chatStream(MODEL_TEXT, msgs, onDelta, owner = owner)
+        val out = chatStream(MODEL_TEXT, msgs, onDelta, owner = owner, thinkingEnabled = thinkingEnabled)
         return parseSimilar(out)
     }
 

@@ -43,7 +43,7 @@ class SessionOwnershipRegressionTest {
         val entered = gate(); val release = gate()
         main {
             field("currentReviewQuestion").set(model, question("original", 10000))
-            model.similarQuestionRequest = { _, _, _, delta ->
+            model.similarQuestionRequest = { _, _, _, _, delta ->
                 delta("题目：new fixture\n解答：partial answer")
                 entered.complete(Unit)
                 release.await()

@@ -48,11 +48,10 @@ class UpdateDownloadsIntegrationTest {
         repo().start(rel)
         val preferences = context.getSharedPreferences("update_download", Context.MODE_PRIVATE)
         val obj = org.json.JSONObject(preferences.getString("session", null)!!)
-        obj.remove("minSdk") // A task saved by an older app did not establish compatibility.
+        obj.put("minSdk", 0) // Explicitly unknown, without legacy-version fallback.
         preferences.edit().putString("session", obj.toString()).commit()
-        val result = repo().snapshot()!!
-        assertEquals(UpdateDownloads.Phase.FAILED, result.phase)
-        assertEquals("update.compatibilityUnknown", result.errorKey)
+        assertNull(repo().snapshot())
+        assertNull(preferences.getString("session", null))
         assertNull(backend.current)
         assertEquals(1, backend.enqueues)
     }
@@ -64,10 +63,8 @@ class UpdateDownloadsIntegrationTest {
         val obj = org.json.JSONObject(preferences.getString("session", null)!!)
             .put("minSdk", android.os.Build.VERSION.SDK_INT + 1)
         preferences.edit().putString("session", obj.toString()).commit()
-        val result = repo().forInstall()!!
-        assertEquals(UpdateDownloads.Phase.FAILED, result.phase)
-        assertEquals("update.incompatible", result.errorKey)
-        assertNull(result.file)
+        assertNull(repo().forInstall())
+        assertNull(preferences.getString("session", null))
         assertFalse(ready.file!!.exists())
     }
 

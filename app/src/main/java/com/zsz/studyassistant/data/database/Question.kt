@@ -96,6 +96,9 @@ data class Review(
 /** Search-only projection; never use these potentially truncated fields for content saves. */
 data class QuestionSearchRow(val id: QuestionId, val text: String, val answer: String)
 
+/** Image maintenance projection, never materializes unrelated question/answer text. */
+data class ImageRepairSource(val imageBytes: ByteArray?, val conversationJson: String?, val imagesJson: String? = null)
+
 @Dao
 interface QuestionDao {
     @Query("UPDATE questions SET text = :text, answer = :answer, conversationJson = :conversation WHERE id = :id AND deleted = 0")
@@ -273,6 +276,33 @@ interface QuestionDao {
     @Query("SELECT COALESCE(SUM(LENGTH(bytes)),0) FROM question_images")
     suspend fun imageBackupSize(): Long
 
+    @Query("SELECT id FROM questions WHERE deleted=0 AND id>:afterId ORDER BY id LIMIT :limit")
+    suspend fun activeQuestionIdPage(afterId: QuestionId, limit: Int): List<QuestionId>
+
+    @androidx.room3.Transaction
+    suspend fun duplicateCandidateText(id: QuestionId): String? {
+        if (questionPreviewOnce(id)?.deleted != false) return null
+        return readChunkedText(questionTextSize(id, "text")) { a,b -> questionTextPart(id,"text",a,b) }
+    }
+
+    suspend fun findDuplicate(text: String, excludeId: QuestionId?): Question? {
+        val matcher = DuplicateCheck.Matcher(text, excludeId)
+        if (!matcher.eligible) return null
+        var after: QuestionId = ""
+        scan@ while (true) {
+            currentCoroutineContext().ensureActive()
+            val ids = activeQuestionIdPage(after, 32)
+            if (ids.isEmpty()) break
+            for (id in ids) {
+                if (id == excludeId) continue
+                val candidate = duplicateCandidateText(id) ?: continue
+                if (matcher.consider(id, candidate)) break@scan
+            }
+            after = ids.last()
+        }
+        return matcher.bestId?.let { questionLightOnce(it) }?.takeUnless { it.deleted }
+    }
+
     /** 轻查询（不含图片 BLOB / 会话 JSON）：查重（B9）等只要题干的场景用，避免大字段进出 */
     @Query("SELECT id FROM questions WHERE deleted = 0")
     suspend fun activeQuestionIdsOnce(): List<QuestionId>
@@ -341,6 +371,26 @@ interface QuestionDao {
     /** 维护候选只读取轻字段；调用方逐题 heavyOnce 分段读取会话，避免批量 CursorWindow 溢出。 */
     @Query("SELECT id, substr(text,1,256) AS text, substr(answer,1,256) AS answer, createdAt, deleted, categoryId FROM questions WHERE deleted = 0")
     suspend fun questionsWithConversationOnce(): List<QuestionPreview>
+
+    @Query("""SELECT q.id FROM questions q WHERE q.deleted=0 AND q.id>:afterId AND
+        (q.imageBytes IS NOT NULL OR q.conversationJson IS NOT NULL OR
+         EXISTS(SELECT 1 FROM question_images i WHERE i.questionId=q.id) OR
+         EXISTS(SELECT 1 FROM solve_sessions s WHERE s.id=q.id AND s.savedQuestionId=q.id
+             AND (s.imageBytes IS NOT NULL OR s.imagesJson IS NOT NULL OR s.conversationJson IS NOT NULL)))
+        ORDER BY q.id LIMIT :limit""")
+    suspend fun imageRepairIds(afterId: QuestionId, limit: Int): List<QuestionId>
+
+    @androidx.room3.Transaction
+    suspend fun questionImageSource(id: QuestionId): ImageRepairSource = ImageRepairSource(questionImageOnce(id),
+        readChunkedText(questionConversationSize(id)) { a,b -> questionConversationPart(id,a,b) })
+
+    @androidx.room3.Transaction
+    suspend fun historyImageSource(id: QuestionId): ImageRepairSource? {
+        val row = sessionLightOnce(id)?.takeIf { it.savedQuestionId == id } ?: return null
+        return ImageRepairSource(sessionImageOnce(row.id),
+            readChunkedText(sessionConversationSize(id)) { a,b -> sessionConversationPart(id,a,b) },
+            readChunkedText(sessionImagesSize(id)) { a,b -> sessionImagesPart(id,a,b) })
+    }
 
     /** 「多图修复」用：把补好的会话 JSON 写回（只动这一列） */
     @Query("UPDATE questions SET conversationJson = :cj WHERE id = :id")

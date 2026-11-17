@@ -13,6 +13,17 @@ import org.junit.Test
  *   ③ 新增文案出现繁体字表里没收录的简体字 → 繁體界面残留简体字（v0.6.0 就漏过一次）。
  */
 class L10nTableTest {
+    @Test fun deltaDownloadLabelsUseTotalAndCurrentPackageSize() {
+        for (table in listOf(ZH, EN, JA, KO)) {
+            assertTrue(table.getValue("update.chainSize").contains("{size}"))
+            assertTrue(!table.getValue("update.chainSize").contains("{count}"))
+            assertTrue(table.getValue("update.currentPackageSize").contains("{size}"))
+        }
+        val tw = stringsFor(UiLang.ZH_TW)
+        assertEquals("所有差分包共 2 MB", tw.format("update.chainSize", "size" to "2 MB"))
+        assertEquals("當前下載包：1 MB", tw.format("update.currentPackageSize", "size" to "1 MB"))
+    }
+
 
     private val others = mapOf("EN" to EN, "JA" to JA, "KO" to KO)
 

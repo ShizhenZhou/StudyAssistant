@@ -15,6 +15,17 @@ import org.junit.Test
  *    判定顺序反了就是必错。
  */
 class DuplicateCheckTest {
+    @org.junit.Test fun incrementalMatcherSkipsShortInputAndKeepsBestAcrossPages() {
+        org.junit.Assert.assertFalse(DuplicateCheck.Matcher("1+1").eligible)
+        val text = "计算均匀磁场中线圈旋转时的感应电动势并说明方向"
+        val matcher = DuplicateCheck.Matcher(text, "excluded")
+        org.junit.Assert.assertFalse(matcher.consider("excluded", text))
+        org.junit.Assert.assertFalse(matcher.consider("first-page", text + "以及周期"))
+        org.junit.Assert.assertEquals("first-page", matcher.bestId)
+        org.junit.Assert.assertTrue(matcher.consider("second-page", text))
+        org.junit.Assert.assertEquals("second-page", matcher.bestId)
+    }
+
 
     private fun q(id: Long, text: String, deleted: Boolean = false) =
         Question(id = id.toString(), text = text, answer = "", createdAt = 0L, deleted = deleted)
