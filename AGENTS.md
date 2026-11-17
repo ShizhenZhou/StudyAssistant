@@ -30,4 +30,4 @@
 
 Compatible 分支保留单独的兼容更新汇总，使用“以上版本开始为兼容分支”分隔说明。两条分支均不再把 v0.6.7.9 标为 Android 9–15 的最后一次更新。
 
-主线 README 下载区提供 Compatible 分支入口；历史分隔说明中的“Compatible分支”使用指向该分支的 Markdown 链接。v0.7.4.2 仍沿用原主线 APK 包名，SA / SA-ENF 命名调整留待其发布后的后续版本。
+主线 README 下载区提供 Compatible 分支入口；历史分隔说明中的“Compatible分支”使用指向该分支的 Markdown 链接。v0.7.4.2 保留原主线 APK 包名；从 v0.7.5 起使用 SA-<版本>-<构建时间>.apk，强制版使用 SA-ENF-<版本>-<构建时间>.apk，兼容分支保持 SACompat 命名。
