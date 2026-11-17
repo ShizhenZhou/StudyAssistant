@@ -42,12 +42,13 @@ internal class UpdateDownloads(
     }
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
         val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false,
-        val resumable: Boolean = false, val usingMirror: Boolean = false)
+        val resumable: Boolean = false, val usingMirror: Boolean = false, val currentPackageSize: Long = 0)
     private data class Record(val token: String, val release: UpdateChecker.ReleaseInfo,
         val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false,
         val delta: UpdateDeltaInfo? = null, val transferToken: String = token, val enqueuePending: Boolean = false,
         val steps: List<UpdateDeltaStep> = emptyList(), val stepIndex: Int = 0)
     companion object {
+        private val digestCache = InstalledApkDigestCache()
         private val mutex = Mutex()
         private val cancelled = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         private val cancelRevision = java.util.concurrent.atomic.AtomicLong()
@@ -81,7 +82,12 @@ internal class UpdateDownloads(
             val edges = direct + release.deltaHistory
             if (edges.isEmpty()) null else {
                 val base = installedApk()
-                UpdateDeltaPlanner.find(UpdateDelta.digest(base, check), base.length(), release.assetSha256, release.assetSize, edges, check)
+                check()
+                val digest = digestCache.read(base, UpdateChecker.installedLastUpdateTime(context)) {
+                    UpdateDelta.digest(it, check)
+                }
+                check()
+                UpdateDeltaPlanner.find(checkNotNull(digest), base.length(), release.assetSha256, release.assetSize, edges, check)
             }
         }
     } catch (error: kotlinx.coroutines.CancellationException) { throw error }
@@ -94,7 +100,7 @@ internal class UpdateDownloads(
             return@locked status(Record(UUID.randomUUID().toString(), release), Phase.FAILED, errorKey = key)
         }
         require(UpdateChecker.isReleaseAssetUrl(release.assetUrl, release.tagName))
-        val previous = read()
+        val previous = readCompatible()
         val target = release.copy(mandatory = release.mandatory ||
             (previous != null && sameAsset(previous.release, release) && previous.release.mandatory))
         // Notes may change without replacing the asset; only transfer identity determines reuse.
@@ -151,7 +157,7 @@ internal class UpdateDownloads(
     }
 
     suspend fun snapshot(): Snapshot? = locked {
-        val record = read() ?: return@locked null
+        val record = readCompatible() ?: return@locked null
         try { snapshotLocked(record) }
         catch (_: TransferCancelled) { null }
         catch (error: kotlinx.coroutines.CancellationException) { throw error }
@@ -160,7 +166,7 @@ internal class UpdateDownloads(
 
     /** A worker must never observe, advance or publish a replacement transfer. */
     internal suspend fun snapshotForTransfer(id: Long): Snapshot? = locked {
-        val record = read()?.takeIf { it.id == id } ?: return@locked null
+        val record = readCompatible()?.takeIf { it.id == id } ?: return@locked null
         try { snapshotLocked(record) }
         catch (_: TransferCancelled) { null }
     }
@@ -170,7 +176,7 @@ internal class UpdateDownloads(
         val revision = cancelRevision.get()
         return handoffScope.async {
             locked {
-                val record = read()?.takeIf { it.token == expectedToken } ?: return@locked null
+                val record = readCompatible()?.takeIf { it.token == expectedToken } ?: return@locked null
                 if (revision != cancelRevision.get()) throw TransferCancelled()
                 checkTransfer(record)
                 val current = snapshotLocked(record)
@@ -194,7 +200,7 @@ internal class UpdateDownloads(
     }
 
     suspend fun forInstall(): Snapshot? = locked {
-        val record = read() ?: return@locked null
+        val record = readCompatible() ?: return@locked null
         UpdateChecker.compatibilityError(record.release)?.let { return@locked fail(record, it) }
         if (!record.ready) return@locked snapshotLocked(record)
         val file = ready(record)
@@ -375,7 +381,7 @@ internal class UpdateDownloads(
 
     private fun status(record: Record, phase: Phase, progress: Int = -1, file: File? = null, errorKey: String? = null) =
         Snapshot(record.token, record.release, phase, progress, file, errorKey, record.appNotification,
-            record.id >= ResumableUpdateBackend.ID_BASE)
+            record.id >= ResumableUpdateBackend.ID_BASE, currentPackageSize = transferRelease(record).assetSize)
 
     private fun partial(record: Record): File {
         val root = checkNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))
@@ -415,6 +421,30 @@ internal class UpdateDownloads(
             a.assetSha256 == b.assetSha256 && a.assetSize == b.assetSize && a.assetUploadedAt == b.assetUploadedAt &&
             a.minSdk == b.minSdk && a.maxSdk == b.maxSdk && a.distribution == b.distribution && a.versionCode == b.versionCode
 
+    /** Only call under mutex: incompatible records still carry valid cleanup ownership. */
+    private fun readCompatible(): Record? {
+        val record = read() ?: return null
+        if (UpdateChecker.compatibilityError(record.release) != null) {
+            cancelLocked()
+            return null
+        }
+        return record
+    }
+
+    /** Fence persistent workers after an app/channel change, before they open a connection. */
+    internal suspend fun authorizeTransfer(id: Long): Boolean = locked {
+        val record = readCompatible()
+        val transfer = backend.query(id) ?: return@locked false
+        // A migrated DownloadManager row may still be the persisted root after process death.
+        val matchesId = record != null && (record.id == id || record.enqueuePending ||
+            (record.id >= 0 && backend.query(record.id)?.id == id))
+        if (record != null && matchesId && owns(transfer, record)) true
+        else {
+            backend.remove(id)
+            false
+        }
+    }
+
     private fun read(): Record? = runCatching {
         val stored = prefs.getString("session", null) ?: return null
         val obj = JSONObject(stored)
@@ -432,7 +462,6 @@ internal class UpdateDownloads(
             distribution = obj.optString("distribution", "main"),
             maxSdk = obj.optInt("maxSdk").takeIf { it > 0 })
         require(UpdateChecker.isReleaseAssetUrl(release.assetUrl, release.tagName))
-        require(UpdateChecker.compatibilityError(release) == null)
         val delta = obj.optJSONObject("delta")?.let(::readDelta)
         val entries = obj.optJSONArray("steps")
         val steps = if (entries == null) emptyList() else (0 until entries.length()).map { index ->

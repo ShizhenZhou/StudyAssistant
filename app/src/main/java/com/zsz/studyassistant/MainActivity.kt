@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         com.zsz.studyassistant.data.BackupJobs.setForeground(true)
+        com.zsz.studyassistant.data.AnswerForegroundService.setAppForeground(true)
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             com.zsz.studyassistant.data.BackupFolderAccess.refresh(applicationContext, scheduleIfAvailable = true)
         }
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         com.zsz.studyassistant.data.BackupJobs.setForeground(false)
+        com.zsz.studyassistant.data.AnswerForegroundService.setAppForeground(false)
         super.onStop()
     }
 
@@ -113,6 +115,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
+        com.zsz.studyassistant.data.NotificationIntents.consumeAnswerCompletion(this, intent)
         if (intent.getBooleanExtra(AppNav.OPEN_BACKUP_EXTRA, false)) {
             intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
             viewModel.openBackupManagementPage = true
@@ -143,6 +146,7 @@ class MainActivity : ComponentActivity() {
         viewModel.solveInputDraft.apply { restoreIme = savedInstanceState?.getString("solveEditingSession") == id }
         viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
+        com.zsz.studyassistant.data.NotificationIntents.consumeAnswerCompletion(this, intent)
         if (wallpaperWindowMode && android.os.Build.VERSION.SDK_INT >= 30) setTranslucent(true)
         // 启动时清理已删除题目与孤儿记录（定期维护数据库）
         viewModel.purgeDeletedData()
@@ -248,6 +252,13 @@ class MainActivity : ComponentActivity() {
                     }
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
+                    LaunchedEffect(current) {
+                        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                            if (current == AppNav.SOLVE_PATTERN || current == AppNav.SIMILAR) {
+                                com.zsz.studyassistant.data.AnswerForegroundService.acknowledgeCompletion(this@MainActivity)
+                            }
+                        }
+                    }
                     val updatePrompt by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsStateWithLifecycle()
                     val requiredUpdate = updatePrompt?.mandatory == true
                     var requiredBackToast by remember { mutableStateOf<android.widget.Toast?>(null) }
@@ -276,10 +287,6 @@ class MainActivity : ComponentActivity() {
                             AppNav.switchTab(nav, AppNav.SETTINGS)
                         }
                     }
-                    com.zsz.studyassistant.ui.CrashReminder(
-                        enabled = updatePolicyReady && updatePrompt == null && !viewModel.showUpgradePrompt,
-                        onOpenReport = { viewModel.openCrashReportPage = true }
-                    )
                     val homeScroll = androidx.compose.foundation.rememberScrollState()
                     val statsScroll = androidx.compose.foundation.rememberScrollState()
                     val settingsScroll = androidx.compose.foundation.rememberScrollState()
@@ -314,6 +321,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) {
                         try { com.zsz.studyassistant.data.UpdatePromptStore.restore(this@MainActivity) }
                         finally { updatePolicyReady = true }
+                        launch { com.zsz.studyassistant.data.AppNoticeStore.refresh(this@MainActivity) }
                         silentUpdateCheck(this@MainActivity)
                     }
 
@@ -521,6 +529,19 @@ class MainActivity : ComponentActivity() {
                             androidx.compose.material3.CircularProgressIndicator()
                         }
                     } else com.zsz.studyassistant.ui.StableUpdatePrompt(updatePrompt, current == AppNav.REQUIRED_UPDATE,
+                        whenHidden = {
+                            com.zsz.studyassistant.ui.CrashReminder(
+                                enabled = !requiredUpdate && !viewModel.showUpgradePrompt,
+                                whenHidden = {
+                                    com.zsz.studyassistant.ui.AppNoticePrompt(
+                                        enabled = !viewModel.busy && current in AppNav.rootTabs &&
+                                            (current != AppNav.SETTINGS || settingsAtRoot) &&
+                                            !viewModel.openUpdatePage && !viewModel.openCrashReportPage,
+                                        canOpenUpdate = updatePrompt != null,
+                                        onOpenUpdate = { viewModel.openUpdatePage = true })
+                                },
+                                onOpenReport = { viewModel.openCrashReportPage = true })
+                        },
                         onRequiredBack = { showRequiredBackHint() }) { required ->
                         if (required) AppNav.openRequiredUpdate(nav)
                         else viewModel.openUpdatePage = true

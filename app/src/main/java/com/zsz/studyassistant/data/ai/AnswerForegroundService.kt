@@ -33,26 +33,30 @@ class AnswerForegroundService : Service() {
     companion object {
         private const val CHANNEL_ID = "answer_running"
         private const val NOTI_ID = 2001
+        // Completion must outlive destruction of the running foreground service.
+        private const val COMPLETED_ID = 2006
 
         private val owners = mutableSetOf<String>()
+        @Volatile private var appForeground = false
 
-        internal fun buildNotification(context: Context): android.app.Notification {
+        internal fun buildNotification(context: Context, completed: Boolean = false): android.app.Notification {
             val strings = com.zsz.studyassistant.ui.stringsFor(com.zsz.studyassistant.ui.UiLangStore.load(context))
             context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
                 NotificationChannel(CHANNEL_ID, strings["notif.answer.channel"], NotificationManager.IMPORTANCE_LOW)
             )
             return NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(com.zsz.studyassistant.R.drawable.ic_stat_answer)
+                .setSmallIcon(if (completed) com.zsz.studyassistant.R.drawable.ic_stat_answer_done else com.zsz.studyassistant.R.drawable.ic_stat_answer)
                 .setLargeIcon(NotificationArtwork.application(context))
-                .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+                .setCategory(if (completed) NotificationCompat.CATEGORY_STATUS else NotificationCompat.CATEGORY_PROGRESS)
                 .setColor(0xFF2563EB.toInt())
                 // Colorized backgrounds make Android 16 notifications ineligible for promotion.
-                .setContentTitle("Study Assistant")
-                .setContentText(notificationText(strings["notif.answer.text"]))
-                .setContentIntent(NotificationIntents.answerRunning(context))
+                .setContentTitle(if (completed) strings["notif.answer.completedShort"] else "Study Assistant")
+                .setContentText(notificationText(strings[if (completed) "notif.answer.completedText" else "notif.answer.text"]))
+                .setContentIntent(if (completed) NotificationIntents.answerCompleted(context) else NotificationIntents.answerRunning(context))
                 .setOngoing(true)
-                .setRequestPromotedOngoing(true)
-                .setShortCriticalText(strings["notif.answer.thinkingShort"])
+                .setAutoCancel(completed)
+                .setRequestPromotedOngoing(!completed)
+                .setShortCriticalText(strings[if (completed) "notif.answer.completedShort" else "notif.answer.thinkingShort"])
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                 .build()
@@ -65,8 +69,23 @@ class AnswerForegroundService : Service() {
             } catch (_: Exception) { }
         }
 
-        fun stop(c: Context, owner: String) {
-            val empty = synchronized(owners) { owners.remove(owner); owners.isEmpty() }
+        fun setAppForeground(active: Boolean) { appForeground = active }
+
+        fun acknowledgeCompletion(c: Context) {
+            c.getSystemService(NotificationManager::class.java)?.cancel(COMPLETED_ID)
+        }
+
+        fun stop(c: Context, owner: String, completed: Boolean = false) {
+            val empty = synchronized(owners) {
+                // A cancelled/replaced request may reach its finally block later.
+                if (!owners.remove(owner)) return
+                if (completed && !appForeground) {
+                    try {
+                        c.getSystemService(NotificationManager::class.java)?.notify(COMPLETED_ID, buildNotification(c, completed = true))
+                    } catch (_: SecurityException) { /* Notification permission may have been revoked. */ }
+                }
+                owners.isEmpty()
+            }
             if (!empty) return
             try {
                 c.stopService(Intent(c, AnswerForegroundService::class.java))

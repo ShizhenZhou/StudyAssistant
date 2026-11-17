@@ -588,7 +588,8 @@ object UpdateChecker {
                     resolved.containsKey(candidate.first.assetUrl) -> resolved[candidate.first.assetUrl]
                     embedded != null -> withAvailableDeltas(embedded, candidate.second).copy(notes = visibleReleaseNotes(embedded.notes))
                     compareVersions(candidate.first.displayVersion, installed) >= 0 ||
-                        candidate.first.assetName.endsWith("-ENF.apk") -> once(candidate)
+                        candidate.first.assetName.endsWith("-ENF.apk") ||
+                        candidate.first.assetName.startsWith("SA-ENF-") -> once(candidate)
                     else -> null
                 }
             } + listOfNotNull(result.stable)

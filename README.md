@@ -11,12 +11,12 @@
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek 与 GPT 辅助编写。
 
-> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.4.1（versionCode 135，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容分支更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
+> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5（versionCode 137，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容分支更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
 
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.4.1](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- **Android 9–15** · [下载兼容版 v0.7.5](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5)
 
 [全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -55,9 +55,18 @@ PDF 所选页面及 Word/PPT 整文件在发送提问时上传至 DeepSeek 解�
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（备份与定期更新检查）· AlarmManager · Android Keystore。
 
-构建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
+构建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **28**（Android **9–15**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
 
 ## 版本记录
+
+### v0.7.5
+
+- 📢 新增多语言应用公告与版本不稳定提醒，按版本匹配并记录已读状态。
+- 🔔 后台解题完成后保留“思考已完成”通知，点击通知或返回解题页后清除，配套气泡对勾图标。
+- 💾 改善中断会话恢复、删除撤销及大量标签的合并撤销，减少重复图片扫描和查重读取。
+- 🧠 修复同类题生成的思考模式与题干提取，避免旧请求干扰新会话。
+- ⬇️ 链式差分改为显示版本路径与总下载量，下载时显示当前包大小，完善跨分支下载清理。
+- 📌 `versionCode` **137**.
 
 ### v0.6.8→→→v0.7.4.1
 

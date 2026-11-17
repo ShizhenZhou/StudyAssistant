@@ -322,7 +322,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun findDuplicateQuestion(text: String, excludeId: QuestionId? = null): Question? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
-                com.zsz.studyassistant.data.DuplicateCheck.find(dao.allLightOnce(), text, excludeId)
+                dao.findDuplicate(text, excludeId)
             }.getOrNull()
         }
 
@@ -828,11 +828,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     dao.purgeDeletedQuestions()
                     dao.purgeOrphanReviews()
                     dao.purgeOrphanQuestionTags()
-                    repairQuestionImagesFromSessions()
-                    backfillQuestionImages()
-                    fillImagesTable()
                     dao.purgeOrphanImages()
                 }
+                repairQuestionImages()
                 maintained = true
             } catch (e: CancellationException) {
                 throw e
@@ -857,7 +855,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val keys = questionImageBase64(q.conversationJson).toMutableList()
         if (includeSession) {
             // 不根据“题干恰好相同”猜关联，避免把另一道题的图补进来。
-            val session = dao.solveSessionForQuestion(q.id)
+            val session = dao.historyImageSource(q.id)
             session?.imageBytes?.let { result.add(it) }
             session?.imagesJson?.let { keys += json.decodeFromString<List<String>>(it) }
             keys += questionImageBase64(session?.conversationJson)
@@ -866,37 +864,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return result
     }
 
-    private suspend fun repairQuestionImagesFromSessions() {
+    /** One bounded pass; each question commits separately so normal writes can interleave. */
+    private suspend fun repairQuestionImages() {
         val db = AppDatabase.get(getApplication())
-        for (row in dao.questionsWithConversationOnce()) {
-            db.withWriteTransaction<Unit> {
-                val q = dao.heavyOnce(row.id) ?: return@withWriteTransaction
-                dao.appendMissingImages(q.id, recoverableImages(q, includeSession = true), "repair")
-            }
-        }
-    }
-
-    /**
-     * 一次性「原图回填」（2026-10-14）：把 `imageBytes` 为空、但会话 JSON 里仍有附图的错题补上主图。
-     *
-     * 背景：`imageBytes`（单图专用字段）只覆盖"单图拍照"这条链路，**多图拍题 / 图文提问**从不给它赋值 →
-     * 存进错题本后，错题本卡片缩略图、复习页自测原图、**导出的备份**里都没有图
-     * （用户报的"加错题本后原图有时会丢，多图时更容易"）。
-     * 图片其实一直在 `conversationJson`（`ChatItem.images`）里，所以这里取回来写回数据库，
-     * 让**所有只读 `imageBytes` 的地方**一起恢复（界面侧另有读端兜底，两者互为保险）。
-     *
-     * 幂等且安全：只处理 `imageBytes IS NULL` 的行；解析/解码失败直接跳过，**绝不动已有图**。
-     */
-    private suspend fun backfillQuestionImages() {
-        val db = AppDatabase.get(getApplication())
-        for (row in dao.questionsWithConversationOnce()) {
-            db.withWriteTransaction<Unit> {
-                val q = dao.heavyOnce(row.id) ?: return@withWriteTransaction
-                if (q.imageBytes == null) {
-                    val main = recoverableImages(q, includeSession = true).firstOrNull { it.isNotEmpty() }
-                    if (main != null) dao.setQuestionImage(q.id, main)
+        var after: QuestionId = ""
+        while (true) {
+            val ids = dao.imageRepairIds(after, 32)
+            if (ids.isEmpty()) break
+            for (id in ids) {
+                currentCoroutineContext().ensureActive()
+                db.withWriteTransaction<Unit> {
+                    val row = dao.questionPreviewOnce(id)?.takeUnless { it.deleted } ?: return@withWriteTransaction
+                    val source = dao.questionImageSource(id)
+                    val q = Question(id = row.id, text = "", answer = "", imageBytes = source.imageBytes,
+                        conversationJson = source.conversationJson)
+                    val images = recoverableImages(q, includeSession = true)
+                    dao.appendMissingImages(id, images, "repair")
+                    if (source.imageBytes == null) images.firstOrNull { it.isNotEmpty() }?.let {
+                        dao.setQuestionImage(id, it)
+                    }
                 }
             }
+            after = ids.last()
         }
     }
 
@@ -906,23 +895,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         dao.appendMissingImages(qid, images, source)
     }
 
-    /**
-     * DB v9 补全任务（幂等，2026-10-16）：**旧数据原地升级**的最后一步。
-     *
-     * 迁移 SQL 已把 `imageBytes`（主图）搬进新表；这里补两类：
-     *  ① 迁移时**没有主图**的题（多图拍题 / 图文提问 → `imageBytes` 为 null），从 `conversationJson` 取图；
-     *  ② 有主图但**其余图还没进新表**的题（会话里还有第 2/3 张）。
-     * 只做加法、失败跳过，**绝不动已有图**（也不改 `imageBytes`，避免把主图换成会话里的另一张）。
-     */
-    private suspend fun fillImagesTable() {
-        val db = AppDatabase.get(getApplication())
-        for (row in dao.questionsWithConversationOnce()) {
-            db.withWriteTransaction<Unit> {
-                val q = dao.heavyOnce(row.id) ?: return@withWriteTransaction
-                dao.appendMissingImages(q.id, recoverableImages(q, includeSession = false), "upgrade")
-            }
-        }
-    }
     /** 推理模型的思考流（浅灰小字展示；非推理模型为 null） */
     var thinkingText by sessionState::thinkingText
         private set
@@ -1744,6 +1716,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val sb = StringBuilder()
             var nextBodyEmit = 0L
             var keepPartial = false
+            var answerCompleted = false
             streamingText = prefix
             // 思考流（推理模型才有）：每次新请求都清空
             thinkingText = null
@@ -1827,6 +1800,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 contPrefix = ""
                 contWebHistory = emptyList()
                 contWebAnnotations = null
+                answerCompleted = true
             } catch (e: Exception) {
                 // 用户中止时协程已被取消（关闭响应体导致的 IOException 也走这里）：
                 // 统一按「中断」处理——**甚至一个字都没生成时也保留气泡**（界面显示「思考中…」+ 蓝色「继续生成」）
@@ -1841,6 +1815,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     activeDraft=activeDraft?.copy(raw=partial,thinking=thinkingText,resumableContext=owner.resumableContext)
                     activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
                     withContext(kotlinx.coroutines.NonCancellable) { refreshDrafts() }
+                    // Disk writes survive cancellation; the visible session may have changed meanwhile.
+                    if (mySeq != callSeq || titleBinding !== sessionRecordBinding) return@launch
                     contDraftAction=replyAction
                     if (keepPartial) {
                         streamInterrupted = true
@@ -1889,7 +1865,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (!keepPartial) streamingText = null
                     callJob = null
                 }
-                com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
+                com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
+                    completed = answerCompleted && mySeq == callSeq && currentCoroutineContext().isActive)
             }
         }
     }
@@ -2356,9 +2333,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 db.withWriteTransaction {
                     needed = needsImageUpgrade()
                     if (needed) {
-                        repairQuestionImagesFromSessions()
-                        backfillQuestionImages()
-                        fillImagesTable()
+                        repairQuestionImages()
                         check(!needsImageUpgrade())
                     }
                     count = dao.countQuestions()
@@ -3141,9 +3116,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var similarSeq = 0L
     private class SimilarProgress(val initial: Boolean, val raw: StringBuffer = StringBuffer())
     private var similarProgress: SimilarProgress? = null
-    internal var similarQuestionRequest: suspend (Question, AiLang, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> StudyAssistant.SimilarResult =
-        { question, lang, owner, delta -> StudyAssistant.generateSimilarQuestionStream(question, lang, owner, delta,
-            customPrompt = promptForSubject(question.categoryId)) }
+    internal var similarQuestionRequest: suspend (Question, AiLang, Boolean, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> StudyAssistant.SimilarResult =
+        { question, lang, think, owner, delta -> StudyAssistant.generateSimilarQuestionStream(question, lang, owner, delta,
+            customPrompt = promptForSubject(question.categoryId), thinkingEnabled = think) }
 
     /**
      * 删除同类题会话中的消息。索引按界面渲染顺序：
@@ -3184,6 +3159,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val progress = SimilarProgress(initial = true)
         similarProgress = progress
         val request = similarQuestionRequest
+        val requestThinking = thinkingEnabled
         similarJob = viewModelScope.launch {
             similarBusy = true
             similarQuestion = null; similarAnswer = null; similarMessages = emptyList(); similarRevealed = false
@@ -3194,10 +3170,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = progress.raw
             var lastEmit = 0L
+            var answerCompleted = false
             try {
                 // 流式出题：界面只显示「题目」部分，答案随流到达但不外显（点「查看答案」才展开）
                 val r = withContext(Dispatchers.IO) {
-                    request(q, aiLang, owner) { delta ->
+                    request(q, aiLang, requestThinking, owner) { delta ->
                         sb.append(delta)
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 180) {
@@ -3228,6 +3205,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     similarAnswer = r.answer
                     similarStreamingText = null
                     persistSimilarConversation()
+                    answerCompleted = true
                 }
             } catch (e: Exception) {
                 if (mySeq == similarSeq) {
@@ -3251,7 +3229,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             if (mySeq == similarSeq) { similarBusy = false; similarProgress = null }
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
+                completed = answerCompleted && mySeq == similarSeq && currentCoroutineContext().isActive)
         }
     }
 
@@ -3328,6 +3307,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = progress.raw
             var lastEmit = 0L
+            var answerCompleted = false
             try {
                 val reply = withContext(Dispatchers.IO) {
                     request(model, msgs, owner) { delta ->
@@ -3350,6 +3330,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     similarStreamingText = null
                     similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
                     persistSimilarConversation()
+                    answerCompleted = true
                 }
             } catch (e: Exception) {
                 if (mySeq == similarSeq) {
@@ -3368,7 +3349,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             if (mySeq == similarSeq) { similarBusy = false; similarProgress = null }
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
+                completed = answerCompleted && mySeq == similarSeq && currentCoroutineContext().isActive)
         }
         return true
     }
@@ -3525,6 +3507,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val continuation = contMessages
         val completion = contOnDone
         val prefix = contPrefix
+        val webHistory = contWebHistory
+        val webAnnotations = contWebAnnotations
+        val aiContext = completedAiContext
         chatItems = after
         if (removePartial) clearInterruptedState()
         val expectedItems = chatItems
@@ -3549,6 +3534,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     activeDraft = draft; streamingText = partial; thinkingText = thinking
                     thinkingDone = thoughtDone; streamInterrupted = interrupted
                     contMessages = continuation; contOnDone = completion; contPrefix = prefix
+                    contWebHistory = webHistory; contWebAnnotations = webAnnotations
+                    completedAiContext = aiContext
                 }
             }
         }

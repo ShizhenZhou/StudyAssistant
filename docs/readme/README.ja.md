@@ -11,12 +11,12 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> `Compatible` ブランチは **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.4.1（versionCode 135、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換ブランチの更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> `Compatible` ブランチは **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5（versionCode 137、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換ブランチの更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.4.1 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- **Android 9–15** · [互換版 v0.7.5 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -55,9 +55,18 @@ zsz が DeepSeek と GPT の支援で開発。
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（バックアップと定期更新確認）· AlarmManager · Android Keystore。
 
-AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
+AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **28**（Android **9–15**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
+
+### v0.7.5
+
+- 📢 バージョンに応じた多言語のお知らせと不安定なバージョンの警告を追加し、既読状態を保存。
+- 🔔 バックグラウンドで解答が完成すると、チェック付き吹き出しアイコンで「思考が完了しました」と通知。タップまたは解答画面への復帰で消去。
+- 💾 中断した会話の復元、削除の取り消し、大量タグの統合取り消しを改善し、画像走査と重複チェックの読み取りを削減。
+- 🧠 類題生成の思考モードと問題文の抽出を修正し、古いリクエストによる新しい会話への干渉を防止。
+- ⬇️ 連鎖差分はバージョン経路と合計サイズを表示。ダウンロード中のパッケージサイズを表示し、配布系統の異なるダウンロードの整理を改善。
+- 📌 `versionCode` **137**.
 
 ### v0.6.8→→→v0.7.4.1
 

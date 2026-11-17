@@ -91,21 +91,35 @@ object DuplicateCheck {
         minLen: Int = MIN_LEN,
         threshold: Double = FUZZY_THRESHOLD
     ): Question? {
-        val key = compareKey(text)
-        if (key.length < minLen) return null
-        var best: Question? = null
-        var bestScore = 0.0
+        val matcher = Matcher(text, excludeId, minLen, threshold)
+        if (!matcher.eligible) return null
         for (q in existing) {
-            if (q.deleted || q.id == excludeId) continue
-            val k = compareKey(q.text)
-            if (k.length < minLen) continue
-            if (k == key) return q                                  // 完全相同：直接命中
-            val score = similarity(key, k)
+            if (!q.deleted && matcher.consider(q.id, q.text)) break
+        }
+        return existing.firstOrNull { it.id == matcher.bestId }
+    }
+
+    /** Incremental comparison retains only one ID, never all question/answer bodies. */
+    class Matcher(text: String, private val excludeId: QuestionId? = null,
+        private val minLen: Int = MIN_LEN, private val threshold: Double = FUZZY_THRESHOLD) {
+        private val key = compareKey(text)
+        val eligible: Boolean get() = key.length >= minLen
+        var bestId: QuestionId? = null
+            private set
+        private var bestScore = 0.0
+
+        /** True only for an exact match, when scanning can stop. */
+        fun consider(id: QuestionId, text: String): Boolean {
+            if (!eligible || id == excludeId) return false
+            val candidate = compareKey(text)
+            if (candidate.length < minLen) return false
+            val score = similarity(key, candidate)
             if (score >= threshold && score > bestScore) {
                 bestScore = score
-                best = q
+                bestId = id
             }
+            if (candidate == key) { bestId = id; return true }
+            return false
         }
-        return best
     }
 }

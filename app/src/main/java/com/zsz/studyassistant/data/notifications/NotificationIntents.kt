@@ -22,6 +22,20 @@ internal object NotificationIntents {
         }, FLAGS
     )
 
+    fun answerCompleted(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 2006,
+        Intent(context, MainActivity::class.java).apply {
+            action = "${context.packageName}.notification.ANSWER_COMPLETED"
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }, FLAGS
+    )
+
+    fun consumeAnswerCompletion(context: Context, intent: Intent?) {
+        if (intent?.action != "${context.packageName}.notification.ANSWER_COMPLETED") return
+        intent.action = null // Consumed once; rotation must not acknowledge a later completion.
+        AnswerForegroundService.acknowledgeCompletion(context)
+    }
+
     const val UPDATE_COMPLETION_TOKEN_EXTRA = "update_completion_token"
 
     fun update(context: Context, taskToken: String?, completed: Boolean): PendingIntent = PendingIntent.getActivity(

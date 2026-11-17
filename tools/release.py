@@ -107,6 +107,14 @@ def mandatory_release(state):
     return value
 
 
+def published_apk_name(version, stamp, mandatory=False):
+    # Historical releases keep their original names when resumed.
+    modern = tuple(map(int, numeric_version(version).split("."))) >= (0, 7, 5)
+    if modern:
+        return f"SA{'-ENF' if mandatory else ''}-{version}-{stamp}.apk"
+    return f"StudyAssistant-{version}-{stamp}{'-ENF' if mandatory else ''}.apk"
+
+
 def bind_mandatory(state, requested):
     """An omitted flag resumes the original decision; historical states stay unchanged."""
     current = mandatory_release(state)
@@ -800,7 +808,7 @@ class Release:
         signed = local_artifact(self.root, self.state["signedPath"]) if self.state.get("signedPath") else None
         if signed and signed.exists():
             if sha256(signed) != self.state["signedSha256"]: raise ReleaseError("Local signed package changed.")
-            if signed.name.endswith("-ENF.apk") != mandatory_release(self.state):
+            if (signed.name.endswith("-ENF.apk") or signed.name.startswith("SA-ENF-")) != mandatory_release(self.state):
                 raise ReleaseError("Signed APK filename differs from mandatory release state")
             self.signed_identity(signed, manifest)
         else:
@@ -808,12 +816,14 @@ class Release:
             folder.mkdir(parents=True)
             command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/sign-release.ps1",
                 "-InApk", candidate, "-OutDir", folder], root=self.root, log=folder / "signing.log", timeout=120)
-            prefix = "SACompat" if manifest.get("distribution") == "compat" else "StudyAssistant"
+            compat = manifest.get("distribution") == "compat"
+            prefix = "SACompat" if compat else "StudyAssistant"
             signed = folder / f"{prefix}-{manifest['version']}-{manifest['buildUtc']}.apk"
-            if mandatory_release(self.state):
-                enforced = signed.with_name(signed.stem + "-ENF.apk")
-                signed.rename(enforced)
-                signed = enforced
+            name = (signed.stem + ("-ENF" if mandatory_release(self.state) else "") + ".apk") if compat else published_apk_name(manifest['version'], manifest['buildUtc'], mandatory_release(self.state))
+            public_path = signed.with_name(name)
+            if public_path != signed:
+                signed.rename(public_path)
+                signed = public_path
             self.signed_identity(signed, manifest)
             self.state.update(signedPath=str(signed.relative_to(self.root)), signedSha256=sha256(signed), phase="signed")
             self.save()

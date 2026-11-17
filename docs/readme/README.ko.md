@@ -11,12 +11,12 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> `Compatible` 브랜치는 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.4.1(versionCode 135, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 브랜치의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> `Compatible` 브랜치는 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5(versionCode 137, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 브랜치의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.4.1 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- **Android 9–15** · [호환 버전 v0.7.5 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -55,9 +55,18 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**(DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**(백업 및 정기 업데이트 확인) · AlarmManager · Android Keystore.
 
-AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
+AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **28**(Android **9–15**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
+
+### v0.7.5
+
+- 📢 버전에 맞는 다국어 앱 공지와 불안정 버전 알림을 추가하고 읽음 상태를 저장합니다.
+- 🔔 백그라운드에서 답변이 완료되면 체크 말풍선 아이콘과 “생각 완료” 알림을 유지합니다. 알림을 누르거나 풀이 화면으로 돌아오면 지워집니다.
+- 💾 중단된 대화 복구, 삭제 취소 및 대량 태그 병합 취소를 개선하고 반복 이미지 검사와 중복 확인 읽기를 줄입니다.
+- 🧠 유사 문제 생성의 생각 모드와 문제 추출을 수정하고 이전 요청이 새 대화에 영향을 주지 않도록 합니다.
+- ⬇️ 연쇄 차분의 버전 경로와 총 다운로드 크기를 표시하고, 다운로드 중인 패키지 크기 표시 및 다른 배포 계열의 다운로드 정리를 개선합니다.
+- 📌 `versionCode` **137**.
 
 ### v0.6.8→→→v0.7.4.1
 

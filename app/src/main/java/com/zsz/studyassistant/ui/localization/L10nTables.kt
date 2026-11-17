@@ -1837,6 +1837,8 @@ private val B6_ZH = mapOf(
     "notif.answer.channel" to "生成答案",
     "notif.answer.thinkingShort" to "思考中",
     "notif.answer.text" to "正在生成答案…（点击回到生成页面）",
+    "notif.answer.completedShort" to "思考已完成",
+    "notif.answer.completedText" to "答案已生成，点击查看。",
 
     "err.timeout" to "请求超时了，请检查网络后重试",
     "err.connect" to "无法连接到服务器，请检查网络",
@@ -1918,6 +1920,8 @@ private val B6_EN = mapOf(
     "notif.answer.channel" to "Generating answer",
     "notif.answer.thinkingShort" to "Thinking",
     "notif.answer.text" to "Generating the answer… (tap to return)",
+    "notif.answer.completedShort" to "Thinking complete",
+    "notif.answer.completedText" to "Your answer is ready. Tap to view.",
 
     "err.timeout" to "The request timed out — check your network and try again",
     "err.connect" to "Cannot reach the server — check your network",
@@ -1999,6 +2003,8 @@ private val B6_JA = mapOf(
     "notif.answer.channel" to "解答を生成中",
     "notif.answer.thinkingShort" to "思考中",
     "notif.answer.text" to "解答を生成しています…（タップで戻る）",
+    "notif.answer.completedShort" to "思考が完了しました",
+    "notif.answer.completedText" to "解答ができました。タップして確認してください。",
 
     "err.timeout" to "リクエストがタイムアウトしました。ネットワークを確認してください",
     "err.connect" to "サーバーに接続できません。ネットワークを確認してください",
@@ -2080,6 +2086,8 @@ private val B6_KO = mapOf(
     "notif.answer.channel" to "답변 생성 중",
     "notif.answer.thinkingShort" to "생각 중",
     "notif.answer.text" to "답변을 생성하는 중… (탭하면 돌아갑니다)",
+    "notif.answer.completedShort" to "생각 완료",
+    "notif.answer.completedText" to "답변이 준비되었습니다. 탭하여 확인하세요.",
 
     "err.timeout" to "요청 시간이 초과되었습니다. 네트워크를 확인하세요",
     "err.connect" to "서버에 연결할 수 없습니다. 네트워크를 확인하세요",
@@ -2914,7 +2922,13 @@ private val B10_ZH = mapOf(
     "update.unskip" to "取消跳过",
     "update.retry" to "重试",
     "solve.reloadConversation" to "重新显示对话",
-    "update.chainSize" to "链式差分（{count} 个包）：{size}",
+    "update.chainSize" to "所有差分包共 {size}",
+    "update.currentPackageSize" to "当前下载包：{size}",
+    "notices.title" to "应用公告",
+    "notices.unstableTitle" to "当前版本存在已知问题",
+    "notices.unstableHint" to "此版本已被标记为不稳定，你仍可继续使用。",
+    "notices.acknowledge" to "知道了",
+    "notices.openUpdate" to "前往更新",
     "update.deltaPlanning" to "正在选择差分更新路径…",
     "update.redownload" to "重新下载"
 )
@@ -2987,7 +3001,13 @@ private val B10_EN = mapOf(
     "update.unskip" to "Don't skip",
     "update.retry" to "Retry",
     "solve.reloadConversation" to "Reload conversation",
-    "update.chainSize" to "Chained delta ({count} packages): {size}",
+    "update.chainSize" to "All delta packages: {size} total",
+    "update.currentPackageSize" to "Current download package: {size}",
+    "notices.title" to "App announcement",
+    "notices.unstableTitle" to "Known issues in this version",
+    "notices.unstableHint" to "This version is marked as unstable. You can continue using the app.",
+    "notices.acknowledge" to "Got it",
+    "notices.openUpdate" to "View update",
     "update.deltaPlanning" to "Selecting a delta update path…",
     "update.redownload" to "Download again"
 )
@@ -3060,7 +3080,13 @@ private val B10_JA = mapOf(
     "update.unskip" to "スキップを解除",
     "update.retry" to "再試行",
     "solve.reloadConversation" to "会話を再表示",
-    "update.chainSize" to "連鎖差分（{count} 個）：{size}",
+    "update.chainSize" to "差分パッケージ合計 {size}",
+    "update.currentPackageSize" to "現在のダウンロードパッケージ：{size}",
+    "notices.title" to "アプリのお知らせ",
+    "notices.unstableTitle" to "このバージョンの既知の問題",
+    "notices.unstableHint" to "このバージョンは不安定とされていますが、引き続き利用できます。",
+    "notices.acknowledge" to "確認しました",
+    "notices.openUpdate" to "更新を確認",
     "update.deltaPlanning" to "差分更新の経路を選択中…",
     "update.redownload" to "再ダウンロード"
 )
@@ -3133,7 +3159,13 @@ private val B10_KO = mapOf(
     "update.unskip" to "건너뛰기 해제",
     "update.retry" to "다시 시도",
     "solve.reloadConversation" to "대화 다시 표시",
-    "update.chainSize" to "연속 차등({count}개): {size}",
+    "update.chainSize" to "전체 차등 패키지 합계 {size}",
+    "update.currentPackageSize" to "현재 다운로드 패키지: {size}",
+    "notices.title" to "앱 공지",
+    "notices.unstableTitle" to "현재 버전의 알려진 문제",
+    "notices.unstableHint" to "이 버전은 불안정으로 표시되었지만 앱을 계속 사용할 수 있습니다.",
+    "notices.acknowledge" to "확인",
+    "notices.openUpdate" to "업데이트 보기",
     "update.deltaPlanning" to "차등 업데이트 경로 선택 중…",
     "update.redownload" to "다시 다운로드"
 )

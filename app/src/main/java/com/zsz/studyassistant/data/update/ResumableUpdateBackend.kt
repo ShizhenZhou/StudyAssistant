@@ -329,6 +329,7 @@ class ResumableUpdateWorker(context: Context, parameters: WorkerParameters) : Co
         val generation = inputData.getString("generation") ?: return Result.success()
         if (id < ResumableUpdateBackend.ID_BASE) return Result.success()
         val backend = ResumableUpdateBackend(applicationContext, UpdateDownloads.SystemBackend(applicationContext))
+        if (!UpdateDownloads(applicationContext, backend).authorizeTransfer(id)) return Result.success()
         return coroutineScope {
             val cancellation = launch(start = CoroutineStart.UNDISPATCHED) {
                 try { awaitCancellation() }

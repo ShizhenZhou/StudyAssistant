@@ -16,8 +16,8 @@ object BuildIdentity {
         } catch (_: Exception) { 0 }
     }
     fun assetTime(name: String, version: String): Long {
-        val prefix = listOf("StudyAssistant-$version-", "SACompat-$version-")
-            .firstOrNull { name.startsWith(it) } ?: return 0
+        val prefix = listOf("StudyAssistant-$version-", "SA-$version-", "SA-ENF-$version-", "SACompat-$version-")
+            .firstOrNull(name::startsWith) ?: return 0
         if (!name.endsWith(".apk")) return 0
         return parseStamp(name.removePrefix(prefix).removeSuffix(".apk").removeSuffix("-ENF"))
     }

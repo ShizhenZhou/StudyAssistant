@@ -11,12 +11,12 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current release is v0.7.4.1 (versionCode 135, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest.
+> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current release is v0.7.5 (versionCode 137, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest.
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.4.1)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- **Android 9–15** · [Download the compatible release (v0.7.5)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -55,9 +55,18 @@ Selected PDF pages and whole Word/PowerPoint files upload to DeepSeek for parsin
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3** (DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
 
-AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
+AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **28** (Android **9–15**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.7.5
+
+- 📢 Add multilingual app announcements and unstable-version warnings with version targeting and read tracking.
+- 🔔 Keep a “Thinking complete” notification after a background answer finishes, with a matching checked-bubble icon; clear it when tapped or when the answer page returns.
+- 💾 Improve interrupted conversation recovery, deletion undo and large tag-merge undo; reduce repeated image scans and duplicate-check reads.
+- 🧠 Fix thinking-mode selection and question extraction for similar exercises, and prevent stale requests from changing a new conversation.
+- ⬇️ Show version paths and total download size for chained deltas, show the current package size during downloads, and improve cross-distribution download cleanup.
+- 📌 `versionCode` **137**.
 
 ### v0.6.8→→→v0.7.4.1
 

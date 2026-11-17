@@ -11,12 +11,12 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.4.1（versionCode 135，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5（versionCode 137，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.4.1](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.4.1)
+- **Android 9–15** · [下載相容版本 v0.7.5](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -55,9 +55,18 @@ PDF 所選頁面及 Word/PPT 整份檔案在發送提問時上傳至 DeepSeek �
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（備份與定期更新檢查）· AlarmManager · Android Keystore。
 
-構建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
+構建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **28**（Android **9–15**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 
 ## 版本記錄
+
+### v0.7.5
+
+- 📢 新增多語言應用公告與版本不穩定提醒，按版本比對並記錄已讀狀態。
+- 🔔 背景解題完成後保留「思考已完成」通知，點擊通知或返回解題頁後清除，搭配氣泡勾選圖示。
+- 💾 改善中斷對話復原、刪除復原及大量標籤的合併復原，減少重複圖片掃描和重複題目檢查讀取。
+- 🧠 修正同類題生成的思考模式與題幹擷取，避免舊請求干擾新對話。
+- ⬇️ 鏈式差分改為顯示版本路徑與總下載量，下載時顯示目前套件大小，完善跨分支下載清理。
+- 📌 `versionCode` **137**.
 
 ### v0.6.8→→→v0.7.4.1
 

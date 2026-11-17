@@ -30,10 +30,10 @@
 
 ## Android 9–15 兼容分支
 
-`Compatible` 是用户指定的长期兼容分支，支持 API 28–35；主线保留 Android 16+。两线显示版本同步，本次兼容 v0.7.4.1 / versionCode 135，与主线同版本对齐。日常可在 Compatible 开发，不把整条兼容分支合入 main；必要的通用修复单独移植。
+`Compatible` 是用户指定的长期兼容分支，支持 API 28–35；主线保留 Android 16+。两线显示版本同步，本次兼容 v0.7.5 / versionCode 137，与主线同版本对齐。日常可在 Compatible 开发，不把整条兼容分支合入 main；必要的通用修复单独移植。
 
 兼容发布显式使用 `--distribution compat`，只允许干净且已推送的 Compatible；Git tag 使用 `compat_v<版本>`，正式版与测试版均不得设为 Latest。主线保留 `v<版本>` 与 Latest。兼容发布说明在 `.local-notes/releases/RELEASE-compat_v<版本>.md`，更新清单绑定 distribution=compat、API28–35 及 APK 摘要。两线更新、ENF 和差分基线互相隔离；旧 v0.6.7.9 首次手动安装完整兼容包。未指定发布时只做本地候选，不推送 Release。
 
 Compatible 的 README 五语言及应用更新记录将 v0.6.8 至 v0.7.4.1 合为 `v0.6.8→→→v0.7.4.1` 功能汇总，保留 v0.6.7.9 及更早记录；分隔线说明“以上版本开始为兼容分支”。v0.6.7.9 不再标为旧系统最后一次更新。main 保留逐版历史，其分隔线说明“以上版本仅支持Android 16+，兼容版本见Compatible分支”。
 
-兼容公开 APK 使用 `SACompat-<版本>-<UTC构建时间>.apk`。主线包名暂不更改，待 v0.7.4.2 发布后再切换 SA / SA-ENF；本次首次兼容发布按用户要求不生成差分包。
+兼容公开 APK 使用 `SACompat-<版本>-<UTC构建时间>.apk`。主线 v0.7.5 起使用 SA / SA-ENF 命名；兼容版差分只能绑定同分支公开 APK，首次 v0.7.4.1 未生成差分，v0.7.5 提供从该兼容版升级的差分。

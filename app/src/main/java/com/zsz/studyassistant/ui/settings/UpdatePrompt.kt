@@ -33,6 +33,7 @@ import com.zsz.studyassistant.data.UpdatePromptStore
 /** Shown after compatibility and installed-build checks, independently of notification permission. */
 @Composable
 fun StableUpdatePrompt(release: UpdateChecker.ReleaseInfo?, atRequiredPage: Boolean,
+                       whenHidden: @Composable () -> Unit = {},
                        onRequiredBack: () -> Unit,
                        onOpenUpdate: (required: Boolean) -> Unit) {
     val context = LocalContext.current
@@ -67,11 +68,11 @@ fun StableUpdatePrompt(release: UpdateChecker.ReleaseInfo?, atRequiredPage: Bool
     LaunchedEffect(atRequiredPage) {
         if (!atRequiredPage) allowedRequiredPage = false
     }
-    if (release == null || release.channel != UpdateChecker.Channel.STABLE) return
-    if (manualCheck) return
+    if (release == null || release.channel != UpdateChecker.Channel.STABLE) { whenHidden(); return }
+    if (manualCheck) { whenHidden(); return }
     val required = release.mandatory
-    if (required && atRequiredPage && allowedRequiredPage) return
-    if (!required && (dismissed == key || UpdateChecker.isSkipped(context, release))) return
+    if (required && atRequiredPage && allowedRequiredPage) { whenHidden(); return }
+    if (!required && (dismissed == key || UpdateChecker.isSkipped(context, release))) { whenHidden(); return }
     AlertDialog(
         // Let committed Back reach the callback, but never dismiss a required update.
         onDismissRequest = { if (required) onRequiredBack() else dismissed = key },

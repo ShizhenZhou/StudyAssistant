@@ -12,8 +12,10 @@ class BuildIdentityTest {
         assertEquals(1000, BuildIdentity.parseStamp("20261024060901") - old)
     }
     @Test fun rejectsInvalidOrDifferentVersionNames() {
-        assertEquals(newer, BuildIdentity.assetTime("SACompat-0.7.4.1-20261024160001.apk", "0.7.4.1"))
-        assertEquals(0L, BuildIdentity.assetTime("SACompat-0.7.4.1-20261024160001.apk", "0.7.4.2"))
+        for (prefix in listOf("SA-", "SA-ENF-", "SACompat-")) {
+            assertEquals(newer, BuildIdentity.assetTime("${prefix}0.7.5-20261024160001.apk", "0.7.5"))
+            assertEquals(0L, BuildIdentity.assetTime("${prefix}0.7.5-20261024160001.apk", "0.7.4.2"))
+        }
         assertEquals(newer, BuildIdentity.assetTime("StudyAssistant-0.6.6.7-20261024160001-ENF.apk", "0.6.6.7"))
         for (stamp in listOf("202602300101", "202613010101", "x202610240609", "202610240609001")) assertEquals(0L, BuildIdentity.parseStamp(stamp))
         assertEquals(0L, BuildIdentity.assetTime("StudyAssistant-0.6.6.5-202610240609.apk", "0.6.6.6"))

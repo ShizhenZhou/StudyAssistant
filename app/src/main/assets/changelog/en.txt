@@ -1,3 +1,10 @@
+v0.7.5
+· 📢 Add multilingual app announcements and unstable-version warnings with version targeting and read tracking.
+· 🔔 Keep a “Thinking complete” notification after a background answer finishes, with a matching checked-bubble icon; clear it when tapped or when the answer page returns.
+· 💾 Improve interrupted conversation recovery, deletion undo and large tag-merge undo; reduce repeated image scans and duplicate-check reads.
+· 🧠 Fix thinking-mode selection and question extraction for similar exercises, and prevent stale requests from changing a new conversation.
+· ⬇️ Show version paths and total download size for chained deltas, show the current package size during downloads, and improve cross-distribution download cleanup.
+
 v0.6.8→→→v0.7.4.1
 · 📷 Pinch to zoom in the camera; crop and rotate question or follow-up images, with manual/automatic AI cropping and OCR correction.
 · 📎 Ask about PDF, Word, PowerPoint, TXT, Markdown, CSV and XLSX files; select PDF pages or Excel sheets.
