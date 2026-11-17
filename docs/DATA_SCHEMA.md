@@ -1,6 +1,6 @@
 # 数据文件结构文档（DATA SCHEMA）
 
-## 应用公告预留能力（开发中）
+## 应用公告预留能力（v0.7.5）
 
 - DB v11、Bak v4 不变，不迁移或改写题库。公告属于公开配置与本机已读偏好，不进入学习数据备份。
 - `app_notices` 私有偏好保存 `document`（schema 1 JSON）、`fetchedAt`、`attemptedAt`、`etag`、`etagUrl`；缓存超过七天停止展示，合法更高修订的空配置撤回待显示公告。无缓存、读取失败或非法配置不阻断使用。

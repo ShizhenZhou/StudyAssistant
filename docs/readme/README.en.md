@@ -58,6 +58,15 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.5
+
+- 📢 Add multilingual app announcements and unstable-version warnings with version targeting and read tracking.
+- 🔔 Keep a “Thinking complete” notification after a background answer finishes, with a matching checked-bubble icon; clear it when tapped or when the answer page returns.
+- 💾 Improve interrupted conversation recovery, deletion undo and large tag-merge undo; reduce repeated image scans and duplicate-check reads.
+- 🧠 Fix thinking-mode selection and question extraction for similar exercises, and prevent stale requests from changing a new conversation.
+- ⬇️ Show version paths and total download size for chained deltas, show the current package size during downloads, and improve cross-distribution download cleanup.
+- 📌 `versionCode` **137**.
+
 ### v0.7.4.2
 
 - ⬆️ Check main and Android 9–15 compatibility updates separately; isolate mandatory updates, delta paths and download recovery to prevent cross-branch updates.

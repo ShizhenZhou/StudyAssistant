@@ -109,7 +109,7 @@ schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时
 
 同版本替换仍须用户明确安排，使用start --replace与replace --run，保留原标签；不默认替换既有Release。历史精确来源检查仅用于此类替换和历史恢复，不作为每次新版本前置。
 
-普通正式更新仍是默认值。只有用户明确指定强制更新时，才在首次 `start` 加 `--mandatory`；该选项只允许 stable，写入更新清单的 JSON 布尔 `mandatory: true`，并在最终 APK 的 `.apk` 前添加 `-ENF`，不改 applicationId、versionName 或签名字节。Release 最后一条在最低系统要求与正式版属性之后追加“本次更新极其重要，是强制更新”。决定保存在本地发布状态中；恢复同一 run 时沿用，不能给既有发布状态补改强制属性。旧清单缺省为普通更新，Beta 不强制。
+普通正式更新仍是默认值。只有用户明确指定强制更新时，才在首次 `start` 加 `--mandatory`；该选项只允许 stable，写入更新清单的 JSON 布尔 `mandatory: true`，并将新主线最终 APK 命名为 `SA-ENF-<版本>-<构建时间>.apk`（普通版为 `SA-<版本>-<构建时间>.apk`，v0.7.5 起使用；历史包名保留），不改 applicationId、versionName 或签名字节。Release 最后一条在最低系统要求与正式版属性之后追加“本次更新极其重要，是强制更新”。决定保存在本地发布状态中；恢复同一 run 时沿用，不能给既有发布状态补改强制属性。旧清单缺省为普通更新，Beta 不强制。
 
 需要差分包时，在首次 `start` 显式指定 `--delta-base history_apk/StudyAssistant-<版本>-<构建时间>.apk`。脚本核对旁边的 `<APK文件名去扩展名>-update-manifest.json` 与原始完整签名 APK 的 SHA256、尺寸和正式渠道，并固定这份基线；最终候选原证书签名后生成 `.gdiff.gz`。格式采用 [GDIFF v4](https://www.w3.org/TR/NOTE-gdiff-19970901) 的复制/字面数据命令再 gzip 压缩，客户端不需要 native ABI 库。发布前本地重建并逐字节核对最终 APK；保持原始签名字节，不重新签名。差分不小于完整包时停止该步骤，不发布无收益的差分。
 

@@ -109,6 +109,9 @@ class DeliveryTest(unittest.TestCase):
         with self.assertRaises(release.ReleaseError): release.required_jobs(jobs, [])
 
     def test_mandatory_is_explicit_stable_and_immutable_on_resume(self):
+        self.assertEqual("SA-0.7.5-20261117120000.apk", release.published_apk_name("0.7.5", "20261117120000"))
+        self.assertEqual("SA-ENF-0.7.5-20261117120000.apk", release.published_apk_name("0.7.5", "20261117120000", True))
+        self.assertEqual("StudyAssistant-0.7.4.2-20261116120000-ENF.apk", release.published_apk_name("0.7.4.2", "20261116120000", True))
         state = {"channel": "stable"}
         release.bind_mandatory(state, True)
         release.bind_mandatory(state, None)
