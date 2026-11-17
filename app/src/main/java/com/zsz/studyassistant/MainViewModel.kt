@@ -1716,6 +1716,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val sb = StringBuilder()
             var nextBodyEmit = 0L
             var keepPartial = false
+            var answerCompleted = false
             streamingText = prefix
             // 思考流（推理模型才有）：每次新请求都清空
             thinkingText = null
@@ -1799,6 +1800,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 contPrefix = ""
                 contWebHistory = emptyList()
                 contWebAnnotations = null
+                answerCompleted = true
             } catch (e: Exception) {
                 // 用户中止时协程已被取消（关闭响应体导致的 IOException 也走这里）：
                 // 统一按「中断」处理——**甚至一个字都没生成时也保留气泡**（界面显示「思考中…」+ 蓝色「继续生成」）
@@ -1863,7 +1865,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (!keepPartial) streamingText = null
                     callJob = null
                 }
-                com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
+                com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
+                    completed = answerCompleted && mySeq == callSeq && currentCoroutineContext().isActive)
             }
         }
     }
@@ -3167,6 +3170,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = progress.raw
             var lastEmit = 0L
+            var answerCompleted = false
             try {
                 // 流式出题：界面只显示「题目」部分，答案随流到达但不外显（点「查看答案」才展开）
                 val r = withContext(Dispatchers.IO) {
@@ -3201,6 +3205,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     similarAnswer = r.answer
                     similarStreamingText = null
                     persistSimilarConversation()
+                    answerCompleted = true
                 }
             } catch (e: Exception) {
                 if (mySeq == similarSeq) {
@@ -3224,7 +3229,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             if (mySeq == similarSeq) { similarBusy = false; similarProgress = null }
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
+                completed = answerCompleted && mySeq == similarSeq && currentCoroutineContext().isActive)
         }
     }
 
@@ -3301,6 +3307,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = progress.raw
             var lastEmit = 0L
+            var answerCompleted = false
             try {
                 val reply = withContext(Dispatchers.IO) {
                     request(model, msgs, owner) { delta ->
@@ -3323,6 +3330,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     similarStreamingText = null
                     similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
                     persistSimilarConversation()
+                    answerCompleted = true
                 }
             } catch (e: Exception) {
                 if (mySeq == similarSeq) {
@@ -3341,7 +3349,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             if (mySeq == similarSeq) { similarBusy = false; similarProgress = null }
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id)
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
+                completed = answerCompleted && mySeq == similarSeq && currentCoroutineContext().isActive)
         }
         return true
     }

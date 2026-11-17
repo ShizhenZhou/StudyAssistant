@@ -34,6 +34,8 @@ Release APK 显式压缩 DEX（`packaging.dex.useLegacyPackaging`），降低完
 
 更新断点下载由执行中的 WorkManager 任务维护前台进度，网络等待／重试退避期间仅留普通通知；完成胶囊最多显示两分钟，点击进入或安装后移除。历史 DownloadManager 任务仍沿用旧监控以兼容升级中的下载。通知卡片使用 SA 大图标，胶囊保留语义线条小图标，最终位置由系统决定。
 
+解题及同类题在后台成功完成后，停止运行中的前台服务并保留普通“思考已完成”通知，使用气泡对勾线条图标；不设自动过期时间。点击该通知或解题/同类题页面恢复到前台时清除，回到其他页面不清除。取消、失败和被替换的请求不发布完成通知，前台完成也不额外提醒。
+
 主导航按当前窗口可用宽高选择底栏或侧栏，内容保留同一组合位置；短横屏相机将拍摄操作移到侧边，普通手机竖屏保持现有布局。
 
 当前运行依赖：Compose BOM 2026.09.00、Lifecycle 2.11.0、Navigation Compose 2.10.2、CameraX 1.6.2、Retrofit 3.0.0、OkHttp 5.5.1、kotlinx.serialization 1.13.0、WorkManager 2.12.0（备份与6小时周期更新通知）。离线 KaTeX 0.19.1 的来源与打包说明见 [third-party-assets.md](third-party-assets.md)。版本声明以 `gradle/libs.versions.toml` 为准。

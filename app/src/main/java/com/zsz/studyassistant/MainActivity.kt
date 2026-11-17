@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         com.zsz.studyassistant.data.BackupJobs.setForeground(true)
+        com.zsz.studyassistant.data.AnswerForegroundService.setAppForeground(true)
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             com.zsz.studyassistant.data.BackupFolderAccess.refresh(applicationContext, scheduleIfAvailable = true)
         }
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         com.zsz.studyassistant.data.BackupJobs.setForeground(false)
+        com.zsz.studyassistant.data.AnswerForegroundService.setAppForeground(false)
         super.onStop()
     }
 
@@ -113,6 +115,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
+        com.zsz.studyassistant.data.NotificationIntents.consumeAnswerCompletion(this, intent)
         if (intent.getBooleanExtra(AppNav.OPEN_BACKUP_EXTRA, false)) {
             intent.removeExtra(AppNav.OPEN_BACKUP_EXTRA)
             viewModel.openBackupManagementPage = true
@@ -143,6 +146,7 @@ class MainActivity : ComponentActivity() {
         viewModel.solveInputDraft.apply { restoreIme = savedInstanceState?.getString("solveEditingSession") == id }
         viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
+        com.zsz.studyassistant.data.NotificationIntents.consumeAnswerCompletion(this, intent)
         if (wallpaperWindowMode) setTranslucent(true)
         // 启动时清理已删除题目与孤儿记录（定期维护数据库）
         viewModel.purgeDeletedData()
@@ -248,6 +252,13 @@ class MainActivity : ComponentActivity() {
                     }
                     val backStack by nav.currentBackStackEntryAsState()
                     val current = backStack?.destination?.route
+                    LaunchedEffect(current) {
+                        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                            if (current == AppNav.SOLVE_PATTERN || current == AppNav.SIMILAR) {
+                                com.zsz.studyassistant.data.AnswerForegroundService.acknowledgeCompletion(this@MainActivity)
+                            }
+                        }
+                    }
                     val updatePrompt by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsStateWithLifecycle()
                     val requiredUpdate = updatePrompt?.mandatory == true
                     var requiredBackToast by remember { mutableStateOf<android.widget.Toast?>(null) }

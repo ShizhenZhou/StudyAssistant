@@ -1837,6 +1837,8 @@ private val B6_ZH = mapOf(
     "notif.answer.channel" to "生成答案",
     "notif.answer.thinkingShort" to "思考中",
     "notif.answer.text" to "正在生成答案…（点击回到生成页面）",
+    "notif.answer.completedShort" to "思考已完成",
+    "notif.answer.completedText" to "答案已生成，点击查看。",
 
     "err.timeout" to "请求超时了，请检查网络后重试",
     "err.connect" to "无法连接到服务器，请检查网络",
@@ -1918,6 +1920,8 @@ private val B6_EN = mapOf(
     "notif.answer.channel" to "Generating answer",
     "notif.answer.thinkingShort" to "Thinking",
     "notif.answer.text" to "Generating the answer… (tap to return)",
+    "notif.answer.completedShort" to "Thinking complete",
+    "notif.answer.completedText" to "Your answer is ready. Tap to view.",
 
     "err.timeout" to "The request timed out — check your network and try again",
     "err.connect" to "Cannot reach the server — check your network",
@@ -1999,6 +2003,8 @@ private val B6_JA = mapOf(
     "notif.answer.channel" to "解答を生成中",
     "notif.answer.thinkingShort" to "思考中",
     "notif.answer.text" to "解答を生成しています…（タップで戻る）",
+    "notif.answer.completedShort" to "思考が完了しました",
+    "notif.answer.completedText" to "解答ができました。タップして確認してください。",
 
     "err.timeout" to "リクエストがタイムアウトしました。ネットワークを確認してください",
     "err.connect" to "サーバーに接続できません。ネットワークを確認してください",
@@ -2080,6 +2086,8 @@ private val B6_KO = mapOf(
     "notif.answer.channel" to "답변 생성 중",
     "notif.answer.thinkingShort" to "생각 중",
     "notif.answer.text" to "답변을 생성하는 중… (탭하면 돌아갑니다)",
+    "notif.answer.completedShort" to "생각 완료",
+    "notif.answer.completedText" to "답변이 준비되었습니다. 탭하여 확인하세요.",
 
     "err.timeout" to "요청 시간이 초과되었습니다. 네트워크를 확인하세요",
     "err.connect" to "서버에 연결할 수 없습니다. 네트워크를 확인하세요",
