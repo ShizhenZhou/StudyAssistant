@@ -58,6 +58,12 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+### v0.7.5.2
+
+- 📢 Keep announcement mirror fallback running when leaving the update page; try the enabled mirror when the official source is unavailable.
+- 🔄 Refresh announcements every 15 minutes in the foreground and check when returning to the app; allow retries after one minute on failure and earlier refresh through a manual update check.
+- 📌 `versionCode` **139**.
+
 ### v0.7.5.1
 
 - ⚙️ Use a compact theme dropdown, move language settings up and restore Clear all data to Backup & data; refresh background and review notification permission states.
