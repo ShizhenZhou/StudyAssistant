@@ -1437,6 +1437,8 @@ private fun ThemeSettings(vm: MainViewModel) {
             }
         }
     }
+    Spacer(Modifier.height(12.dp))
+    LanguageChoice(vm, ai = false)
     // ② 主题配色（预设色板 + 自定义色，一键切换）
     Spacer(Modifier.height(14.dp))
     Text(s["settings.theme.color"], style = MaterialTheme.typography.titleMedium)
@@ -1515,8 +1517,6 @@ private fun ThemeSettings(vm: MainViewModel) {
     }
     Spacer(Modifier.height(6.dp))
     Text(s["settings.fontSize.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-    Spacer(Modifier.height(18.dp))
-    LanguageChoice(vm, ai = false)
 
     if (showPicker) {
         ThemeColorPickerDialog(
@@ -1652,8 +1652,20 @@ private fun NotifyBackgroundSettings() {
     }
     Spacer(Modifier.height(20.dp))
     // ── 后台运行（与提醒强相关：后台权限不到位就收不到提醒） ──
-    val powerManager = context.getSystemService(android.os.PowerManager::class.java)
-    val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+    val powerManager = remember(context) { context.getSystemService(android.os.PowerManager::class.java) }
+    var ignoringBattery by remember(context) {
+        mutableStateOf(powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false)
+    }
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner, context) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
     Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
     if (ignoringBattery) {
@@ -1679,7 +1691,17 @@ private fun NotifyBackgroundSettings() {
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
     Text(s["background.autostart"], style = MaterialTheme.typography.bodySmall)
     TextButton(shape = smoothPill(), onClick = {
-    fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
+    fun tryComponent(path: String): Boolean {
+        val component = android.content.ComponentName.unflattenFromString(path) ?: return false
+        return try {
+            context.startActivity(Intent().setComponent(component))
+            true
+        } catch (_: android.content.ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
     var ok = false
     for (pkg in listOf(
     "com.huawei.systemmanager/.startupmgr.ui.StartupNormalAppListActivity",
@@ -1688,7 +1710,7 @@ private fun NotifyBackgroundSettings() {
     "com.miui.securitycenter/.ui.AutoStartManagementActivity",
     "com.vivo.permissionmanager/.activity.BgStartUpManagerActivity",
     "com.oplus.battery/.ui.StartupAppListActivity"
-    )) { if (tryPkg(pkg)) { ok = true; break } }
+    )) { if (tryComponent(pkg)) { ok = true; break } }
     if (!ok) {
     try {
     context.startActivity(
