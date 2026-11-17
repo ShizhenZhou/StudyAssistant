@@ -83,13 +83,18 @@ class NativePdfExportTest {
                 awaitMain("private snapshot") { original.session?.phase == ExportPhase.OPTIONS }
                 scenario.onActivity {
                     original.edit(filename = "recovery-fixture", format = ConversationExportFormat.PDF)
-                    original.prepared(ConversationExportResult(fixture, listOf(source), "recovery-fixture", ConversationExportFormat.PDF))
+                    original.render()
+                }
+                awaitMain("rendering phase") { original.session?.phase == ExportPhase.RENDERING }
+                scenario.onActivity {
+                    original.prepared(checkNotNull(original.session).id,
+                        ConversationExportResult(fixture, listOf(source), "recovery-fixture", ConversationExportFormat.PDF))
                 }
                 awaitMain("durable PDF") { original.session?.phase == ExportPhase.READY }
                 lateinit var session: ConversationExportSession
                 var hostMounted = false
+                runBlocking { withContext(Dispatchers.Main) { assertTrue(original.picking()) } }
                 scenario.onActivity { activity ->
-                    assertTrue(original.picking())
                     session = checkNotNull(original.session)
                     activity.setContent { MaterialTheme {
                         ConversationExportDialog(original, onFeedback = {})

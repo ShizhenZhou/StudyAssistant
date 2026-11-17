@@ -57,6 +57,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
+private data class HistorySearchResult(val query: String, val since: Long, val rows: List<SolveSessionPreview>)
+
 /**
  * 🕘 搜题记录（DESIGN-20261013 §2 的 P0 界面部分）。
  *
@@ -75,8 +77,23 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     val dao = remember(context) { AppDatabase.get(context).questionDao() }
     val scope = rememberCoroutineScope()
 
-    val storedSessions by remember { dao.solveSessionsLight() }
-        .collectAsStateWithLifecycle(initialValue = emptyList())
+    var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var period by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    val day by vm.currentDay.collectAsStateWithLifecycle()
+    val since = when (period) { 1 -> day.start; 7 -> day.after(-6); 30 -> day.after(-29); else -> 0L }
+    var searchFailed by remember { mutableStateOf(false) }
+    var retrySearch by remember { mutableStateOf(0) }
+    val searchResult by androidx.compose.runtime.produceState<HistorySearchResult?>(null, query, since, retrySearch) {
+        value = null
+        searchFailed = false
+        try {
+            kotlinx.coroutines.delay(180)
+            dao.searchSolveSessions(query.trim(), since).collect { value = HistorySearchResult(query, since, it) }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { searchFailed = true; value = HistorySearchResult(query, since, emptyList()) }
+    }
+    val result = searchResult?.takeIf { it.query == query && it.since == since }?.rows
+    val storedSessions = result.orEmpty()
     val deletes by vm.deletionState.collectAsStateWithLifecycle()
     val sessions = remember(storedSessions, deletes.historyIds) { storedSessions.filterNot { it.id in deletes.historyIds } }
 
@@ -92,8 +109,9 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
     // 返回键：选择模式 → 先退出选择，而不是直接退页面
     BackHandler(enabled = selectionMode) { exitSelection() }
 
-    val day by vm.currentDay.collectAsStateWithLifecycle()
     val groups = remember(sessions, day) { groupSolveSessionsByDay(sessions, day) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    androidx.compose.runtime.LaunchedEffect(query, period) { exitSelection(); listState.scrollToItem(0) }
 
     // A refreshed list must never apply a batch action to rows no longer on screen.
     val selectedIds = remember(sessions, requestedIds) {
@@ -104,6 +122,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 
     Scaffold(
         topBar = {
+            Column {
             TopAppBar(
                 title = {
                     if (selectionMode) {
@@ -156,20 +175,26 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                     }
                 }
             )
+            HistorySearchControls(query, { query = it }, period, { period = it })
+            }
         }
     ) { padding ->
         if (sessions.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                if (result == null) CircularProgressIndicator() else Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    s["history.empty"],
+                    s[if (searchFailed) "history.readFailed" else if (query.isNotBlank() || period != 0) "history.search.empty" else "history.empty"],
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
+                if (searchFailed) TextButton(onClick = { retrySearch++ }) { Text(s["update.retry"]) }
+                }
             }
             return@Scaffold
         }
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
         ) {
@@ -231,7 +256,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(s["history.deleteConfirm.title"]) },
             text = { Text(s.format("history.deleteConfirm.text", "n" to "${selectedIds.size}")) },
-            confirmButton = {
+                    confirmButton = {
                 TextButton(onClick = {
                     val ids = selectedIds.toList()
                     showDeleteConfirm = false

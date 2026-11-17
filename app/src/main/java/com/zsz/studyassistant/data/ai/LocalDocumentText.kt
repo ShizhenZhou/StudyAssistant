@@ -5,6 +5,7 @@ import java.io.File
 import java.io.InputStream
 import java.io.StringReader
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.util.Locale
@@ -19,6 +20,7 @@ import org.xml.sax.helpers.DefaultHandler
 /** Local, bounded text extraction. CSV/Markdown remain verbatim; spreadsheet formulas are never evaluated. */
 object LocalDocumentText {
     const val MAX_TEXT_CHARS = 200_000
+    const val PREVIEW_CHARS = 6_000
     private const val MAX_XML_BYTES = 8 * 1024 * 1024
     private const val MAX_EXPANDED_BYTES = 32 * 1024 * 1024
     private val spreadsheetNamespaces = setOf(
@@ -36,6 +38,19 @@ object LocalDocumentText {
     }
 
     fun read(file: File, name: String, selectedSheets: List<String>? = null, check: () -> Unit = {}): String {
+        return extract(file, name, selectedSheets, null, check)
+    }
+
+    /** An excerpt is not validation: the complete selection must still pass [read] before sending. */
+    fun preview(file: File, name: String, selectedSheets: List<String>? = null, check: () -> Unit = {}): String {
+        if (!supports(name)) throw DocumentProblem("document.invalid")
+        return if (extension(name) == "xlsx") extract(file, name, selectedSheets, PREVIEW_CHARS, check)
+        else previewText(file, check)
+    }
+
+    private class PreviewComplete : RuntimeException()
+
+    private fun extract(file: File, name: String, selectedSheets: List<String>?, previewLimit: Int?, check: () -> Unit): String {
         if (!supports(name)) throw DocumentProblem("document.invalid")
         if (extension(name) != "xlsx") {
             val bytes = file.inputStream().use { bounded(it, MAX_TEXT_CHARS * 4 + 3, check, "document.textTooLarge") }
@@ -51,84 +66,96 @@ object LocalDocumentText {
                 throw DocumentProblem("document.missingSheets")
             val output = StringBuilder()
             fun append(text: String) {
+                if (previewLimit != null && output.length + text.length >= previewLimit) {
+                    output.append(text.take(previewLimit - output.length))
+                    throw PreviewComplete()
+                }
                 if (output.length + text.length > MAX_TEXT_CHARS) throw DocumentProblem("document.textTooLarge")
                 output.append(text)
             }
-            val strings by lazy { zip.sharedStrings() }
-            all.filter { it.name in selection }.forEach { sheet ->
-                check()
-                append("[Sheet: ${sheet.name}]\n")
-                zip.xml(sheet.path, "worksheet", object : DefaultHandler() {
-                    var row = 0
-                    var column = 0
-                    var reference: String? = null
-                    var type = "n"
-                    var style: String? = null
-                    var formula = false
-                    var readingValue = false
-                    var readingInline = false
-                    var phonetic = false
-                    var hasValue = false
-                    val value = StringBuilder()
-                    val inline = StringBuilder()
-                    override fun startElement(uri: String, local: String, qName: String, a: Attributes) {
-                        if (uri !in spreadsheetNamespaces) return
-                        when (local) {
-                            "row" -> { row = a.getValue("r")?.toIntOrNull() ?: (row + 1); column = 0; valid(row in 1..1_048_576) }
-                            "c" -> {
-                                valid(reference == null && row > 0)
-                                val ref = a.getValue("r") ?: "${columnName(column + 1)}$row"
-                                val match = Regex("([A-Z]{1,3})([1-9][0-9]{0,6})").matchEntire(ref) ?: invalid()
-                                column = match.groupValues[1].fold(0) { n, c -> n * 26 + (c - 'A' + 1) }
-                                valid(column in 1..16384 && match.groupValues[2].toInt() == row)
-                                reference = ref; type = a.getValue("t") ?: "n"; style = a.getValue("s")
-                                valid(style == null || style!!.toIntOrNull()?.let { it >= 0 } == true)
-                                value.setLength(0); inline.setLength(0); formula = false; hasValue = false
-                            }
-                            "f" -> if (reference != null) formula = true
-                            "v" -> if (reference != null) { readingValue = true; hasValue = true }
-                            "rPh" -> phonetic = true
-                            "t" -> if (reference != null && type == "inlineStr" && !phonetic) readingInline = true
-                        }
-                    }
-                    override fun characters(ch: CharArray, start: Int, length: Int) {
-                        if (readingValue) value.append(ch, start, length)
-                        if (readingInline) inline.append(ch, start, length)
-                        if (value.length + inline.length > MAX_TEXT_CHARS) throw DocumentProblem("document.textTooLarge")
-                    }
-                    override fun endElement(uri: String, local: String, qName: String) {
-                        if (uri !in spreadsheetNamespaces) return
-                        when (local) {
-                            "v" -> readingValue = false
-                            "t" -> readingInline = false
-                            "rPh" -> phonetic = false
-                            "c" -> {
-                                val ref = reference ?: invalid()
-                                val raw = value.toString()
-                                val text = when {
-                                    formula && (!hasValue || raw.isEmpty()) -> "[formula has no cached result; not calculated]"
-                                    type == "inlineStr" -> inline.toString()
-                                    !hasValue -> ""
-                                    type == "s" -> strings.getOrNull(raw.toIntOrNull() ?: invalid()) ?: invalid()
-                                    type == "b" -> when (raw) { "1" -> "true"; "0" -> "false"; else -> invalid() }
-                                    type == "e" -> "[cell error: $raw]"
-                                    type in setOf("n", "str", "d") -> raw
-                                    else -> invalid()
+            val strings by lazy { zip.sharedStrings(previewLimit) }
+            val styles by lazy { zip.styles() }
+            try {
+                all.filter { it.name in selection }.forEach { sheet ->
+                    check()
+                    append("[Sheet: ${sheet.name}]\n")
+                    zip.xml(sheet.path, "worksheet", object : DefaultHandler() {
+                        var row = 0
+                        var column = 0
+                        var reference: String? = null
+                        var type = "n"
+                        var style: String? = null
+                        var formula = false
+                        var readingValue = false
+                        var readingInline = false
+                        var phonetic = false
+                        var hasValue = false
+                        val value = StringBuilder()
+                        val inline = StringBuilder()
+                        override fun startElement(uri: String, local: String, qName: String, a: Attributes) {
+                            if (uri !in spreadsheetNamespaces) return
+                            when (local) {
+                                "row" -> { row = a.getValue("r")?.toIntOrNull() ?: (row + 1); column = 0; valid(row in 1..1_048_576) }
+                                "c" -> {
+                                    valid(reference == null && row > 0)
+                                    val ref = a.getValue("r") ?: "${columnName(column + 1)}$row"
+                                    val match = Regex("([A-Z]{1,3})([1-9][0-9]{0,6})").matchEntire(ref) ?: invalid()
+                                    column = match.groupValues[1].fold(0) { n, c -> n * 26 + (c - 'A' + 1) }
+                                    valid(column in 1..16384 && match.groupValues[2].toInt() == row)
+                                    reference = ref; type = a.getValue("t") ?: "n"; style = a.getValue("s")
+                                    valid(style == null || style!!.toIntOrNull()?.let { it >= 0 } == true)
+                                    value.setLength(0); inline.setLength(0); formula = false; hasValue = false
                                 }
-                                if (text.isNotEmpty()) {
-                                    append("$ref: $text")
-                                    if (formula && hasValue && raw.isNotEmpty()) append(" [cached formula result]")
-                                    if (type == "n" && style != null && raw.isNotEmpty()) append(" [style $style; unformatted number]")
-                                    append("\n")
-                                }
-                                reference = null
+                                "f" -> if (reference != null) formula = true
+                                "v" -> if (reference != null) { readingValue = true; hasValue = true }
+                                "rPh" -> phonetic = true
+                                "t" -> if (reference != null && type == "inlineStr" && !phonetic) readingInline = true
                             }
                         }
-                    }
-                })
-                append("\n")
-            }
-            output.toString()
+                        override fun characters(ch: CharArray, start: Int, length: Int) {
+                            val cellLimit = previewLimit ?: MAX_TEXT_CHARS
+                            if (readingValue) value.append(ch, start, if (previewLimit == null) length else minOf(length, cellLimit - value.length))
+                            if (readingInline) inline.append(ch, start, if (previewLimit == null) length else minOf(length, cellLimit - inline.length))
+                            if (value.length + inline.length > MAX_TEXT_CHARS) throw DocumentProblem("document.textTooLarge")
+                        }
+                        override fun endElement(uri: String, local: String, qName: String) {
+                            if (uri !in spreadsheetNamespaces) return
+                            when (local) {
+                                "v" -> readingValue = false
+                                "t" -> readingInline = false
+                                "rPh" -> phonetic = false
+                                "c" -> {
+                                    val ref = reference ?: invalid()
+                                    val raw = value.toString()
+                                    val text = when {
+                                        formula && (!hasValue || raw.isEmpty()) -> "[formula has no cached result; not calculated]"
+                                        type == "inlineStr" -> inline.toString()
+                                        !hasValue -> ""
+                                        type == "s" -> strings.getOrNull(raw.toIntOrNull() ?: invalid()) ?: invalid()
+                                        type == "b" -> when (raw) { "1" -> "true"; "0" -> "false"; else -> invalid() }
+                                        type == "e" -> "[cell error: $raw]"
+                                        type in setOf("n", "str", "d") -> raw
+                                        else -> invalid()
+                                    }
+                                    if (text.isNotEmpty()) {
+                                        append("$ref: $text")
+                                        if (formula && hasValue && raw.isNotEmpty()) append(" [cached formula result]")
+                                        if (type == "n" && style != null && raw.isNotEmpty()) {
+                                            val format = styles.getOrNull(style!!.toInt())
+                                            append(XlsxNumberDisplay.describe(raw, format, zip.date1904)
+                                                ?: " [style $style; unformatted number]")
+                                        }
+                                        append("\n")
+                                    }
+                                    reference = null
+                                }
+                            }
+                        }
+                    })
+                    append("\n")
+                }
+                } catch (_: PreviewComplete) { /* The remaining rows are intentionally deferred to full validation. */ }
+            output.toString().trimTrailingSurrogate()
         }
     }
 
@@ -136,6 +163,7 @@ object LocalDocumentText {
 
     private class Book(val zip: ZipFile, val check: () -> Unit) {
         var expanded = 0
+        var date1904 = false
 
         fun xml(path: String, root: String, handler: DefaultHandler) {
             check()
@@ -192,7 +220,13 @@ object LocalDocumentText {
             val result = mutableListOf<Sheet>()
             xml("xl/workbook.xml", "workbook", object : DefaultHandler() {
                 override fun startElement(uri: String, local: String, qName: String, a: Attributes) {
-                    if (uri !in spreadsheetNamespaces || local != "sheet") return
+                    if (uri !in spreadsheetNamespaces) return
+                    if (local == "workbookPr") {
+                        val dateSystem = a.getValue("date1904")
+                        valid(dateSystem == null || dateSystem in setOf("true", "false", "1", "0"))
+                        date1904 = dateSystem == "true" || dateSystem == "1"
+                    }
+                    if (local != "sheet") return
                     val name = a.getValue("name") ?: invalid()
                     val id = officeNamespaces.firstNotNullOfOrNull { a.getValue(it, "id") } ?: invalid()
                     valid(name.isNotEmpty() && name.length <= 31 && result.size < 1024 && result.none { it.name == name })
@@ -203,7 +237,36 @@ object LocalDocumentText {
             return result
         }
 
-        fun sharedStrings(): List<String> {
+        fun styles(): List<String?> {
+            if (zip.getEntry("xl/styles.xml") == null) return emptyList()
+            val formats = mutableMapOf<Int, String>()
+            val indexes = mutableListOf<Int>()
+            var inCellFormats = false
+            xml("xl/styles.xml", "styleSheet", object : DefaultHandler() {
+                override fun startElement(uri: String, local: String, qName: String, a: Attributes) {
+                    if (uri !in spreadsheetNamespaces) return
+                    when (local) {
+                        "numFmt" -> {
+                            val id = a.getValue("numFmtId")?.toIntOrNull() ?: invalid()
+                            val code = a.getValue("formatCode") ?: invalid()
+                            valid(id >= 0 && code.length <= 1024 && formats.size < 65536)
+                            formats[id] = code
+                        }
+                        "cellXfs" -> inCellFormats = true
+                        "xf" -> if (inCellFormats) {
+                            valid(indexes.size < 65536)
+                            indexes += a.getValue("numFmtId")?.toIntOrNull() ?: 0
+                        }
+                    }
+                }
+                override fun endElement(uri: String, local: String, qName: String) {
+                    if (uri in spreadsheetNamespaces && local == "cellXfs") inCellFormats = false
+                }
+            })
+            return indexes.map { formats[it] ?: XlsxNumberDisplay.builtIn(it) }
+        }
+
+        fun sharedStrings(previewLimit: Int?): List<String> {
             val result = mutableListOf<String>()
             val current = StringBuilder()
             var reading = false
@@ -213,7 +276,10 @@ object LocalDocumentText {
                     if (uri !in spreadsheetNamespaces) return
                     when (local) { "si" -> current.setLength(0); "rPh" -> phonetic = true; "t" -> reading = !phonetic }
                 }
-                override fun characters(ch: CharArray, start: Int, length: Int) { if (reading) current.append(ch, start, length) }
+                override fun characters(ch: CharArray, start: Int, length: Int) {
+                    if (reading) current.append(ch, start,
+                        if (previewLimit == null) length else minOf(length, previewLimit - current.length))
+                }
                 override fun endElement(uri: String, local: String, qName: String) {
                     if (uri !in spreadsheetNamespaces) return
                     when (local) {
@@ -267,6 +333,46 @@ object LocalDocumentText {
                 .decode(ByteBuffer.wrap(bytes, skip, bytes.size - skip)).toString()
         } catch (_: CharacterCodingException) { throw DocumentProblem("document.textEncoding") }
     }
+
+    private fun previewText(file: File, check: () -> Unit): String = file.inputStream().use { input ->
+        val bytes = ByteBuffer.allocate(4096)
+        val output = CharBuffer.allocate(PREVIEW_CHARS + 1)
+        val prefix = ByteArray(4)
+        var count = 0
+        while (count < prefix.size) {
+            check()
+            val n = input.read(prefix, count, prefix.size - count)
+            if (n < 0) break
+            count += n
+        }
+        val first = prefix.take(count).map { it.toInt() and 255 }
+        if (first == listOf(255, 254, 0, 0) || first == listOf(0, 0, 254, 255)) throw DocumentProblem("document.textEncoding")
+        val (charset, skip) = when {
+            first.take(3) == listOf(239, 187, 191) -> Charsets.UTF_8 to 3
+            first.take(2) == listOf(255, 254) -> Charsets.UTF_16LE to 2
+            first.take(2) == listOf(254, 255) -> Charsets.UTF_16BE to 2
+            else -> Charsets.UTF_8 to 0
+        }
+        val decoder = charset.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+        bytes.put(prefix, skip, count - skip)
+        while (output.hasRemaining()) {
+            check()
+            val n = input.read(bytes.array(), bytes.position(), bytes.remaining())
+            val end = n < 0
+            if (!end) bytes.position(bytes.position() + n)
+            bytes.flip()
+            val result = decoder.decode(bytes, output, end)
+            if (result.isError) throw DocumentProblem("document.textEncoding")
+            if (end || result.isOverflow) break
+            bytes.compact()
+        }
+        output.flip()
+        val text = output.toString().take(PREVIEW_CHARS).trimTrailingSurrogate()
+        if ('\u0000' in text) throw DocumentProblem("document.textEncoding")
+        text
+    }
+
+    private fun String.trimTrailingSurrogate(): String = if (lastOrNull()?.isHighSurrogate() == true) dropLast(1) else this
 
     private fun resolvePath(target: String): String {
         valid(target.isNotEmpty() && target.none { it == '\\' || it == ':' || it == '#' || it == '?' || it == '%' })

@@ -1613,14 +1613,43 @@ private fun NotifyBackgroundSettings() {
     var notifyHour by remember { mutableStateOf(prefs.getInt("notify_hour", 20)) }
     var notifyMinute by remember { mutableStateOf(prefs.getInt("notify_minute", 0)) }
     var showTimePicker by remember { mutableStateOf(false) }
-    val notifyPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    var reminderAllowed by remember { mutableStateOf(ReminderScheduler.canNotify(context)) }
+    val reminderOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(reminderOwner, context) {
+        ReminderScheduler.ensureChannel(context)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) reminderAllowed = ReminderScheduler.canNotify(context)
+        }
+        reminderOwner.lifecycle.addObserver(observer)
+        reminderAllowed = ReminderScheduler.canNotify(context)
+        onDispose { reminderOwner.lifecycle.removeObserver(observer) }
+    }
+    val notifyPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        reminderAllowed = ReminderScheduler.canNotify(context)
+    }
+    fun allowReminder() {
+        ReminderScheduler.ensureChannel(context)
+        val needsPermission = androidx.core.content.ContextCompat.checkSelfPermission(context,
+            Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        val activity = context as? android.app.Activity
+        if (needsPermission && (!prefs.getBoolean("review_notification_permission_asked", false) ||
+                (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity, Manifest.permission.POST_NOTIFICATIONS)))) {
+            prefs.edit().putBoolean("review_notification_permission_asked", true).apply()
+            notifyPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            val action = if (needsPermission || !androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())
+                android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS else android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+            context.startActivity(Intent(action).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID))
+        }
+    }
     fun saveNotify(enabled: Boolean) {
         prefs.edit().putBoolean("notify_enabled", enabled).apply()
         notifyEnabled = enabled
         ReminderScheduler.applySchedule(context)
-        if (enabled) {
-            notifyPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        reminderAllowed = ReminderScheduler.canNotify(context)
+        if (enabled && !reminderAllowed) allowReminder()
     }
 
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1645,6 +1674,10 @@ private fun NotifyBackgroundSettings() {
         )
     }
     Text(s["notify.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    if (notifyEnabled && !reminderAllowed) {
+        Text(s["notify.review.blocked"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        TextButton(onClick = ::allowReminder) { Text(s["notify.review.allow"]) }
+    }
     Spacer(Modifier.height(20.dp))
     UpdateNotificationSettings()
     TextButton(onClick = { com.zsz.studyassistant.data.UpdateDownloadNotifications.openSettings(context) }) {

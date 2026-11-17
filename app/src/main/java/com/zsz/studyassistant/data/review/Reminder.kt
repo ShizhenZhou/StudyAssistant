@@ -20,6 +20,11 @@ object ReminderScheduler {
     const val CHANNEL_ID = "review_reminder"
 
     fun isEnabled(c: Context): Boolean = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("notify_enabled", false)
+    fun canNotify(c: Context): Boolean =
+        ContextCompat.checkSelfPermission(c, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
+            androidx.core.app.NotificationManagerCompat.from(c).areNotificationsEnabled() &&
+            c.getSystemService(NotificationManager::class.java)?.getNotificationChannel(CHANNEL_ID)?.importance
+                ?.let { it != NotificationManager.IMPORTANCE_NONE } == true
     private fun hour(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("notify_hour", 20)
     private fun minute(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("notify_minute", 0)
 

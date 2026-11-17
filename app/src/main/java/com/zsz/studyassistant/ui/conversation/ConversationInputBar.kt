@@ -80,6 +80,9 @@ internal fun ConversationInputBar(
     attachments: @Composable () -> Unit = {},
     tools: (@Composable () -> Unit)? = null
 ) {
+    var previewGallery by remember { mutableStateOf<ImageGallery?>(null) }
+    previewGallery?.let { ImageGalleryDialog(it) { previewGallery = null } }
+    LaunchedEffect(images) { previewGallery = null }
     val editor = editorFocus(draft, quoteFocusSignal)
     val addImageLabel = appLabelIcon(LocalStrings.current["ask.addImage"]).second
     Column(modifier) {
@@ -108,7 +111,7 @@ internal fun ConversationInputBar(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                images.forEach { img ->
+                images.forEachIndexed { index, img ->
                     key(img) {
                         val bmp by produceState<android.graphics.Bitmap?>(null, img) {
                             this.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -120,7 +123,9 @@ internal fun ConversationInputBar(
                                 Image(
                                     bitmap = preview.asImageBitmap(),
                                     contentDescription = imageDesc,
-                                    modifier = Modifier.size(60.dp),
+                                    modifier = Modifier.size(60.dp).clickable {
+                                        previewGallery = ImageGallery(images.map { GalleryImage(bytes = it) }, index)
+                                    },
                                     contentScale = ContentScale.Crop
                                 )
                             }

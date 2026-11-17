@@ -61,6 +61,7 @@ internal object UpdateDelta {
     internal fun applyGdiffStream(base: File, input: DataInputStream, output: File, targetSize: Long, check: () -> Unit) {
         check()
         require(targetSize in 1..MAX_APK_SIZE)
+        UpdateStorage.requireSpace(output, targetSize)
         RandomAccessFile(base, "r").use { source ->
             require(input.readInt() == 0xd1ffd1ff.toInt() && input.readUnsignedByte() == 4)
             output.outputStream().buffered().use { target ->

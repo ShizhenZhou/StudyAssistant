@@ -43,9 +43,10 @@ import com.zsz.studyassistant.data.DocumentStore
 import com.zsz.studyassistant.data.LocalDocumentText
 import com.zsz.studyassistant.data.PdfDocumentSelection
 import java.io.File
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -95,6 +96,7 @@ internal fun DocumentSelectionDialog(
     val pdf = type == "pdf"
     val workbook = type == "xlsx"
     val plainText = type in setOf("txt", "md", "markdown", "csv")
+    val pdfPreview = remember(document.sha256, document.name) { if (pdf) PdfDocumentSelection.Preview() else null }
     var file by remember(document.sha256) { mutableStateOf<File?>(null) }
     var pageCount by remember(document.sha256) { mutableStateOf(0) }
     var sheetNames by remember(document.sha256) { mutableStateOf<List<String>>(emptyList()) }
@@ -123,7 +125,7 @@ internal fun DocumentSelectionDialog(
             val loaded = withContext(Dispatchers.IO) {
                 val job = currentCoroutineContext()
                 val original = DocumentStore(context).file(document)
-                val count = if (pdf) PdfDocumentSelection.pageCount(original) else 0
+                val count = pdfPreview?.open(original) ?: 0
                 if (pdf && count !in 1..1000) throw DocumentProblem("documentSelection.pageLimit")
                 Triple(original, count, if (workbook) LocalDocumentText.sheets(original) { job.ensureActive() } else emptyList())
             }
@@ -132,28 +134,32 @@ internal fun DocumentSelectionDialog(
             sheetNames = loaded.third
             if (pdf) currentPage = currentPage.coerceIn(0, pageCount - 1)
             if (workbook && previewSheet !in sheetNames) previewSheet = sheetNames.firstOrNull().orEmpty()
+            loading = false
+            // The effect owns the descriptor even if cancellation occurs before withContext returns.
+            if (pdfPreview != null) awaitCancellation()
         } catch (error: CancellationException) { throw error }
         catch (error: Exception) { errorKey = (error as? DocumentProblem)?.messageKey ?: "document.readFailed" }
-        finally { loading = false }
+        finally {
+            loading = false
+            withContext(NonCancellable + Dispatchers.IO) { pdfPreview?.close() }
+        }
     }
 
     LaunchedEffect(file, currentPage) {
-        val original = file ?: return@LaunchedEffect
+        if (file == null) return@LaunchedEffect
         if (!pdf) return@LaunchedEffect
         bitmap = null
         thumbnailError = null
         thumbnailLoading = true
-        // Only an unpublished result is recycled manually. Compose may still draw a retired bitmap.
-        val unpublished = AtomicReference<Bitmap?>()
         try {
             val rendered = withContext(Dispatchers.IO) {
-                PdfDocumentSelection.thumbnail(original, currentPage).also(unpublished::set)
+                val job = currentCoroutineContext()
+                pdfPreview?.thumbnail(currentPage) { job.ensureActive() }
             }
             bitmap = rendered
-            unpublished.set(null)
         } catch (error: CancellationException) { throw error }
         catch (error: Exception) { thumbnailError = (error as? DocumentProblem)?.messageKey ?: "documentSelection.previewFailed" }
-        finally { unpublished.getAndSet(null)?.recycle(); thumbnailLoading = false }
+        finally { thumbnailLoading = false }
     }
 
     LaunchedEffect(file, previewSheet) {
@@ -167,9 +173,9 @@ internal fun DocumentSelectionDialog(
         try {
             previewText = withContext(Dispatchers.IO) {
                 val job = currentCoroutineContext()
-                LocalDocumentText.read(original, document.name,
+                LocalDocumentText.preview(original, document.name,
                     selectedSheets = if (workbook) listOf(previewSheet) else null,
-                    check = { job.ensureActive() }).take(6000)
+                    check = { job.ensureActive() })
             }
             textReady = true
         } catch (error: CancellationException) { throw error }
@@ -281,7 +287,7 @@ internal fun DocumentSelectionDialog(
                     Button(onClick = {
                         val selected = document.copy(pages = if (pdf && !allPages) selectedPages else null,
                             sheets = if (workbook && !allSheets) chosenSheets else null)
-                        if (workbook) {
+                        if (workbook || plainText) {
                             val original = file ?: return@Button
                             confirming = true
                             confirmationError = null

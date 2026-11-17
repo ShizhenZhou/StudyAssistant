@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -425,6 +426,79 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     internal var solveInputDraft by mutableStateOf(com.zsz.studyassistant.ui.SolveInputDraft())
         private set
+    private var inputDraftObserver: Job? = null
+    private var inputDraftRestore: Job? = null
+    private var clearingInputDrafts = false
+    private val inputDraftFailures = mutableSetOf<String>()
+    private val inputDrafts = com.zsz.studyassistant.data.InputDraftPersistence.shared(app)
+    init {
+        viewModelScope.launch {
+            inputDrafts.saveState.collect { state ->
+                val failures = state.failedKeys
+                val newlyFailed = failures.any { it !in inputDraftFailures }
+                inputDraftFailures.clear(); inputDraftFailures.addAll(failures)
+                solveInputDraft.saveFailed = solveInputDraft.storageKey in failures
+                if (newlyFailed) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["inputDraft.failed"]
+            }
+        }
+    }
+
+    /** Snapshot now, including the last keystroke; IO stays serialized outside the UI thread. */
+    internal fun flushInputDraft(): Boolean {
+        if (clearingInputDrafts) return true
+        val draft = solveInputDraft
+        if (!draft.editable) return true // Failed originals remain untouched until explicit discard.
+        return try { draft.snapshot()?.let { inputDrafts.save(it, draft.id) } ?: true }
+        catch (_: OutOfMemoryError) { draft.saveFailed = true; error = com.zsz.studyassistant.ui.stringsFor(uiLang)["inputDraft.failed"]; false }
+    }
+    private fun observeInputDraft(draft: com.zsz.studyassistant.ui.SolveInputDraft) {
+        inputDraftObserver?.cancel()
+        inputDraftObserver = viewModelScope.launch {
+            androidx.compose.runtime.snapshotFlow { draft.snapshot() }.collectLatest { value ->
+                kotlinx.coroutines.delay(350)
+                if (!clearingInputDrafts && solveInputDraft === draft && draft.editable && value != null && value == draft.snapshot()) inputDrafts.save(value, draft.id)
+            }
+        }
+    }
+    private fun bindInputDraft(key: String) {
+        inputDraftObserver?.cancel(); inputDraftRestore?.cancel()
+        val draft = com.zsz.studyassistant.ui.SolveInputDraft(key).also { it.restoring = true; it.saveFailed = key in inputDraftFailures }
+        inputDrafts.reserve(key, draft.id)
+        solveInputDraft = draft
+        inputDraftRestore = viewModelScope.launch {
+            try {
+                val value = inputDrafts.read(key)
+                if (solveInputDraft !== draft) return@launch
+                value?.let(draft::restore)
+                draft.restoreFailed = false
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { if (solveInputDraft === draft) draft.restoreFailed = true }
+            catch (_: OutOfMemoryError) { if (solveInputDraft === draft) draft.restoreFailed = true }
+            finally {
+                if (currentCoroutineContext().isActive && solveInputDraft === draft) {
+                    draft.restoring = false; if (!draft.restoreFailed) observeInputDraft(draft)
+                }
+            }
+        }
+    }
+    internal fun retryInputDraft() {
+        val draft = solveInputDraft
+        if (draft.restoreFailed) draft.storageKey?.let(::bindInputDraft)
+        else { inputDrafts.retry(); flushInputDraft() }
+    }
+    /** Called only by the confirmation dialog, never by failed restoration. */
+    internal fun discardInputDraft() {
+        val draft = solveInputDraft
+        inputDraftRestore?.cancel(); inputDraftObserver?.cancel()
+        draft.storageKey?.let { inputDrafts.clear(it, draft.id) }
+        draft.clearInput(); draft.restoring = false; draft.restoreFailed = false; draft.saveFailed = false
+        observeInputDraft(draft)
+    }
+    private fun acceptInputDraft(draft: com.zsz.studyassistant.ui.SolveInputDraft) {
+        // Submit the tombstone synchronously before any delayed observation can publish old input.
+        draft.storageKey?.let { inputDrafts.clear(it, draft.id) }
+        draft.clearInput()
+    }
     private var sessionRecordBinding = SolveSessionBinding()
     private var retryBinding: SolveSessionBinding? = null
     private val solveSessionWriteMutex = kotlinx.coroutines.sync.Mutex()
@@ -566,7 +640,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val baseline = row?.let { withContext(Dispatchers.Default) { com.zsz.studyassistant.data.SavePayload.notebook(it) } }
                 if (!current() || busy || reviewBusy || dataBusy) return@launch
                 stopActiveGeneration()
-                resetSession()
+                if (!resetSession()) return@launch
                 expectedCall = callSeq
                 // Old grading never created a history row. Migrate only those legacy drafts;
                 // a modern deleted/pruned history must remain missing.
@@ -575,6 +649,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     id !in deletionState.value.historyIds && id !in deletionState.value.questionIds
                 sessionRecordBinding=SolveSessionBinding(id,value.createdAt,value.source,
                     historyAllowed=(value.historyAllowed && history!=null) || legacyGrade)
+                bindInputDraft(id)
                 expectedBinding = sessionRecordBinding
                 questionText=value.question
                 isPhoto=value.photo; askMode=value.ask; gradeMode=value.grade
@@ -946,7 +1021,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Input attachments are transient and must never overwrite the camera recovery queue. */
     internal suspend fun prepareAttachmentCrop(owner: com.zsz.studyassistant.ui.SolveInputDraft,
                                                uris: List<android.net.Uri>): Boolean {
-        if (solveInputDraft !== owner || owner.importingImages) return false
+        if (solveInputDraft !== owner || !owner.editable || owner.importingImages) return false
         val batch = uris.distinct().filterNot { it in owner.attachments }.take((3 - owner.attachments.size).coerceAtLeast(0))
         if (batch.isEmpty()) return false
         var files: List<java.io.File>? = null
@@ -963,6 +1038,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 getApplication(), viewModelScope, ::refreshUsage, persistCheckpoints = false
             ) { images, _, corrections ->
                 if (solveInputDraft === owner && images.size == batch.size) {
+                    if (images.any { it.size > com.zsz.studyassistant.data.InputDraftStore.MAX_IMAGE_BYTES } ||
+                        (owner.images.values.sumOf { it.size.toLong() } + images.sumOf { it.size.toLong() }) >
+                        com.zsz.studyassistant.data.InputDraftStore.MAX_IMAGES_BYTES) {
+                        owner.saveFailed = true
+                        error = com.zsz.studyassistant.ui.stringsFor(uiLang)["inputDraft.failed"]
+                        return@CaptureFlowController
+                    }
                     owner.images.putAll(batch.zip(images))
                     batch.forEachIndexed { index, uri ->
                         corrections.getOrNull(index)?.takeIf { it.isNotBlank() }?.let {
@@ -989,7 +1071,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     internal suspend fun importDocument(owner: com.zsz.studyassistant.ui.SolveInputDraft, uri: android.net.Uri): Boolean {
-        if (solveInputDraft !== owner || busy || dataBusy || owner.importingDocuments || owner.documents.size >= 20) return false
+        if (solveInputDraft !== owner || !owner.editable || busy || dataBusy || owner.importingDocuments || owner.documents.size >= 20) return false
         owner.importingDocuments = true
         return try {
             val document = withContext(Dispatchers.IO) { documentStore.importUri(uri) }
@@ -1202,10 +1284,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val loaded = readConversation(s.text, s.answer, s.conversationJson, s.imageBytes, s.source == "grade",
                 historyImages = s.imagesJson)
             if (seq != callSeq) return false
-            resetSession()
+            if (!resetSession()) return false
             sessionRecordBinding = SolveSessionBinding(
                 s.id, s.createdAt, s.source, historyAllowed = true
             )
+            bindInputDraft(s.id)
             exitRedo()
             isPhoto = s.source == "camera"
             askMode = s.source == "ask"
@@ -1236,17 +1319,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         grade: Boolean = false,
         ask: Boolean = false,
         fromNotebook: Boolean = false
-    ) {
+    ): Boolean {
         val retry = retryBinding
         val capture = if (photo && !ask && !grade) captureIdentity else null
         val pendingInput = solveInputDraft.takeIf { retry === sessionRecordBinding }
-        resetSession()
+        if (!resetSession()) return false
         if (pendingInput != null) solveInputDraft = pendingInput
         val firstTime = capture?.second ?: System.currentTimeMillis()
         sessionRecordBinding = retry ?: SolveSessionBinding(
             id = capture?.first ?: QuestionIdentity.create(firstTime), createdAt = firstTime,
             historyAllowed = !fromNotebook
         )
+        if (pendingInput == null) bindInputDraft(checkNotNull(sessionRecordBinding.id))
+        else if (pendingInput.restoring) bindInputDraft(checkNotNull(pendingInput.storageKey))
+        else if (pendingInput.editable) observeInputDraft(pendingInput)
         if (capture != null) captureIdentity = null
         currentQuestionCreatedAt = sessionRecordBinding.createdAt
         isPhoto = photo
@@ -1254,6 +1340,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         askMode = ask
         isFromNotebook = fromNotebook
         questionFromPhoto = photo
+        return true
     }
 
     /** 主页「图文提问」入口：开一个空会话并标记为图文提问（标题保持"图文提问"） */
@@ -1263,7 +1350,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         //   原来走 `startNewQuestion()`，它**不复位 isPhoto** → 上一轮拍过题时 isPhoto 仍是 true →
         //   SolveScreen 的返回按钮判定 `!vm.isPhotoSession` 为假 → 走"回拍题界面"分支。
         //   改用 prepareSession：它是 startNewQuestion 的超集，且显式 `isPhoto = false`。
-        prepareSession(ask = true)
+        if (prepareSession(ask = true)) bindInputDraft(com.zsz.studyassistant.data.InputDraftStore.NEW_ASK)
     }
 
     /**
@@ -1419,7 +1506,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun startNewQuestion() {
         saveSessionOnExit()
         stopActiveGeneration()
-        resetSession()
+        if (!resetSession()) return
     }
 
     /** 从当前 chatItems + 图片来源构建发给模型的对话历史（题目 + 问答） */
@@ -1563,7 +1650,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         chatItems, com.zsz.studyassistant.data.NotebookSuggestions(suggestedCategory, suggestedTags)
     )
 
-    private fun resetSession() {
+    private fun resetSession(preserveInput: Boolean = true): Boolean {
+        if (preserveInput && !flushInputDraft()) return false
+        inputDraftObserver?.cancel(); inputDraftRestore?.cancel()
         webEnabled = com.zsz.studyassistant.data.CapturePrefs.webEnabled(getApplication())
         attachmentCropFlow?.cancelCropFlow()
         attachmentCropFlow = null
@@ -1585,6 +1674,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentQuestionCreatedAt = 0L
         reviewMode = false
         gradeMode = false
+        return true
     }
 
     /**
@@ -1943,7 +2033,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     val canInspectDocumentStorage: Boolean
         get() = !(dataBusy || busy || reviewBusy || saving || saveOperations > 0 || retryingHistoryWrites ||
-            activeDraft != null || solveInputDraft.importingImages || solveInputDraft.importingDocuments ||
+            activeDraft != null || solveInputDraft.restoring || solveInputDraft.importingImages || solveInputDraft.importingDocuments ||
             preparedBackup != null || preparedExport != null)
 
     /** Explicit maintenance only; protect all active references before inspecting private originals. */
@@ -1960,7 +2050,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         solveSessionWriteMutex.withLock {
                             requireNoPendingSaves()
                             com.zsz.studyassistant.data.DocumentStorageMaintenance.inspect(
-                                getApplication(), AppDatabase.get(getApplication()), hashes, clean)
+                                getApplication(), AppDatabase.get(getApplication()), hashes + inputDrafts.documentHashes(), clean)
                         }
                     }
                 }
@@ -2367,6 +2457,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         discardPreparedBackup()
         discardPreparedExport()
         dataBusy = true
+        clearingInputDrafts = true
         viewModelScope.launch {
             try {
                 val stoppingJob=callJob
@@ -2377,10 +2468,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     requireNoPendingSaves()
                     com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
                     conversationDrafts.clearAll()
+                    inputDraftObserver?.cancel(); inputDraftRestore?.cancel()
+                    inputDrafts.clearAll()
+                    inputDraftFailures.clear()
                     historyWriteQueue.clear()
                     failedHistoryWrites = 0
                     activeDraft=null
-                    resetSession()
+                    resetSession(preserveInput = false)
                     exitReviewMode()
                     draftError=null
                     refreshDrafts()
@@ -2392,6 +2486,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 menuMessageIsError = true
                 menuMessage = com.zsz.studyassistant.ui.stringsFor(uiLang).format("data.failed", "msg" to (e.message ?: ""))
             } finally {
+                clearingInputDrafts = false
                 dataBusy = false
             }
         }
@@ -2413,7 +2508,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 拍照解答 */
     fun solveWithImage(bytes: ByteArray) {
-        prepareSession(photo = true)
+        if (!prepareSession(photo = true)) return
         imageBytes = bytes
         isPhoto = true
         isFromNotebook = false
@@ -2433,7 +2528,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 拍照解答（多张）：两张图作为同一道题目一起识别解答 */
     fun solveWithImages(images: List<ByteArray>) {
-        prepareSession(photo = true)
+        if (!prepareSession(photo = true)) return
         isPhoto = true
         isFromNotebook = false
         multiImages = images
@@ -2458,7 +2553,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 文字解答 */
     fun solveText(question: String) {
-        prepareSession()
+        if (!prepareSession()) return
         isPhoto = false
         isFromNotebook = false
         questionFromPhoto = false
@@ -2481,10 +2576,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 直接提问：文字 + 可选多张图，作为一条问题解答 */
     fun solveDirect(text: String, images: List<ByteArray>, documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
                     fromCamera: Boolean = false): Boolean {
+        if (!fromCamera && retryBinding == null && !solveInputDraft.editable) return false
         if (busy || dataBusy || (text.isBlank() && images.isEmpty() && documents.isEmpty())) return false
         if (documents.size > 20) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false }
         val prompt = customPromptText(categoryId = null) ?: return false
-        prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)
+        val acceptedInput = solveInputDraft.takeIf { !fromCamera && retryBinding == null &&
+            it.storageKey == com.zsz.studyassistant.data.InputDraftStore.NEW_ASK }
+        if (!prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)) return false
         isPhoto = images.isNotEmpty()
         isFromNotebook = false
         questionFromPhoto = false   // 直接提问显示用户自己写的文字，不是 AI 转译题干
@@ -2515,6 +2613,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             recordSolveSession(if (fromCamera) "camera" else "ask")
         }, repeat = { solveDirect(text, images, documents, fromCamera) }, prompt = prompt)
+        acceptedInput?.let(::acceptInputDraft)
         return true
     }
 
@@ -2522,7 +2621,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun sendFollowUp(text: String, images: List<ByteArray> = emptyList(), quotedText: String? = null,
                      quoteAnchor: QuoteAnchor? = null, documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
                      excludedDocumentHashes: Set<String> = emptySet()): Boolean {
-        if (busy || dataBusy) return false
+        if (busy || dataBusy || !solveInputDraft.editable) return false
         if(streamInterrupted) { error=com.zsz.studyassistant.ui.stringsFor(uiLang)["draft.resolveFirst"]; return false }
         if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return false
         val historicalDocuments = chatItems.firstOrNull { it.role == "question" }?.documents.orEmpty() +
@@ -2532,6 +2631,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false
         }
         val prompt = customPromptText() ?: return false
+        val acceptedInput = solveInputDraft
         val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
         // Store the complete quote in the existing message body, so retries, history,
         // notebook saves and backups all retain the same context without a format change.
@@ -2547,6 +2647,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             addItem("assistant", StudyAssistant.stripMetaLines(reply))
             updateSolveSession()
         }, repeat = { retryFollowUp(encoded) }, prompt = prompt)
+        acceptInputDraft(acceptedInput)
         return true
     }
 
@@ -3641,7 +3742,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 批改结果流式追加；之后可继续带图追问。
      */
     fun startGrade(questionBytes: ByteArray, answerBytes: ByteArray?, redoFor: QuestionId? = null, correctedTexts: List<String?> = emptyList()) {
-        prepareSession(grade = true)
+        if (!prepareSession(grade = true)) return
         pendingRedoFor = redoFor
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
         val imgs = buildList {
@@ -3667,7 +3768,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun startGradeText(questionText: String, answerBytes: ByteArray, redoFor: QuestionId? = null,
                        questionImageKeys: List<String> = emptyList(), categoryId: Long? = null) {
-        prepareSession(grade = true)
+        if (!prepareSession(grade = true)) return
         currentQuestionCategoryId = categoryId
         pendingRedoFor = redoFor
         val str = com.zsz.studyassistant.ui.stringsFor(uiLang)
@@ -3804,13 +3905,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             (keepReview && epoch != reviewEpoch) || q.id in deletionState.value.questionIds) return false
         if (keepReview && reviewMode) saveSessionOnExit()
         stopActiveGeneration()
-        resetSession()
+        if (!resetSession()) return false
         sessionRecordBinding = SolveSessionBinding(
             id = q.id,
             createdAt = QuestionIdentity.earliest(q.createdAt, historySession?.createdAt ?: 0L),
             source = historySession?.source,
             historyAllowed = historySession != null
         )
+        bindInputDraft(q.id)
         val binding = sessionRecordBinding
         exitRedo()
         reviewMode = keepReview

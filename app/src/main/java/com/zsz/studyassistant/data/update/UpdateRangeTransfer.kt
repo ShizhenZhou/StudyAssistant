@@ -38,6 +38,7 @@ internal object UpdateRangeTransfer {
         guard { offset = file.length() }
         val remaining = responseLength(code, range, length, encoding, offset, total)
         var output: RandomAccessFile? = null
+        var failure: Throwable? = null
         try {
             guard {
                 if (file.length() != offset) throw IOException("Update partial changed")
@@ -55,8 +56,16 @@ internal object UpdateRangeTransfer {
                 received += count
             }
             if (received != remaining) throw IOException("Update response interrupted")
+        } catch (error: Throwable) {
+            failure = error
+            throw error
         } finally {
-            output?.use { it.fd.sync() }
+            try { output?.use { it.fd.sync() } }
+            catch (error: Throwable) {
+                // Keep a write-side ENOSPC even when flushing/closing also fails.
+                val original = failure
+                if (original == null) throw error else original.addSuppressed(error)
+            }
         }
     }
 }

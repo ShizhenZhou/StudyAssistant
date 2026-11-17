@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="katex/katex.min.css">
 <script src="katex/katex.min.js"></script>
 <script src="svg_diagrams.js"></script>
+<script defer src="media_viewer.js"></script>
 <style>
   /* ── 主题变量：浅色为默认，body.dark 覆盖（深色主题由原生侧注入，见 renderMessages 的 dark 参数） ──
      此前颜色全是写死的浅色 → 深色主题下气泡仍是浅灰、思考块灰字在深底上对比度极低（用户反馈） */
@@ -235,10 +236,10 @@ function renderMath(text){
   var tok=tokenize(text||''), body=mdToHtml(esc(tok.text));
   return body.replace(new RegExp(tok.marker+'(\\d+)'+tok.marker,'g'),function(m,idx){return renderOne(tok.store[+idx]);});
 }
-function openImg(el){
+function openImg(el, message){
   try{
     var b=el.getAttribute('data-image');
-    if(b && window.Android && Android.openImage){ Android.openImage(b); }
+    if(b && window.Android && Android.openImage){ Android.openImage(message, Number(el.getAttribute('data-image-index')), b); }
   }catch(e){}
 }
 // ── 流式跟随：滚动速度自适应「答案生成速度」（前馈 + 比例追齐），避免固定速率跟不上或抢跑 ──
@@ -649,7 +650,7 @@ function bubbleHtml(m, idx){
       var local=/^file:\/\/\/android_asset\/session-image\/[0-9a-f-]{36}\/[0-9]+$/.test(b64);
       if(!local && !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) continue;
       var src=local?b64:('data:image/jpeg;base64,'+b64);
-      imgs+='<img class="msgimg" style="cursor:zoom-in" data-image="'+(local?esc(b64):'')+'" src="'+esc(src)+'" onclick="imgTap(event,this,'+idx+')">';
+      imgs+='<img class="msgimg" style="cursor:zoom-in" data-image-index="'+j+'" data-image="'+(local?esc(b64):'')+'" src="'+esc(src)+'" onclick="imgTap(event,this,'+idx+')">';
     }
     // ★ 默认折叠原图：题目以「文字 + 公式」为主（提高易读性），点开才看原始拍摄的图片。
     //   AI 回复里的附图（如追问带图）保持原样直接显示。
@@ -757,7 +758,7 @@ function bubbleTap(idx){
 function imgTap(e, el, idx){
   if(e && e.stopPropagation){ e.stopPropagation(); }
   if(selectionMode){ bubbleTap(idx); return; }
-  openImg(el);
+  openImg(el, idx);
 }
 function continueGen(){
   try{ if(window.Android && Android.continueGeneration){ Android.continueGeneration(); } }catch(e){}
@@ -986,6 +987,7 @@ function renderMessages(arr, sel, labels, dark, scale, thinkPref){
   }
   setTimeout(function(){ if(window.Android) Android.onHeightChange(document.body.scrollHeight); },80);
   if(window.dshQuoteAfterRender) window.dshQuoteAfterRender();
+  if(window.dshDecorateDiagrams) window.dshDecorateDiagrams();
   requestFollowTick();
 }
 </script>

@@ -127,6 +127,7 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
         do { newId = (UUID.randomUUID().mostSignificantBits and Long.MAX_VALUE) or ID_BASE } while (read(newId) != null)
         val staged = partial(newId)
         try {
+            UpdateStorage.requireSpace(staged, source.bytes)
             destination.inputStream().use { input -> staged.outputStream().use { output ->
                 val buffer = ByteArray(64 * 1024)
                 var copied = 0L
@@ -146,7 +147,11 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
                 phase = UpdateDownloads.TransferPhase.WAITING, legacyId = id)
             write(record) // Old-ID alias remains recoverable even if the process dies before root records newId.
             record
-        } catch (_: Exception) { staged.delete(); null }
+        } catch (error: Exception) {
+            staged.delete()
+            if (UpdateStorage.isInsufficient(error)) throw error
+            null
+        }
     }
 
     private fun retireLegacy(record: Record) {
@@ -173,6 +178,10 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
             transition(record, UpdateDownloads.TransferPhase.RUNNING)
             val file = partial(id)
             if (file.length() > record.size) throw UpdateRangeTransfer.Rejected("update.verifyFailed")
+            val destination = File(record.destination)
+            destination.parentFile?.mkdirs()
+            UpdateStorage.requireDownloadSpace(file, destination, record.size,
+                Environment.isExternalStorageEmulated(destination))
             val urls = UpdateTransport.urls(record.url, UpdateTransport.load(context))
             var lastError: Exception? = null
             for (url in urls) {
@@ -202,6 +211,7 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
                 } catch (error: Stopped) { throw error }
                   catch (error: WindowEnded) { throw error }
                   catch (error: Exception) {
+                      if (UpdateStorage.isInsufficient(error)) throw error
                       if (lastError !is UpdateRangeTransfer.Rejected || error is UpdateRangeTransfer.Rejected) lastError = error
                   }
                 finally { execution.usingMirror = false; execution.call = null }
@@ -214,32 +224,41 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
                 return false
             }
             // Complete bytes (hash-checked when a digest is published) reach the existing handoff path.
+            UpdateStorage.requireSpace(destination, record.size)
             file.inputStream().use { input ->
                 var output: java.io.FileOutputStream? = null
-                try {
-                    guard {
-                        File(record.destination).parentFile?.mkdirs()
-                        output = File(record.destination).outputStream()
-                    }
+                guard {
+                    File(record.destination).parentFile?.mkdirs()
+                    output = File(record.destination).outputStream()
+                }
+                checkNotNull(output).use { target ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
                         check()
                         val count = input.read(buffer)
                         if (count < 0) break
-                        guard { checkNotNull(output).write(buffer, 0, count) }
+                        guard { target.write(buffer, 0, count) }
                     }
-                    guard { checkNotNull(output).fd.sync() }
-                } finally { output?.close() }
+                    guard { target.fd.sync() }
+                }
             }
             guard { transition(record, UpdateDownloads.TransferPhase.SUCCESS) }
             return false
-        } catch (_: WindowEnded) {
+        } catch (error: WindowEnded) {
+            if (UpdateStorage.isInsufficient(error)) {
+                transition(record, UpdateDownloads.TransferPhase.WAITING, UpdateStorage.ERROR_KEY)
+                return false
+            }
             transition(record, UpdateDownloads.TransferPhase.WAITING, "update.downloadInterrupted")
             return attempt < MAX_RETRIES // Persisted bytes are the next attempt's Range offset.
         } catch (_: Stopped) {
             transition(record, UpdateDownloads.TransferPhase.WAITING, "update.downloadInterrupted")
             return false
         } catch (error: Exception) {
+            if (UpdateStorage.isInsufficient(error)) {
+                transition(record, UpdateDownloads.TransferPhase.WAITING, UpdateStorage.ERROR_KEY)
+                return false // Keep the partial; only an explicit resume may retry after freeing space.
+            }
             val key = (error as? UpdateRangeTransfer.Rejected)?.errorKey ?: "update.downloadInterrupted"
             transition(record, UpdateDownloads.TransferPhase.WAITING, key)
             // Back off transient IO at 30s, 60s, … 5min, then leave retained bytes for manual resume.

@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        viewModel.flushInputDraft()
         com.zsz.studyassistant.data.BackupJobs.setForeground(false)
         com.zsz.studyassistant.data.AnswerForegroundService.setAppForeground(false)
         super.onStop()
