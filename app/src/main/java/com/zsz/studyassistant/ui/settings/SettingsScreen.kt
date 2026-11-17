@@ -32,6 +32,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.background
@@ -776,7 +778,7 @@ private fun ApiSettings(vm: MainViewModel) {
     }
 }
 
-/** 💾 数据管理入口：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 清空所有数据 */
+/** 💾 备份与数据入口：备份、附件存储、标签整理、数据维护及清空数据。 */
 @Composable
 private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     val s = LocalStrings.current
@@ -805,6 +807,7 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     SettingEntry(settingsStructureStrings(LocalUiLang.current)["storage"]) { go(AppNav.SettingsPages.DATA_STORAGE) }
     SettingEntry(s["tagMerge.title"]) { go(AppNav.SettingsPages.DATA_TAG_MERGE) }
     SettingEntry(s["data.upgradePage"]) { go(AppNav.SettingsPages.DATA_UPGRADE) }
+    ClearDataSettings(vm)
 }
 
 @Composable
@@ -812,7 +815,7 @@ private fun ClearDataSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     var showClearConfirm by remember { mutableStateOf(false) }
     val summary = vm.dataSummary
-    LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearMenuMessage() }
+    LaunchedEffect(Unit) { vm.clearMenuMessage() }
     Spacer(Modifier.height(10.dp))
     SettingEntry("🗑 " + s["data.clear"], danger = true) { showClearConfirm = true }
 
@@ -915,8 +918,6 @@ private fun DataUpgradePage(vm: MainViewModel) {
             color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFFFFC107) else Color(0xFF9C6500)
         )
     }
-    Spacer(Modifier.height(24.dp))
-    ClearDataSettings(vm)
 }
 
 /** 💾 Backup management contains both manual export/import and automatic backup settings. */
@@ -1409,18 +1410,31 @@ private fun ThemeSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     var showPicker by remember { mutableStateOf(false) }   // 自定义取色盘
     // ① 主题模式
-    Text(s["settings.theme.mode"], style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
     val themes = listOf(s["theme.option.system"] to "system", s["theme.option.light"] to "light", s["theme.option.dark"] to "dark")
-    themes.forEach { (label, value) ->
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .selectable(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+    var themeExpanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        Surface(
+            Modifier.fillMaxWidth().clickable { themeExpanded = true },
+            shape = smoothShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer
         ) {
-            RadioButton(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
-            Text(label, Modifier.padding(start = 8.dp))
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(s["settings.theme.mode"], style = MaterialTheme.typography.titleSmall)
+                    Text(themes.firstOrNull { it.second == vm.theme }?.first ?: themes.first().first,
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                Text("▾", style = MaterialTheme.typography.titleLarge)
+            }
+        }
+        DropdownMenu(expanded = themeExpanded, onDismissRequest = { themeExpanded = false }) {
+            themes.forEach { (label, value) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    leadingIcon = { RadioButton(selected = vm.theme == value, onClick = null) },
+                    onClick = { vm.updateTheme(value); themeExpanded = false }
+                )
+            }
         }
     }
     // ② 主题配色（预设色板 + 自定义色，一键切换）
