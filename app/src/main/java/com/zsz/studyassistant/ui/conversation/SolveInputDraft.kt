@@ -8,8 +8,12 @@ import com.zsz.studyassistant.data.ConversationDocument
 import java.util.UUID
 
 /** Lives with one solve session across Activity recreation; image bytes never enter saved instance state. */
-internal class SolveInputDraft {
+internal class SolveInputDraft(val storageKey: String? = null) {
     val id = UUID.randomUUID().toString()
+    var restoring by mutableStateOf(false)
+    var restoreFailed by mutableStateOf(false)
+    var saveFailed by mutableStateOf(false)
+    val editable: Boolean get() = !restoring && !restoreFailed
     var text by mutableStateOf("")
     var quote by mutableStateOf<QuoteSelection?>(null)
     val images = androidx.compose.runtime.mutableStateMapOf<Uri, ByteArray>()
@@ -32,6 +36,34 @@ internal class SolveInputDraft {
     var awaitingPicker = false
     var fieldFocused = false
     var restoreIme by mutableStateOf(false)
+
+    fun snapshot(): com.zsz.studyassistant.data.InputDraftSnapshot? {
+        val key = storageKey ?: return null
+        // A picker/crop is not accepted input yet. Only persist complete image/metadata pairs.
+        val available = attachments.filter(images::containsKey)
+        return com.zsz.studyassistant.data.InputDraftSnapshot(
+            com.zsz.studyassistant.data.InputDraftMetadata(key, text, quote?.text, quote?.anchor,
+                available.map { com.zsz.studyassistant.data.InputImageMetadata(it.toString(), correctedTexts[it]) },
+                documents.toList(), documentSelection, excludedDocumentHashes.toSet()), available.map { images.getValue(it) })
+    }
+
+    fun restore(value: com.zsz.studyassistant.data.InputDraftSnapshot) {
+        require(value.metadata.key == storageKey)
+        text = value.metadata.text
+        quote = value.metadata.quote?.let { QuoteSelection(it, value.metadata.anchor) }
+        val uris = value.metadata.images.map { Uri.parse(it.uri) }
+        images.putAll(uris.zip(value.images))
+        value.metadata.images.forEachIndexed { index, item -> item.correctedText?.let { correctedTexts[uris[index]] = it } }
+        attachments = uris
+        documents = value.metadata.documents
+        documentSelection = value.metadata.selection
+        excludedDocumentHashes = value.metadata.excludedHashes
+    }
+
+    fun clearInput() {
+        text = ""; quote = null; attachments = emptyList(); documents = emptyList()
+        documentSelection = null; excludedDocumentHashes = emptySet()
+    }
 
     /** Derive OCR labels from the final image order without changing the user's editable input. */
     fun requestText(lang: UiLang): String {

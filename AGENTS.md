@@ -30,7 +30,7 @@
 
 ## Android 9–15 兼容分支
 
-`Compatible` 是用户指定的长期兼容分支，支持 API 28–35；主线保留 Android 16+。两线显示版本同步，本次兼容 v0.7.5 / versionCode 137，与主线同版本对齐。日常可在 Compatible 开发，不把整条兼容分支合入 main；必要的通用修复单独移植。
+`Compatible` 是用户指定的长期兼容分支，支持 API 28–35；主线保留 Android 16+。两线显示版本同步，本次兼容 v0.7.5.1 / versionCode 138，与主线同版本对齐。日常可在 Compatible 开发，不把整条兼容分支合入 main；必要的通用修复单独移植。
 
 兼容发布显式使用 `--distribution compat`，只允许干净且已推送的 Compatible；Git tag 使用 `compat_v<版本>`，正式版与测试版均不得设为 Latest。主线保留 `v<版本>` 与 Latest。兼容发布说明在 `.local-notes/releases/RELEASE-compat_v<版本>.md`，更新清单绑定 distribution=compat、API28–35 及 APK 摘要。两线更新、ENF 和差分基线互相隔离；旧 v0.6.7.9 首次手动安装完整兼容包。未指定发布时只做本地候选，不推送 Release。
 

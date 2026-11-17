@@ -2863,16 +2863,16 @@ private val B10_ZH = mapOf(
         "· 🌐 可选联网搜索、链接阅读与答案来源查看。\n" +
         "· 📷 拍照或图文提问，支持图片框选、OCR 文字与公式校对和手写作答批改，保留原图。\n" +
         "· 📎 支持 PDF、Word、PPT、TXT、Markdown、CSV、XLSX 文件提问；可选 PDF 页面或 Excel 工作表，原件随备份保存。\n" +
-        "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。\n" +
+        "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和 SVG 图形放大，同批图片可左右切换。\n" +
         "· 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、按科目启停自定义要求；要求可单独导入导出。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
-        "· 🕘 按自动短标题回看解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
+        "· 🕘 按关键词和时间查找解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
         "· 🏷 标签整理支持 AI 建议、预览确认和合并撤销。\n" +
         "· 📖 间隔复习、每日提醒与学习统计。\n" +
         "· 🌐 五种界面语言，可调整主题、壁纸背景和字号。\n" +
         "· 📦 手动备份、每日自动备份与恢复，支持大备份分卷。\n" +
-        "· 💾 保存失败可重试，中断对话可恢复，删除操作支持撤销。\n" +
+        "· 💾 输入草稿自动保留，保存失败可重试，中断对话可恢复，删除操作支持撤销。\n" +
         "· ⬆️ 应用内检查正式版和可选测试版，支持更新提示、差分与后台下载、安装前校验。\n" +
         "· 📥 从其他应用分享 1～2 张图片，选择解题或批改并按顺序框选。\n" +
         "· 🔎 错题本搜索显示题干或答案的命中片段，并高亮关键词。"
@@ -2942,16 +2942,16 @@ private val B10_EN = mapOf(
         "· 🌐 Optional web search, link reading and answer sources.\n" +
         "· 📷 Ask with photos or text and images, crop and correct OCR text and formulas, and grade handwritten work while retaining the original image.\n" +
         "· 📎 Ask about PDF, Word, PowerPoint, TXT, Markdown, CSV and XLSX files; select PDF pages or Excel sheets, with originals included in backups.\n" +
-        "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.\n" +
+        "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables, enlarged SVG diagrams and swiping through images from the same batch.\n" +
         "· 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language, and toggle instructions by subject; export and import instructions separately.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
-        "· 🕘 Revisit solutions and grading with automatic short titles, or continue the conversation; keeps the latest 200 entries within 30 days.\n" +
+        "· 🕘 Find solutions and grading by keyword and date, then continue the conversation; keeps the latest 200 entries within 30 days.\n" +
         "· 🏷 Organize tags with AI suggestions, merge previews and undo.\n" +
         "· 📖 Spaced review, daily reminders and learning statistics.\n" +
         "· 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.\n" +
         "· 📦 Manual and daily automatic backups, restore, and split archives for large backups.\n" +
-        "· 💾 Retry failed saves, recover interrupted conversations and undo deletions.\n" +
+        "· 💾 Keep input drafts, retry failed saves, recover interrupted conversations and undo deletions.\n" +
         "· ⬆️ Check stable and optional beta updates, view update prompts, use delta and background downloads, and verify before installation.\n" +
         "· 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.\n" +
         "· 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords."
@@ -3021,16 +3021,16 @@ private val B10_JA = mapOf(
         "· 🌐 任意のウェブ検索・リンク閲覧と回答の参照元表示。\n" +
         "· 📷 写真や画像付きテキストで質問し、切り取り・OCR の文字と数式の校正・手書き解答の添削に対応。元画像も保持します。\n" +
         "· 📎 PDF・Word・PowerPoint・TXT・Markdown・CSV・XLSX で質問。PDF のページや Excel のシートを選択でき、原本もバックアップします。\n" +
-        "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・簡単な SVG 図に対応。\n" +
+        "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・SVG 図の拡大と、同じ組の画像のスワイプ表示に対応。\n" +
         "· 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。\n" +
         "· 🧠 高速・思考モード、AI 出力言語、科目別カスタム指示に対応。指示は個別に書き出し・読み込みできます。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
-        "· 🕘 自動の短いタイトルで解答・添削履歴を見直し、追加質問。30日以内の最新200件を保存。\n" +
+        "· 🕘 キーワードと期間で解答・添削履歴を探して追加質問。30日以内の最新200件を保存。\n" +
         "· 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。\n" +
         "· 📖 間隔を空けた復習、毎日の通知と学習統計。\n" +
         "· 🌐 5言語の画面表示、テーマ・壁紙背景・文字サイズの調整。\n" +
         "· 📦 手動・毎日の自動バックアップと復元。大きなバックアップは分割可能。\n" +
-        "· 💾 保存失敗の再試行、中断した会話の復元、削除の取り消し。\n" +
+        "· 💾 入力下書きの保存、保存失敗の再試行、中断した会話の復元、削除の取り消し。\n" +
         "· ⬆️ 正式版と任意のテスト版の更新確認、更新ダイアログ、差分・バックグラウンドダウンロードとインストール前の検証。\n" +
         "· 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取り。\n" +
         "· 🔎 ノート検索で問題文・解答の一致箇所とキーワードの強調を表示。"
@@ -3100,16 +3100,16 @@ private val B10_KO = mapOf(
         "· 🌐 선택적 웹 검색, 링크 읽기와 답변 출처 확인.\n" +
         "· 📷 사진 또는 이미지와 글로 질문하고 자르기, OCR 문자·수식 교정, 손글씨 채점을 지원하며 원본 이미지를 보관합니다.\n" +
         "· 📎 PDF·Word·PowerPoint·TXT·Markdown·CSV·XLSX 파일 질문을 지원합니다. PDF 페이지나 Excel 시트를 선택하고 원본도 백업합니다.\n" +
-        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표와 간단한 SVG 그림을 지원합니다.\n" +
+        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표, SVG 그림 확대와 같은 묶음 이미지의 좌우 넘기기를 지원합니다.\n" +
         "· 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어 및 과목별 지시 설정. 지시는 별도로 내보내고 가져올 수 있습니다.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
-        "· 🕘 자동 짧은 제목으로 풀이·채점 기록을 찾고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
+        "· 🕘 키워드와 기간으로 풀이·채점 기록을 찾고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
         "· 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.\n" +
         "· 📖 간격 복습, 매일 알림과 학습 통계.\n" +
         "· 🌐 5개 화면 언어, 테마·배경화면·글자 크기 조절.\n" +
         "· 📦 수동·매일 자동 백업과 복원, 대용량 백업 분할.\n" +
-        "· 💾 저장 실패 재시도, 중단된 대화 복구와 삭제 실행 취소.\n" +
+        "· 💾 입력 초안 보관, 저장 실패 재시도, 중단된 대화 복구와 삭제 실행 취소.\n" +
         "· ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 업데이트 안내, 차등·백그라운드 다운로드와 설치 전 검증.\n" +
         "· 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자릅니다.\n" +
         "· 🔎 오답노트 검색에서 문제·답변의 일치 구절과 강조된 키워드를 표시합니다."
@@ -3491,7 +3491,7 @@ private val UPDATE_CHANNEL_ZH = mapOf(
     "update.downloadBeta" to "下载测试版（可选）"
 )
 
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH + PROMPT_BACKUP_ZH + DOCUMENT_SELECTION_ZH + UPDATE_RECOVERY_ZH
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH + PROMPT_BACKUP_ZH + DOCUMENT_SELECTION_ZH + UPDATE_RECOVERY_ZH + WORKFLOW_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Android 9–15 · API 28–35 · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3550,7 +3550,7 @@ private val UPDATE_CHANNEL_EN = mapOf(
     "update.downloadBeta" to "Download test version (optional)"
 )
 
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN + PROMPT_BACKUP_EN + DOCUMENT_SELECTION_EN + UPDATE_RECOVERY_EN
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN + PROMPT_BACKUP_EN + DOCUMENT_SELECTION_EN + UPDATE_RECOVERY_EN + WORKFLOW_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "Android 9–15 · API 28–35 · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3609,7 +3609,7 @@ private val UPDATE_CHANNEL_JA = mapOf(
     "update.downloadBeta" to "テスト版をダウンロード（任意）"
 )
 
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA + PROMPT_BACKUP_JA + DOCUMENT_SELECTION_JA + UPDATE_RECOVERY_JA
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA + PROMPT_BACKUP_JA + DOCUMENT_SELECTION_JA + UPDATE_RECOVERY_JA + WORKFLOW_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "Android 9–15 · API 28–35 · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3668,4 +3668,4 @@ private val UPDATE_CHANNEL_KO = mapOf(
     "update.downloadBeta" to "테스트 버전 다운로드 (선택)"
 )
 
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO + PROMPT_BACKUP_KO + DOCUMENT_SELECTION_KO + UPDATE_RECOVERY_KO
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO + PROMPT_BACKUP_KO + DOCUMENT_SELECTION_KO + UPDATE_RECOVERY_KO + WORKFLOW_KO

@@ -82,6 +82,7 @@ internal object UpdateDownloadNotifications {
         val text = when {
             messageKey != null -> strings[messageKey]
             task == null -> strings["update.notif.preparing"]
+            task.errorKey == UpdateStorage.ERROR_KEY -> strings[UpdateStorage.ERROR_KEY]
             task.errorKey == "update.downloadUnavailable" -> strings["update.notif.observing"]
             task.phase == UpdateDownloads.Phase.WAITING -> strings["update.notif.waiting"]
             task.phase == UpdateDownloads.Phase.READY -> strings["update.notif.ready"]

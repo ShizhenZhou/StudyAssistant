@@ -77,6 +77,48 @@ class LocalDocumentTextTest {
         }
     }
 
+    @Test fun previewStopsBeforeOversizedOrInvalidTailButFullReadStillValidatesIt() {
+        val prefix = "汉🙂".repeat(2000)
+        listOf(Charsets.UTF_8, Charsets.UTF_16LE, Charsets.UTF_16BE).forEach { charset ->
+            val bom = when (charset) {
+                Charsets.UTF_16LE -> byteArrayOf(-1, -2)
+                Charsets.UTF_16BE -> byteArrayOf(-2, -1)
+                else -> byteArrayOf()
+            }
+            val input = file(bom + (prefix + "x".repeat(210000)).toByteArray(charset))
+            assertEquals(prefix, LocalDocumentText.preview(input, "notes.txt"))
+            assertProblem("document.textTooLarge") { LocalDocumentText.read(input, "notes.txt") }
+        }
+        val invalidTail = file("a".repeat(10000).toByteArray() + byteArrayOf(0xC3.toByte(), 0x28))
+        assertEquals("a".repeat(6000), LocalDocumentText.preview(invalidTail, "notes.txt"))
+        assertProblem("document.textEncoding") { LocalDocumentText.read(invalidTail, "notes.txt") }
+        val splitSurrogate = file(("a".repeat(5999) + "🙂tail").toByteArray())
+        assertEquals("a".repeat(5999), LocalDocumentText.preview(splitSurrogate, "notes.txt"))
+        val sheet = """<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>${"a".repeat(210000)}</t></is></c></row></sheetData></worksheet>"""
+        val workbook = book(sheet)
+        assertEquals(6000, LocalDocumentText.preview(workbook, "notes.xlsx", listOf("数学")).length)
+        assertProblem("document.textTooLarge") { LocalDocumentText.read(workbook, "notes.xlsx", listOf("数学")) }
+    }
+
+    @Test fun xlsxKeepsRawNumbersWithDatesPercentAndNumericDisplaySemantics() {
+        val ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        val styles = """<styleSheet xmlns="$ns"><numFmts count="1"><numFmt numFmtId="164" formatCode="yyyy-mm-dd hh:mm"/></numFmts><cellXfs count="5"><xf numFmtId="0"/><xf numFmtId="14"/><xf numFmtId="10"/><xf numFmtId="4"/><xf numFmtId="164"/></cellXfs></styleSheet>"""
+        val sheet = """<worksheet xmlns="$ns"><sheetData><row r="1"><c r="A1" s="1"><v>60</v></c><c r="B1" s="2"><f>1/8</f><v>0.125</v></c><c r="C1" s="3"><v>1234.5</v></c><c r="D1" s="4"><v>61.5</v></c></row></sheetData></worksheet>"""
+        val text = LocalDocumentText.read(book(sheet, styles = styles), "table.xlsx", listOf("数学"))
+        assertTrue(text.contains("A1: 60 [display: 1900-02-29"))
+        assertTrue(text.contains("B1: 0.125 [cached formula result] [display: 12.50%"))
+        assertTrue(text.contains("C1: 1234.5 [display: 1,234.50"))
+        assertTrue(text.contains("D1: 61.5 [display: 1900-03-01 12:00:00"))
+        val alternate = LocalDocumentText.read(book(sheet, styles = styles, date1904 = true), "table.xlsx", listOf("数学"))
+        assertTrue(alternate.contains("A1: 60 [display: 1904-03-01"))
+        assertTrue(XlsxNumberDisplay.describe("59", "yyyy-mm-dd", false)!!.contains("1900-02-28"))
+        assertTrue(XlsxNumberDisplay.describe("0", "yyyy-mm-dd", true)!!.contains("1904-01-01"))
+        assertTrue(XlsxNumberDisplay.describe("-1234.5", "#,##0.00;[Red](#,##0.00)", false)!!.contains("(1,234.50)"))
+        assertTrue(XlsxNumberDisplay.describe("0.5", "[h]:mm:ss", false)!!.contains("raw value retained"))
+        assertTrue(XlsxNumberDisplay.describe("0.5", "[>1]0.00;0%", false)!!.contains("raw value retained"))
+        assertTrue(XlsxNumberDisplay.describe("-0.5", "[<0]0%;0.00", false)!!.contains("raw value retained"))
+    }
+
     private fun file(bytes: ByteArray): File = temporary.newFile().apply { writeBytes(bytes) }
 
     private fun assertProblem(key: String, block: () -> Unit) {
@@ -84,18 +126,20 @@ class LocalDocumentTextTest {
     }
 
     private fun book(sheet: String, strict: Boolean = false, strings: String? = null,
-                     target: String = "worksheets/sheet1.xml", external: Boolean = false): File {
+                     target: String = "worksheets/sheet1.xml", external: Boolean = false,
+                     styles: String? = null, date1904: Boolean = false): File {
         val ns = if (strict) "http://purl.oclc.org/ooxml/spreadsheetml/main"
             else "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
         val rel = if (strict) "http://purl.oclc.org/ooxml/officeDocument/relationships"
             else "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
         val parts = linkedMapOf(
-            "xl/workbook.xml" to """<workbook xmlns="$ns" xmlns:r="$rel"><sheets><sheet name="数学" sheetId="1" r:id="r1"/><sheet name="Other" sheetId="2" r:id="r2"/></sheets></workbook>""",
+            "xl/workbook.xml" to """<workbook xmlns="$ns" xmlns:r="$rel"><workbookPr date1904="$date1904"/><sheets><sheet name="数学" sheetId="1" r:id="r1"/><sheet name="Other" sheetId="2" r:id="r2"/></sheets></workbook>""",
             "xl/_rels/workbook.xml.rels" to """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="$rel/worksheet" Target="$target" ${if (external) "TargetMode=\"External\"" else ""}/><Relationship Id="r2" Type="$rel/worksheet" Target="worksheets/sheet2.xml"/></Relationships>""",
             "xl/worksheets/sheet1.xml" to sheet,
             // Deliberately malformed: selecting the first sheet must not open this one.
             "xl/worksheets/sheet2.xml" to "not XML")
         if (strings != null) parts["xl/sharedStrings.xml"] = strings
+        if (styles != null) parts["xl/styles.xml"] = styles
         return temporary.newFile().apply {
             ZipOutputStream(outputStream()).use { zip ->
                 parts.forEach { (path, text) ->

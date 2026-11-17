@@ -125,6 +125,7 @@ internal class UpdateDownloads(
             enqueueLocked(pending)
         } catch (error: TransferCancelled) { cancelLocked(); throw error }
           catch (error: Exception) {
+            if (UpdateStorage.isInsufficient(error)) return@locked pauseForStorage(pending)
             if (pending.delta == null) throw error
             fail(pending, "update.downloadInterrupted")
         }
@@ -161,7 +162,10 @@ internal class UpdateDownloads(
         try { snapshotLocked(record) }
         catch (_: TransferCancelled) { null }
         catch (error: kotlinx.coroutines.CancellationException) { throw error }
-        catch (_: Exception) { status(record, Phase.WAITING, errorKey = "update.downloadUnavailable") }
+        catch (error: Exception) {
+            if (UpdateStorage.isInsufficient(error)) pauseForStorage(record)
+            else status(record, Phase.WAITING, errorKey = "update.downloadUnavailable")
+        }
     }
 
     /** A worker must never observe, advance or publish a replacement transfer. */
@@ -181,18 +185,33 @@ internal class UpdateDownloads(
                 checkTransfer(record)
                 val current = snapshotLocked(record)
                 if (current.phase != Phase.WAITING) return@locked current
+                if (record.error == UpdateStorage.ERROR_KEY && record.id < 0) {
+                    val pending = record.copy(error = null)
+                    return@locked try { enqueueLocked(pending) } catch (error: Exception) {
+                        if (UpdateStorage.isInsufficient(error)) pauseForStorage(pending) else throw error
+                    }
+                }
                 val transfer = backend.query(record.id)
                 if (transfer == null || !owns(transfer, record)) return@locked current
+                if (!restart && record.error == UpdateStorage.ERROR_KEY && transfer.status == TransferPhase.SUCCESS) {
+                    val retry = record.copy(error = null)
+                    write(retry)
+                    return@locked complete(retry)
+                }
                 if (restart) {
                     // Keep verified earlier delta stages; discard only the current partial on request.
-                    val pending = record.copy(id = -1, enqueuePending = true)
+                    val pending = record.copy(id = -1, enqueuePending = true, error = null)
                     write(pending)
                     backend.remove(record.id)
                     return@locked enqueueLocked(pending)
                 }
-                val id = backend.resume(transferRelease(record), partial(record), record.id, record.appNotification)
+                val id = try { backend.resume(transferRelease(record), partial(record), record.id, record.appNotification) }
+                    catch (error: Exception) {
+                        if (UpdateStorage.isInsufficient(error)) return@locked pauseForStorage(record)
+                        throw error
+                    }
                     ?: return@locked current.copy(errorKey = "update.resumeUnavailable")
-                val resumed = record.copy(id = id, enqueuePending = false)
+                val resumed = record.copy(id = id, enqueuePending = false, error = null)
                 write(resumed)
                 snapshotLocked(resumed)
             }
@@ -232,7 +251,8 @@ internal class UpdateDownloads(
             return if (file.isFile) status(initial, Phase.READY, 100, file)
             else fail(initial, "update.downloadMissing")
         }
-        initial.error?.let { return status(initial, Phase.FAILED, errorKey = it) }
+        initial.error?.let { return status(initial,
+            if (it == UpdateStorage.ERROR_KEY) Phase.WAITING else Phase.FAILED, errorKey = it) }
         var record = initial
         val transfer = if (record.id < 0) {
             backend.find(transferRelease(record).assetUrl, partial(record))?.also {
@@ -242,6 +262,7 @@ internal class UpdateDownloads(
         if (transfer == null || !owns(transfer, record)) {
             if (transfer == null && record.id < 0 && record.enqueuePending) {
                 return try { enqueueLocked(record) } catch (error: Exception) {
+                    if (UpdateStorage.isInsufficient(error)) return pauseForStorage(record)
                     if (record.delta == null) throw error
                     fail(record, "update.downloadInterrupted")
                 }
@@ -293,7 +314,11 @@ internal class UpdateDownloads(
                         transferToken = stepToken(record.token, nextIndex), enqueuePending = true)
                     write(next) // Persist the verified intermediate before starting the next transfer.
                     cleanupPreviousSteps(next)
-                    return enqueueLocked(next)
+                    return try { enqueueLocked(next) } catch (error: Exception) {
+                        // The old download is retired; retain the newly persisted stage on ENOSPC.
+                        if (UpdateStorage.isInsufficient(error)) return pauseForStorage(next)
+                        throw error
+                    }
                 }
             } else {
                 require(record.release.assetSize <= 0 || source.length() == record.release.assetSize)
@@ -311,7 +336,10 @@ internal class UpdateDownloads(
             cleanupIntermediates(record)
             status(record, Phase.READY, 100, output)
         } catch (error: TransferCancelled) { cancelLocked(); throw error }
-          catch (_: Exception) { null }
+          catch (error: Exception) {
+            if (UpdateStorage.isInsufficient(error)) return pauseForStorage(record)
+            null
+        }
         finally { candidate.delete(); patchChecking(record).delete() }
         // Outside the reconstruction catch: never restart fallback if its OS handoff itself fails.
         ensureTransfer()
@@ -321,6 +349,7 @@ internal class UpdateDownloads(
     private fun copyCandidate(source: File, destination: File, expectedSize: Long, check: () -> Unit) {
         val limit = if (expectedSize > 0) expectedSize else UpdateDelta.MAX_APK_SIZE
         require(limit <= UpdateDelta.MAX_APK_SIZE)
+        UpdateStorage.requireSpace(destination, if (expectedSize > 0) expectedSize else source.length())
         source.inputStream().buffered().use { input ->
             destination.outputStream().buffered().use { output ->
                 val buffer = ByteArray(64 * 1024)
@@ -343,6 +372,7 @@ internal class UpdateDownloads(
 
     private fun fail(record: Record, key: String, removeTransfer: Boolean = true): Snapshot {
         checkTransfer(record)
+        if (key == UpdateStorage.ERROR_KEY) return pauseForStorage(record)
         if (removeTransfer) removeOwned(record)
         cleanupPreviousSteps(record)
         cleanupIntermediates(record)
@@ -357,6 +387,12 @@ internal class UpdateDownloads(
         }
         write(record.copy(ready = false, error = key))
         return status(record, Phase.FAILED, errorKey = key)
+    }
+    private fun pauseForStorage(record: Record): Snapshot {
+        checkTransfer(record)
+        // Do not remove the transfer, patch or verified chain base. Avoid reattempting synthesis on every poll.
+        write(record.copy(error = UpdateStorage.ERROR_KEY))
+        return status(record, Phase.WAITING, errorKey = UpdateStorage.ERROR_KEY)
     }
     private fun cancelLocked() {
         val record = read() ?: return
@@ -381,7 +417,8 @@ internal class UpdateDownloads(
 
     private fun status(record: Record, phase: Phase, progress: Int = -1, file: File? = null, errorKey: String? = null) =
         Snapshot(record.token, record.release, phase, progress, file, errorKey, record.appNotification,
-            record.id >= ResumableUpdateBackend.ID_BASE, currentPackageSize = transferRelease(record).assetSize)
+            record.id >= ResumableUpdateBackend.ID_BASE || errorKey == UpdateStorage.ERROR_KEY,
+            currentPackageSize = transferRelease(record).assetSize)
 
     private fun partial(record: Record): File {
         val root = checkNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))
@@ -483,6 +520,7 @@ internal class UpdateDownloads(
         }
         Record(token, release, obj.getLong("id"), obj.optBoolean("ready"),
             obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted",
+                UpdateStorage.ERROR_KEY,
                 "update.incompatible", "update.distributionIncompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false),
             delta, transferToken, obj.optBoolean("enqueuePending", false), steps, stepIndex)
     }.getOrNull()
@@ -548,7 +586,9 @@ internal class UpdateDownloads(
                 result += Transfer(number(DownloadManager.COLUMN_ID), text(DownloadManager.COLUMN_URI).orEmpty(),
                     text(DownloadManager.COLUMN_LOCAL_URI), state, number(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR),
                     number(DownloadManager.COLUMN_TOTAL_SIZE_BYTES),
-                    text(DownloadManager.COLUMN_MEDIA_TYPE)?.takeIf { it.startsWith(MIME_PREFIX) }?.removePrefix(MIME_PREFIX).orEmpty())
+                    text(DownloadManager.COLUMN_MEDIA_TYPE)?.takeIf { it.startsWith(MIME_PREFIX) }?.removePrefix(MIME_PREFIX).orEmpty(),
+                    errorKey = if (state == TransferPhase.FAILED && number(DownloadManager.COLUMN_REASON).toInt() ==
+                        DownloadManager.ERROR_INSUFFICIENT_SPACE) UpdateStorage.ERROR_KEY else null)
             }
             result
         } ?: emptyList()

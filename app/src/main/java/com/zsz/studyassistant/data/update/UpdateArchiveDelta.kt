@@ -67,8 +67,8 @@ internal object UpdateArchiveDelta {
                 val expandedTarget = expandedSize(targetSize, to)
                 check()
                 if (scratch.exists()) require(scratch.deleteRecursively())
+                UpdateStorage.requireSpace(scratch, expandedBase + expandedTarget + targetSize)
                 require(scratch.mkdir())
-                require(scratch.usableSpace >= expandedBase + expandedTarget + targetSize + 4L * 1024 * 1024)
                 val before = File(scratch, "base")
                 val after = File(scratch, "target")
                 base.inputStream().buffered().use { source -> before.outputStream().buffered().use { dest ->

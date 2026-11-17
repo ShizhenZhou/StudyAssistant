@@ -578,6 +578,10 @@ interface QuestionDao {
     @Query("SELECT id, createdAt, updatedAt, source, substr(text,1,256) AS text, substr(answer,1,256) AS answer, savedQuestionId, title FROM solve_sessions ORDER BY createdAt DESC")
     fun solveSessionsLight(): Flow<List<SolveSessionPreview>>
 
+    /** Match full text inside SQLite; only bounded previews cross the cursor boundary. */
+    @Query("SELECT id,createdAt,updatedAt,source,substr(text,1,256) AS text,substr(answer,1,256) AS answer,savedQuestionId,substr(title,1,256) AS title FROM solve_sessions WHERE createdAt>=:since AND (:query='' OR instr(lower(coalesce(title,'')),lower(:query))>0 OR instr(lower(text),lower(:query))>0) ORDER BY createdAt DESC")
+    fun searchSolveSessions(query: String, since: Long): Flow<List<SolveSessionPreview>>
+
     /** 按 id 取**重字段**（含原图 BLOB 与会话 JSON）——列表查询不用它，避免撑爆 CursorWindow */
     @Query("SELECT id,createdAt,updatedAt,source,substr(text,1,256) AS text,substr(answer,1,256) AS answer,savedQuestionId,title FROM solve_sessions WHERE id=:id")
     suspend fun sessionLightOnce(id: QuestionId): SolveSessionPreview?

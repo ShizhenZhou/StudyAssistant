@@ -11,12 +11,13 @@
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek 与 GPT 辅助编写。
 
-> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5（versionCode 137，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容分支更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
+> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5.1（versionCode 138，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容分支更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
 
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.5](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5)
+- **Android 9–15** · [下载兼容版 v0.7.5.1](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.1)
+- [Android 9–15 兼容分支（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -24,17 +25,17 @@
 
 - 📷 拍照或图文提问，支持图片框选、OCR 文字与公式校对和手写作答批改，保留原图。
 - 📎 支持 PDF、Word、PPT、TXT、Markdown、CSV、XLSX 文件提问；可选 PDF 页面或 Excel 工作表，原件随备份保存。
-- 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和简单 SVG 图形。
+- 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和 SVG 图形放大，同批图片可左右切换。
 - 🌐 可选联网搜索、链接阅读与答案来源查看。
 - 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。
 - 🧠 快速与思考模式，可设置 AI 输出语言、按科目启停自定义要求；要求可单独导入导出。
 - 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。
-- 🕘 按自动短标题回看解题与批改记录、继续追问，保留 30 天内最近 200 条。
+- 🕘 按关键词和时间查找解题与批改记录、继续追问，保留 30 天内最近 200 条。
 - 🏷 标签整理支持 AI 建议、预览确认和合并撤销。
 - 📖 间隔复习、每日提醒与学习统计。
 - 🌐 五种界面语言，可调整主题、壁纸背景和字号。
 - 📦 手动备份、每日自动备份与恢复，支持大备份分卷。
-- 💾 保存失败可重试，中断对话可恢复，删除操作支持撤销。
+- 💾 输入草稿自动保留，保存失败可重试，中断对话可恢复，删除操作支持撤销。
 - ⬆️ 应用内检查正式版和可选测试版，支持更新提示、差分与后台下载、安装前校验。
 - 📥 从其他应用分享 1～2 张图片，选择解题或批改并按顺序框选。
 - 🔎 错题本搜索显示题干或答案的命中片段，并高亮关键词。
@@ -58,6 +59,16 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 构建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **28**（Android **9–15**）、build-tools **36.0.0**。当前备份格式 Bak v4（原生 ZIP / DEFLATE；支持导入 v3 JSON），数据兼容细节见 [DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
 
 ## 版本记录
+
+### v0.7.5.1
+
+- ⚙️ 主题改为紧凑下拉选择、语言设置前移，清空所有数据回到备份与数据；及时刷新后台与复习通知权限状态。
+- 💾 自动保存未发送的文字、引用和附件草稿，按题目恢复并在发送后清理。
+- 🖼️ 同批图片可左右滑动查看与缩放，SVG 图形可点击放大。
+- 🔎 解题记录支持按标题、题干关键词和时间筛选。
+- 📎 加快 PDF 与文本附件预览，Excel 保留原始数值及常见日期、百分比等显示含义。
+- ⬇️ 更新下载与差分合成识别空间不足，保留进度并支持释放空间后继续。
+- 📌 `versionCode` **138**.
 
 ### v0.7.5
 

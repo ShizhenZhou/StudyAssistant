@@ -11,12 +11,13 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current release is v0.7.5 (versionCode 137, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest.
+> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.1 (versionCode 138, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest.
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5)
+- **Android 9–15** · [Download the compatible release (v0.7.5.1)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.1)
+- [Android 9–15 compatibility branch (Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
@@ -24,17 +25,17 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 - 📷 Ask with photos or text and images, crop and correct OCR text and formulas, and grade handwritten work while retaining the original image.
 - 📎 Ask about PDF, Word, PowerPoint, TXT, Markdown, CSV and XLSX files; select PDF pages or Excel sheets, with originals included in backups.
-- 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables and simple SVG diagrams.
+- 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables, enlarged SVG diagrams and swiping through images from the same batch.
 - 🌐 Optional web search, link reading and answer sources.
 - 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.
 - 🧠 Choose fast or thinking mode, set AI output language, and toggle instructions by subject; export and import instructions separately.
 - 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.
-- 🕘 Revisit solutions and grading with automatic short titles, or continue the conversation; keeps the latest 200 entries within 30 days.
+- 🕘 Find solutions and grading by keyword and date, then continue the conversation; keeps the latest 200 entries within 30 days.
 - 🏷 Organize tags with AI suggestions, merge previews and undo.
 - 📖 Spaced review, daily reminders and learning statistics.
 - 🌐 Five interface languages, with themes, wallpaper backgrounds and adjustable text size.
 - 📦 Manual and daily automatic backups, restore, and split archives for large backups.
-- 💾 Retry failed saves, recover interrupted conversations and undo deletions.
+- 💾 Keep input drafts, retry failed saves, recover interrupted conversations and undo deletions.
 - ⬆️ Check stable and optional beta updates, view update prompts, use delta and background downloads, and verify before installation.
 - 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
 - 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords.
@@ -58,6 +59,16 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **28** (Android **9–15**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.7.5.1
+
+- ⚙️ Use a compact theme dropdown, move language settings up and restore Clear all data to Backup & data; refresh background and review notification permission states.
+- 💾 Save unsent text, quotes and attachment drafts by question, restore them when reopened and clear them after sending.
+- 🖼️ Swipe and zoom through images from the same batch, and tap SVG diagrams to enlarge them.
+- 🔎 Filter solve history by title, question keywords and date.
+- 📎 Speed up PDF and text attachment previews; retain raw Excel values with common date, percentage and numeric display meanings.
+- ⬇️ Detect insufficient storage during update downloads and delta reconstruction, preserving progress for retry after freeing space.
+- 📌 `versionCode` **138**.
 
 ### v0.7.5
 

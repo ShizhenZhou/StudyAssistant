@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
-import android.util.Base64
 import android.view.MotionEvent
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -14,37 +13,19 @@ import android.webkit.WebResourceResponse
 import org.json.JSONArray
 import org.json.JSONObject
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 
 /** 一条对话消息（用于气泡渲染）；images 为 base64 编码的附图列表 */
 @kotlinx.serialization.Serializable
@@ -136,12 +117,14 @@ fun ConversationWebView(
     val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
     val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
     val currentOnScrollableChange by rememberUpdatedState(onScrollableChange)
+    val currentSelectionMode by rememberUpdatedState(selectionMode)
     var rendererGeneration by remember { mutableStateOf(0) }
     var rendererFailed by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
     val imageStore = remember { ConversationImageStore() }
     val payload = remember { ConversationPayload(imageStore) }
-    var zoomImage by remember { mutableStateOf<String?>(null) }
+    var imageGallery by remember { mutableStateOf<ImageGallery?>(null) }
+    var diagramOpen by remember { mutableStateOf(false) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
     val bridgeHandler = remember { Handler(Looper.getMainLooper()) }
 
@@ -157,6 +140,7 @@ fun ConversationWebView(
     // 思考块的文案按当前界面语言注入 WebView（繁體由 Strings 内部 s2t 自动转换）
     // ⚠️ 必须进「去重 key」：否则切换界面语言时 JSON 没变 → 不重渲染 → 思考块文案还是旧语言
     val s = LocalStrings.current
+    val mediaLabels = mediaViewerLabels()
     val currentQuoteMissing by rememberUpdatedState(s["solve.quoteUnavailable"])
     fun thinkLabelsJson(): String {
         fun esc(t: String) = t
@@ -168,7 +152,24 @@ fun ConversationWebView(
             ",\"expand\":\"" + esc(s["think.state.expand"]) + "\"" +
             ",\"fold\":\"" + esc(s["think.fold"]) + "\"" +
             ",\"unfold\":\"" + esc(s["think.unfold"]) + "\"" +
-            ",\"viewImages\":\"" + esc(s["conversation.viewImages"]) + "\"}"
+            ",\"viewImages\":\"" + esc(s["conversation.viewImages"]) + "\"" +
+            ",\"mediaClose\":\"" + esc(mediaLabels.close) + "\"" +
+            ",\"mediaZoomIn\":\"" + esc(mediaLabels.zoomIn) + "\"" +
+            ",\"mediaZoomOut\":\"" + esc(mediaLabels.zoomOut) + "\"" +
+            ",\"mediaPreview\":\"" + esc(mediaLabels.preview) + "\"}"
+    }
+
+    BackHandler(enabled = diagramOpen) {
+        webRef?.evaluateJavascript("window.dshCloseDiagram && window.dshCloseDiagram();", null)
+        diagramOpen = false
+    }
+
+    LaunchedEffect(selectionMode) {
+        if (selectionMode) {
+            imageGallery = null
+            diagramOpen = false
+            webRef?.evaluateJavascript("window.dshCloseDiagram && window.dshCloseDiagram();", null)
+        }
     }
 
     // 回到顶部：同时暂停流式跟随，避免又被自动拉回底部
@@ -196,7 +197,9 @@ fun ConversationWebView(
     // 换题/换会话：立刻回到顶部（无动画）
     LaunchedEffect(resetScrollSignal) {
         if (resetScrollSignal > 0) {
-            webRef?.evaluateJavascript("window.dshScrollReset && window.dshScrollReset();", null)
+            imageGallery = null
+            diagramOpen = false
+            webRef?.evaluateJavascript("window.dshCloseDiagram && window.dshCloseDiagram(); window.dshScrollReset && window.dshScrollReset();", null)
         }
     }
 
@@ -274,8 +277,20 @@ fun ConversationWebView(
                         }
 
                         @JavascriptInterface
-                        fun openImage(url: String) {
-                            bridgeHandler.post { if (webRef === bridgeView) zoomImage = imageStore.original(url) }
+                        fun openImage(message: Int, index: Int, url: String) {
+                            bridgeHandler.post {
+                                if (webRef !== bridgeView || currentSelectionMode) return@post
+                                val batch = currentMessages.getOrNull(message)?.images ?: return@post
+                                // Bind the tapped opaque handle to this exact message/index, rejecting stale DOM.
+                                val selected = batch.getOrNull(index) ?: return@post
+                                if (selected != imageStore.original(url)) return@post
+                                imageGallery = ImageGallery(batch.map { GalleryImage(base64 = it) }, index)
+                            }
+                        }
+
+                        @JavascriptInterface
+                        fun diagramViewerChanged(open: Boolean) {
+                            bridgeHandler.post { if (webRef === bridgeView) diagramOpen = open }
                         }
 
                         /** 气泡末尾的蓝色「继续生成」被点击 */
@@ -323,6 +338,7 @@ fun ConversationWebView(
                         override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
                             if (webRef === view) {
                                 webRef = null
+                                diagramOpen = false
                                 loaded = false
                                 payload.reset()
                                 bridgeHandler.removeCallbacksAndMessages(null)
@@ -369,7 +385,7 @@ fun ConversationWebView(
         )
         }
 
-        zoomImage?.let { b64 -> ImageZoomView(b64) { zoomImage = null } }
+        imageGallery?.let { ImageGalleryDialog(it) { imageGallery = null } }
     }
 }
 
@@ -388,76 +404,6 @@ internal class ConversationPayload(private val images: ConversationImageStore? =
         previous = messages.toList()
         options = args
         return "patchMessages($prefix, $tail, $args);"
-    }
-}
-
-/** 全屏图片查看：双指缩放（1~6 倍）+ 拖动；✕ 或返回键关闭 */
-@Composable
-private fun ImageZoomView(b64: String, onDismiss: () -> Unit) {
-    var imageLoading by remember(b64) { mutableStateOf(true) }
-    val bitmap by produceState<android.graphics.Bitmap?>(null, b64) {
-        value = null
-        try {
-            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching { decodeBoundedBitmap(Base64.decode(b64, Base64.NO_WRAP), 4096) }.getOrNull()
-            }
-        } finally { imageLoading = false }
-    }
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    BackHandler { onDismiss() }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(androidx.compose.ui.graphics.Color(0xF2000000))
-                .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 6f)
-                        offset = if (scale > 1f) offset + pan else Offset.Zero
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            val preview = bitmap
-            if (preview != null) {
-                Image(
-                    bitmap = preview.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp)
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offset.x,
-                            translationY = offset.y
-                        ),
-                    contentScale = ContentScale.Fit
-                )
-            } else {
-                Text(if (imageLoading) "…" else "⚠️", color = androidx.compose.ui.graphics.Color.White, fontSize = 32.sp)
-            }
-            Text(
-                "✕",
-                color = androidx.compose.ui.graphics.Color.White,
-                fontSize = 26.sp,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(16.dp)
-                    .clickable { onDismiss() }
-            )
-            Text(
-                "${"%.1f".format(scale)}×",   // 实时显示缩放比
-                color = androidx.compose.ui.graphics.Color(0x99FFFFFF),
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(24.dp)
-            )
-        }
     }
 }
 
@@ -543,7 +489,7 @@ internal fun configureConversationWebView(view: WebView) {
 }
 
 internal open class ConversationAssetClient(private val images: ConversationImageStore? = null) : WebViewClient() {
-    private val assets = Regex("file:///android_asset/(conversation_render\\.html|quote_navigation\\.js|svg_diagrams\\.js|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
+    private val assets = Regex("file:///android_asset/(conversation_render\\.html|quote_navigation\\.js|svg_diagrams\\.js|media_viewer\\.js|katex/(katex\\.min\\.(js|css)|fonts/KaTeX_[A-Za-z0-9-]+\\.woff2))")
     private fun resource(url: String): WebResourceResponse? = images?.response(url) ?: if (assets.matches(url)) null else
         WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(), java.io.ByteArrayInputStream(byteArrayOf()))
 

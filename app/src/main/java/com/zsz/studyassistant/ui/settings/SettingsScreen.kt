@@ -32,6 +32,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.background
@@ -776,7 +778,7 @@ private fun ApiSettings(vm: MainViewModel) {
     }
 }
 
-/** 💾 数据管理入口：备份管理（含自动备份）/ 崩溃日志 / 数据升级·修复 / 清空所有数据 */
+/** 💾 备份与数据入口：备份、附件存储、标签整理、数据维护及清空数据。 */
 @Composable
 private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     val s = LocalStrings.current
@@ -805,6 +807,7 @@ private fun DataMenu(vm: MainViewModel, go: (String) -> Unit) {
     SettingEntry(settingsStructureStrings(LocalUiLang.current)["storage"]) { go(AppNav.SettingsPages.DATA_STORAGE) }
     SettingEntry(s["tagMerge.title"]) { go(AppNav.SettingsPages.DATA_TAG_MERGE) }
     SettingEntry(s["data.upgradePage"]) { go(AppNav.SettingsPages.DATA_UPGRADE) }
+    ClearDataSettings(vm)
 }
 
 @Composable
@@ -812,7 +815,7 @@ private fun ClearDataSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     var showClearConfirm by remember { mutableStateOf(false) }
     val summary = vm.dataSummary
-    LaunchedEffect(Unit) { vm.refreshDataSummary(); vm.clearMenuMessage() }
+    LaunchedEffect(Unit) { vm.clearMenuMessage() }
     Spacer(Modifier.height(10.dp))
     SettingEntry("🗑 " + s["data.clear"], danger = true) { showClearConfirm = true }
 
@@ -915,8 +918,6 @@ private fun DataUpgradePage(vm: MainViewModel) {
             color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFFFFC107) else Color(0xFF9C6500)
         )
     }
-    Spacer(Modifier.height(24.dp))
-    ClearDataSettings(vm)
 }
 
 /** 💾 Backup management contains both manual export/import and automatic backup settings. */
@@ -1409,20 +1410,35 @@ private fun ThemeSettings(vm: MainViewModel) {
     val s = LocalStrings.current
     var showPicker by remember { mutableStateOf(false) }   // 自定义取色盘
     // ① 主题模式
-    Text(s["settings.theme.mode"], style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
     val themes = listOf(s["theme.option.system"] to "system", s["theme.option.light"] to "light", s["theme.option.dark"] to "dark")
-    themes.forEach { (label, value) ->
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .selectable(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+    var themeExpanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        Surface(
+            Modifier.fillMaxWidth().clickable { themeExpanded = true },
+            shape = smoothShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer
         ) {
-            RadioButton(selected = vm.theme == value, onClick = { vm.updateTheme(value) })
-            Text(label, Modifier.padding(start = 8.dp))
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(s["settings.theme.mode"], style = MaterialTheme.typography.titleSmall)
+                    Text(themes.firstOrNull { it.second == vm.theme }?.first ?: themes.first().first,
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                Text("▾", style = MaterialTheme.typography.titleLarge)
+            }
+        }
+        DropdownMenu(expanded = themeExpanded, onDismissRequest = { themeExpanded = false }) {
+            themes.forEach { (label, value) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    leadingIcon = { RadioButton(selected = vm.theme == value, onClick = null) },
+                    onClick = { vm.updateTheme(value); themeExpanded = false }
+                )
+            }
         }
     }
+    Spacer(Modifier.height(12.dp))
+    LanguageChoice(vm, ai = false)
     // ② 主题配色（预设色板 + 自定义色，一键切换）
     Spacer(Modifier.height(14.dp))
     Text(s["settings.theme.color"], style = MaterialTheme.typography.titleMedium)
@@ -1501,8 +1517,6 @@ private fun ThemeSettings(vm: MainViewModel) {
     }
     Spacer(Modifier.height(6.dp))
     Text(s["settings.fontSize.desc"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-    Spacer(Modifier.height(18.dp))
-    LanguageChoice(vm, ai = false)
 
     if (showPicker) {
         ThemeColorPickerDialog(
@@ -1599,14 +1613,43 @@ private fun NotifyBackgroundSettings() {
     var notifyHour by remember { mutableStateOf(prefs.getInt("notify_hour", 20)) }
     var notifyMinute by remember { mutableStateOf(prefs.getInt("notify_minute", 0)) }
     var showTimePicker by remember { mutableStateOf(false) }
-    val notifyPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    var reminderAllowed by remember { mutableStateOf(ReminderScheduler.canNotify(context)) }
+    val reminderOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(reminderOwner, context) {
+        ReminderScheduler.ensureChannel(context)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) reminderAllowed = ReminderScheduler.canNotify(context)
+        }
+        reminderOwner.lifecycle.addObserver(observer)
+        reminderAllowed = ReminderScheduler.canNotify(context)
+        onDispose { reminderOwner.lifecycle.removeObserver(observer) }
+    }
+    val notifyPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        reminderAllowed = ReminderScheduler.canNotify(context)
+    }
+    fun allowReminder() {
+        ReminderScheduler.ensureChannel(context)
+        val needsPermission = android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context,
+            Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        val activity = context as? android.app.Activity
+        if (needsPermission && (!prefs.getBoolean("review_notification_permission_asked", false) ||
+                (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity, Manifest.permission.POST_NOTIFICATIONS)))) {
+            prefs.edit().putBoolean("review_notification_permission_asked", true).apply()
+            notifyPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            val action = if (needsPermission || !androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())
+                android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS else android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+            context.startActivity(Intent(action).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID))
+        }
+    }
     fun saveNotify(enabled: Boolean) {
         prefs.edit().putBoolean("notify_enabled", enabled).apply()
         notifyEnabled = enabled
         ReminderScheduler.applySchedule(context)
-        if (enabled && android.os.Build.VERSION.SDK_INT >= 33) {
-            notifyPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        reminderAllowed = ReminderScheduler.canNotify(context)
+        if (enabled && !reminderAllowed) allowReminder()
     }
 
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1631,6 +1674,10 @@ private fun NotifyBackgroundSettings() {
         )
     }
     Text(s["notify.hint"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    if (notifyEnabled && !reminderAllowed) {
+        Text(s["notify.review.blocked"], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        TextButton(onClick = ::allowReminder) { Text(s["notify.review.allow"]) }
+    }
     Spacer(Modifier.height(20.dp))
     UpdateNotificationSettings()
     TextButton(onClick = { com.zsz.studyassistant.data.UpdateDownloadNotifications.openSettings(context) }) {
@@ -1638,8 +1685,20 @@ private fun NotifyBackgroundSettings() {
     }
     Spacer(Modifier.height(20.dp))
     // ── 后台运行（与提醒强相关：后台权限不到位就收不到提醒） ──
-    val powerManager = context.getSystemService(android.os.PowerManager::class.java)
-    val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+    val powerManager = remember(context) { context.getSystemService(android.os.PowerManager::class.java) }
+    var ignoringBattery by remember(context) {
+        mutableStateOf(powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false)
+    }
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner, context) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
     Text(s["background.allow"], style = MaterialTheme.typography.bodySmall)
     if (ignoringBattery) {
@@ -1665,7 +1724,17 @@ private fun NotifyBackgroundSettings() {
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
     Text(s["background.autostart"], style = MaterialTheme.typography.bodySmall)
     TextButton(shape = smoothPill(), onClick = {
-    fun tryPkg(pkg: String): Boolean = try { context.startActivity(android.content.Intent(pkg)); true } catch (_: Exception) { false }
+    fun tryComponent(path: String): Boolean {
+        val component = android.content.ComponentName.unflattenFromString(path) ?: return false
+        return try {
+            context.startActivity(Intent().setComponent(component))
+            true
+        } catch (_: android.content.ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
     var ok = false
     for (pkg in listOf(
     "com.huawei.systemmanager/.startupmgr.ui.StartupNormalAppListActivity",
@@ -1674,7 +1743,7 @@ private fun NotifyBackgroundSettings() {
     "com.miui.securitycenter/.ui.AutoStartManagementActivity",
     "com.vivo.permissionmanager/.activity.BgStartUpManagerActivity",
     "com.oplus.battery/.ui.StartupAppListActivity"
-    )) { if (tryPkg(pkg)) { ok = true; break } }
+    )) { if (tryComponent(pkg)) { ok = true; break } }
     if (!ok) {
     try {
     context.startActivity(

@@ -136,13 +136,17 @@ fun SolveScreen(
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
     val draft = vm.solveInputDraft
+    val inputEnabled = draft.editable && !vm.dataBusy
+    var inputDiscardConfirm by remember(draft) { mutableStateOf(false) }
+    var pendingGallery by remember(draft) { mutableStateOf<ImageGallery?>(null) }
+    pendingGallery?.let { gallery -> ImageGalleryDialog(gallery) { pendingGallery = null } }
     var quoteFocusSignal by remember(draft) { mutableIntStateOf(0) }
     val attachments = draft.attachments
     val loaded = draft.images
     val inputScope = androidx.compose.runtime.rememberCoroutineScope()
     val selectedImages = attachments.mapNotNull { loaded[it] }
     val pickingImages = draft.importingImages || selectedImages.size != attachments.size
-    val importingAttachments = pickingImages || draft.importingDocuments
+    val importingAttachments = pickingImages || draft.importingDocuments || !draft.editable
     LaunchedEffect(draft, attachments) {
         loaded.keys.toList().filterNot { it in attachments }.forEach { loaded.remove(it) }
         val missing = attachments.filterNot(loaded::containsKey)
@@ -188,7 +192,7 @@ fun SolveScreen(
         }
     }
     fun pickImages() {
-        if (vm.busy || vm.dataBusy || importingAttachments || draft.attachments.size >= 3) return
+        if (!inputEnabled || vm.busy || importingAttachments || draft.attachments.size >= 3) return
         draft.awaitingPicker = true
         imagePicker.launch(imagePickRequest(maxItems = 3))
     }
@@ -200,7 +204,7 @@ fun SolveScreen(
         }
     }
     fun pickDocument() {
-        if (vm.busy || vm.dataBusy || importingAttachments || draft.awaitingDocumentPicker) return
+        if (!inputEnabled || vm.busy || importingAttachments || draft.awaitingDocumentPicker) return
         draft.awaitingDocumentPicker = true
         try {
             documentPicker.launch(SOLVE_DOCUMENT_MIME_TYPES)
@@ -215,7 +219,7 @@ fun SolveScreen(
 
     // 退出本页时：若已加入错题本，把当前完整对话更新保存
     DisposableEffect(Unit) {
-        onDispose { feedback.dismiss("message-delete"); vm.saveSessionOnExit() }
+        onDispose { feedback.dismiss("message-delete"); vm.flushInputDraft(); vm.saveSessionOnExit() }
     }
 
     // 一键回到顶部 / 滚到底部：每次自增向 WebView 发一次信号
@@ -387,22 +391,40 @@ fun SolveScreen(
             onToggleWeb = { vm.updateWebEnabled(!vm.webEnabled) },
             onPickDocument = ::pickDocument,
             onExport = { conversationExport.begin(allExportMessages) },
-            onInsert = { draft.text += it },
+            onInsert = { if (inputEnabled) draft.text += it },
             canToggleWeb = !vm.busy && !vm.streamInterrupted,
             canPickDocument = !vm.busy && !vm.dataBusy && !importingAttachments,
             canExport = !vm.busy && allExportMessages.isNotEmpty()
         )
     }
     val documentAttachments: @Composable () -> Unit = {
+        val draftNotice = when {
+            draft.restoring -> "inputDraft.restoring"
+            draft.restoreFailed -> "inputDraft.restoreFailed"
+            draft.saveFailed -> "inputDraft.failed"
+            else -> null
+        }
+        draftNotice?.let { notice ->
+            Text(s[notice], style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+            if (!draft.restoring) Row(Modifier.padding(horizontal = 12.dp)) {
+                TextButton(onClick = vm::retryInputDraft) { Text(s["update.retry"]) }
+                TextButton(onClick = { inputDiscardConfirm = true }) { Text(s["inputDraft.discard"]) }
+            }
+        }
         if (draft.importingDocuments && !vm.busy) Text(s["document.importing"],
             style = MaterialTheme.typography.bodySmall, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-        DocumentAttachments(draft.documents, enabled = !draft.importingDocuments && !vm.busy && !vm.dataBusy,
+        DocumentAttachments(draft.documents, enabled = inputEnabled && !draft.importingDocuments && !vm.busy,
             onRemove = { document -> draft.documents = draft.documents.filterNot { it.sha256 == document.sha256 } },
             onEdit = { document -> draft.documentSelection = document })
     }
-    draft.documentSelection?.let { document ->
+    if (inputDiscardConfirm) AlertDialog(onDismissRequest = { inputDiscardConfirm = false },
+        title = { Text(s["inputDraft.discard"]) }, text = { Text(s["inputDraft.discardConfirm"]) },
+        confirmButton = { TextButton(onClick = { inputDiscardConfirm = false; vm.discardInputDraft() }) { Text(s["inputDraft.discard"]) } },
+        dismissButton = { TextButton(onClick = { inputDiscardConfirm = false }) { Text(s["common.cancel"]) } })
+    draft.documentSelection?.takeIf { inputEnabled }?.let { document ->
         DocumentSelectionDialog(document, onDismiss = { draft.documentSelection = null }, onConfirm = { selected ->
             draft.documents = if (draft.documents.any { it.sha256 == selected.sha256 })
                 draft.documents.map { if (it.sha256 == selected.sha256) selected else it }
@@ -847,18 +869,17 @@ fun SolveScreen(
                         documentAttachments()
                         OutlinedTextField(
                             value = draft.text,
-                            onValueChange = { draft.text = it },
+                            onValueChange = { if (inputEnabled) draft.text = it },
+                            enabled = inputEnabled,
                             placeholder = { Text(s["ask.placeholder"]) },
                             modifier = Modifier.fillMaxWidth().weight(1f).then(editorFocus(draft)),
                             maxLines = 12
                         )
                         if (selectedImages.isNotEmpty()) {
                             Spacer(Modifier.height(6.dp))
-                            Text(
-                                s.format("solve.imagesCount", "n" to "${selectedImages.size}"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
+                            TextButton(onClick = { pendingGallery = ImageGallery(selectedImages.map { GalleryImage(bytes = it) }, 0) }) {
+                                Text(s.format("solve.imagesCount", "n" to "${selectedImages.size}"))
+                            }
                         }
                         Spacer(Modifier.height(8.dp))
                         moreTools()
@@ -874,12 +895,7 @@ fun SolveScreen(
                             Button(
                                 onClick = {
                                     val requestImages = draft.attachments.mapNotNull(draft.images::get)
-                                    if (vm.solveDirect(draft.requestText(vm.uiLang), requestImages, documents = draft.documents)) {
-                                        draft.text = ""
-                                        draft.attachments = emptyList()
-                                        draft.documents = emptyList()
-                                        draft.excludedDocumentHashes = emptySet()
-                                    }
+                                    vm.solveDirect(draft.requestText(vm.uiLang), requestImages, documents = draft.documents)
                                 },
                                 enabled = !vm.dataBusy && !importingAttachments &&
                                     (draft.text.isNotBlank() || selectedImages.isNotEmpty() || draft.documents.isNotEmpty()),
@@ -894,7 +910,7 @@ fun SolveScreen(
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { if (vm.initialAnswerPending) vm.generateMissingInitialAnswer() else vm.continueGeneration() },
-                        onQuoteText = if (sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { selection ->
+                        onQuoteText = if (inputEnabled && sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { selection ->
                             draft.quote = selection
                             quoteFocusSignal++
                         } else null,
@@ -1092,27 +1108,21 @@ fun SolveScreen(
                     enabled = !vm.busy && !vm.dataBusy && !importingAttachments)
                 ConversationInputBar(
                     value = draft.text,
-                    onValueChange = { draft.text = it },
+                    onValueChange = { if (inputEnabled) draft.text = it },
                     images = selectedImages,
-                    onRemoveImage = { bytes -> draft.attachments = attachments.filterNot { loaded[it] === bytes } },
+                    onRemoveImage = { bytes -> if (inputEnabled) draft.attachments = attachments.filterNot { loaded[it] === bytes } },
                     onPickImages = ::pickImages,
                     onSend = {
                         val requestImages = draft.attachments.mapNotNull(draft.images::get)
-                        if (vm.sendFollowUp(draft.requestText(vm.uiLang), requestImages, draft.quote?.text, draft.quote?.anchor,
-                                documents = draft.documents, excludedDocumentHashes = draft.excludedDocumentHashes)) {
-                            draft.text = ""
-                            draft.attachments = emptyList()
-                            draft.quote = null
-                            draft.documents = emptyList()
-                            draft.excludedDocumentHashes = emptySet()
-                        }
+                        vm.sendFollowUp(draft.requestText(vm.uiLang), requestImages, draft.quote?.text, draft.quote?.anchor,
+                            documents = draft.documents, excludedDocumentHashes = draft.excludedDocumentHashes)
                     },
                     busy = vm.busy || vm.dataBusy || importingAttachments,
                     hint = s["solve.followUpHint"],
                     sendLabel = s["solve.send"],
                     imageDesc = s["solve.imageDesc"],
                     quotedText = draft.quote?.text,
-                    onRemoveQuote = { draft.quote = null },
+                    onRemoveQuote = { if (inputEnabled) draft.quote = null },
                     quoteFocusSignal = quoteFocusSignal,
                     draft = draft,
                     hasDocuments = draft.documents.isNotEmpty(),
