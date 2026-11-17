@@ -322,8 +322,17 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) {
                         try { com.zsz.studyassistant.data.UpdatePromptStore.restore(this@MainActivity) }
                         finally { updatePolicyReady = true }
-                        launch { com.zsz.studyassistant.data.AppNoticeStore.refresh(this@MainActivity) }
                         silentUpdateCheck(this@MainActivity)
+                    }
+
+                    LaunchedEffect(Unit) {
+                        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                            while (isActive) {
+                                com.zsz.studyassistant.data.AppNoticeStore.refresh(this@MainActivity)
+                                // Local policy check once a minute; network only when due (15 min / failure retry).
+                                kotlinx.coroutines.delay(com.zsz.studyassistant.data.AppNoticeRefreshPolicy.FOREGROUND_TICK)
+                            }
+                        }
                     }
 
                     // No replay: a background completion must not become a stale notice on return.
