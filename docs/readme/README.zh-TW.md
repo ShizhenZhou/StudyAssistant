@@ -11,12 +11,12 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.1（versionCode 138，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.2（versionCode 139，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.1](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.1)
+- **Android 9–15** · [下載相容版本 v0.7.5.2](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
 - [Android 9–15 相容分支（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
