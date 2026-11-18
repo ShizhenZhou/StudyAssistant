@@ -1,3 +1,10 @@
+v0.7.5.3
+· ⚡ Prepare and reuse images and files faster for follow-up questions; retain requests interrupted during preparation so generation can resume.
+· 💬 Reduce repeated work when refreshing long conversations and filtering the notebook, while keeping category and tag hints consistent within a conversation.
+· 📎 Show compact attachment summaries; tap to view full file information and page selections.
+· ⬇️ Reuse revalidated update responses to reduce repeated transfers while preserving mandatory-update and delta verification.
+· 📦 Build the main and compatibility editions from one source tree; compatibility version names now include Compat, with update channels kept separate.
+
 v0.7.5.2
 · 📢 Keep announcement mirror fallback running when leaving the update page; try the enabled mirror when the official source is unavailable.
 · 🔄 Refresh announcements every 15 minutes in the foreground and check when returning to the app; allow retries after one minute on failure and earlier refresh through a manual update check.

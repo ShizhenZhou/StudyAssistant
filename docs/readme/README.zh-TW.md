@@ -16,7 +16,7 @@
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.2](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
+- **Android 9–15** · [下載相容版本 v0.7.5.3_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
 - [兼容版說明與更新記錄](../compatible/README.zh-TW.md)
 
 本文是兩發行線共用入口；下方技術參數及歷史記錄以主線為準。相容版的系統範圍和獨立更新彙總見上方說明。
@@ -61,6 +61,15 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 構建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 
 ## 版本記錄
+
+### v0.7.5.3
+
+- ⚡ 加快圖片與檔案追問的準備和重複使用；中斷準備時保留請求，便於繼續生成。
+- 💬 減少長對話重新整理與錯題篩選時的重複處理，保持對話中的分類與標籤提示一致。
+- 📎 附件改為精簡摘要，點選可查看完整檔案資訊與選頁詳情。
+- ⬇️ 重複使用已驗證的更新回應，減少重複下載，保留強制更新與差分驗證。
+- 📦 主線與相容版改為同一原始碼的兩種建置，相容版版本號增加 Compat 後綴，更新管道保持隔離。
+- 📌 `versionCode` **140**.
 
 ### v0.7.5.2
 

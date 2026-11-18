@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.2 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
+- **Android 9–15** · [互換版 v0.7.5.3_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -61,6 +61,15 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
+
+### v0.7.5.3
+
+- ⚡ 追加質問時の画像・ファイルの準備と再利用を高速化。準備中に中断したリクエストを保持し、生成を再開できます。
+- 💬 長い会話の更新と間違いノートの絞り込みで重複処理を削減し、会話内の分類・タグのヒントを一貫して保持します。
+- 📎 添付ファイルをコンパクトな概要で表示。タップするとファイル情報や選択ページの詳細を確認できます。
+- ⬇️ 再検証済みの更新応答を再利用して転送量を削減。必須更新と差分の検証は維持します。
+- 📦 メイン版と互換版を同じソースからビルド。互換版のバージョン名に Compat を付け、更新経路は分離します。
+- 📌 `versionCode` **140**.
 
 ### v0.7.5.2
 

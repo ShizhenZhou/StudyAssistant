@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.2)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
+- **Android 9–15** · [Download the compatible release (v0.7.5.3_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -61,6 +61,15 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+### v0.7.5.3
+
+- ⚡ Prepare and reuse images and files faster for follow-up questions; retain requests interrupted during preparation so generation can resume.
+- 💬 Reduce repeated work when refreshing long conversations and filtering the notebook, while keeping category and tag hints consistent within a conversation.
+- 📎 Show compact attachment summaries; tap to view full file information and page selections.
+- ⬇️ Reuse revalidated update responses to reduce repeated transfers while preserving mandatory-update and delta verification.
+- 📦 Build the main and compatibility editions from one source tree; compatibility version names now include Compat, with update channels kept separate.
+- 📌 `versionCode` **140**.
 
 ### v0.7.5.2
 

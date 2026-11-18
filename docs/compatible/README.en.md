@@ -13,18 +13,27 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.2 (versionCode 139, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.3_Compat (versionCode 140, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.2)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
+- **Android 9–15** · [Download the compatible release (v0.7.5.3_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
+
+### v0.7.5.3_Compat
+
+- ⚡ Prepare and reuse images and files faster for follow-up questions; retain requests interrupted during preparation so generation can resume.
+- 💬 Reduce repeated work when refreshing long conversations and filtering the notebook, while keeping category and tag hints consistent within a conversation.
+- 📎 Show compact attachment summaries; tap to view full file information and page selections.
+- ⬇️ Reuse revalidated update responses to reduce repeated transfers while preserving mandatory-update and delta verification.
+- 📦 Build the main and compatibility editions from one source tree; compatibility version names now include Compat, with update channels kept separate.
+- 📌 `versionCode` **140**.
 
 ### v0.7.5.2
 

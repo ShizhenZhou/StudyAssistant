@@ -13,18 +13,27 @@
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek 与 GPT 辅助编写。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5.2（versionCode 139，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容版更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
+> 兼容版面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5.3_Compat（versionCode 140，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容版更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
 
 [Study Assistant · README](../../README.md)
 
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.5.2](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
+- **Android 9–15** · [下载兼容版 v0.7.5.3_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
 
 [全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本记录
+
+### v0.7.5.3_Compat
+
+- ⚡ 加快图片与文件追问的准备和复用；中断准备时保留请求，便于继续生成。
+- 💬 减少长对话刷新与错题筛选时的重复处理，保持会话中的分类与标签提示一致。
+- 📎 附件改为紧凑摘要，点击可查看完整文件信息与选页详情。
+- ⬇️ 复用已校验的更新响应，减少重复下载，保留强制更新与差分校验。
+- 📦 主线与兼容版改为同一源码的两种构建，兼容版版本号增加 Compat 后缀，更新渠道保持隔离。
+- 📌 `versionCode` **140**.
 
 ### v0.7.5.2
 

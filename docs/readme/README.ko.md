@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.2 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
+- **Android 9–15** · [호환 버전 v0.7.5.3_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -61,6 +61,15 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
+
+### v0.7.5.3
+
+- ⚡ 추가 질문의 이미지·파일 준비와 재사용 속도를 개선하고, 준비 중 중단된 요청을 보존하여 생성을 이어갈 수 있습니다.
+- 💬 긴 대화 갱신과 오답 노트 필터링의 중복 처리를 줄이고, 대화 안의 분류·태그 힌트를 일관되게 유지합니다.
+- 📎 첨부 파일을 간결한 요약으로 표시하며, 누르면 전체 파일 정보와 선택 페이지를 확인할 수 있습니다.
+- ⬇️ 재검증한 업데이트 응답을 재사용해 반복 전송을 줄이며, 필수 업데이트와 차분 검증은 유지합니다.
+- 📦 메인·호환 버전을 같은 소스에서 빌드합니다. 호환 버전 이름에 Compat를 추가하고 업데이트 경로는 분리합니다.
+- 📌 `versionCode` **140**.
 
 ### v0.7.5.2
 

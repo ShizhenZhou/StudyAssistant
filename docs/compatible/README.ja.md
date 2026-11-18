@@ -13,18 +13,27 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.2（versionCode 139、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.3_Compat（versionCode 140、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.2 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
+- **Android 9–15** · [互換版 v0.7.5.3_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
+
+### v0.7.5.3_Compat
+
+- ⚡ 追加質問時の画像・ファイルの準備と再利用を高速化。準備中に中断したリクエストを保持し、生成を再開できます。
+- 💬 長い会話の更新と間違いノートの絞り込みで重複処理を削減し、会話内の分類・タグのヒントを一貫して保持します。
+- 📎 添付ファイルをコンパクトな概要で表示。タップするとファイル情報や選択ページの詳細を確認できます。
+- ⬇️ 再検証済みの更新応答を再利用して転送量を削減。必須更新と差分の検証は維持します。
+- 📦 メイン版と互換版を同じソースからビルド。互換版のバージョン名に Compat を付け、更新経路は分離します。
+- 📌 `versionCode` **140**.
 
 ### v0.7.5.2
 
