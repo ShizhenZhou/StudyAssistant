@@ -18,23 +18,22 @@ plugins {
 fun readDistributionProperties(file: File) = Properties().apply {
     file.reader(Charsets.UTF_8).use(::load)
 }
-val distributionSelector = rootProject.file("config/distribution.properties")
-val distributionName = providers.gradleProperty("distribution").orElse(
-    readDistributionProperties(distributionSelector).getProperty("distribution")
-).get()
-require(distributionName in setOf("main", "compat")) { "Unknown distribution" }
-val distributionFile = rootProject.file("config/distributions/$distributionName.properties")
-val distribution = readDistributionProperties(distributionFile)
-require(distribution.getProperty("distribution") == distributionName)
-val appVersionName = distribution.getProperty("versionName")
-val appVersionCode = distribution.getProperty("versionCode").toInt()
-val distributionMinSdk = distribution.getProperty("minSdk").toInt()
-val distributionMaxSdk = distribution.getProperty("maxSdk").toInt()
-require(if (distributionName == "main") distributionMinSdk == 36 && distributionMaxSdk == 0
-    else distributionMinSdk == 28 && distributionMaxSdk == 35) { "Invalid distribution SDK range" }
-require(appVersionName.matches(Regex("[0-9]+(?:\\.[0-9]+){2,3}(?:_beta[1-9][0-9]*)?")) && appVersionCode > 0)
-val distributionJson = """{"distribution":"$distributionName","minSdk":$distributionMinSdk${if (distributionMaxSdk > 0) ",\"maxSdk\":$distributionMaxSdk" else ""}}"""
-val distributionSource = "src/distributions/$distributionName"
+val distributionFlavors = mapOf("modern" to "main", "compat" to "compat")
+require(!providers.gradleProperty("distribution").isPresent) {
+    "Use an explicit modern/compat task instead of -Pdistribution"
+}
+val distributionProfiles = distributionFlavors.values.associateWith { name ->
+    readDistributionProperties(rootProject.file("config/distributions/$name.properties")).also { profile ->
+        require(profile.getProperty("distribution") == name)
+        val min = profile.getProperty("minSdk").toInt()
+        val max = profile.getProperty("maxSdk").toInt()
+        require(if (name == "main") min == 36 && max == 0 else min == 28 && max == 35)
+        require(profile.getProperty("versionCode").toInt() > 0)
+        val version = profile.getProperty("versionName")
+        require(version.matches(Regex("[0-9]+(?:\\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?(?:_Compat)?")))
+        require(name == "compat" || !version.endsWith("_Compat"))
+    }
+}
 
 // Generated only when build inputs change; one UTC identity is shared by embedded metadata and APK names.
 abstract class GenerateBuildStamp : DefaultTask() {
@@ -54,15 +53,6 @@ abstract class GenerateBuildStamp : DefaultTask() {
         directory.resolve("distribution.json").writeText(distributionMetadata.get(), Charsets.UTF_8)
     }
 }
-val buildStampDirectory = layout.buildDirectory.dir("generated/build-stamp/assets")
-val generateBuildStamp = tasks.register<GenerateBuildStamp>("generateBuildStamp") {
-    distributionMetadata.set(distributionJson)
-    sourceFiles.from(fileTree("src/main"), fileTree(distributionSource), distributionSelector, distributionFile,
-        file("build.gradle.kts"), rootProject.file("gradle/libs.versions.toml"),
-        rootProject.file("gradle.properties"), rootProject.file("build.gradle.kts"), rootProject.file("settings.gradle.kts"))
-    outputDirectory.set(buildStampDirectory)
-}
-
 // ── 发布签名材料（自有证书 + key rotation）──────────────────────────────────
 // 从 secrets.properties（已 gitignore）读取；**文件缺失时回退到默认 debug 签名**，
 // 这样在没有密钥的机器/CI 上仍能正常构建（只是签出来的包无法覆盖已装的新证书版本）。
@@ -91,14 +81,24 @@ android {
 
     defaultConfig {
         applicationId = "com.zsz.studyassistant"
-        minSdk = distributionMinSdk
         targetSdk = 37
-        versionCode = appVersionCode
-        versionName = appVersionName
-        buildConfigField("String", "DISTRIBUTION", "\"$distributionName\"")
-        buildConfigField("int", "SUPPORTED_MAX_SDK", distributionMaxSdk.toString())
-        buildConfigField("String", "SUPPORTED_ANDROID_LABEL", "\"${distribution.getProperty("androidLabel")}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    flavorDimensions += "distribution"
+    productFlavors {
+        distributionFlavors.forEach { (flavor, name) ->
+            create(flavor) {
+                dimension = "distribution"
+                val profile = distributionProfiles.getValue(name)
+                minSdk = profile.getProperty("minSdk").toInt()
+                versionCode = profile.getProperty("versionCode").toInt()
+                versionName = profile.getProperty("versionName")
+                buildConfigField("String", "DISTRIBUTION", "\"$name\"")
+                buildConfigField("int", "SUPPORTED_MAX_SDK", profile.getProperty("maxSdk"))
+                buildConfigField("String", "SUPPORTED_ANDROID_LABEL", "\"${profile.getProperty("androidLabel")}\"")
+            }
+        }
     }
 
     signingConfigs {
@@ -149,9 +149,11 @@ android {
         buildConfig = true
     }
 
-    sourceSets.getByName("main") {
-        kotlin.directories += "$distributionSource/java"
-        assets.srcDir("$distributionSource/assets")
+    distributionFlavors.forEach { (flavor, name) ->
+        sourceSets.getByName(flavor) {
+            kotlin.directories += "src/distributions/$name/java"
+            assets.srcDir("src/distributions/$name/assets")
+        }
     }
 
     packaging {
@@ -175,7 +177,21 @@ android {
 
 androidComponents {
     onVariants { variant ->
-        variant.sources.assets?.addGeneratedSourceDirectory(generateBuildStamp) { it.outputDirectory }
+        val flavor = variant.productFlavors.single { it.first == "distribution" }.second
+        val name = distributionFlavors.getValue(flavor)
+        val profile = distributionProfiles.getValue(name)
+        val min = profile.getProperty("minSdk")
+        val max = profile.getProperty("maxSdk").toInt()
+        val metadata = """{"distribution":"$name","minSdk":$min${if (max > 0) ",\"maxSdk\":$max" else ""}}"""
+        val stamp = tasks.register<GenerateBuildStamp>("generate${variant.name.replaceFirstChar { it.uppercaseChar() }}BuildStamp") {
+            distributionMetadata.set(metadata)
+            sourceFiles.from(fileTree("src/main"), fileTree("src/distributions/$name"),
+                fileTree("src/${variant.buildType}"), rootProject.file("config/distributions/$name.properties"),
+                file("build.gradle.kts"), rootProject.file("gradle/libs.versions.toml"),
+                rootProject.file("gradle.properties"), rootProject.file("build.gradle.kts"), rootProject.file("settings.gradle.kts"))
+            outputDirectory.set(layout.buildDirectory.dir("generated/build-stamp/${variant.name}/assets"))
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(stamp) { it.outputDirectory }
     }
     onVariants(selector().withBuildType("release")) { variant ->
         // Direct APK downloads benefit from compressed DEX. ART extracts it at install time,
@@ -207,11 +223,12 @@ ksp {
 // The SQLite verifier consumes these extra test outputs. Include them in Gradle's
 // task cache so a cached successful test run also restores the files it produced.
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
-    if (name == "testIntegrationUnitTest") {
+    if (name.endsWith("IntegrationUnitTest")) {
+        val distributionName = if (name == "testCompatIntegrationUnitTest") "compat" else "main"
         // These tests read files directly instead of through the runtime classpath.
         // Declare them so README/HTML-only changes invalidate cached test results.
         inputs.files(rootProject.file("README.md"), project.file("build.gradle.kts"),
-            distributionSelector, distributionFile,
+            rootProject.file("config/distributions/$distributionName.properties"),
             rootProject.fileTree("docs/readme") { include("README*.md") },
             rootProject.fileTree("docs/compatible") { include("README*.md") })
             .withPropertyName("documentationInputs")
@@ -219,7 +236,7 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         inputs.dir(layout.projectDirectory.dir("src/main/assets"))
             .withPropertyName("renderAssets")
             .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
-        inputs.dir(layout.projectDirectory.dir("$distributionSource/assets"))
+        inputs.dir(layout.projectDirectory.dir("src/distributions/$distributionName/assets"))
             .withPropertyName("distributionAssets")
             .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
         outputs.file(layout.buildDirectory.file("identity-work/migration-plan.json"))
@@ -268,25 +285,4 @@ dependencies {
     androidTestImplementation(libs.androidx.test.junit)
 }
 
-// APK naming: StudyAssistant-<version>-<yyyyMMddHHmm>.apk（debug / release 各自目录）
-// Configure only realized tasks; eager task listeners also realize unused AGP preview tasks.
-tasks.configureEach {
-    if (name == "assembleDebug" || name == "assembleRelease") {
-        doLast {
-            try {
-                val variant = if (name == "assembleDebug") "debug" else "release"
-                val fileName = if (variant == "release") "app-release-unsigned.apk" else "app-debug.apk"
-                val src = layout.buildDirectory.file("outputs/apk/$variant/$fileName").get().asFile
-                if (src.exists()) {
-                    val ts = buildStampDirectory.get().file("build-time-utc.txt").asFile.readText().trim()
-                    val suffix = if (variant == "release") "-candidate" else ""
-                    val newName = "StudyAssistant-$appVersionName-$ts$suffix.apk"
-                    src.copyTo(src.parentFile.resolve(newName), overwrite = true)
-                    println("APK named: $variant/$newName")
-                }
-            } catch (e: Exception) {
-                // ignore rename failure
-            }
-        }
-    }
-}
+// APK names remain variant-qualified; release tooling names the signed public artifacts.

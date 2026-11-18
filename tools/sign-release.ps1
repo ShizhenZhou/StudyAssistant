@@ -106,14 +106,14 @@ $apksigner = Join-Path $buildToolsPath 'apksigner.bat'
 if (-not (Test-Path $apksigner)) { Write-Err2 "找不到 apksigner：$apksigner"; exit 1 }
 
 # ── 输入/输出 ───────────────────────────────────────────────────────────────
-if (-not $InApk) { $InApk = Join-Path $repoRoot 'app\build\outputs\apk\release\app-release-unsigned.apk' }
-if (-not (Test-Path $InApk)) { Write-Err2 "找不到输入 APK（先跑 assembleRelease）：$InApk"; exit 1 }
+if (-not $InApk) { $InApk = Join-Path $repoRoot 'app\build\outputs\apk\modern\release\app-modern-release-unsigned.apk' }
+if (-not (Test-Path $InApk)) { Write-Err2 "找不到输入 APK（先跑 assembleModernRelease 或 assembleCompatRelease）：$InApk"; exit 1 }
 if (-not $OutDir) { $OutDir = Split-Path -Parent $InApk }
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
 
 $aapt = Join-Path $buildToolsPath 'aapt.exe'
 $identity = (& $aapt dump badging $InApk 2>$null) -join "`n"
-if ($LASTEXITCODE -ne 0 -or $identity -cnotmatch "package: name='com\.zsz\.studyassistant'.*versionName='([0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?)'") {
+if ($LASTEXITCODE -ne 0 -or $identity -cnotmatch "package: name='com\.zsz\.studyassistant'.*versionName='([0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?(?:_Compat)?)'") {
     throw 'Unexpected APK identity; no signature applied.'
 }
 $ver = $Matches[1]

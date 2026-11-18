@@ -41,7 +41,7 @@ object AppNotices {
     const val MAX_BYTES = 128 * 1024
     const val CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000L
     private val json = Json { ignoreUnknownKeys = true }
-    private val version = Regex("v?(0|[1-9][0-9]{0,8})(\\.(0|[1-9][0-9]{0,8})){1,3}(_beta([1-9][0-9]{0,8})?)?")
+    private val version = Regex("v?(0|[1-9][0-9]{0,8})(\\.(0|[1-9][0-9]{0,8})){1,3}(_beta([1-9][0-9]{0,8})?)?(_Compat)?")
 
     fun parse(text: String): AppNoticeDocument {
         require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES)

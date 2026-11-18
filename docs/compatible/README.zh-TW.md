@@ -2,6 +2,8 @@
 
 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
+> 兩種發行版均從 main 建置；Compatible 分支僅保留歷史。
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -11,7 +13,7 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 本分支 `Compatible` 面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.2（versionCode 139，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容分支更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.2（versionCode 139，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
@@ -19,7 +21,6 @@
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [下載相容版本 v0.7.5.2](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
-- [Android 9–15 相容分支（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 

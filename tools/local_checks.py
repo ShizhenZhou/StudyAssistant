@@ -8,10 +8,12 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def plan_checks(selectors=(), compile_app=False):
+def plan_checks(selectors=(), compile_app=False, distribution="main"):
+    from distribution_config import build_flavor
+    flavor = build_flavor(distribution).capitalize()
     if any(not value.strip() or value.strip() == "*" for value in selectors):
         raise ValueError("Choose a specific test class or method")
-    tasks = ["testIntegrationUnitTest"] if selectors else ["compileDebugKotlin"] if compile_app else []
+    tasks = [f"test{flavor}IntegrationUnitTest"] if selectors else [f"compile{flavor}DebugKotlin"] if compile_app else []
     return dict(steps=["diff", "diff-staged", "credentials"], tasks=tasks, selectors=list(selectors),
                 note="No device tests, online checks or implicit full suite. Gradle reuses unchanged task outputs.")
 
@@ -37,9 +39,10 @@ def main():
     parser.add_argument("--test-class", action="append", default=[])
     parser.add_argument("--compile", action="store_true")
     parser.add_argument("--plan", action="store_true")
+    parser.add_argument("--distribution", choices=("main", "compat"), default="main")
     args = parser.parse_args()
     try:
-        plan = plan_checks(args.test_class, args.compile)
+        plan = plan_checks(args.test_class, args.compile, args.distribution)
         if args.plan: print(json.dumps(plan, indent=2))
         else: execute(plan)
     except (OSError, ValueError, RuntimeError) as error:

@@ -2,6 +2,8 @@
 
 [简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
+> 두 배포판 모두 main에서 빌드합니다. Compatible 브랜치는 과거 기록으로만 보존합니다.
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -15,7 +17,6 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [호환 버전 v0.7.5.2 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
-- [Android 9–15 호환 브랜치(Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -426,7 +427,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 🛠️ 이전 OS 호환 분기를 정리하고 빌드별 재개 가능한 릴리스 검증 및 명시적 동일 버전 교체를 개선합니다.
 - 📌 `versionCode` **80**.
 
-**위 버전은 Android 16 이상만 지원합니다. 호환 버전은 [Compatible 브랜치](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)를 확인하세요.**
+**위 버전은 Android 16 이상만 지원합니다. Android 9–15 지원은 [호환 버전 안내](../compatible/README.ko.md)**
 
 ---
 

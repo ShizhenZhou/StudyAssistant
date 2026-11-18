@@ -55,6 +55,11 @@ class UpdateCompatibilityTest {
     private fun manifest(min: Int = 36) = """{"schema":1,"version":"0.6.8","versionCode":78,"minSdk":$min,"apkName":"fixture.apk","apkSha256":"${"a".repeat(64)}","apkSize":7}"""
 
     @Test fun compatibilityDistributionSeparatesMandatoryTargetsAndRejectsAmbiguousSchema() {
+        assertEquals(0, UpdateChecker.compareVersions("0.7.5.2_Compat", "0.7.5.2"))
+        assertTrue(UpdateChecker.isNewer("0.7.5.3_Compat", "0.7.5.2"))
+        assertTrue(UpdateChecker.isNewer("0.7.6_Compat", "0.7.6_beta2_Compat"))
+        assertTrue(UpdateChecker.isNewer("0.7.6_beta2_Compat", "0.7.6_beta1_Compat"))
+        assertEquals("0.7.6_beta2", UpdateChecker.skipIdentity("v0.7.6_beta2_Compat"))
         val text = manifest(28).replace("\"schema\":1", "\"schema\":2").dropLast(1) +
             """, "distribution":"compat", "maxSdk":35, "mandatory":true}"""
         val candidate = release.copy(tagName = "compat_v0.6.8")

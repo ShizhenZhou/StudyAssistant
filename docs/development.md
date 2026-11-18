@@ -40,7 +40,7 @@ Release APK 显式压缩 DEX（`packaging.dex.useLegacyPackaging`），降低完
 
 当前运行依赖：Compose BOM 2026.09.00、Lifecycle 2.11.0、Navigation Compose 2.10.2、CameraX 1.6.2、Retrofit 3.0.0、OkHttp 5.5.1、kotlinx.serialization 1.13.0、WorkManager 2.12.0（备份与6小时周期更新通知）。离线 KaTeX 0.19.1 的来源与打包说明见 [third-party-assets.md](third-party-assets.md)。版本声明以 `gradle/libs.versions.toml` 为准。
 
-GitHub Actions 直接使用官方 Google Maven、Maven Central 与 Gradle Plugin Portal；国内本地开发保留原镜像优先配置。定向 JVM 的实际任务为 `testIntegrationUnitTest`（AGP 9 对应 `testBuildType = integration`），仍由 `-TestClass` 显式选择，不启动设备。
+GitHub Actions 直接使用官方 Google Maven、Maven Central 与 Gradle Plugin Portal；国内本地开发保留原镜像优先配置。定向 JVM 的实际任务为 `testModernIntegrationUnitTest`（AGP 9 对应 `testBuildType = integration`），仍由 `-TestClass` 显式选择，不启动设备。
 
 Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时 Beta 真机/ADB → 相关修正与补验 → 规范合并 main → 一次 CI 构建 → 本地签名、Release、下载校验。
 
@@ -66,7 +66,7 @@ Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时
 
 相机缩放、厂商通知胶囊、触摸振动、返回动画、后台行为优先用户真机。开发者提供安装包、构建/源码身份、3—5条操作和预期结果；用户反馈后再定位，避免自行搭建长UI自动化。
 
-Beta可从开发分支本地按需构建一次：`./gradlew.bat assembleRelease --console=plain`，再用现有`tools/sign-release.ps1 -InApk app/build/outputs/apk/release/app-release-unsigned.apk`签名。这只生成可交付测试包，不自动发GitHub Release、不安装手机。版本号/versionCode、渠道与分发方式按当次安排：覆盖安装要原证书，正式后继versionCode不得低于已交付Beta；公开测试版须明确标prerelease且不得latest。公开Beta发布若需离开main的独立路径，应当次明确安排，不能悄悄合并实验分支。
+Beta可从开发分支本地按需构建一次：`./gradlew.bat assembleModernRelease --console=plain`，再用现有`tools/sign-release.ps1 -InApk app/build/outputs/apk/modern/release/app-modern-release-unsigned.apk`签名。这只生成可交付测试包，不自动发GitHub Release、不安装手机。版本号/versionCode、渠道与分发方式按当次安排：覆盖安装要原证书，正式后继versionCode不得低于已交付Beta；公开测试版须明确标prerelease且不得latest。公开Beta发布若需离开main的独立路径，应当次明确安排，不能悄悄合并实验分支。
 
 后续公开 Beta 按目标正式版依次编号，例如 `X.Y.Z_beta1`、`X.Y.Z_beta2`。每轮使用独立标签和递增的 versionCode，正式版使用无后缀的 `X.Y.Z` 及更高的 versionCode。APK 的 versionName、文件名和 Git 标签均保留完整编号；应用内显示和跳过也区分各轮。更新清单继续写数值基础版本和 beta 渠道，兼容旧客户端。历史 `_beta` 包和标签继续可读。
 
@@ -99,7 +99,7 @@ git push origin main
 ./tools/release.ps1 publish --run RUN_ID
 ```
 
-也可快进到已有规范提交。正式版 start 只接受已推送的干净 main；显式 `--channel beta` 也接受已推送的干净 Develop，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job；Develop 可在用户要求时构建一次 development-build，成功后规范合并 main，合并不自动重跑。正式发布候选仍只能由 main 生成：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
+也可快进到已有规范提交。正式版 start 只接受已推送的干净 main；显式 `--channel beta` 也接受已推送的干净 Develop，不执行测试或隐式合并。GitHub Actions仅手动触发、一个build job；Develop 可在用户要求时构建一次 development-build，成功后规范合并 main，合并不自动重跑。正式发布候选仍只能由 main 生成：核对请求SHA/main与敏感文件 → JDK/Gradle → assembleModernRelease → APK身份与摘要 → 上传候选。无Windows工具job、JVM/SQLite/设备job、预门禁、晋级等待或最终测试gate。push/PR/tag不重复触发，标题使用版本与用途。构建失败先定位，不盲派发第二轮。
 
 schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时间、SHA、签名后保持的代码资源摘要与预期证书，不含JVM/设备通过结论。旧schema1/2仅保留历史读取兼容；不要求为新版本下载旧测试证据，不对新流程回退全量。
 
@@ -155,4 +155,4 @@ PDF 导出由 `ui/conversation/ConversationPdfExport` 协调语义读取、公�
 
 ## 两发行线共同维护
 
-目录、构建选择、正常合并及独立发布见 [发行线布局](distributions.md)。版本信息以 `config/distributions/` 为准；`app/src/main` 与工具不按分支保留两个副本。`config/distribution.properties` 是唯一默认选择差异，本地可用 `-Pdistribution=compat` 做针对性编译，CI/发布仍核对已提交选择器与分支。
+构建变体与发布命令见 [发行线布局](distributions.md)。两种正式版均从 main 发布；兼容版用 `--distribution compat`。版本以 `config/distributions/` 为准；Compatible 仅保留历史。默认验证 modern，必要时用 `-Distribution compat`，不重复执行。

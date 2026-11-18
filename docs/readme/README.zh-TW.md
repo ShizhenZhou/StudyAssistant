@@ -2,6 +2,8 @@
 
 [简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
+> 兩種發行版均從 main 建置；Compatible 分支僅保留歷史。
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -15,8 +17,7 @@
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [下載相容版本 v0.7.5.2](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
-- [Android 9–15 相容分支（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
-- [相容版說明與更新記錄](../compatible/README.zh-TW.md)
+- [兼容版說明與更新記錄](../compatible/README.zh-TW.md)
 
 本文是兩發行線共用入口；下方技術參數及歷史記錄以主線為準。相容版的系統範圍和獨立更新彙總見上方說明。
 
@@ -427,7 +428,7 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 - 🛠️ 精簡舊系統兼容分支，完善按構建身份續跑的發布校驗與顯式同版本替換流程。
 - 📌 `versionCode` **80**。
 
-**以上版本僅支持Android 16+，兼容版本見[Compatible分支](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)**
+**以上版本僅支持Android 16+，Android 9–15 兼容版見[兼容版說明](../compatible/README.zh-TW.md)**
 
 ---
 

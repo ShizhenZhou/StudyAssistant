@@ -1,45 +1,46 @@
-# 主线与兼容版的共同源码
+# 单主线与两个构建变体
 
-两分支保存相同的业务源码、适配实现、构建工具和文档。唯一预期的文件内容差异是 `config/distribution.properties`：main / Develop 默认为 `main`，Compatible 默认为 `compat`。不根据 Git 分支名猜测构建身份，下载源码 ZIP 也能按明确配置构建。
+所有开发与兼容适配在同一主线维护。日常使用 Develop 或 codex/ 功能分支，完成后合入 main；旧 Compatible 分支保留历史，不再作为开发、同步或新版本发布入口。
 
-## 文件归属
+| Gradle flavor | 发行身份 | 系统范围 | 配置与适配目录 | 正式包名 |
+|---|---|---|---|---|
+| modern | main | Android 16+，API 36+ | config/distributions/main.properties、app/src/distributions/main/ | SA-…apk / SA-ENF-…apk |
+| compat | compat | Android 9–15，API 28–35 | config/distributions/compat.properties、app/src/distributions/compat/ | SACompat-…apk |
 
-| 位置 | 职责 |
-|---|---|
-| `app/src/main/` | 两发行线共用业务、UI、通知及离线渲染资源 |
-| `app/src/distributions/main/java/` | 主线数据库 JSON1 扫描、标题触发器适配 |
-| `app/src/distributions/compat/java/` | Android 9–15 的有界流式 JSON 扫描、标题派生适配 |
-| `app/src/distributions/{main,compat}/assets/changelog/` | 两发行线各自的四语言应用更新记录；仅打包选中发行线的资源 |
-| `config/distributions/{main,compat}.properties` | 各自版本号、versionCode、系统范围、显示标识与包名/标签约定 |
-| `config/distribution.properties` | 当前分支的默认发行线选择 |
-| `README.md`、`docs/readme/` | 共用五语言入口、功能与主线历史 |
-| `docs/compatible/` | 兼容版五语言说明、独立合并历史；不重复维护共用功能介绍 |
-| `tools/`、`.github/workflows/build.yml` | 共用签名/发布/构建实现，按已提交配置及发行身份校验 |
+共同业务、UI、数据模型与渲染资源在 app/src/main/。差异目录保留数据库适配和各自四语言更新记录。modern 避开 Gradle 保留的 main source set，但对外身份仍是 main。原 applicationId、签名、DB v11 与 Bak v4 不变。
 
-AndroidX 兼容接口和简单 SDK 判断直接共用；只有算法不同的数据库部分使用发行线源码目录。不得复制整个页面或业务目录制造第二套实现。包名/applicationId、表结构、DB v11、Bak v4 保持不变。
+## 构建
 
-## 开发及验证
-
-日常仍在 Develop 或 `codex/` 分支开发，默认使用选择器。Gradle 任务名不变，没有新增 product flavor。必要时可在同一源码树选择另一发行线，例如：
+按需要选择一个任务，不要求每次构建两个：
 
 ```powershell
-./gradlew.bat compileDebugKotlin -Pdistribution=compat --console=plain
+./gradlew.bat assembleModernRelease --console=plain
+./gradlew.bat assembleCompatRelease --console=plain
 ```
 
-这是可选的定向验证，不是新增必跑门禁。源码目录、资源、配置和生成身份都参与任务输入，切换发行线不能复用另一发行线的 BuildConfig 或更新记录。CI 不接受本地覆盖参数；它核对请求、已提交选择器及实际 APK 的一致性。
+未签名产物分别位于 app/build/outputs/apk/modern/release/app-modern-release-unsigned.apk、app/build/outputs/apk/compat/release/app-compat-release-unsigned.apk。正式签名仍使用本地原证书和 lineage。
 
-## 正常合并
+Android Studio 在 Build Variants 中选择 modernDebug 或 compatDebug。不再使用分支选择器或 -Pdistribution；每个变体有独立生成资源、BuildConfig、构建时间与 APK 输出目录。
 
-共用改动和两发行线适配尽量一起在 main 的开发流程维护。main 完成后，切到干净的 Compatible 执行 `git merge main`，保留 Compatible 选择器的 `distribution=compat`。正常祖先关系会让 Behind 归零；Ahead 中的兼容发布和合并提交无需删除。
+## 最小验证
 
-合并前查看目标分支的新提交；如有未同步的兼容修复，先把修复纳入共用源码树。不要用整树覆盖、`merge -s ours`、重置或强制推送替代真实合并。反向合并兼容修复时主线选择器仍保留 `main`。
+默认 tools/check-project.ps1 仍只检查差异与敏感内容；确有必要才指定 -Compile 或 -TestClass，可加 -Distribution compat。主线对应 compileModernDebugKotlin / testModernIntegrationUnitTest，兼容版对应 compileCompatDebugKotlin / testCompatIntegrationUnitTest，不额外执行另一变体。
 
-完成一次同步后，`git diff main Compatible --name-only` 通常只应列出选择器；独立发布期间若临时存在其他差异，需逐项说明并同步。不要为了清零 Ahead 改写历史。
+现有可选设备脚本支持 -Distribution main/compat，仍须确认目标和授权，不因变体增加而自动运行。
 
-## 独立版本与发布
+## 独立发布
 
-发布哪条线就改它的 profile、应用更新记录及对应 README 历史；另一条线的版本无需同步提升。两份 profile 在两分支中都保存，main 合并到 Compatible 不会让主线版本号覆盖兼容版本号。
+两种正式版均使用干净、已推送的 main；明确安排的 Beta 可用 Develop 和 --channel beta：
 
-主线在干净已推送的 main 使用原 `release.ps1 start --version ...`；兼容版在干净已推送的 Compatible 使用 `--distribution compat`。工具同时核对选择器、分支、版本和构建 APK：主线为 Android 16+、`v...` / `SA-...`；兼容版为 Android 9–15、`compat_v...` / `SACompat-...`，不设置 Latest。差分基准仍必须属于同一发行线。
+```powershell
+./tools/release.ps1 start --version <版本>
+./tools/release.ps1 start --version <版本> --distribution compat
+```
 
-不改变已有手动 CI、原证书与 lineage、本地签名、公开下载 SHA 核验及归档流程；目录整理和普通同步不触发构建或发布。
+每次手动 CI 仅构建所选变体，不跑应用或设备测试。发布工具核对请求身份、对应 profile、APK 版本/系统范围及 distribution.json。相同提交和版本的两个发布状态相互独立；状态查询有歧义时使用 status --version <版本> --run <runId>。
+
+主线沿用 v… 标签和 Latest，兼容版沿用 compat_v… 标签且不设 Latest；更新范围与差分基准继续隔离。独立发布只更新对应 profile 和版本记录，不要求同时提升另一发行线版本。
+
+五语言 README 为统一入口；兼容版说明与汇总在 docs/compatible/。历史 Compatible 构建和标签保留，只读校验允许旧分支身份；新发布不再接受该分支。无需在两分支间持续合并。
+
+兼容版新构建版本号使用 _Compat 后缀，例如 0.7.5.2_Compat；Beta 为 0.7.6_beta1_Compat。已有发布和历史记录不改名。版本比较去掉发行后缀，但 APK 身份与安装校验使用完整版本。标签继续使用 compat_v 前缀以保持旧客户端发行隔离。

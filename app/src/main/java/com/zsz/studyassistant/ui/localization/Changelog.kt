@@ -7,7 +7,7 @@ internal data class ChangelogSections(val current: String = "", val older: Strin
 
 /** Keep the installed release family visible; a beta also keeps the preceding stable family. */
 internal fun changelogSections(text: String, installedVersion: String): ChangelogSections {
-    val versionPattern = "\\d+(?:\\.\\d+)+(?:_beta\\d*)?"
+    val versionPattern = "\\d+(?:\\.\\d+)+(?:_beta\\d*)?(?:_Compat)?"
     val headings = Regex("(?m)^v($versionPattern)(?:→+v($versionPattern))?(?=\\s|[（(]|$)").findAll(text).toList()
     if (headings.isEmpty()) return ChangelogSections(older = text)
     val blocks = headings.mapIndexed { index, heading ->

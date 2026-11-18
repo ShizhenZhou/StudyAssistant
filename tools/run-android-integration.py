@@ -11,9 +11,21 @@ from verification import (BUILD_INPUTS, EvidenceStore, android_inventory, digest
                           file_sha, git, instrumentation_results, select_tests, source_digest, validate_plan, write_json)
 
 ROOT = Path(__file__).resolve().parents[1]
-APK_PATHS = ("app/build/outputs/apk/integration/app-integration.apk",
-             "app/build/outputs/apk/androidTest/integration/app-integration-androidTest.apk")
-BUILD_RECORD = "app/build/outputs/apk/integration-build.json"
+from distribution_config import build_flavor
+FLAVOR = "modern"
+APK_PATHS = ()
+BUILD_RECORD = ""
+
+
+def select_distribution(distribution):
+    global FLAVOR, APK_PATHS, BUILD_RECORD
+    FLAVOR = build_flavor(distribution)
+    APK_PATHS = (f"app/build/outputs/apk/{FLAVOR}/integration/app-{FLAVOR}-integration.apk",
+                 f"app/build/outputs/apk/androidTest/{FLAVOR}/integration/app-{FLAVOR}-integration-androidTest.apk")
+    BUILD_RECORD = f"app/build/outputs/apk/{FLAVOR}-integration-build.json"
+
+
+select_distribution("main")
 
 
 def output_text(value):
@@ -76,7 +88,7 @@ def prepare_build(use_existing=False):
     except (OSError, ValueError):
         if use_existing: raise ValueError("No matching existing APK pair; build explicitly first")
     before = source_digest(ROOT, BUILD_INPUTS)
-    subprocess.run([str(ROOT / "gradlew.bat"), "assembleIntegration", "assembleIntegrationAndroidTest", "--console=plain",
+    subprocess.run([str(ROOT / "gradlew.bat"), f"assemble{FLAVOR.capitalize()}Integration", f"assemble{FLAVOR.capitalize()}IntegrationAndroidTest", "--console=plain",
                     "-Pkotlin.compiler.execution.strategy=in-process"], cwd=ROOT, check=True)
     if source_digest(ROOT, BUILD_INPUTS) != before:
         raise ValueError("Source changed during APK build")
@@ -202,7 +214,9 @@ def main():
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--use-existing", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--distribution", choices=("main", "compat"), default="main")
     args = parser.parse_args()
+    select_distribution(args.distribution)
     try:
         if not args.list and not (args.test or args.all):
             raise ValueError("Select --test explicitly; --all is reserved for a user-requested diagnostic")

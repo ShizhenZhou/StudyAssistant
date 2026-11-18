@@ -22,7 +22,7 @@ on:
           - beta
           - stable
       release_distribution:
-        description: Explicit distribution identity; compat requires its dedicated branch
+        description: Build modern (main identity) or compat from the same source
         required: false
         default: main
         type: choice
@@ -32,7 +32,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: build-${{ github.ref_name }}
+  group: build-${{ github.ref_name }}-${{ inputs.release_distribution }}
   cancel-in-progress: false
 jobs:
   build:
@@ -47,8 +47,7 @@ jobs:
           RELEASE_CHANNEL: ${{ inputs.release_channel }}
         run: |
           case "$GITHUB_REF:$RELEASE_DISTRIBUTION" in
-            refs/heads/main:main|refs/heads/Develop:main) ;;
-            refs/heads/Compatible:compat) case "$RELEASE_CHANNEL" in stable|beta) ;; *) exit 1 ;; esac ;;
+            refs/heads/main:main|refs/heads/main:compat|refs/heads/Develop:main|refs/heads/Develop:compat) ;;
             *) exit 1 ;;
           esac
           test "$EXPECTED_SHA" = "$GITHUB_SHA"
@@ -59,17 +58,26 @@ jobs:
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v6.4.1
       - name: Build unsigned release APK (no application tests)
+        id: apk
+        env:
+          RELEASE_DISTRIBUTION: ${{ inputs.release_distribution }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --console=plain
+          case "$RELEASE_DISTRIBUTION" in
+            main) flavor=modern; task=assembleModernRelease ;;
+            compat) flavor=compat; task=assembleCompatRelease ;;
+            *) exit 1 ;;
+          esac
+          ./gradlew "$task" --console=plain
+          echo "path=app/build/outputs/apk/$flavor/release/app-$flavor-release-unsigned.apk" >> "$GITHUB_OUTPUT"
       - name: Record APK identity and hashes
-        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta' || inputs.release_distribution == 'compat'
+        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta'
         env:
           RELEASE_CHANNEL: ${{ inputs.release_channel }}
           RELEASE_DISTRIBUTION: ${{ inputs.release_distribution }}
         run: python3 -B tools/ci-release.py
       - uses: actions/upload-artifact@v7.0.2
-        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta' || inputs.release_distribution == 'compat'
+        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta'
         with:
           name: release-candidate
           path: |
@@ -82,6 +90,6 @@ jobs:
         uses: actions/upload-artifact@v7.0.2
         with:
           name: development-build
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
           retention-days: 7

@@ -347,7 +347,7 @@ object UpdateChecker {
             val y = pb.getOrElse(i) { 0 }
             if (x != y) return x.compareTo(y)
         }
-        fun betaNumber(raw: String) = betaSuffix.find(raw.trim())?.groupValues?.get(1)?.ifEmpty { "0" }?.toBigInteger()
+        fun betaNumber(raw: String) = betaSuffix.find(raw.trim().removeSuffix("_Compat"))?.groupValues?.get(1)?.ifEmpty { "0" }?.toBigInteger()
         return nullsLast<java.math.BigInteger>().compare(betaNumber(a), betaNumber(b))
     }
 
@@ -415,7 +415,7 @@ object UpdateChecker {
         !rel.mandatory && skipIdentity(rel.displayVersion) == skippedVersion(context, rel.channel)
 
     internal fun skipIdentity(version: String): String =
-        version.trim().removePrefix("v").removePrefix("V").removeSuffix("_beta")
+        version.trim().removePrefix("v").removePrefix("V").removeSuffix("_Compat").removeSuffix("_beta")
 
     private fun skipKey(channel: Channel) = if (channel == Channel.BETA) KEY_SKIPPED + "_beta" else KEY_SKIPPED
     fun skipVersion(context: Context, version: String, channel: Channel = Channel.STABLE) {

@@ -326,8 +326,9 @@ class Release:
         finally:
             temporary.unlink(missing_ok=True)
         return data
-    def bind(self, version, commit):
-        self.path = self.root / ".local-notes/release-state" / (version + "-" + commit + "-pending.json")
+    def bind(self, version, commit, distribution="main"):
+        suffix = "-compat" if distribution == "compat" else ""
+        self.path = self.root / ".local-notes/release-state" / (version + "-" + commit + suffix + "-pending.json")
         self.state = bind_state(self.path, version, commit)
         self.save()
     def bind_build(self, version, commit, run_id, build_utc):
@@ -523,7 +524,7 @@ class Release:
                 validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
                 self.validate_run_promotion(run, evidence)
             else:
-                if not release_branch_allowed(run.get("head_branch"), "beta" if is_beta else "stable", manifest.get("distribution", "main")) or required_jobs(self.run_jobs(run_id), []).get("build", {}).get("conclusion") != "success":
+                if not release_branch_allowed(run.get("head_branch"), "beta" if is_beta else "stable", manifest.get("distribution", "main"), historical=True) or required_jobs(self.run_jobs(run_id), []).get("build", {}).get("conclusion") != "success":
                     raise ReleaseError("Published build did not succeed")
         if self.git("merge-base", "--is-ancestor", commit, "HEAD", check=False).returncode:
             raise ReleaseError("Published source is not an ancestor")
@@ -576,13 +577,11 @@ class Release:
             raise ReleaseError("Push the reviewed source branch before requesting its build.")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
         mandatory_release(dict(channel=channel, mandatory=False if mandatory is None else mandatory))
-        if numeric_version(version) != version and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
-        profile = source_distribution(self.root)
-        if profile["distribution"] != distribution:
-            raise ReleaseError("Requested distribution differs from the checked-in source selector.")
+        if "_beta" in version and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
+        profile = source_distribution(self.root, distribution)
         if profile["versionName"] != version:
             raise ReleaseError("Requested version differs from source.")
-        self.bind(version, commit)
+        self.bind(version, commit, distribution)
         if self.state.get("testBeforeMain"):
             raise ReleaseError("Retired staged-release state; do not resume its promotion workflow.")
         if self.state.get("channel", channel) != channel:
@@ -625,7 +624,10 @@ class Release:
         self.state.update(channel=channel, dispatchBranch=branch, dispatchAttempted=True,
                           requestedAt=datetime.now(timezone.utc).isoformat())
         self.save()  # Never blindly dispatch again after an ambiguous network response.
-        inputs = {"expected_sha":commit, "run_description":run_description(version, message)}
+        description = run_description(version, message) + (" [compat]" if distribution == "compat" else "")
+        self.state["runDescription"] = description
+        self.save()
+        inputs = {"expected_sha":commit, "run_description":description, "release_channel":channel}
         if branch == "Develop": inputs["release_channel"] = "beta"
         if distribution == "compat": inputs.update(release_channel=channel, release_distribution=distribution)
         self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":branch, "inputs":inputs})
@@ -635,6 +637,7 @@ class Release:
             runs = self.github.api(f"actions/workflows/{WORKFLOW}/runs?event=workflow_dispatch&branch={self.state.get('dispatchBranch', 'main')}&per_page=30")["workflow_runs"]
             threshold = datetime.fromisoformat(self.state["requestedAt"]) - timedelta(seconds=5)
             matches = [r for r in runs if r["head_sha"] == self.state["commit"] and r.get("display_title", "").startswith("release:")
+                and (not self.state.get("runDescription") or r.get("display_title") == "release: " + self.state["runDescription"])
                 and datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) >= threshold]
             if len(matches) > 1: raise ReleaseError("Multiple runs match; select one explicitly with verify --run.")
             if matches: self.state["runId"] = matches[0]["id"]; self.save()
@@ -662,7 +665,7 @@ class Release:
         if len(states)!=1: raise ReleaseError("No unique release state; select status --version VERSION --run RUN")
         path,state=states[0]
         if path.name==version+".json":
-            self.bind(version,state["commit"]); self.state.update(state); self.save()
+            self.bind(version,state["commit"],state.get("distribution", "main")); self.state.update(state); self.save()
         else:
             self.path,self.state=path,state
         return self.status()
@@ -756,18 +759,22 @@ class Release:
             raise ReleaseError("Candidate artifact changed for an existing build identity")
         if "manifest" not in self.state:
             # Read legacy/pending state without ever modifying its original file.
-            for name in (manifest["version"]+".json", manifest["version"]+"-"+commit+"-pending.json"):
+            suffix = "-compat" if manifest.get("distribution") == "compat" else ""
+            for name in (manifest["version"]+".json", manifest["version"]+"-"+commit+"-pending.json",
+                         manifest["version"]+"-"+commit+suffix+"-pending.json"):
                 old_path = self.path.parent / name
                 if not old_path.exists(): continue
                 old = json.loads(old_path.read_text(encoding="utf-8"))
-                if old.get("commit") != commit: continue
+                if (old.get("commit") != commit or
+                    old.get("distribution", "main") != manifest.get("distribution", "main") or
+                    old.get("runId") not in (None, run_id)): continue
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
                     self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","distribution","mandatory","deltaBase","deltaBases","legacyDeltaBaseCodes","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
             branch = run.get("head_branch")
-            if numeric_version(manifest["version"]) != manifest["version"] and self.state.get("channel") != "beta":
+            if "_beta" in manifest["version"] and self.state.get("channel") != "beta":
                 raise ReleaseError("Beta candidates require an explicitly requested beta release")
             distribution = manifest.get("distribution", "main")
             if (not release_branch_allowed(branch, self.state.get("channel", "stable"), distribution) or
@@ -971,7 +978,7 @@ def main():
         item = sub.add_parser(operation); item.add_argument("--version", required=True)
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
-        if operation == "start": item.add_argument("--distribution", choices=("main", "compat"), default="main", help="Explicit compatibility branch identity; never latest")
+        if operation == "start": item.add_argument("--distribution", choices=("main", "compat"), default="main", help="Build distribution from main (or explicitly requested Develop beta); compat is never latest")
         if operation == "start": item.add_argument("--mandatory", action="store_true", default=None, help="Explicit stable-only forced update; adds -ENF to the APK filename")
         if operation == "start": item.add_argument("--delta-base", type=Path, action="append", help="Exact archived stable/beta APK with companion manifest; repeat for multiple versionCodes")
         if operation == "start": item.add_argument("--legacy-delta-base", type=Path, action="append", help="Explicit exception: build an old-format patch for this exact base instead of APK-aware")

@@ -2,6 +2,8 @@
 
 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
+> Both editions are built from main; the Compatible branch is retained only for history.
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -11,7 +13,7 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The `Compatible` branch targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.2 (versionCode 139, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility branch. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.2 (versionCode 139, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
@@ -19,7 +21,6 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [Download the compatible release (v0.7.5.2)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
-- [Android 9–15 compatibility branch (Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 

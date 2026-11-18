@@ -20,8 +20,7 @@ from release_common import (COMPAT_BRANCH, apk_identity, apk_payload, extract_ca
 class DeliveryTest(unittest.TestCase):
     def source_profile(self, root, distribution, version):
         directory = root / "config/distributions"
-        directory.mkdir(parents=True)
-        (root / "config/distribution.properties").write_text("distribution=" + distribution + "\n", encoding="utf-8")
+        directory.mkdir(parents=True, exist_ok=True)
         profile = (Path(__file__).resolve().parents[2] / f"config/distributions/{distribution}.properties").read_text(encoding="utf-8")
         profile = "\n".join("versionName=" + version if line.startswith("versionName=") else line for line in profile.splitlines()) + "\n"
         (directory / f"{distribution}.properties").write_text(profile, encoding="utf-8")
@@ -53,11 +52,11 @@ class DeliveryTest(unittest.TestCase):
 
     def test_default_local_plan_does_not_compile_or_test(self):
         self.assertEqual([], local_checks.plan_checks()["tasks"])
-        self.assertEqual(["compileDebugKotlin"], local_checks.plan_checks(compile_app=True)["tasks"])
+        self.assertEqual(["compileModernDebugKotlin"], local_checks.plan_checks(compile_app=True)["tasks"])
 
     def test_targeted_test_owns_its_compilation_without_expanding_scope(self):
         plan = local_checks.plan_checks(["example.Test.method"], compile_app=True)
-        self.assertEqual(["testIntegrationUnitTest"], plan["tasks"])
+        self.assertEqual(["testModernIntegrationUnitTest"], plan["tasks"])
         self.assertEqual(["example.Test.method"], plan["selectors"])
         with self.assertRaises(ValueError): local_checks.plan_checks(["*"])
 
@@ -77,10 +76,15 @@ class DeliveryTest(unittest.TestCase):
         validate_manifest(value)
         for fields in (dict(minSdk=36), dict(maxSdk=36), dict(distribution="unknown")):
             with self.assertRaises(ValueError): validate_manifest(dict(value, **fields))
-        self.assertFalse(release_branch_allowed("main", "beta", "compat"))
+        self.assertTrue(release_branch_allowed("main", "beta", "compat"))
         self.assertFalse(release_branch_allowed(COMPAT_BRANCH, "beta", "main"))
-        self.assertTrue(release_branch_allowed(COMPAT_BRANCH, "stable", "compat"))
+        self.assertFalse(release_branch_allowed(COMPAT_BRANCH, "stable", "compat"))
+        self.assertTrue(release_branch_allowed(COMPAT_BRANCH, "stable", "compat", historical=True))
         self.assertEqual("false", release.make_latest(dict(distribution="compat", channel="stable")))
+        self.assertEqual("0.7.5.3", release.numeric_version("0.7.5.3_Compat"))
+        self.assertEqual("0.7.6", release.numeric_version("0.7.6_beta2_Compat"))
+        self.assertEqual("compat_v0.7.5.3_Compat", release_tag("0.7.5.3_Compat", "compat"))
+        with self.assertRaises(ValueError): release_tag("0.7.5.3_Compat", "main")
         self.assertEqual("true", release.make_latest(dict(channel="stable")))
         with tempfile.TemporaryDirectory() as tmp:
             apk = Path(tmp) / "compat.apk"
@@ -99,6 +103,7 @@ class DeliveryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / "app").mkdir()
             self.source_profile(root, "compat", "0.7.4.1")
+            self.source_profile(root, "main", "0.7.4.2")
             calls = []
             class GitHub:
                 def api(self, path, value=None, **kwargs):
@@ -106,7 +111,7 @@ class DeliveryTest(unittest.TestCase):
                     return {"workflow_runs": []} if "runs?" in path else None
             r = release.Release(root, GitHub())
             def fake_git(*args, **kwargs):
-                values = {("status", "--porcelain"): "", ("branch", "--show-current"): COMPAT_BRANCH,
+                values = {("status", "--porcelain"): "", ("branch", "--show-current"): "main",
                           ("rev-parse", "HEAD"): "a"*40, ("log", "-1", "--format=%s"): "feat: support older Android"}
                 return type("Result", (), {"stdout": values[args].encode(), "returncode": 0})()
             with patch.object(r, "git", side_effect=fake_git), patch.object(r, "remote", return_value="a"*40):
@@ -119,6 +124,19 @@ class DeliveryTest(unittest.TestCase):
             self.assertEqual("compat", dispatches[0]["inputs"]["release_distribution"])
             self.assertEqual("stable", dispatches[0]["inputs"]["release_channel"])
             self.assertIn(("git/ref/tags/compat_v0.7.4.1", None), calls)
+            compat_path = r.path
+            # Same commit/version may be published twice; pending states must not collide.
+            self.source_profile(root, "main", "0.7.4.1")
+            with patch.object(r, "git", side_effect=fake_git), patch.object(r, "remote", return_value="a"*40):
+                r.start("0.7.4.1")
+            self.assertNotEqual(compat_path, r.path)
+            self.assertNotIn("distribution", r.state)
+            self.assertEqual(2, len([v for p, v in calls if p.endswith("/dispatches")]))
+            self.source_profile(root, "compat", "0.7.4.1_Compat")
+            with patch.object(r, "git", side_effect=fake_git), patch.object(r, "remote", return_value="a"*40):
+                r.start("0.7.4.1_Compat", distribution="compat")
+            self.assertEqual("stable", r.state["channel"])
+            self.assertIn(("git/ref/tags/compat_v0.7.4.1_Compat", None), calls)
 
     def test_beta_candidate_and_signed_apk_keep_number_but_update_manifest_uses_numeric_version(self):
         base = "0.6.9.9"
@@ -388,7 +406,8 @@ class DeliveryTest(unittest.TestCase):
                 r.start("0.6.8.7"); r.start("0.6.8.7")
             dispatches = [v for p, v in calls if p.endswith("/dispatches")]
             self.assertEqual(1, len(dispatches))
-            self.assertEqual({"expected_sha", "run_description"}, set(dispatches[0]["inputs"]))
+            self.assertEqual({"expected_sha", "run_description", "release_channel"}, set(dispatches[0]["inputs"]))
+            self.assertEqual("stable", dispatches[0]["inputs"]["release_channel"])
 
 
 if __name__ == "__main__": unittest.main()

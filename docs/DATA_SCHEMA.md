@@ -2,7 +2,7 @@
 
 ## 当前基线与阅读约定
 
-核查日期：2026-11-18；适用于 **main / Compatible v0.7.5.2**；主线 Android 16+（API 36+），兼容版 Android 9–15（API 28–35）。
+核查日期：2026-11-18；适用于 **modern / compat v0.7.5.2**；主线 Android 16+（API 36+），兼容版 Android 9–15（API 28–35）。
 
 | 格式或组件 | 当前状态 | 事实来源 |
 |---|---|---|
@@ -15,7 +15,7 @@
 
 下文表结构及明确注明“当前”的说明描述现行行为。按应用版本标注的段落保留当时的变更历史；其中 DB v9/v10、Bak v2/v3 等是历史基线，**不能据此判断当前格式**。后续段落或本节有更新说明时，以当前说明为准，不把历史版本号批量改成 v11/v4。
 
-两分支格式一致不代表所有实现相同：main 用 SQLite JSON1 触发器派生短标题，Compatible 用 DAO/恢复写入及流式解析派生；兼容版还保留 API28–34 的 Room 事务快照路径。无需为此次文档校正迁移数据库、重写备份或调整版本号。
+两变体格式一致不代表所有实现相同：main 用 SQLite JSON1 触发器派生短标题，compat 用 DAO/恢复写入及流式解析派生；兼容版还保留 API28–34 的 Room 事务快照路径。无需为此次文档校正迁移数据库、重写备份或调整版本号。
 
 ## 未发送输入草稿（v0.7.5.1）
 
@@ -280,7 +280,7 @@
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/database/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
 > 与 `data/database/SolveSession.kt`（`SolveSession` 实体）、`data/database/SolveSessionPrune.kt`（裁剪纯函数）。
-> `SolveSession` 单独存放便于模型与 DAO/迁移职责分离。当前定向 JVM 验证使用 Gradle 的 `testIntegrationUnitTest`，不再手工拼接不含 Room 的 classpath；验证流程见 [development.md](development.md)。
+> `SolveSession` 单独存放便于模型与 DAO/迁移职责分离。当前定向 JVM 验证使用 Gradle 的 `testModernIntegrationUnitTest`，不再手工拼接不含 Room 的 classpath；验证流程见 [development.md](development.md)。
 
 ---
 
@@ -402,7 +402,7 @@ BAIDU_SECRET_KEY=
 1. 主库表结构改变时，修改实体、递增 `AppDatabase.version` 并新增迁移；纯 DAO 查询或独立本机文件变化不因此递增主库版本。
 2. **必须在本文件**补一行「迁移历史」，注明 App 版本与 SQL，并把「最新结构」表更新。
 3. 自定义文件必须显式记录格式版本并校验；现行 JSON 备份、草稿、诊断和恢复记录使用 JSON 的 `version` 字段，不追加二进制版本头。新增格式应明确兼容、损坏处理和备份范围。
-4. 改完后 `assembleDebug` 验证编译，再提交推送。
+4. 按 development.md 做最小必要验证；涉及某个适配实现时显式选择对应变体，不默认重复构建。
 
 
 ## 6. 待保存内容恢复记录（v0.6.6.7）
@@ -586,7 +586,7 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 
 ## 当前更新身份、差分及诊断私有状态
 
-- `update-manifest.json` 是公开分发清单：main 使用 schema 1 / `distribution=main`，Compatible 使用 schema 2 / `distribution=compat`、`minSdk=28`、`maxSdk=35`。不能把 Compatible 的清单仍描述为 schema 1；版本号相同也要同时满足分支和系统范围。CI 的 schema 3 身份清单是另一种文件，不由客户端当更新清单读取。
+- `update-manifest.json` 是公开分发清单：main 使用 schema 1 / `distribution=main`，Compatible 使用 schema 2 / `distribution=compat`、`minSdk=28`、`maxSdk=35`。不能把 Compatible 的清单仍描述为 schema 1；版本号相同也要同时满足发行身份和系统范围。CI 的 schema 3 身份清单是另一种文件，不由客户端当更新清单读取。
 - `update_download/session` 与 `update_prompt/required_release` 保存发布目标的分支及系统范围等身份。下载恢复、差分路径和强制更新按当前分支隔离；缺少新字段的历史记录沿读端兼容规则判断，不能仅凭版本号跨分支安装。
 - 新发布差分使用 `apk-gdiff1-gzip`，文件名 `<目标APK文件名去扩展名>-from-<基准versionCode>.gdiff.gz`；客户端仍保留历史差分读取能力。直接差分优先，链式按总下载字节选择更小可用路径，每步绑定精确基准和目标的大小/SHA，最终验证完整签名 APK。存储不足使用已有 session 错误状态 `update.storageInsufficient`，不新增主库字段，也不因空间不足改下全量包。
 - 崩溃原始日志及精简报告位于 `filesDir/crashes/`，保留最近10组。`crash_report_reminder` 的 `pending_crash`、`crash_installation`、`last_seen` 绑定未捕获异常记录及安装代次；覆盖安装不把旧日志重新当作新崩溃。用户可预览/手动导出，不自动上传，不进入 Bak v4。
@@ -602,4 +602,4 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 
 - `app/src/main` 共用业务与迁移入口；`app/src/distributions/main/java/`、`compat/java/` 的 `DatabasePlatform` 分别保留 JSON1/触发器和流式标题/引用扫描实现。`StoredConversationJson.kt` 仅在兼容版编译。
 - 主线 DAO 交给触发器派生标题，兼容版 DAO 先派生再写入；备份完整会话写入后调用同一适配入口。表定义、identity hash、迁移 SQL 的业务字段及 Bak v4 白名单不变，此次无需格式升级。
-- `config/distribution.properties` 仅选择本分支默认发行线，不进入题库或备份；版本/系统范围位于 `config/distributions/`，更新记录位于各发行线 `assets/changelog/`。
+- Gradle modern/compat 变体选择发行实现，不进入题库或备份；版本/系统范围位于 `config/distributions/`，更新记录位于各发行线 `assets/changelog/`。

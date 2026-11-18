@@ -57,7 +57,7 @@ def source_digest(root, prefixes=None):
 # Test-only and prose edits do not change production APK bytes. Tool implementations
 # are separate inputs for the actions they control, rather than every Gradle output.
 GRADLE_INPUTS = ["gradle", "gradlew", "gradlew.bat", "build.gradle.kts", "settings.gradle.kts", "gradle.properties", "app/build.gradle.kts", "app/proguard-rules.pro"]
-MAIN_INPUTS = GRADLE_INPUTS + ["app/src/main", "app/src/distributions", "config/distribution.properties", "config/distributions"]
+MAIN_INPUTS = GRADLE_INPUTS + ["app/src/main", "app/src/distributions", "config/distributions"]
 BUILD_INPUTS = MAIN_INPUTS + ["app/src/integration", "app/src/androidTest"]
 
 
@@ -80,7 +80,7 @@ def platform_constraints(min_sdk, policy=POLICY):
 
 
 def actual_min_sdk(root=ROOT):
-    if (Path(root) / "config/distribution.properties").exists():
+    if (Path(root) / "config/distributions/main.properties").exists():
         from distribution_config import source_distribution
         return source_distribution(root)["minSdk"]
     text = (Path(root) / "app/build.gradle.kts").read_text(encoding="utf-8")

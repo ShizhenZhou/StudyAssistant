@@ -2,6 +2,8 @@
 
 [简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
+> Both editions are built from main; the Compatible branch is retained only for history.
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -15,7 +17,6 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [Download the compatible release (v0.7.5.2)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
-- [Android 9–15 compatibility branch (Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -426,7 +427,7 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 - 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
 - 📌 `versionCode` **80**.
 
-**The versions above support Android 16+ only. For compatible releases, see the [Compatible branch](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible).**
+**The versions above support Android 16+ only. For Android 9–15, see the [compatibility guide](../compatible/README.en.md)**
 
 ---
 

@@ -266,7 +266,7 @@ v0.6.8
 · 🔔 Unify Android 16 download progress and completion notifications while preserving permission, cancellation and recovery checks.
 · 🛠️ Remove obsolete platform branches and improve build-bound resumable release verification and explicit same-version replacement.
 
-**The versions above support Android 16+ only. For compatible releases, see the Compatible branch.**
+**The versions above support Android 16+ only. For Android 9–15, see the compatibility guide**
 ────────────────
 
 v0.6.7.9

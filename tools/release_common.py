@@ -7,7 +7,7 @@ import zipfile
 
 PACKAGE = "com.zsz.studyassistant"
 COMPAT_BRANCH = "Compatible"
-VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?")
+VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?(?:_Compat)?")
 SIGNATURE_ENTRY = re.compile(r"META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC))", re.IGNORECASE)
 
 def android_build_tools(sdk, root=None):
@@ -24,12 +24,14 @@ def android_build_tools(sdk, root=None):
 def numeric_version(version):
     if not VERSION.fullmatch(version):
         raise ValueError("Invalid release version")
-    return version.partition("_beta")[0]
+    return version.removesuffix("_Compat").partition("_beta")[0]
 
 def release_tag(version, distribution="main"):
     numeric_version(version)
     if distribution not in ("main", "compat"):
         raise ValueError("Unknown release distribution")
+    if version.endswith("_Compat") and distribution != "compat":
+        raise ValueError("Compat suffix requires compatibility distribution")
     # Old clients normalize tags at the first underscore: compat becomes version 0.
     return ("compat_v" if distribution == "compat" else "v") + version
 
@@ -58,10 +60,10 @@ def apk_distribution(path):
         value = json.loads(archive.read("assets/distribution.json"))
     return distribution_identity(value)
 
-def release_branch_allowed(branch, channel, distribution="main"):
-    if distribution == "compat":
-        return branch == COMPAT_BRANCH and channel in ("stable", "beta")
-    return distribution == "main" and (branch == "main" or (branch == "Develop" and channel == "beta"))
+def release_branch_allowed(branch, channel, distribution="main", historical=False):
+    if historical and distribution == "compat" and branch == COMPAT_BRANCH:
+        return channel in ("stable", "beta")
+    return distribution in ("main", "compat") and channel in ("stable", "beta") and (branch == "main" or (branch == "Develop" and channel == "beta"))
 
 def sha256(path):
     with Path(path).open("rb") as stream:

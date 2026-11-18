@@ -2,6 +2,8 @@
 
 [简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
+> 両配布版は main からビルドします。Compatible ブランチは履歴としてのみ保持します。
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -15,7 +17,6 @@ zsz が DeepSeek と GPT の支援で開発。
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [互換版 v0.7.5.2 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
-- [Android 9–15 互換ブランチ（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -426,7 +427,7 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 - 🛠️ 旧OSの互換分岐を整理し、ビルド単位で再開できるリリース検証と明示的な同バージョン置換を改善。
 - 📌 `versionCode` **80**。
 
-**上記のバージョンは Android 16 以降にのみ対応しています。互換版は [Compatible ブランチ](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)をご覧ください。**
+**上記のバージョンは Android 16 以降にのみ対応しています。Android 9–15 向けは[互換版の説明](../compatible/README.ja.md)**
 
 ---
 

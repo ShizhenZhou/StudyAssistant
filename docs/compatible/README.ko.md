@@ -2,6 +2,8 @@
 
 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
+> 두 배포판 모두 main에서 빌드합니다. Compatible 브랜치는 과거 기록으로만 보존합니다.
+
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
 ![Downloads](https://img.shields.io/github/downloads/ShizhenZhou/StudyAssistant/total)
@@ -11,7 +13,7 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> `Compatible` 브랜치는 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.2(versionCode 139, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 브랜치의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.2(versionCode 139, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
@@ -19,7 +21,6 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [호환 버전 v0.7.5.2 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
-- [Android 9–15 호환 브랜치(Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 

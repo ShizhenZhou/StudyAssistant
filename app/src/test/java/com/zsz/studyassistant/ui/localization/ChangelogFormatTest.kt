@@ -105,16 +105,16 @@ class ChangelogFormatTest {
             "docs/compatible/README.ja.md" to "上記のバージョンから互換ブランチです。",
             "docs/compatible/README.ko.md" to "위 버전부터 호환 브랜치에 해당합니다."
         ) else listOf(
-            "README.md" to "以上版本仅支持Android 16+，兼容版本见Compatible分支",
-            "docs/readme/README.zh-TW.md" to "以上版本僅支持Android 16+，兼容版本見Compatible分支",
-            "docs/readme/README.en.md" to "The versions above support Android 16+ only. For compatible releases, see the Compatible branch.",
-            "docs/readme/README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。互換版は Compatible ブランチをご覧ください。",
-            "docs/readme/README.ko.md" to "위 버전은 Android 16 이상만 지원합니다. 호환 버전은 Compatible 브랜치를 확인하세요."
+            "README.md" to "以上版本仅支持Android 16+，Android 9–15 兼容版见兼容版说明",
+            "docs/readme/README.zh-TW.md" to "以上版本僅支持Android 16+，Android 9–15 兼容版見兼容版說明",
+            "docs/readme/README.en.md" to "The versions above support Android 16+ only. For Android 9–15, see the compatibility guide",
+            "docs/readme/README.ja.md" to "上記のバージョンは Android 16 以降にのみ対応しています。Android 9–15 向けは互換版の説明",
+            "docs/readme/README.ko.md" to "위 버전은 Android 16 이상만 지원합니다. Android 9–15 지원은 호환 버전 안내"
         )
         for ((index, item) in notices.withIndex()) {
             val (file, notice) = item
             val readme = File(root, file).readText().replace(
-                Regex("\\[([^]]+)]\\(https://github\\.com/ShizhenZhou/StudyAssistant/tree/Compatible\\)")
+                Regex("\\[([^]]+)]\\([^)]*compatible/README[^)]*\\)")
             ) { it.groupValues[1] }
             val app = tables[index].second
             for ((label, text, boundary) in listOf(
@@ -140,7 +140,9 @@ class ChangelogFormatTest {
         }.getProperty("versionName")
         for ((lang, text) in tables) {
             assertTrue("$lang 的更新内容为空", text.trim().isNotEmpty())
-            assertTrue("$lang 少了当前版本 v$version", text.lineSequence().first { it.isNotBlank() } == "v$version")
+            // Historical records retain their published labels when adding a distribution suffix.
+            assertTrue("$lang 少了当前版本 v$version",
+                text.lineSequence().first { it.isNotBlank() }.removeSuffix("_Compat") == "v${version.removeSuffix("_Compat")}")
         }
     }
 }
