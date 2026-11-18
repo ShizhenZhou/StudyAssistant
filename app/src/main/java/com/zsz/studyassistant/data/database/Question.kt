@@ -21,16 +21,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
-/** Mainline DB11 files may already contain JSON1 triggers. Remove them before any write:
- * Android 9's system SQLite need not have JSON1. DAO/restore writers derive the same cache. */
-private fun removeSolveSessionTitleTriggers(connection: SQLiteConnection) {
-    connection.execSQL("DROP TRIGGER IF EXISTS solve_sessions_title_insert")
-    connection.execSQL("DROP TRIGGER IF EXISTS solve_sessions_title_update")
-}
-
 val SOLVE_SESSION_TITLE_CALLBACK = object : RoomDatabase.Callback() {
-    override suspend fun onCreate(connection: SQLiteConnection) = removeSolveSessionTitleTriggers(connection)
-    override suspend fun onOpen(connection: SQLiteConnection) = removeSolveSessionTitleTriggers(connection)
+    override suspend fun onCreate(connection: SQLiteConnection) = DatabasePlatform.installTitleCache(connection)
+    override suspend fun onOpen(connection: SQLiteConnection) = DatabasePlatform.installTitleCache(connection)
 }
 
 @Entity(tableName = "questions")
@@ -466,7 +459,11 @@ interface QuestionDao {
     suspend fun allSolveSessionsOnce(): List<SolveSession> = allSessionIdsOnce().mapNotNull { solveSessionOnce(it) }
 
     @androidx.room3.Transaction
-    suspend fun insertSolveSessions(list: List<SolveSession>): List<Long> = list.map { insertSolveSession(it) }
+    suspend fun insertSolveSessions(list: List<SolveSession>): List<Long> =
+        insertSolveSessionRows(list.map(DatabasePlatform::prepareSession))
+
+    @Insert
+    suspend fun insertSolveSessionRows(list: List<SolveSession>): List<Long>
 
     @Query("DELETE FROM solve_sessions")
     suspend fun clearSolveSessions()
@@ -554,16 +551,14 @@ interface QuestionDao {
     // ---- 搜题记录（solve_sessions，方案 B：与 questions 完全隔离）----
 
     @androidx.room3.Transaction
-    suspend fun insertSolveSession(s: SolveSession): Long =
-        insertSolveSessionRow(s.copy(title = SolveSessionTitle.fromJson(s.conversationJson)))
+    suspend fun insertSolveSession(s: SolveSession): Long = insertSolveSessionRow(DatabasePlatform.prepareSession(s))
 
     @Insert
     suspend fun insertSolveSessionRow(s: SolveSession): Long
 
     /** 按 id 更新整条记录（追问/继续生成时把最新 text/answer/conversationJson 写回同一条） */
     @androidx.room3.Transaction
-    suspend fun updateSolveSession(s: SolveSession) =
-        updateSolveSessionRow(s.copy(title = SolveSessionTitle.fromJson(s.conversationJson)))
+    suspend fun updateSolveSession(s: SolveSession) = updateSolveSessionRow(DatabasePlatform.prepareSession(s))
 
     @Update
     suspend fun updateSolveSessionRow(s: SolveSession)
@@ -747,7 +742,7 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
 val MIGRATION_10_11 = object : Migration(10, 11) {
     override suspend fun migrate(db: SQLiteConnection) {
         db.execSQL("ALTER TABLE solve_sessions ADD COLUMN title TEXT")
-        SolveSessionTitle.migrate(db)
+        DatabasePlatform.migrateTitles(db)
     }
 }
 

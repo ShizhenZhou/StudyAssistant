@@ -57,13 +57,13 @@ def source_digest(root, prefixes=None):
 # Test-only and prose edits do not change production APK bytes. Tool implementations
 # are separate inputs for the actions they control, rather than every Gradle output.
 GRADLE_INPUTS = ["gradle", "gradlew", "gradlew.bat", "build.gradle.kts", "settings.gradle.kts", "gradle.properties", "app/build.gradle.kts", "app/proguard-rules.pro"]
-MAIN_INPUTS = GRADLE_INPUTS + ["app/src/main"]
+MAIN_INPUTS = GRADLE_INPUTS + ["app/src/main", "app/src/distributions", "config/distribution.properties", "config/distributions"]
 BUILD_INPUTS = MAIN_INPUTS + ["app/src/integration", "app/src/androidTest"]
 
 
 def task_inputs(tasks):
     values = set(MAIN_INPUTS)
-    if any("UnitTest" in t for t in tasks): values.update(["app/src/test", "README.md", "docs/readme"])
+    if any("UnitTest" in t for t in tasks): values.update(["app/src/test", "README.md", "docs/readme", "docs/compatible"])
     if any("Integration" in t for t in tasks): values.update(["app/src/integration", "app/src/androidTest"])
     if any("Release" in t for t in tasks): values.add("app/src/release")
     if any("Debug" in t for t in tasks): values.add("app/src/debug")
@@ -80,6 +80,9 @@ def platform_constraints(min_sdk, policy=POLICY):
 
 
 def actual_min_sdk(root=ROOT):
+    if (Path(root) / "config/distribution.properties").exists():
+        from distribution_config import source_distribution
+        return source_distribution(root)["minSdk"]
     text = (Path(root) / "app/build.gradle.kts").read_text(encoding="utf-8")
     values = re.findall(r"(?m)^\s*minSdk\s*=\s*(\d+)\s*$", text)
     if len(values) != 1: raise ValueError("Cannot establish actual minSdk from source")

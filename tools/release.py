@@ -19,6 +19,7 @@ import zipfile
 import tempfile
 import apk_delta
 import apk_archive_delta
+from distribution_config import source_distribution
 from release_common import (VERSION, COMPAT_BRANCH, apk_identity, apk_payload, apk_distribution,
                             distribution_identity, release_branch_allowed, release_tag, version_from_tag, extract_candidate, numeric_version, sha256, validate_manifest)
 from verification import (make_plan, validate_ci_evidence,
@@ -576,8 +577,10 @@ class Release:
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
         mandatory_release(dict(channel=channel, mandatory=False if mandatory is None else mandatory))
         if numeric_version(version) != version and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
-        source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
-        if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
+        profile = source_distribution(self.root)
+        if profile["distribution"] != distribution:
+            raise ReleaseError("Requested distribution differs from the checked-in source selector.")
+        if profile["versionName"] != version:
             raise ReleaseError("Requested version differs from source.")
         self.bind(version, commit)
         if self.state.get("testBeforeMain"):

@@ -123,7 +123,7 @@ internal class BackupStagedMerge(
                 copyFields("solve_sessions",rows.getLong(0),targetRow,setOf("id","savedQuestionId"))
                 // Bak4's fixed whitelist excludes the cache. Hydrate once, after every
                 // conversation chunk is present, inside the same restore transaction.
-                SolveSessionTitle.rebuild(target,targetRow,check)
+                DatabasePlatform.rebuildTitle(target,targetRow,check)
                 sessions++; images+=rows.getInt(4)
             }
         }

@@ -2,7 +2,7 @@
 
 ## 目录布局
 
-- 根目录保留 README、许可证、开发约定和 Gradle 入口；多语言 README 在 `docs/readme/`，数据结构与开发说明在 `docs/`。
+- 根目录保留两分支共用 README、许可证、开发约定和 Gradle 入口；多语言 README 在 `docs/readme/`，数据结构与开发说明在 `docs/`。
 - `app/src/main/java/com/zsz/studyassistant/` 保留应用与主状态入口。`data/` 按 `ai`、`backup`、`capture`、`conversation`、`database`、`notebook`、`review`、`tags`、`update`、`storage`、`diagnostics`、`notifications` 归类。
 - `ui/` 按 `capture`、`conversation`、`notebook`、`settings`、`appearance`、`components`、`navigation`、`localization`、`home` 归类；统一路由入口仍为 `ui/AppNav.kt`。
 - 这些源码子目录仅用于按功能定位文件，Kotlin 包名仍为原来的 `com.zsz.studyassistant.data` / `.ui`，不改变类名、数据库标识、组件注册或序列化身份。`test`、`androidTest`、`integration` 中的相关用例与夹具按相同功能归类，测试类名和调用方式不变。
@@ -16,13 +16,13 @@
 
 ## 日常开发
 
-应用公告与不稳定版本提示通过 `config/app-notices.json` 维护，初始为空；版本范围、时间编号、多语言及撤回规则见 [公告维护说明](app-notices.md)。读取复用现有更新检查机会，不增加后台任务或 CI 门禁。
+应用公告与不稳定版本提示通过 `config/app-notices.json` 维护，初始为空；版本范围、时间编号、多语言及撤回规则见 [公告维护说明](app-notices.md)。前台每15分钟刷新，读取同时复用现有更新检查机会，不增加后台任务或 CI 门禁。
 
 设置首页为 AI 与解题、外观与语言、通知与后台、备份与数据、应用更新、关于与反馈六个入口。AI 回答语言和界面语言各归其对应页面；附件存储独立于备份，清空数据位于备份与数据首页，原始崩溃日志管理折叠于精简报告下方。旧设置路由保留用于恢复兼容；错题本的标签整理快捷入口使用独立导航节点，返回错题本。设置首页按通用、个性化分组，备份与数据独立分组，应用更新与关于与反馈同组显示。更新历史默认显示当前正式版本系列；Beta 另显示本轮开发记录，更早历史仅在展开后排版。
 
 构建环境固定为 JDK 25、Gradle wrapper 9.8.2、AGP 9.5.1、Kotlin 2.4.21；本地使用 `tools/codex-env.ps1`，CI 使用 Temurin 25。Android Studio 的 Gradle JDK 也应选择 JDK 25。Gradle 分发使用官方地址及 SHA256 校验，无需安装全局 Gradle。
 
-AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 3.0.3 使用 KSP 2.3.12 生成 Kotlin DAO，通过 AndroidSQLiteDriver 使用系统 SQLite，不改变数据库格式。少量分段读取和备份 SQL 使用官方 room3-sqlite-wrapper 兼容接口；写操作仍在 Room 的 withWriteTransaction 内执行。Java/Kotlin 字节码目标仍为 17，主线 minSdk 36、兼容线 minSdk 28（支持 API 28–35），compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
+AGP 9 使用内置 Kotlin，Compose/serialization 编译器插件与 Kotlin 同版本；Room 3.0.3 使用 KSP 2.3.12 生成 Kotlin DAO，通过 AndroidSQLiteDriver 使用系统 SQLite，不改变数据库格式。少量分段读取和备份 SQL 使用官方 room3-sqlite-wrapper 兼容接口；写操作仍在 Room 的 withWriteTransaction 内执行。Java/Kotlin 字节码目标仍为 17，主线 minSdk 36、兼容版 minSdk 28（分发上限35），compileSdk/targetSdk 37、Build Tools 36.0.0。构建、签名和 APK 身份检查统一读取版本目录的 `androidBuildTools`，不自动选择本机最高版本。
 
 Room 结构快照由正常 KSP 编译导出至 `app/schemas/com.zsz.studyassistant.data.AppDatabase/<数据库版本>.json`，随源码提交，从 DB v10 开始保留（当前 DB v11）。各构建变体共用相同结构；目录不加入应用资源，不打入正式 APK。以后变更表结构时新增对应版本快照并保留旧文件，不手工编造历史版本；无需为导出单独增加测试或 CI 门禁。
 
@@ -86,7 +86,7 @@ Beta可从开发分支本地按需构建一次：`./gradlew.bat assembleRelease 
 
 ## 合并与构建
 
-应用内版本记录位于 `app/src/main/assets/changelog/{zh,en,ja,ko}.txt`（UTF-8）。发版时在各文件顶部添加新版本块，并与旧记录留一行空行。繁体中文在读取简体记录时转换。
+应用内版本记录分别位于 `app/src/distributions/{main,compat}/assets/changelog/{zh,en,ja,ko}.txt`（UTF-8）。发版时在各文件顶部添加新版本块，并与旧记录留一行空行。繁体中文在读取简体记录时转换。
 
 本地必要验证/用户反馈完成后再合并main。提交含feat:/fix:/build:/ci:等前缀；合并冲突改变运行代码时只验证受影响部分。
 
@@ -103,16 +103,6 @@ git push origin main
 
 schema3候选清单记录包名、版本、minSdk/targetSdk、commit、构建时间、SHA、签名后保持的代码资源摘要与预期证书，不含JVM/设备通过结论。旧schema1/2仅保留历史读取兼容；不要求为新版本下载旧测试证据，不对新流程回退全量。
 
-### Android 9–15 兼容发行例外
-
-长期分支固定为 `Compatible`，基于当前业务代码维护，不整支合入 main。主线仍支持 Android 16+。兼容版与主线使用同一 applicationId、原证书及 lineage，不能并装；不清数据、不卸载。兼容版显示版本与主线同步，当前兼容版为 `0.7.4.1` / code135，与主线同名版本对齐。后续交付按各发行线递增 versionCode，渠道与 SDK 范围隔离不能依赖两线 code 不同；转回主线不得降级安装。兼容公开 APK 使用 `SACompat-<版本>-<UTC构建时间>.apk`，主线暂时仍用原包名，待 v0.7.4.2 发布后再调整。兼容 Git tag 独立使用 `compat_v<VERSION>`，主线继续 `v<VERSION>`，版本相同也不会覆盖标签；发布说明使用 `.local-notes/releases/RELEASE-compat_v<VERSION>.md`。Beta 后缀仅按用户当次安排使用。
-
-兼容线仅在用户明确安排发布后，以已推送的干净专用分支执行 `./tools/release.ps1 start --version VERSION --distribution compat`，Beta 另加 `--channel beta`；同一次 run 继续 status/publish。此例外不放宽其他分支，也不要求合并 main。复用单个手动 CI 构建，CI 输入必须显式 `release_distribution=compat` 及 stable/beta 渠道。候选 schema3 清单增加 `distribution=compat`、`maxSdk=35`，并与 APK 内 `assets/distribution.json`、真实 minSdk=28、精确提交及原签名核对。正式兼容 Release 为 prerelease=false，Beta 为 true，两者始终 make_latest=false；Latest 保留主线。
-
-公开更新清单与 CI 候选清单是两种协议：主线公开清单保持 schema1；兼容公开清单使用 schema2，并明确 `distribution=compat`、`minSdk=28`、`maxSdk=35`。现有主线客户端优先比较 versionCode 且不识别 distribution，schema2 使其拒绝读取兼容包的 code；旧客户端再将 tag 按首个下划线截成 `compat`，版本比较值为0，所以未来与主线同步的兼容名称也不会误报更新。不能改为 `compat-v` 前缀，否则旧解析器可能保留后续数字段。新客户端识别 `compat_` 前缀，并要求清单身份与 tag 对应，在正式、Beta、强更历史、下载恢复和差分图中先筛选发行线与 SDK 范围，再比较版本和精确 APK 摘要；主线强更不能锁住兼容线用户。
-
-v0.6.7.9 只查询 Latest，首次转入兼容线必须手动安装完整 APK；不为 code79 生成首包差分。后续兼容差分只选择带 schema2 兼容清单的同线精确已公开 APK，沿用 `apk-gdiff1-gzip`，禁止跨线基准。主线与历史冻结发布的清单、附件、标签及差分恢复规则保持原样。两线隔离、原签名、下载 SHA 与归档核对属于原有身份检查，不增加自动测试或 CI 门禁。
-
 ## 签名与发布底线
 
 只使用原自有证书/lineage；CI不读取签名材料。候选必须非debuggable且未签名，运行成功、对应发布分支与本地源码吻合；签名后重新核对身份、原证书及代码资源摘要。发布保留不可变tag、正式/beta渠道与最低系统要求、versionCode、更新清单、最终公开附件真实下载SHA和history_apk归档。普通发版start→status→publish，verify只是按需诊断，不固定多执行一次。签名、发布、归档不触发测试。
@@ -125,7 +115,7 @@ v0.6.7.9 只查询 Latest，首次转入兼容线必须手动安装完整 APK；
 
 旧格式编码器保留原 32 字节匹配及改进的 16/32 字节匹配，用于历史冻结补丁恢复；新格式比较虚拟流的 16/32 字节匹配，按实际 gzip 后大小选最小结果。改进匹配保留重复块的首尾候选与上次复制位置，补回对齐点之前的相同字节，并使用客户端已支持的短 GDIFF 指令；新索引最多约 50 万个采样点，不并行累积索引。通常每个基准增加数秒本地生成时间，不增加 CI 或设备测试。恢复已有发布时按冻结 SHA/尺寸寻找原始编码结果，不以更小的新补丁替换旧资产；旧编码器保留。DEX 压缩可减少完整 APK，但不保证差分同比缩小。
 
-新增 APK-aware 格式 `apk-gdiff1-gzip`：只对可精确重压缩的 DEX 压缩数据段解压后生成 GDIFF，其余 ZIP 头、资源、中央目录和签名字节原样保留。客户端用 Android 自带 Inflater/Deflater 流式还原，无新增 native 库；最终仍校验完整 APK 的 SHA、大小与原签名。设备压缩器输出不同、空间不足或任何校验失败时回退完整包，取消则清理任务临时文件，包括进程中断后留下的文件。
+新增 APK-aware 格式 `apk-gdiff1-gzip`：只对可精确重压缩的 DEX 压缩数据段解压后生成 GDIFF，其余 ZIP 头、资源、中央目录和签名字节原样保留。客户端用 Android 自带 Inflater/Deflater 流式还原，无新增 native 库；最终仍校验完整 APK 的 SHA、大小与原签名。设备压缩器输出不同或符合回退条件的校验失败时回退完整包；空间不足保留进度等待恢复，取消则清理任务临时文件，包括进程中断后留下的文件。
 
 新格式 gzip 内容为 `SAZ1`、4 字节大端 JSON 长度、UTF-8 JSON 和原始 GDIFF4 流。JSON 含 `baseSize` / `targetSize`、`baseRanges` / `targetRanges`；范围采用原 APK 的 `offset` / `compressedSize` / `rawSize`，目标附 `level`。头部最多 64 KiB、每侧最多 16 段、每段原始数据最多 64 MiB、虚拟流最多 256 MiB。合成使用私有临时文件和 64 KiB 缓冲，不抽取 ZIP 路径；事先检查虚拟基准、虚拟目标和最终 APK 所需空间。
 
@@ -162,3 +152,7 @@ PDF 导出由 `ui/conversation/ConversationPdfExport` 协调语义读取、公�
 启动补图按题号分页，只读取图片及会话来源，一遍完成追加和缺失主图回填；每题独立事务，失败时保留搜题记录来源以供重试。手动数据修复仍在整体事务内复核。保存前查重分批读取完整题干，保留最佳候选后再取答案，不将列表摘要用于比较。标签合并撤销辅助库在一致事务中分块读取 JSON，主库与备份格式不变。
 
 差分规划复用按安装时间、APK 路径/长度/修改时间失效的进程内摘要；合成前仍重新验证基准和目标文件。跨分支等不兼容下载先按任务归属撤销并清理，再清除记录；迁移自系统下载器的旧任务 ID 别名仍可恢复。链式差分显示版本路径与所有差分包总大小，直接差分显示单个文件名；下载进度区显示当前正在下载的包大小。
+
+## 两发行线共同维护
+
+目录、构建选择、正常合并及独立发布见 [发行线布局](distributions.md)。版本信息以 `config/distributions/` 为准；`app/src/main` 与工具不按分支保留两个副本。`config/distribution.properties` 是唯一默认选择差异，本地可用 `-Pdistribution=compat` 做针对性编译，CI/发布仍核对已提交选择器与分支。

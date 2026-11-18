@@ -147,37 +147,13 @@ internal object DocumentStorageMaintenance {
     }
 
     private fun scanDatabase(source: SupportSQLiteDatabase, references: MutableSet<String>, check: () -> Unit) {
-        for (table in listOf("questions", "solve_sessions")) {
-            var after: Long? = null
-            while (true) {
-                check()
-                val rows = source.query("SELECT rowid FROM $table WHERE conversationJson IS NOT NULL" +
-                    (if (after == null) "" else " AND rowid>?") + " ORDER BY rowid LIMIT 64",
-                    after?.let { arrayOf<Any>(it) } ?: emptyArray()).use { cursor ->
-                    buildList { while (cursor.moveToNext()) add(cursor.getLong(0)) }
-                }
-                if (rows.isEmpty()) break
-                for (row in rows) {
-                    check()
-                    val sourceReader = requireNotNull(StoredConversationJson.open(source, table, row, check))
-                    JsonReader(StoredConversationJson.bounded(sourceReader)).use { reader ->
-                        reader.beginArray()
-                        while (reader.hasNext()) {
-                            require(reader.peek() == JsonToken.BEGIN_OBJECT)
-                            scanValue(reader, references, check, 1)
-                        }
-                        reader.endArray()
-                        require(reader.peek() == JsonToken.END_DOCUMENT)
-                    }
-                }
-                after = rows.last()
-            }
-        }
+        DatabasePlatform.scanDocuments(source, { addHash(references, it) },
+            { reader -> scanValue(reader, references, check, 1) }, check)
     }
 
     private fun scanDraft(file: File, references: MutableSet<String>, check: () -> Unit) {
         Files.newInputStream(file.toPath(), NOFOLLOW_LINKS).use { stream ->
-            JsonReader(StoredConversationJson.bounded(InputStreamReader(stream, Charsets.UTF_8.newDecoder()))).use { reader ->
+            JsonReader(DatabasePlatform.boundDraftReader(InputStreamReader(stream, Charsets.UTF_8.newDecoder()))).use { reader ->
                 reader.beginObject()
                 var id: String? = null
                 var createdAt: Long? = null

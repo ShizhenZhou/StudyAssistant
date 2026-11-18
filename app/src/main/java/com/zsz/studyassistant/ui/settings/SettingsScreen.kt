@@ -270,7 +270,9 @@ private fun AboutPage(onReport: () -> Unit) {
     val aboutContext = LocalContext.current
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Text(s.format("about.tech.body", "api" to "${aboutContext.applicationInfo.minSdkVersion}",
+        Text(s.format("about.tech.body", "android" to com.zsz.studyassistant.BuildConfig.SUPPORTED_ANDROID_LABEL,
+            "api" to ("${aboutContext.applicationInfo.minSdkVersion}" +
+                if (com.zsz.studyassistant.BuildConfig.SUPPORTED_MAX_SDK > 0) "–${com.zsz.studyassistant.BuildConfig.SUPPORTED_MAX_SDK}" else ""),
             "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
             "bak" to "${com.zsz.studyassistant.data.BackupArchive.VERSION}"),
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))

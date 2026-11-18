@@ -9,20 +9,22 @@
 3. 功能开发不得自行新增测试流程、必跑门禁或扩大测试范围。新增测试应有具体风险和必要性，优先复用已有用例；调整流程需说明收益和成本。不得用修测试/反复重跑替代应用开发，也不把测试失败未经证实归因于环境。
 4. 相机、通知、动画、振动、后台等真实效果优先提出真机测试：给用户可安装Beta、简短操作步骤和预期结果；必要时有线/无线ADB辅助。先确认目标序列号与用户允许的操作；不自动选手机，不清数据/卸载/覆盖用户备份。日志最小化且只本地保存。Beta后改动只补相关验证；未实测不得声称确认。
 5. 完成最小验证/必要真机反馈后，规范合并main（可快进保留规范提交，或 feat/fix/build: xxx 的合并提交），确认最终源码；随后一次手动CI构建，再本地原证书与lineage签名、发布、真实下载SHA核验归档。CI只构建未签名APK并检查源码/敏感内容/包身份，不默认任何应用、工具或设备测试；push/PR/tag不另起CI。只读/交接不启动测试。普通未指定版本任务不自动发版；正式版本持续授权规则保留，Beta按当次安排，不移动旧标签。
-6. 发布入口 tools/release.ps1 start/status/verify/publish/replace；正式版start要求已合并并推送的干净main；用户明确安排的Beta可在已推送的干净Develop使用--channel beta，不自行合并、不测试。常规start→status→publish，verify按需，不重复跑。新schema3清单只证明构建身份，不伪称测试成功；旧schema1/2只为历史发布读取兼容，不套用到新发布。取消check/device在线模式、pre-main gate、promote、全量回退及历史测试基线作为新版本前置条件。失败只定位相关步骤，网络结果不明先查远端，必要时只重试一次；不反复派发。
+6. 发布入口 tools/release.ps1 start/status/verify/publish/replace；主线正式版start要求已合并并推送的干净main；兼容版使用干净已推送Compatible及--distribution compat；用户明确安排的Beta可在已推送的干净Develop使用--channel beta，不自行合并、不测试。常规start→status→publish，verify按需，不重复跑。新schema3清单只证明构建身份，不伪称测试成功；旧schema1/2只为历史发布读取兼容，不套用到新发布。取消check/device在线模式、pre-main gate、promote、全量回退及历史测试基线作为新版本前置条件。失败只定位相关步骤，网络结果不明先查远端，必要时只重试一次；不反复派发。
 7. 数据安全、更新兼容、源码与APK一致、原签名和下载完整性仍须认真核对。测试是可选工具，不是用例数量目标。旧脚本/工具用例归档在被忽略的.local-notes/retired-files；当前流程以本文件及docs/development.md为准，旧版本记录不作为执行指令。
 
 ## main 与 Compatible 同步约定
 
-- 共用功能和修复先在主线开发流程中完成并合入 main；不涉及 Android 版本差异的提交，随后直接同步至 Compatible（优先 `git cherry-pick -x`，保留来源记录），无需另行请求同步授权，不积压到兼容版发布时才同步。
-- 涉及系统 API、依赖最低版本或旧系统能力限制时，再针对 Compatible 单独修改或降级适配；共用业务逻辑尽量保持一致，必要差异集中在适配层。发生冲突时按两分支实际实现解决，不覆盖已有兼容逻辑。
-- 同步共用提交不等于整分支覆盖：保留各自的系统范围、分发身份、包名及版本发布配置、分支专属说明。共用改动与发布配置尽量分开提交；混合提交按实际范围拆分移植并记录来源。同步本身不自动发版，也不额外启动 CI 或全套测试；复用已完成验证，只补确受兼容差异影响的必要检查。
+- 共用功能和修复先在主线开发流程完成并合入 main，随后正常 `git merge main` 到 Compatible；默认不再逐条 cherry-pick，不重写历史、不强制推送，不积压到兼容版发布才同步。
+- 两分支共用整套源码、工具、五语言 README 和数据说明；唯一预期的树差异为 `config/distribution.properties`（main 为 `main`，Compatible 为 `compat`）。合并时保留目标分支选择器，不能用整树覆盖或 `merge -s ours` 假装完成同步。
+- 发行线版本与系统范围分别维护在 `config/distributions/{main,compat}.properties`；真正不同的数据库实现与应用更新记录放在 `app/src/distributions/{main,compat}/`，兼容版专属说明放在 `docs/compatible/`。两套文件在两分支都存在，改对应文件而不让共用文件重新分叉。
+- 默认把必要兼容适配也作为共用源码树提交；若先在 Compatible 修复，要把该修复正常合回主线，保留主线选择器，再继续 main → Compatible。独立版本发布不要求同时提升另一发行线的版本配置。
+- 同步本身不自动发版或启动 CI/全套测试；复用验证，只补受影响的必要检查。主线 Latest、兼容标签/包名、系统范围和差分基准仍严格隔离。布局及命令见 `docs/distributions.md`。
 
 ## 必须保持的行为
 
 - 这是单人自用工具。业务数据库和备份在本机；AI 请求发送必要题干、图片、上下文或用户主动分析的标签到 DeepSeek 官方 API。Key 用于鉴权，不得泄露；更新优先访问 GitHub Releases；官方连接失败时可回退至用户可配置、可关闭的镜像，仅传送公开更新地址，不携带 Key 或学习数据。
 - 不清数据、不卸载、不删除备份。数据变更需要兼容迁移、读端兜底、迁移前备份并更新 DATA_SCHEMA；当前主库 DB v11、备份 v4（兼容导入 v3 JSON），撤销辅助库独立。
-- 界面文案维护简体、英文、日文、韩文；繁体 s2t 自动转换。README 默认简体中文，顶部统一链接 docs/readme/README.zh-TW.md / docs/readme/README.en.md / docs/readme/README.ja.md / docs/readme/README.ko.md；各页为完整对应语言内容，不在每个版本下重复语言折叠。发版记录维护 README 五语言页面与 Changelog 四语言（繁体沿用 s2t），版本块之间留空行；README 与应用版本记录在 v0.6.8 / v0.6.7.9 之间统一标注“以上版本仅支持Android 16+”并加分割线，不在各版本条目重复最低要求；GitHub Release 更新内容最后一条同时说明最低支持 Android 版本和正式版/测试版属性；测试版显式使用 GitHub prerelease、不得设为 latest；更新默认同时检查两个渠道，测试版可选并提示不稳定，正式版另列且两者独立校验；DB / Bak 版本仅在格式版本实际变化时写入更新内容，未变化不重复列出。
+- 界面文案维护简体、英文、日文、韩文；繁体 s2t 自动转换。README 默认简体中文，顶部统一链接 docs/readme/README.zh-TW.md / docs/readme/README.en.md / docs/readme/README.ja.md / docs/readme/README.ko.md；各页为完整对应语言内容，不在每个版本下重复语言折叠。发版记录维护 README 五语言页面与 Changelog 四语言（繁体沿用 s2t），版本块之间留空行；README 与应用版本记录在 v0.6.8 / v0.6.7.9 之间统一标注“以上版本仅支持Android 16+，兼容版本见Compatible分支”并加分割线，不在各版本条目重复最低要求；GitHub Release 更新内容最后一条同时说明最低支持 Android 版本和正式版/测试版属性；测试版显式使用 GitHub prerelease、不得设为 latest；更新默认同时检查两个渠道，测试版可选并提示不稳定，正式版另列且两者独立校验；DB / Bak 版本仅在格式版本实际变化时写入更新内容，未变化不重复列出。
 - 导航统一走 ui/AppNav.kt；公式 HTML 裁剪需保留上下 padding，KaTeX display 不重复套层。
 - 正式版更新说明归纳对应 Beta 阶段最终保留的功能与修复，不描述试验和回退过程；README 与应用版本记录合并到正式版条目后不再单列 Beta 记录。历史 GitHub Release 与标签继续保留，除非用户明确要求删除。
 - 永久题目编号在错题、首次搜题记录及备份之间保持一致；从错题本打开不新增搜题记录，记录按最早时间排序。
@@ -34,12 +36,6 @@
 
 `.local-notes/legacy-deepseek/` 是本机历史档案，其中的旧版本、旧路径、只交补丁或禁止构建等陈述不代表当前工作流程。仅在追溯特定历史问题时读取。
 
-## Android 9–15 兼容分支
+`docs/compatible/` 与兼容版应用更新资源保留单独的兼容更新汇总，使用“以上版本开始为兼容分支”分隔说明。两条分支均不再把 v0.6.7.9 标为 Android 9–15 的最后一次更新。
 
-`Compatible` 是用户指定的长期兼容分支，支持 API 28–35；主线保留 Android 16+。两线显示版本同步，本次兼容 v0.7.5.1 / versionCode 138，与主线同版本对齐。日常可在 Compatible 开发，不把整条兼容分支合入 main；必要的通用修复单独移植。
-
-兼容发布显式使用 `--distribution compat`，只允许干净且已推送的 Compatible；Git tag 使用 `compat_v<版本>`，正式版与测试版均不得设为 Latest。主线保留 `v<版本>` 与 Latest。兼容发布说明在 `.local-notes/releases/RELEASE-compat_v<版本>.md`，更新清单绑定 distribution=compat、API28–35 及 APK 摘要。两线更新、ENF 和差分基线互相隔离；旧 v0.6.7.9 首次手动安装完整兼容包。未指定发布时只做本地候选，不推送 Release。
-
-Compatible 的 README 五语言及应用更新记录将 v0.6.8 至 v0.7.4.1 合为 `v0.6.8→→→v0.7.4.1` 功能汇总，保留 v0.6.7.9 及更早记录；分隔线说明“以上版本开始为兼容分支”。v0.6.7.9 不再标为旧系统最后一次更新。main 保留逐版历史，其分隔线说明“以上版本仅支持Android 16+，兼容版本见Compatible分支”。
-
-兼容公开 APK 使用 `SACompat-<版本>-<UTC构建时间>.apk`。主线 v0.7.5 起使用 SA / SA-ENF 命名；兼容版差分只能绑定同分支公开 APK，首次 v0.7.4.1 未生成差分，v0.7.5 提供从该兼容版升级的差分。
+主线 README 下载区提供 Compatible 分支入口；历史分隔说明中的“Compatible分支”使用指向该分支的 Markdown 链接。v0.7.4.2 保留原主线 APK 包名；从 v0.7.5 起使用 SA-<版本>-<构建时间>.apk，强制版使用 SA-ENF-<版本>-<构建时间>.apk，兼容分支保持 SACompat 命名。

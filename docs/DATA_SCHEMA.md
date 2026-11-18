@@ -2,7 +2,7 @@
 
 ## 当前基线与阅读约定
 
-核查日期：2026-11-18；本文所属分支：**Compatible v0.7.5.2（Android 9–15，API 28–35）**。
+核查日期：2026-11-18；适用于 **main / Compatible v0.7.5.2**；主线 Android 16+（API 36+），兼容版 Android 9–15（API 28–35）。
 
 | 格式或组件 | 当前状态 | 事实来源 |
 |---|---|---|
@@ -38,7 +38,7 @@
 > 本文档记录 App **重要的用户数据文件**的数据结构，并按**每个有改动的 App 版本**分别记录其结构。
 > **约定：每次修改数据/存储结构，必须同步更新本文件**，注明所属 App 版本与迁移方式，便于日后开发查看和修改。
 >
-> App 版本号在 `app/build.gradle.kts` 的 `appVersionName`，数据库版本在 `AppDatabase.version`。
+> App 版本号分别在 `config/distributions/main.properties` / `compat.properties`，数据库版本在 `AppDatabase.version`。
 
 ---
 
@@ -123,7 +123,7 @@
 
 - 当前 **schema version = 11**（`AppDatabase.SCHEMA_VERSION`）：主线 v0.7.3.2 正式引入可重建的会话短标题缓存；此前自 App v0.6.6.3 起使用 DB v10，v0.6.6.2 使用 DB v9。
 - 已开启 Room 结构导出，编译生成的当前基线保存在 `app/schemas/com.zsz.studyassistant.data.AppDatabase/11.json`，只含结构定义，不含用户数据。保留原 `10.json` 供迁移对照，不补造旧版本；Bak v4 格式不变。
-- Room 库版本与数据格式版本独立：构建使用 Room 3.0.3 / KSP（Kotlin DAO）及 AndroidSQLiteDriver；库或代码生成器更新不自动提升 DB/Bak 版本。此前 Room 3 升级保留 v10 identity hash，本次因新增标题缓存列升为 DB v11；历史迁移使用 SQLiteConnection，SQL 与永久编号规则不变。备份 SQL 经官方 SupportSQLite 包装接口在 withWriteTransaction 内执行，保留事务回滚和变更通知；本分支标题缓存由 DAO 与恢复写入派生，不依赖 JSON1 触发器；打开包装对象本身不会打开数据库，快照导出须先读取并确认主库版本，再打开独立只读连接。
+- Room 库版本与数据格式版本独立：构建使用 Room 3.0.3 / KSP（Kotlin DAO）及 AndroidSQLiteDriver；库或代码生成器更新不自动提升 DB/Bak 版本。此前 Room 3 升级保留 v10 identity hash，本次因新增标题缓存列升为 DB v11；历史迁移使用 SQLiteConnection，SQL 与永久编号规则不变。备份 SQL 经官方 SupportSQLite 包装接口在 withWriteTransaction 内执行，保留事务回滚和变更通知；主线使用标题缓存触发器，兼容版由 DAO/恢复路径派生；打开包装对象本身不会打开数据库，快照导出须先读取并确认主库版本，再打开独立只读连接。
 - 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10 → v11`，全部用 `Migration` + `addMigrations(...)`。
 - 保留 v9 → v10 的永久编号原地升级；v10 → v11 仅新增及回填缓存列，不改变已有正文、图像、编号、关联和首次时间。Room 打开旧库时自动迁移，失败整次回滚，不清库重建。
 - 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v<目标版本>-from-v<原版本>-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。此前 `.pre-v9` / `.pre-v10-*` 文件不删除。
@@ -276,7 +276,7 @@
 | `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(...)` |
 | `MIGRATION_8_9` | v0.6.6 | 新建表 `question_images`（一题多图，二进制、有序）+ 索引；**旧 `imageBytes` 搬成 `position=0`** | `CREATE TABLE question_images(...)`；`CREATE INDEX index_question_images_questionId_position ...`；`INSERT INTO question_images(questionId,position,bytes,source,createdAt) SELECT id,0,imageBytes,'migrate',createdAt FROM questions WHERE imageBytes IS NOT NULL` |
 | `MIGRATION_9_10` | v0.6.6.3 | 题目及所有题目引用改为 TEXT 永久编号；补齐旧时间 | 迁移前备份；映射复制五表；数量校验；事务回滚保护 |
-| `MIGRATION_10_11` | 主线 v0.7.3.2；Compatible 从兼容版 v0.7.4.1 接入 | solve_sessions 新增可空 title 列，派生会话短标题缓存 | 迁移前备份；ALTER TABLE 加列；分批流式回填；DAO/恢复路径维护缓存；打开时删除旧触发器；事务回滚保护 |
+| `MIGRATION_10_11` | 主线 v0.7.3.2；Compatible 从兼容版 v0.7.4.1 接入 | solve_sessions 新增可空 title 列，派生会话短标题缓存 | 迁移前备份；ALTER TABLE 加列；主线 SQL 回填/触发器；兼容版分批流式回填及 DAO/恢复写入；事务回滚保护 |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/database/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
 > 与 `data/database/SolveSession.kt`（`SolveSession` 实体）、`data/database/SolveSessionPrune.kt`（裁剪纯函数）。
@@ -535,10 +535,11 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 ## 会话短标题缓存（v0.7.3.2；DB v11 / Bak v4）
 
 - 首次解答请求可携带 `title.enabled=true`，末片的标题独立于完整正文和联网元信息保存；追问、续写不额外索取标题。`ChatItem.conversationTitle` 为可选字符串，缺失时 `null`，只存于会话首条消息。收到标题时压缩空白、剔除控制字符并限制为 120 个 Unicode 码点；未返回标题或旧会话均沿用原题干摘要。标题不改题干、题号、排序或查重依据。
-- `solve_sessions.title` 是新增可空 TEXT 缓存列。`MIGRATION_10_11` 在 Room 事务内加列并单次回填；无效 JSON、缺失字段或非字符串字段均回填 NULL。迁移仍先沿既有路径保存同步落盘的完整旧库副本，备份失败停止迁移，迁移失败回滚；不删除旧库副本或用户备份。
-- 主线通过 `solve_sessions_title_insert`、`solve_sessions_title_update` 两个触发器维护缓存。Android 9–15 兼容分支改由 DAO 的单条/批量插入、更新及备份恢复在写入时同步派生最多 256 个 Unicode 码点；打开数据库时删除这两个旧触发器，避免旧系统 SQLite 缺少 JSON1 导致写入失败。表字段及 Room 身份不变，返回主线后主线仍可重新安装触发器。JSON 解析仅发生于写入和迁移回填，列表直接读小字段，不读或扫描完整会话与图片。
+- `solve_sessions.title` 是新增可空 TEXT 缓存列。`MIGRATION_10_11` 在 Room 事务内加列并回填（主线 SQL，兼容版分批流式）；无效 JSON、缺失字段或非字符串字段均回填 NULL。迁移仍先沿既有路径保存同步落盘的完整旧库副本，备份失败停止迁移，迁移失败回滚；不删除旧库副本或用户备份。
+- 主线新建和打开数据库时注册 `solve_sessions_title_insert`、`solve_sessions_title_update` 两个触发器。INSERT 和 UPDATE OF conversationJson 在同一事务内从首条消息提取最多 256 字符缓存；更新标题列不会递归触发会话更新。JSON 解析仅发生于写入和迁移回填，列表直接读小字段，不读或扫描完整会话与图片。
 - 会话 JSON 是标题的唯一持久来源，草稿的 base/completedChats、待保存记录与普通备份均沿原路径保留该可选字段。标题绑定本轮生成及会话身份，旧请求不能更新另一个会话；首次拍题回调新建题目消息后才挂入标题，完成快照包含最终标题。
-- Bak v4 固定七表行格式和资源格式不变；`BackupTree` 的原业务字段白名单不包含派生 title 缓存。兼容分支在原始 SQL 分块写完单条完整会话后，于同一恢复事务内重建 title；当前文件导入的 v3 JSON 也先转为私有树、校验后走相同暂存恢复路径。保留的旧 DTO 导入接口则沿 DAO 派生。旧 Bak v4 / v3 JSON 没有标题时缓存自然为空；无需额外备份格式迁移，原始会话正文和附件不改写。
+- Bak v4 固定七表行格式和资源格式不变；`BackupTree` 的原业务字段白名单不包含派生 title 缓存，主线导入原始 SQL 写入会话时由同一触发器重建；兼容版在完整会话写完后于同一事务内派生缓存。旧 Bak v4 / v3 JSON 没有标题时缓存自然为空；无需额外备份格式迁移，原始会话正文和附件不改写。
+
 
 ### Android 9–15 兼容分支的数据读写（自兼容版 v0.7.4.1 引入，当前仍适用）
 
@@ -546,7 +547,6 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - 标题与附件维护使用严格 UTF-8 和流式 JSON 读取，不依赖系统 SQLite 的 `json_*` 函数，不把图片 Base64 解码为列表。单个 JSON 扫描预算为 `min(8 Mi, maxHeap/32)` 个 UTF-16 字符、嵌套最多 128 层；标题缺失、损坏或超限时仅将派生缓存置空，保留完整原始会话并回退题干摘要。
 - 附件维护仅在用户主动检查/清理时分批扫描全部题库与历史（含软删除），同时保护草稿、待保存及活动引用；损坏 JSON、重复附件 SHA 字段、超限或结构异常均停止，不更新未引用观察状态、不删除原件。既有事务及原件/草稿锁仍覆盖最终核对与删除。
 - 备份捕获在 API35+ 文件库使用专用只读事务；API28–34 和内存库在 Room 事务内捕获原始字段，释放事务后再规范化、压缩与写入 SAF，保持同一快照及原有备份格式。
-
 
 ## 附件与识别私有状态（v0.7.3.2）
 
@@ -597,3 +597,9 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - 备份格式与恢复：[BackupArchive.kt](../app/src/main/java/com/zsz/studyassistant/data/backup/BackupArchive.kt)、[BackupStagedMerge.kt](../app/src/main/java/com/zsz/studyassistant/data/backup/BackupStagedMerge.kt)。
 - 完整会话字段：[MainViewModel.kt](../app/src/main/java/com/zsz/studyassistant/MainViewModel.kt) 中的 `ChatItem`；附件原件与选页：[ConversationDocuments.kt](../app/src/main/java/com/zsz/studyassistant/data/ai/ConversationDocuments.kt)。
 - 未发送输入：[InputDraftStore.kt](../app/src/main/java/com/zsz/studyassistant/data/conversation/InputDraftStore.kt)；公告缓存：[AppNoticeStore.kt](../app/src/main/java/com/zsz/studyassistant/data/update/AppNoticeStore.kt)。
+
+## 两发行线源码组织
+
+- `app/src/main` 共用业务与迁移入口；`app/src/distributions/main/java/`、`compat/java/` 的 `DatabasePlatform` 分别保留 JSON1/触发器和流式标题/引用扫描实现。`StoredConversationJson.kt` 仅在兼容版编译。
+- 主线 DAO 交给触发器派生标题，兼容版 DAO 先派生再写入；备份完整会话写入后调用同一适配入口。表定义、identity hash、迁移 SQL 的业务字段及 Bak v4 白名单不变，此次无需格式升级。
+- `config/distribution.properties` 仅选择本分支默认发行线，不进入题库或备份；版本/系统范围位于 `config/distributions/`，更新记录位于各发行线 `assets/changelog/`。

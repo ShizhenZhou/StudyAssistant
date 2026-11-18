@@ -27,6 +27,6 @@ data class SolveSession(
     val imagesJson: String? = null,
     /** 已存进错题本时指向 questions.id */
     val savedQuestionId: QuestionId? = null,
-    /** Derived from the first ChatItem's conversationTitle by DAO writes and backup hydration. */
+    /** Derived from the first ChatItem's conversationTitle by the selected database platform write policy. */
     val title: String? = null
 )

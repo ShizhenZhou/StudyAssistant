@@ -18,6 +18,14 @@ from release_common import (COMPAT_BRANCH, apk_identity, apk_payload, extract_ca
 
 
 class DeliveryTest(unittest.TestCase):
+    def source_profile(self, root, distribution, version):
+        directory = root / "config/distributions"
+        directory.mkdir(parents=True)
+        (root / "config/distribution.properties").write_text("distribution=" + distribution + "\n", encoding="utf-8")
+        profile = (Path(__file__).resolve().parents[2] / f"config/distributions/{distribution}.properties").read_text(encoding="utf-8")
+        profile = "\n".join("versionName=" + version if line.startswith("versionName=") else line for line in profile.splitlines()) + "\n"
+        (directory / f"{distribution}.properties").write_text(profile, encoding="utf-8")
+
     def test_public_asset_failure_uses_one_official_alternate(self):
         from types import SimpleNamespace
         github = release.GitHub()
@@ -90,7 +98,7 @@ class DeliveryTest(unittest.TestCase):
     def test_compat_start_requires_explicit_identity_and_freezes_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / "app").mkdir()
-            (root / "app/build.gradle.kts").write_text('val appVersionName = "0.7.4.1"')
+            self.source_profile(root, "compat", "0.7.4.1")
             calls = []
             class GitHub:
                 def api(self, path, value=None, **kwargs):
@@ -361,7 +369,7 @@ class DeliveryTest(unittest.TestCase):
     def test_start_requires_merged_main_and_dispatches_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / "app").mkdir()
-            (root / "app/build.gradle.kts").write_text('val appVersionName = "0.6.8.7"')
+            self.source_profile(root, "main", "0.6.8.7")
             calls = []
             class GitHub:
                 def api(self, path, value=None, **kwargs):
