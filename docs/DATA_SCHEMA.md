@@ -1,5 +1,22 @@
 # 数据文件结构文档（DATA SCHEMA）
 
+## 当前基线与阅读约定
+
+核查日期：2026-11-18；本文所属分支：**main v0.7.5.2（Android 16+，API 36+）**。
+
+| 格式或组件 | 当前状态 | 事实来源 |
+|---|---|---|
+| 主业务数据库 | DB **v11**，7 张业务表；两分支的表结构和 Room identity hash 相同 | `AppDatabase.SCHEMA_VERSION`；`app/schemas/com.zsz.studyassistant.data.AppDatabase/11.json` |
+| 正常导出备份 | Bak **v4**，原生 ZIP / DEFLATE，可分卷；兼容导入 v3 JSON，拒绝 v1/v2 | `BackupArchive.VERSION = 4`；`BackupRepository` / `BackupLegacyReader` |
+| 旧 JSON 备份 DTO | `BackupFile.VERSION = 3` 仅表示旧格式，不是当前导出版本；v3 无法携带非空文件附件 | `Backup.kt`；`BackupLegacyReader` |
+| Room 运行库 | Room **3.0.3** + AndroidSQLiteDriver；库版本与 DB/Bak 格式版本独立 | `gradle/libs.versions.toml`；`Question.kt` |
+| 独立私有格式 | 待保存记录、生成草稿、输入草稿、标签撤销/草稿等各有自己的 v1 标识，不等于 DB v1 | 下文各节 |
+| 公告 / 更新元数据 | 公告 schema 1；公开更新清单主线 schema 1、兼容版 schema 2；与 CI 构建身份清单 schema 3 不同 | `AppNotices`；`UpdateChecker.withManifest`；发布工具 |
+
+下文表结构及明确注明“当前”的说明描述现行行为。按应用版本标注的段落保留当时的变更历史；其中 DB v9/v10、Bak v2/v3 等是历史基线，**不能据此判断当前格式**。后续段落或本节有更新说明时，以当前说明为准，不把历史版本号批量改成 v11/v4。
+
+两分支格式一致不代表所有实现相同：main 用 SQLite JSON1 触发器派生短标题，Compatible 用 DAO/恢复写入及流式解析派生；兼容版还保留 API28–34 的 Room 事务快照路径。无需为此次文档校正迁移数据库、重写备份或调整版本号。
+
 ## 未发送输入草稿（v0.7.5.1）
 
 - 主库 DB v11、Bak v4 不变。未发送输入与生成中答案的 `conversation-drafts-v1` 分开；只保存在 `noBackupFilesDir/input-drafts-v1/`，不进入题库备份、不发送到服务器。
@@ -9,12 +26,14 @@
 - 单份写入同目录 `.new`，同步文件后原子替换。IO串行，发布前复核待写代次；接受发送时立即调度清理，旧的延迟写入不能重新发布。切换会话与进入后台立即快照最后输入，平时短暂合并编辑；失败写入在有界内存中保留供重试。
 - 损坏原文件保留并阻止覆盖；可重试读取或明确确认放弃。文档清理保护全部持久及待写草稿引用，无法完整读取任何草稿时停止清理。用户明确清空全部数据时同时清除这些本机草稿并使在途写入失效。
 
-## 应用公告预留能力（v0.7.5）
+## 应用公告与已读状态（v0.7.5 起）
 
 - DB v11、Bak v4 不变，不迁移或改写题库。公告属于公开配置与本机已读偏好，不进入学习数据备份。
 - `app_notices` 私有偏好保存 `document`（schema 1 JSON）、`fetchedAt`、`attemptedAt`、`etag`、`etagUrl`；缓存超过七天停止展示，合法更高修订的空配置撤回待显示公告。无缓存、读取失败或非法配置不阻断使用。
 - `seen.notice:<时间编号>` / `seen.unstable:<时间编号>` 保存已确认的最高条目修订号。编号格式 `yyyyMMdd-HHmmss-NN`，在整份配置中唯一；语言切换、重启和覆盖升级不重复提示。提高条目修订号才重新提示，单独提高文档修订号不会重置已读状态。
 - 同一配置可容纳多条普通公告和不稳定版本提醒；按分支、渠道、版本及可选 versionCode 范围匹配。标题与正文为语言映射，支持简、繁、英、日、韩。完整维护规则见 [公告维护说明](app-notices.md)。
+- 两分支统一读取 main 的 `config/app-notices.json`，不是各自分支的副本。`expiresAt` 为带时区的截止时间；设备当前时间达到截止点即不展示，包括已缓存、未读的公告；前台按时间边界重新判断。公告不是系统即时推送。
+- v0.7.5.2 起，返回前台检查是否到期，停留前台时成功刷新间隔15分钟，失败后1分钟可重试；手动检查可提前刷新（15秒防重复）。已开始请求由进程级串行任务完成，离开更新页不取消镜像回退；后台仍仅复用原有六小时任务。此次未新增偏好键或修改公告 schema。
 
 > 本文档记录 App **重要的用户数据文件**的数据结构，并按**每个有改动的 App 版本**分别记录其结构。
 > **约定：每次修改数据/存储结构，必须同步更新本文件**，注明所属 App 版本与迁移方式，便于日后开发查看和修改。
@@ -31,9 +50,12 @@
 | 会话消息（追问历史） | `questions.conversationJson`（TEXT） | 序列化后的 `ChatItem[]` |
 | 搜题记录（防"忘了存错题本"） | Room 数据库 `solve_sessions` 表 | 与错题本分表，共享永久题目编号；包含在当前 v4 压缩备份中（兼容导入 v3 JSON） |
 | 应用主题 | `SharedPreferences("settings")` 的 `theme` | system/light/dark |
-| 系统壁纸背景（v0.6.8.2） | `settings.wallpaper_background: Boolean` | 缺失时 false；本机外观偏好，不包含在题库备份中；DB v10 / Bak v4 不变 |
-| 壁纸遮罩强度 | `settings.wallpaper_shade: String` | light / standard / strong；缺失或未知值使用 standard，保留原浅色 0.88 / 深色 0.90 遮罩。仅本机外观偏好，不纳入题库备份，不改变 DB v10 / Bak v4 |
+| 系统壁纸背景（v0.6.8.2） | `settings.wallpaper_background: Boolean` | 缺失时 false；本机外观偏好，不包含在题库备份中；不改变主库或备份格式 |
+| 壁纸遮罩强度 | `settings.wallpaper_shade: String` | light / standard / strong；缺失或未知值使用 standard，保留原浅色 0.88 / 深色 0.90 遮罩。仅本机外观偏好，不纳入题库备份，不改变主库或备份格式 |
 | 科目显示顺序（v0.6.8.2） | `settings.category_order_custom: Boolean` / `category_order_ids: String` | 默认关闭自定义；逗号分隔的正科目 ID，`-1` 仅代表界面“未分类”。忽略重复/损坏/已删除项，新科目追加；仅本机偏好，不修改 categories 表、不包含在题库备份中 |
+| 附件原件 | `filesDir/ai-documents/<sha256>` | 已发送消息通过 SHA 引用；Bak v4 携带所引用原件，不备份远端 file_id 缓存 |
+| 未发送输入 / 生成中答案 / 待保存恢复 | `noBackupFilesDir/` 下独立目录 | 三种状态分别存储，均不进入题库备份；详见对应草稿与恢复记录章节 |
+| 导出任务 / OCR / 标签草稿与撤销 / 公告 / 更新下载 / 崩溃诊断 | 私有文件或 SharedPreferences | 独立本机状态，不进入 Bak v4；不是主库业务表 |
 | DeepSeek API Key | Android Keystore（AES/GCM） | 运行时经 `KeyManager` 解密；**不存源码** |
 | 本机凭据备份 | 仓库之外的本地文件（**不入库**） | 用户手动维护，绝不上传 |
 
@@ -46,7 +68,7 @@
 ### 私有一致性快照与恢复
 
 - 白名单捕获 categories、tags、questions、question_images、question_tags、review、solve_sessions 的现有业务字段，不包含 Key、设置、草稿、诊断或撤销日志。原图无损，图片顺序、会话角色、消息编号、正文与思考保留。
-- API35+ 在专用单线程只读连接内使用 `beginTransactionReadOnly`，WAL 下允许并发写；API28～34 只在 Room 事务内捕获原始字段，完成后释放。压缩、SAF 写入与校验都在事务外。不得单独复制活跃 WAL 数据库文件。 v0.6.8 起最低 API36，文件数据库统一使用该只读路径；空路径或内存数据库仍在 Room 事务内捕获，数据和备份格式不变（DB v10 / Bak v4）。
+- API35+ 在专用单线程只读连接内使用 `beginTransactionReadOnly`，WAL 下允许并发写；API28～34 只在 Room 事务内捕获原始字段，完成后释放。压缩、SAF 写入与校验都在事务外。不得单独复制活跃 WAL 数据库文件。 当前 main 的最低 API36，文件数据库统一使用只读路径；Compatible 的 API28–34 保留 Room 事务捕获，API35 文件库使用只读路径。空路径或内存库均在 Room 事务内捕获；当前 DB v11 / Bak v4。
 - 字段通过 SQLite BLOB 字节切片，以 64 KiB 缓冲捕获。规范化后为固定七表的逐行文件，长度前缀 UTF-8（-1 表示 NULL，整数为十进制），manifest 为 SAT1 与固定表计数；图片存 `resources/<SHA-256>`，会话 Base64 在内部树中替换为引用，恢复时展开。资源全局去重；路径索引和关联映射保存在私有磁盘 SQLite，不在 Java 中积累整库列表。
 - 单个需解析字段/旧 JSON 记录受 `min(16 MiB, maxHeap/16)` 安全预算限制；总题库不再受整库 JSON 字符串预算限制。空间不足、字段过大或格式异常均停止，不改现有数据。
 - 恢复先把用户选定的全部文件固定到私有目录，核对格式、卷号、路径、摘要、字段和关联，重建临时数据库。用户预览确认后，在主库一次 Room 事务中从独立只读私有库分段合并（不使用 ATTACH，也不改变 WAL）；重复编号跳过，失败或取消整次回滚，不把部分恢复当成功。
@@ -75,11 +97,13 @@
 - 私有 `noBackupFilesDir/backup-jobs/<UUID>` 保存 capture/normalize/validation 完成检查点，以完整树摘要绑定内容，最长复用24小时；SAF 仅复用关闭且验证通过的卷。未完成阶段重新执行，不声称支持压缩流任意字节断点恢复。普通后台每轮约7分钟让出，同一阶段连续3次无完成进展则停止并提示手动导出，避免无限重试。手动导出不受该 Worker 时间窗口限制。
 - 手动暂存位于 `noBackupFilesDir/backup-manual/<UUID>`，取消/完成/关闭 VM 后清理；下次操作清理超过24小时的孤立自有目录。所有暂存和日志不进入普通备份或 CI。
 
-只读的备份目录摘要允许启动检查与设置页共享同时进行的扫描，以应用目录、目标 URI、配置代数和任务状态区分请求；扫描结束立即释放结果，后续刷新重新扫描。取消等待者不影响其他读取，扫描发起者取消后仍有效的等待者可重新读取。后台备份、删除和恢复不使用该共享入口，仍独立核验当前内容。此状态只在进程内存中，不写入数据库、偏好或备份，不改变 DB v10 / Bak v4。自动调度的题目存在性查询在 IO 线程、调度锁外执行，入队前重新校验目录、代数、任务 token 和开关状态；Worker 捕获前继续检查空题库。
+只读的备份目录摘要允许启动检查与设置页共享同时进行的扫描，以应用目录、目标 URI、配置代数和任务状态区分请求；扫描结束释放同时进行的请求，后续刷新重新扫描；最近64组已验证内容摘要对应的快照时间另有内存缓存，可避免重复格式预检，但不能省略文件读取和摘要核对。取消等待者不影响其他读取，扫描发起者取消后仍有效的等待者可重新读取。后台备份、删除和恢复不使用该共享入口，仍独立核验当前内容。此状态只在进程内存中，不写入数据库、偏好或备份，不改变 DB v10 / Bak v4。自动调度的题目存在性查询在 IO 线程、调度锁外执行，入队前重新校验目录、代数、任务 token 和开关状态；Worker 捕获前继续检查空题库。
 
 ---
 
 ## 1. Room 数据库 `study_assistant.db`
+
+表格中的“默认”指实体构造或业务写入默认值，不保证存在 SQLite `DEFAULT` 子句；实际列约束、索引和 SQL 默认值以对应版本的 Room 导出 JSON 为准。
 
 ### 运行时读写模型（v0.7.0.4）
 
@@ -91,11 +115,13 @@
 - 统计使用只含题号、首次时间和分类的 `QuestionStatsRow`，相同投影不重复触发统计计算。搜索用轻量表变更信号触发原有 Unicode 全文扫描，不再为观察变化加载整份题干/答案预览；字段编辑即使题目数不变也会重新搜索。未新增统计表、全文索引或迁移。
 - 搜索读取按主键每批 32 题，题干与答案各投影最多 2049 个码点（2048 正文预算及一个截断哨兵）。短题直接匹配；遇到长字段则在单题读事务中复核删除状态，并重新从头分块读取，保证题干优先和单题快照一致。各批之间不持有整库读事务，表失效会取消旧搜索并重新扫描；投影仅用于搜索，不可写回正文。DB v10 / Bak v4 不变。
 
+- 上述搜索指错题本全文搜索。v0.7.5.1 新增的解题记录搜索走 `searchSolveSessions(query, since)`：在 SQLite 中匹配完整题干或派生标题，并按首次时间筛选；只返回256码点列表投影，不返回图片或完整会话，不新增全文索引或持久搜索缓存。
+
 ### 结构与兼容约定
 
 - 手写重做的会话 JSON 可选字段 `ChatItem.gradePart`：`question` 标识原题文字与全部题图，`answer` 标识独立手写作答消息。缺失时沿用历史批改读取方式；新方式不会把作答图当作题目主图，初始作答受删除保护。仍使用原 `conversationJson` 字段，DB v10 / Bak v4 不变；旧客户端忽略可选字段，备份保留字段。没有迁移或改写历史记录。
 
-- 当前 **schema version = 11**（`AppDatabase.SCHEMA_VERSION`）：v0.7.3.1 后续维护增加可重建的会话短标题缓存；此前自 App v0.6.6.3 起使用 DB v10，v0.6.6.2 使用 DB v9。
+- 当前 **schema version = 11**（`AppDatabase.SCHEMA_VERSION`）：主线 v0.7.3.2 正式引入可重建的会话短标题缓存；此前自 App v0.6.6.3 起使用 DB v10，v0.6.6.2 使用 DB v9。
 - 已开启 Room 结构导出，编译生成的当前基线保存在 `app/schemas/com.zsz.studyassistant.data.AppDatabase/11.json`，只含结构定义，不含用户数据。保留原 `10.json` 供迁移对照，不补造旧版本；Bak v4 格式不变。
 - Room 库版本与数据格式版本独立：构建使用 Room 3.0.3 / KSP（Kotlin DAO）及 AndroidSQLiteDriver；库或代码生成器更新不自动提升 DB/Bak 版本。此前 Room 3 升级保留 v10 identity hash，本次因新增标题缓存列升为 DB v11；历史迁移使用 SQLiteConnection，SQL 与永久编号规则不变。备份 SQL 经官方 SupportSQLite 包装接口在 withWriteTransaction 内执行，保留事务回滚、标题缓存触发器和变更通知；打开包装对象本身不会打开数据库，快照导出须先读取并确认主库版本，再打开独立只读连接。
 - 迁移路径：`v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10 → v11`，全部用 `Migration` + `addMigrations(...)`。
@@ -103,10 +129,10 @@
 - 升级前先检查点写入 WAL，再复制为同目录 `study_assistant.db.pre-v<目标版本>-from-v<原版本>-<时间戳>` 并同步落盘；备份失败则停止打开/迁移。此前 `.pre-v9` / `.pre-v10-*` 文件不删除。
 - 界面“一键升级”负责检查/补全，不是 Room 主键迁移的前置条件。升级提示仍按 DB 版本管理。
 - `settings.data_upgrade_confirmed_schema: Int` 单独记录用户成功执行“一键升级”检查并确认的结构版本。当前结构已触发升级提示且尚未确认时，即使启动自动迁移已完成、无需补图，首次检查成功仍显示“升级成功”；之后无变更时显示“无需升级”。失败不更新确认记录，“修复数据”不消费升级确认。此标记不替代每次完整性检查。
-- 数据升级 / 修复页底部展示应用支持的 `DB v{SCHEMA_VERSION} · Bak v{BackupFile.VERSION}`，下一行使用实际打开数据库的 `user_version` 展示当前结构版本。SQLite 每个数据库只有一个结构版本，不为错题伪造逐条 DB 版本。
+- 数据升级 / 修复页底部展示应用支持的 `DB v{SCHEMA_VERSION} · Bak v{BackupArchive.VERSION}`，下一行使用实际打开数据库的 `user_version` 展示当前结构版本。SQLite 每个数据库只有一个结构版本，不为错题伪造逐条 DB 版本。
 - 第三行仅在完整性扫描发现仍可补全的旧格式原图数据时显示橙黄色“存在旧版本数据”；不按题目创建时间判断，不把无可恢复原图的旧题判为待升级。页面打开时重新检查，升级 / 修复事务成功后清除警示。
 
-### v0.6.6.6（待发布）：备份健康状态、标签草稿与分析诊断（2026-10-24）
+### v0.6.6.6：备份健康状态、标签草稿与分析诊断（2026-10-24）
 
 - 主库仍为 DB v10、备份仍为 Bak v3，撤销辅助库和撤销 JSON 仍为 v1；没有主库或备份迁移，也不会因这轮修改触发数据库升级提示。
 - settings 新增 `auto_backup_attempt_at` / `auto_backup_failure_key`，只记录最近尝试时间和白名单错误键。旧安装缺字段视为无已知失败，保留原成功时间。真正写入并读回校验成功后清除失败；切换文件夹时重置原文件夹的状态。取消不记成失败，旧文件夹异步结果不得更新新文件夹状态。异常原文和备份内容不写入状态。
@@ -149,7 +175,7 @@
 > **兼容策略**：`questions.imageBytes` 列**保留不删**；读取一律「`question_images` → `imageBytes` → `conversationJson`」三层兜底。
 > 保存错题时把全部图写进本表；`v8→v9` 迁移用纯 SQL 把旧 `imageBytes` 搬成 `position=0`（旧数据原地升级）。
 
-### 1.1 表 `questions`（最新结构 = v10）
+### 1.1 表 `questions`（当前 DB v11 中沿用 v10 的字段结构）
 
 | 列名 | 类型 | 默认 | 含义 |
 |---|---|---|---|
@@ -172,7 +198,7 @@
 | `name` | TEXT | — | 分类名（如 高等数学、微积分） |
 | `createdAt` | INTEGER | `System.currentTimeMillis()` | 创建时间 |
 
-> `questions.categoryId` 为外键语义引用 `categories.id`；`GET`DB 删除分类时用 `DELETE FROM categories WHERE id=:id`。
+> `questions.categoryId` 是逻辑关联；当前 Room schema 没有声明 SQLite FOREIGN KEY。分类删除及题目归类由业务事务维护，不能假定数据库自动级联清理。
 
 ### 标签 AI 同概念审查（2026-11-01）
 
@@ -192,9 +218,9 @@
 | 列名 | 类型 | 说明 |
 |---|---|---|
 | `questionId` | TEXT | 语义引用 → `questions.id`，永久编号 |
-| `tagId` | INTEGER | 外键 → `tags.id` |
+| `tagId` | INTEGER | 逻辑关联 → `tags.id`；没有 SQLite 外键约束 |
 
-> 复合主键 `(questionId, tagId)`；一道题最多 5 个 tag（业务层限制）。
+> 复合主键 `(questionId, tagId)`；一道题最多 5 个 tag（业务层限制）。七张业务表均未声明 SQLite 外键，关联完整性由保存、删除、合并与导入事务校验维护。
 
 ### 1.2.3 表 `review`（v7 新增，艾宾浩斯复习调度）
 
@@ -224,7 +250,7 @@
 | `savedQuestionId` | TEXT | NULL | 已存错题本时与本行 `id` 相同；NULL = 无对应错题 |
 | `title` | TEXT | NULL | DB v11 新增；从首条 `ChatItem.conversationTitle` 派生的列表缓存，只在写入和迁移时解析会话 |
 
-> 与错题本分表存储，共享题目永久编号；备份 v3 包含两表。首次拍题/提问才建历史，从错题本/复习打开不新增；已删/裁剪的历史不自动复活。
+> 与错题本分表存储，共享题目永久编号；当前 Bak v4 包含两表，旧 v3 JSON 也可包含搜题记录。首次拍题/提问才建历史，从错题本/复习打开不新增；已删/裁剪的历史不自动复活。
 > 相关联 DAO 方法（都在现有 `QuestionDao` 里）：
 > - `solveSessionsLight(): Flow<List<SolveSessionPreview>>` —— **列表用轻查询**（只选 `id/createdAt/updatedAt/source/text/answer/savedQuestionId/title`，
 >   **不含 BLOB 与 `conversationJson`**）→ 否则会重演 CursorWindow 2MB 崩溃；
@@ -234,7 +260,7 @@
 >
 > **保留策略**：最近 **200 条 / 30 天，两者先到先删**（`SOLVE_SESSION_KEEP` / `SOLVE_SESSION_KEEP_DAYS`），
 > 启动时挂在 `purgeDeletedData()` 旁边执行；判据是纯函数 `solveSessionsToDelete(...)`（`data/database/SolveSessionPrune.kt`，有单测）。
-> **记录时机**：4 个生成入口的 `onDone` 里**尽早 insert**（进程被杀也不丢），追问/继续生成 `UPDATE` 同一条。
+> **记录时机**：首次输入建立永久题号并提交首次历史快照，生成完成及后续追问更新同一条。写入可能失败或尚未落盘；恢复由待保存记录和生成草稿协同承担，不能承诺进程被杀时所有在途内容都已保存。
 
 ### 1.3 迁移历史（每个版本对应的结构）
 
@@ -250,12 +276,11 @@
 | `MIGRATION_7_8` | v0.6.5 | 新建表 `solve_sessions`（搜题记录；与 `questions` 隔离，现有查询一律不动） | `CREATE TABLE solve_sessions(...)` |
 | `MIGRATION_8_9` | v0.6.6 | 新建表 `question_images`（一题多图，二进制、有序）+ 索引；**旧 `imageBytes` 搬成 `position=0`** | `CREATE TABLE question_images(...)`；`CREATE INDEX index_question_images_questionId_position ...`；`INSERT INTO question_images(questionId,position,bytes,source,createdAt) SELECT id,0,imageBytes,'migrate',createdAt FROM questions WHERE imageBytes IS NOT NULL` |
 | `MIGRATION_9_10` | v0.6.6.3 | 题目及所有题目引用改为 TEXT 永久编号；补齐旧时间 | 迁移前备份；映射复制五表；数量校验；事务回滚保护 |
-| `MIGRATION_10_11` | v0.7.3.1 后续维护（待发布） | solve_sessions 新增可空 title 列，派生会话短标题缓存 | 迁移前备份；ALTER TABLE 加列；单次回填；建立写入触发器；事务回滚保护 |
+| `MIGRATION_10_11` | 主线 v0.7.3.2；Compatible 从兼容版 v0.7.4.1 接入 | solve_sessions 新增可空 title 列，派生会话短标题缓存 | 迁移前备份；ALTER TABLE 加列；单次回填；建立写入触发器；事务回滚保护 |
 
 > 代码位置：`app/src/main/java/com/zsz/studyassistant/data/database/Question.kt`（`Question`、`Category`、`QuestionDao`、`AppDatabase`、各 `MIGRATION_*`）
 > 与 `data/database/SolveSession.kt`（`SolveSession` 实体）、`data/database/SolveSessionPrune.kt`（裁剪纯函数）。
-> **`SolveSession` 实体单独一个文件**是刻意的：本机单测是纯 JVM 且手工拼 classpath（不含 Room），
-> 与 `@Dao`/`Migration` 同文件会让纯函数测试加载不到 `androidx.room.migration.Migration` 而报 `NoClassDefFoundError`。
+> `SolveSession` 单独存放便于模型与 DAO/迁移职责分离。当前定向 JVM 验证使用 Gradle 的 `testIntegrationUnitTest`，不再手工拼接不含 Room 的 classpath；验证流程见 [development.md](development.md)。
 
 ---
 
@@ -314,19 +339,24 @@ data class ChatItem(
     val content: String,
     val images: List<String>? = null,  // base64 编码的追问附图（1~3 张）
     val thinking: String? = null,      // v0.6.0 新增：该轮 AI 的思考过程（思考流）；旧 JSON 无此键 → null
-    val quote: QuotedFollowUp? = null, // v0.6.9_beta：含 text（引用全文）和 question（追问正文）
+    val quote: QuotedFollowUp? = null, // v0.6.9：含 text（引用全文）和 question（追问正文）
     val messageKey: String? = null,   // v0.6.9.1：独立稳定消息标识；不复用旧 id 序号
     val gradePart: String? = null,    // 可选 question / answer：手写重做的原题与独立作答角色
     val notebookSuggestions: NotebookSuggestions? = null, // 首次回答的原始科目与知识点建议
-    val answerPending: Boolean = false // 删除初始答案后保留空槽；不发送给 AI、不参与导出
+    val answerPending: Boolean = false, // 删除初始答案后保留空槽；不发送给 AI、不参与导出
+    val aiContext: AiResponseContext? = null, // 精确原文、工具调用/引用和续写上下文
+    val documents: List<ConversationDocument> = emptyList(), // 原件SHA、名称、大小及选页/工作表
+    val ocrCorrections: List<String?> = emptyList(), // 按图片顺序的可选OCR校对
+    val conversationTitle: String? = null, // 只存首条消息，列表title列由此派生
+    val excludedDocumentHashes: List<String> = emptyList() // 本次请求排除的历史附件
 )
 ```
 
 > **v0.7.0.2：存题建议**：首条助手消息新增可选 `notebookSuggestions` 对象，包含 `category` 和 `tags`，在解答清理元信息前保存，并随会话、草稿及备份保留。重新存题时优先读取首次建议，后续追问及错题本人工分类不会替换原始建议。旧消息缺字段时读取首条回答保留的分类行与四语知识点提示，缺失内容沿用当前可用预选。DB v10 / Bak v4 无表结构变化，不需要迁移或批量重写历史数据。
 
-> **选中内容导出与初始答案删除（待发布）**：允许选择题目和初始答案导出；任何包含题目/初始手写作答的删除请求整体拒绝。删除首条助手答案时仅保留 `answerPending=true` 的空助手槽和原始存题建议，清除正文、思考、图片与引用，换用新的消息键；界面根据当前语言显示临时提示，不把提示写入内容字段。补答只替换该槽、再次分配新键并保留后续问答；占位不进入 AI 上下文或导出。字段缺省为 false，沿用现有会话 JSON/备份读写，不批量改写历史数据、无需 Room 或 Bak 格式迁移；旧客户端忽略该字段但不能执行占位恢复。私有草稿增加 `restore_initial` / `restore_grade` 动作，恢复时也只补回原槽。
+> **v0.7.2：选中内容导出与初始答案删除**：允许选择题目和初始答案导出；任何包含题目/初始手写作答的删除请求整体拒绝。删除首条助手答案时仅保留 `answerPending=true` 的空助手槽和原始存题建议，清除正文、思考、图片与引用，换用新的消息键；界面根据当前语言显示临时提示，不把提示写入内容字段。补答只替换该槽、再次分配新键并保留后续问答；占位不进入 AI 上下文或导出。字段缺省为 false，沿用现有会话 JSON/备份读写，不批量改写历史数据、无需 Room 或 Bak 格式迁移；旧客户端忽略该字段但不能执行占位恢复。私有草稿增加 `restore_initial` / `restore_grade` 动作，恢复时也只补回原槽。
 
-> **v0.6.9_beta 引用展示**：新增可选 `quote` 对象，供提问气泡分框显示引用与正文；`content` 仍保存完整引用和问题，API 与旧客户端沿用原读取方式。旧消息缺字段时为 `null`，保留原文显示；保存、草稿和备份均保留该对象。DB v10 / Bak v4 不变，无表结构迁移，也不重写已有记录。
+> **v0.6.9 引用展示**：新增可选 `quote` 对象，供提问气泡分框显示引用与正文；`content` 仍保存完整引用和问题，API 与旧客户端沿用原读取方式。旧消息缺字段时为 `null`，保留原文显示；保存、草稿和备份均保留该对象。DB v10 / Bak v4 不变，无表结构迁移，也不重写已有记录。
 
 > 局部公式引用从 v0.7.0.1 起可在 anchor 中保存 `visualMath: true`。此时起止位置按可见公式字形计算，跳转时同时核对来源摘要和选区内容。缺少该标志的历史引用仍按原 LaTeX 偏移读取。
 
@@ -388,13 +418,15 @@ BAIDU_SECRET_KEY=
 
 ## 对话草稿与读取保护（v0.6.6.10）
 
+> 本节记载引入时的行为。下述整对象备份限制已被 v0.6.7 的 Bak v4 流式路径取代；当前旧 v3 JSON 也通过专用有界读取器导入。删除队列指题目/历史/分类级延迟删除，问答气泡的2秒撤销属于另一条会话编辑路径。
+
 - 主库结构与普通备份格式均未改变，无需结构迁移。列表不再读取图片及会话 JSON；详情的 conversationJson、历史 imagesJson 通过 SQLite 字符分段读取，避免单行会话超过 CursorWindow。图片在可见卡片需要时后台读取、降采样。
 - `noBackupFilesDir/conversation-drafts-v1/<永久题目编号>.json` 保存独立对话草稿（version 1）：原会话、请求、已收片段、思考、生成编号、递增 revision、操作类型、来源与已存内容摘要；完成草稿附完整结果。原子写入并读回核对，旧请求或旧 revision 不覆盖新草稿，明确放弃及删除题目使旧写入失效。不含 Key，排除系统备份、普通 JSON 备份和 CI。
 - 每轮请求前建立草稿，生成时约每秒保存一次已刷新片段；退出或中止时补快照，完成后先提交错题和既有记录，再清理草稿。突然断电可能丢失最近尚未落盘的片段；写盘失败明确提示，不承诺恢复。恢复校验题目内容摘要，冲突保留草稿，不覆盖后续修改。
 - 救援导出的 `study-assistant-pending-saves` version 1 增加可选 `interruptedDrafts` 字段，供人工协助恢复，不是普通备份的另一种导入格式。原 pending entries 字段保持兼容；损坏文件仍保留，不声称已经成功导出其内容。
 - 删除采用内存内 3 秒待确认批次：仅从列表隐藏，撤销不写库；到期事务删除题目及关联/历史/分类，失败回滚并重显。快速连续删除合并批次并重新计时；窗口中进程结束视为未提交删除，不提供长期回收站。
 - 导入同编号错题保留本机内容；仅导入实际新增错题所需的分类和标签，不因已跳过的题目恢复旧标签。
-- 当前备份仍以完整对象编码：导入字节数上限为 `min(48 MiB, 最大堆 / 8)`；导出先统计原始字段体量，超过该上限的三分之一时提前拒绝。该保守限制用于避免内存耗尽，不代表任意规模备份均受支持；失败不修改数据库、不清理旧备份。大规模流式备份作为后续独立改进。
+- 当时备份以完整对象编码：导入字节数上限为 `min(48 MiB, 最大堆 / 8)`；导出先统计原始字段体量，超过该上限的三分之一时提前拒绝。该保守限制用于避免内存耗尽，不代表任意规模备份均受支持；失败不修改数据库、不清理旧备份。后来已在 v0.6.7 实现 Bak v4 流式备份，不能把本段旧限制用于当前 ZIP 导出。
 - 复习用自然日安排下一次日期，未保存不前进；本轮队列来自入口实际筛选。每日/每周复习数和连续天数仍由每题最近复习时间估算，新增题目趋势按首次时间统计，未新增完整复习事件表。
 
 
@@ -417,7 +449,7 @@ BAIDU_SECRET_KEY=
 
 v0.7.1 在同一 session 中增加 `mandatory`（缺省 false）、`transferToken`（缺省沿用原任务 UUID）、`enqueuePending`（缺省 false）及可选 `delta` 公开补丁元数据。业务任务 UUID 继续绑定通知和取消；差分失败转完整包时保留该 UUID，另换传输 UUID，先持久化单向回退再入队，避免重启重复选择失败补丁或误认旧下载行。旧 session 不含差分时继续原完整包流程，不改写学习数据。
 
-差分仅匹配当前已安装 APK 的精确长度与 SHA-256，补丁经私有副本长度/摘要校验后按有界 GDIFF v4 + gzip 还原；合成结果须与完整签名 APK 的长度/SHA-256 一致，再做既有包名、版本、平台和证书校验，安装前仍重新核验。任何差分传输或还原失败自动转一次完整包；完整包失败保留失败状态，用户主动取消不会触发回退。`.patch-checking` 与 `.checking` 仅为该 UUID 的临时缓存，不含题库、凭据或备份；DB v10 / Bak v4 不变。
+差分仅匹配当前已安装 APK 的精确长度与 SHA-256，补丁经私有副本长度/摘要校验后按有界 GDIFF v4 + gzip 还原；合成结果须与完整签名 APK 的长度/SHA-256 一致，再做既有包名、版本、平台和证书校验，安装前仍重新核验。早期策略为差分失败转一次完整包；当前网络暂停/可重试传输保留进度，v0.7.5.1 起磁盘空间不足同样暂停保留当前文件及已核验步骤，释放空间后重试。符合回退条件的永久下载失败、补丁校验或合成错误单向回退完整包；完整包失败保留失败状态，用户主动取消不会触发回退。`.patch-checking` 与 `.checking` 仅为该 UUID 的临时缓存，不含题库、凭据或备份；DB v10 / Bak v4 不变。
 
 
 ## 更新通知归属（v0.6.7.4）
@@ -470,11 +502,11 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 
 搜索结果沿用现有题干/答案的分块读取，在 IO 侧提取最多约 260 字符的临时命中片段及高亮范围，不写入数据库或备份；分享图片复用原有框选检查点。v0.6.8.8 未变更 DB v10 / Bak v4 格式。
 
-图文提问与追问的附图裁剪使用独立临时队列，不覆盖拍照恢复检查点。原图仅复制到应用缓存，旋转更新内存预览及独立角度，不重复压缩或改写源图；整批完成后将裁剪结果交回原输入草稿，仍由用户手动发送。取消整批保留原输入和已有附图，完成或取消后清理本批缓存；进程被终止时不恢复未发送附图。拍照流程沿用 capture-flow-v1，新增可选 rotations 数组（与 paths 等长，0～3 表示顺时针旋转次数）；旧检查点缺失时全部按 0 读取，包括旧版已经物理旋转的图像。读取拒绝长度不符或越界角度。旋转仅更新角度，检查点仍保存原始图像，显示、AI 框选与最终提交使用同一方向。DB v10 / Bak v4 不变。
+图文提问与追问的附图裁剪使用独立临时队列，不覆盖拍照恢复检查点。原图仅复制到应用缓存，旋转更新内存预览及独立角度，不重复压缩或改写源图；整批完成后将裁剪结果交回原输入草稿，仍由用户手动发送。取消整批保留原输入和已有附图，完成或取消后清理本批缓存；这一早期流程本身不恢复未完成的附图裁剪；v0.7.5.1 起，已交回输入框的未发送附图由独立输入草稿落盘恢复（见文首），不应再笼统理解为未发送附图全部无法恢复。拍照流程沿用 capture-flow-v1，新增可选 rotations 数组（与 paths 等长，0～3 表示顺时针旋转次数）；旧检查点缺失时全部按 0 读取，包括旧版已经物理旋转的图像。读取拒绝长度不符或越界角度。旋转仅更新角度，检查点仍保存原始图像，显示、AI 框选与最终提交使用同一方向。DB v10 / Bak v4 不变。
 
 ### v0.7.1.2：链式差分下载状态（DB v10 / Bak v4 不变）
 
-`update_download/session` 增加可选 `steps` 数组与 `stepIndex`：每一步保存补丁format/baseSha256/baseSize/patchName/patchUrl/patchSha256/patchSize，以及目标targetSha256/targetSize/tag。原`delta`保存当前步骤，`transferToken`由任务UUID及步骤序号确定（首步沿用任务UUID）；旧单差分/完整包记录仍可读取。恢复时检查每步的安全URL、摘要、尺寸、前后连接、总下载量和最终目标一致性；中间包保存在私有更新缓存`<UUID>.stage-<序号>`，不进入题库备份。持久化下一步骤后再清理上一系统下载，进程重启按已验证中间包继续；安装前仍验证最终APK。失败清理本任务中间包并单向回退完整包，取消清理且不回退。此为可重新生成的公开更新缓存，无用户数据迁移或迁移备份需求。
+`update_download/session` 增加可选 `steps` 数组与 `stepIndex`：每一步保存补丁format/baseSha256/baseSize/patchName/patchUrl/patchSha256/patchSize，以及目标targetSha256/targetSize/tag。原`delta`保存当前步骤，`transferToken`由任务UUID及步骤序号确定（首步沿用任务UUID）；旧单差分/完整包记录仍可读取。恢复时检查每步的安全URL、摘要、尺寸、前后连接、总下载量和最终目标一致性；中间包保存在私有更新缓存`<UUID>.stage-<序号>`，不进入题库备份。持久化下一步骤后再清理上一系统下载，进程重启按已验证中间包继续；安装前仍验证最终APK。符合回退条件的永久下载失败、差分校验或合成错误清理本任务中间包并单向回退完整包；网络暂停和空间不足保留可恢复进度，取消清理且不回退。此为可重新生成的公开更新缓存，无用户数据迁移或迁移备份需求。
 
 备份目录摘要仅在进程内缓存最近64组精确内容摘要对应的有效快照时间；每次读取仍复制并核对文件内容哈希，删除和导入不使用该缓存。不持久化、不改变备份格式。
 
@@ -494,7 +526,7 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - `ChatItem.aiContext.continuationHistory` 缺失时为空列表，记录安全续写之前的原样 assistant 与内部续写 user 消息；`rawContent` 仅是最后一次响应的精确正文。显示正文可以拼接，但工具签名上下文不能按显示结果改写。历史重开、保存及备份沿用 JSON 字段兼容读取。
 - 草稿新增默认字段 `requestPrefix`（空字符串）、`continuationHistory`（空列表）、`continuationAnnotations`（null）、`resumableContext`（null）。只有服务端完整 length 终态允许接纳当前段；网络中断/主动中止只重试当前段，之前已接纳的前缀保留。恢复草稿的联网显示取该草稿值，新会话回到全局偏好。
 - 图片上传与问答固定使用同一轮凭据；缓存失效仅作用于对应账号。明确的文件引用拒绝才允许一次原图回退，普通参数错误不自动重试。显式 low-detail 图片保留内嵌格式。
-- `ChatItem.documents` 为默认空列表，条目含 `sha256`、原始 `name` 和 `size`；原件保存在 `filesDir/ai-documents/<sha256>`。首次问题和追问均沿既有会话 JSON 保存，纯文件题以文件名作为列表摘要。远端引用只作绑定当前账号的内存缓存，不替代原件。
+- `ChatItem.documents` 为默认空列表，条目含 `sha256`、原始 `name` 和 `size`；原件保存在 `filesDir/ai-documents/<sha256>`。首次问题和追问均沿既有会话 JSON 保存，纯文件题以文件名作为列表摘要。该版本远端引用仅作内存缓存；v0.7.3.2 起文件解析引用改为下文的账号绑定私有磁盘缓存，仍不替代原件。图片 file_id 的内存缓存是独立机制。
 - 私有草稿请求 `DeepSeekMessage.localDocuments` 缺失时为空；发送前从原件准备远端引用并清除此字段，不将本地存储信息上传。过期引用重新解析可能产生费用，取消或连接结果不明不会立即自动重传。
 - Bak v4 沿用通用 `resources/` 目录携带文件原件。导出、导入逐份校验大小和 SHA；资源缺失或损坏时拒绝恢复。暂存恢复数据库新增私有 `backup_documents` 索引（不是业务表），先安装原件再合并主库。旧暂存库无该表且会话无附件时兼容；存在附件却无索引则要求重新准备。v3 JSON 不支持非空附件，明确拒绝。
 - `ChatItem.ocrCorrections` 缺省为空，批改按原图顺序保留可选校对文字；图文附图草稿按 URI 绑定校对文字，删图同步去除，发送时按最终图片顺序组成文本。拍题校对文字成为题干而原图保留。裁剪检查点仍为 version 1，新增可选校对文件引用，单份上限 2 MiB；旧检查点无此项视为空。
@@ -541,5 +573,20 @@ v0.7.1 的 `SharedPreferences("update_prompt")/required_release` 独立保存已
 - `update_download/session` 沿用原任务及链式差分检查点。新下载由 WorkManager 调度，暂停时保留当前文件与已校验的前序差分结果；恢复仅作用于当前显示的任务。主动“重新下载当前文件”只丢弃当前半包，不重做已完成的差分步骤。
 - `update_resumable_transfers` 保存本机临时传输记录：官方 URL、精确大小/SHA、下载目标、任务 ID、执行代次、状态与可选旧 DownloadManager ID。新 ID 从 `2^62` 起，与旧系统下载 ID 区分；旧暂停任务仅在确认归属和半包长度一致后复制至私有目录，再移除旧系统任务。无法安全读取时保留旧数据并提示重试或重新下载，不假装续传成功。
 - `noBackupFilesDir/update-transfers/<ID>.part` 保留已下载字节；仅接受匹配偏移和总长的 HTTP 206，服务器忽略 Range 时不追加到半包。完成后校验摘要，再交给原有差分合成及 APK 身份/签名校验。取消使当前代次失效并清理本任务临时文件；工作协程或页面销毁不等于取消下载。这些公开更新缓存不进入业务备份。
-- `update_transport` 的 `enabled` 默认 true，`base_url` 默认为 `https://gh-proxy.org/`，可在更新页关闭或修改。只允许无凭据的公开 HTTPS 前缀；镜像仅承接本项目公开 Releases/API 及附件 URL，不接收 AI Key、GitHub 凭据或题目数据。官方 URL 始终作为文件身份，不被镜像 URL 替换。
+- `update_transport` 的 `enabled` 默认 true，`base_url` 默认为 `https://gh-proxy.org/`，可在更新页关闭或修改。只允许无凭据的公开 HTTPS 前缀；镜像仅承接本项目公开 Releases/API、附件 URL 及 main 分支固定的公告 JSON URL，不接收 AI Key、GitHub 凭据或题目数据。官方 URL 始终作为文件身份，不被镜像 URL 替换。
 - 镜像元数据不是签名清单，不能建立新的 ENF 强制锁；已有经官方确认的 ENF 目标保留。下载的安装包仍需通过原有签名及内容校验。偏好与传输状态不改变 Room 或 Bak 格式，无业务数据迁移。
+
+
+## 当前更新身份、差分及诊断私有状态
+
+- `update-manifest.json` 是公开分发清单：main 使用 schema 1 / `distribution=main`，Compatible 使用 schema 2 / `distribution=compat`、`minSdk=28`、`maxSdk=35`。不能把 Compatible 的清单仍描述为 schema 1；版本号相同也要同时满足分支和系统范围。CI 的 schema 3 身份清单是另一种文件，不由客户端当更新清单读取。
+- `update_download/session` 与 `update_prompt/required_release` 保存发布目标的分支及系统范围等身份。下载恢复、差分路径和强制更新按当前分支隔离；缺少新字段的历史记录沿读端兼容规则判断，不能仅凭版本号跨分支安装。
+- 新发布差分使用 `apk-gdiff1-gzip`，文件名 `<目标APK文件名去扩展名>-from-<基准versionCode>.gdiff.gz`；客户端仍保留历史差分读取能力。直接差分优先，链式按总下载字节选择更小可用路径，每步绑定精确基准和目标的大小/SHA，最终验证完整签名 APK。存储不足使用已有 session 错误状态 `update.storageInsufficient`，不新增主库字段，也不因空间不足改下全量包。
+- 崩溃原始日志及精简报告位于 `filesDir/crashes/`，保留最近10组。`crash_report_reminder` 的 `pending_crash`、`crash_installation`、`last_seen` 绑定未捕获异常记录及安装代次；覆盖安装不把旧日志重新当作新崩溃。用户可预览/手动导出，不自动上传，不进入 Bak v4。
+
+### 当前实现查阅入口
+
+- 主库/迁移：[Question.kt](../app/src/main/java/com/zsz/studyassistant/data/database/Question.kt)、[11.json](../app/schemas/com.zsz.studyassistant.data.AppDatabase/11.json)。
+- 备份格式与恢复：[BackupArchive.kt](../app/src/main/java/com/zsz/studyassistant/data/backup/BackupArchive.kt)、[BackupStagedMerge.kt](../app/src/main/java/com/zsz/studyassistant/data/backup/BackupStagedMerge.kt)。
+- 完整会话字段：[MainViewModel.kt](../app/src/main/java/com/zsz/studyassistant/MainViewModel.kt) 中的 `ChatItem`；附件原件与选页：[ConversationDocuments.kt](../app/src/main/java/com/zsz/studyassistant/data/ai/ConversationDocuments.kt)。
+- 未发送输入：[InputDraftStore.kt](../app/src/main/java/com/zsz/studyassistant/data/conversation/InputDraftStore.kt)；公告缓存：[AppNoticeStore.kt](../app/src/main/java/com/zsz/studyassistant/data/update/AppNoticeStore.kt)。
