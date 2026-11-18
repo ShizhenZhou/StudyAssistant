@@ -161,7 +161,7 @@ internal class CaptureFlowStore(context: Context) {
                         val file = File(directory, name)
                         safeChild(directory, file)
                         if (file.length() !in 1..CORRECTION_LIMIT.toLong()) throw IOException("Invalid capture correction length")
-                        val bytes = file.inputStream().use { it.readNBytes(CORRECTION_LIMIT + 1) }
+                        val bytes = file.inputStream().use { it.readAtMost(CORRECTION_LIMIT + 1) }
                         if (bytes.size > CORRECTION_LIMIT) throw IOException("Capture correction exceeds limit")
                         Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString()
                     }

@@ -133,8 +133,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         val draft = viewModel.solveInputDraft
-        if (draft.fieldFocused && window.decorView.rootWindowInsets?.isVisible(
-                android.view.WindowInsets.Type.ime()) == true) {
+        if (draft.fieldFocused && androidx.core.view.ViewCompat.getRootWindowInsets(window.decorView)?.isVisible(
+                androidx.core.view.WindowInsetsCompat.Type.ime()) == true) {
             outState.putString("solveEditingSession", draft.id)
         }
         super.onSaveInstanceState(outState)
@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
         viewModel.sharedImages.receive(intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeUpdateCompletion(this, intent)
         com.zsz.studyassistant.data.NotificationIntents.consumeAnswerCompletion(this, intent)
-        if (wallpaperWindowMode) setTranslucent(true)
+        if (wallpaperWindowMode && android.os.Build.VERSION.SDK_INT >= 30) setTranslucent(true)
         // 启动时清理已删除题目与孤儿记录（定期维护数据库）
         viewModel.purgeDeletedData()
         // 启动即创建通知渠道（否则系统"通知管理"会显示"未发布任何通知"），并按需申请通知权限
@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
             com.zsz.studyassistant.data.AutoBackup.treeUri(this) != null &&
             !backupPreferences.getBoolean("backup_failure_permission_asked", false)
         if (com.zsz.studyassistant.data.ReminderScheduler.isEnabled(this) || askBackupNotifications) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 if (askBackupNotifications) backupPreferences.edit().putBoolean("backup_failure_permission_asked", true).apply()
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
             }

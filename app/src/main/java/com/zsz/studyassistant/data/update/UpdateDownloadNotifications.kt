@@ -36,7 +36,8 @@ internal object UpdateDownloadNotifications {
     }
     fun canPost(context: Context): Boolean = try {
         ensureChannel(context)
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
+        (android.os.Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
             NotificationManagerCompat.from(context).areNotificationsEnabled() &&
             context.getSystemService(NotificationManager::class.java)?.getNotificationChannel(CHANNEL_ID)?.importance?.let { it != NotificationManager.IMPORTANCE_NONE } == true
     } catch (_: Exception) { false }

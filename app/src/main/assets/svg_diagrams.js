@@ -115,7 +115,8 @@
     if(height>1600){width=Math.round(width*1600/height);height=1600;}
     target.setAttribute('width',String(width));target.setAttribute('height',String(height));
     target.setAttributeNS(XMLNS,'xmlns',NS);
-    var title=(target.querySelector('title')?.textContent || '').trim().slice(0,200);
+    var titleNode=target.querySelector('title');
+    var title=(titleNode ? titleNode.textContent : '').trim().slice(0,200);
     var xml=new XMLSerializer().serializeToString(target),bytes=new TextEncoder().encode(xml),binary='';
     for(var b of bytes) binary+=String.fromCharCode(b);
     function escape(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}

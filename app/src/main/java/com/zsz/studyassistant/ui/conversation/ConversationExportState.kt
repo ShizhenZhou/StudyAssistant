@@ -1,5 +1,7 @@
 package com.zsz.studyassistant.ui
 
+import com.zsz.studyassistant.data.readAtMost
+
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
@@ -339,7 +341,7 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
 
     private fun restore(): ConversationExportSession? {
         val bytes = try {
-            journal.openRead().use { it.readNBytes(1024 * 1024 + 1) }
+            journal.openRead().use { it.readAtMost(1024 * 1024 + 1) }
         } catch (error: java.io.FileNotFoundException) {
             if (!java.nio.file.Files.notExists(journal.baseFile.toPath()) ||
                 !java.nio.file.Files.notExists(File(root, "active.json.bak").toPath())) throw error

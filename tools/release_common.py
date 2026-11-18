@@ -6,6 +6,7 @@ import re
 import zipfile
 
 PACKAGE = "com.zsz.studyassistant"
+COMPAT_BRANCH = "Compatible"
 VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?")
 SIGNATURE_ENTRY = re.compile(r"META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC))", re.IGNORECASE)
 
@@ -24,6 +25,43 @@ def numeric_version(version):
     if not VERSION.fullmatch(version):
         raise ValueError("Invalid release version")
     return version.partition("_beta")[0]
+
+def release_tag(version, distribution="main"):
+    numeric_version(version)
+    if distribution not in ("main", "compat"):
+        raise ValueError("Unknown release distribution")
+    # Old clients normalize tags at the first underscore: compat becomes version 0.
+    return ("compat_v" if distribution == "compat" else "v") + version
+
+def version_from_tag(tag):
+    version = tag.removeprefix("compat_").removeprefix("v")
+    numeric_version(version)
+    return version
+
+def distribution_identity(value):
+    distribution = value.get("distribution", "main")
+    if distribution not in ("main", "compat"):
+        raise ValueError("Unknown release distribution")
+    if distribution == "compat":
+        if value.get("minSdk") != 28 or value.get("maxSdk") != 35:
+            raise ValueError("Compatibility distribution requires API 28 through 35")
+        return dict(distribution="compat", maxSdk=35)
+    if "maxSdk" in value:
+        raise ValueError("Main distribution must not acquire a compatibility ceiling")
+    return {}
+
+def apk_distribution(path):
+    """Bind distribution to candidate payload, while preserving historical APKs."""
+    with zipfile.ZipFile(path) as archive:
+        if "assets/distribution.json" not in archive.namelist():
+            return {}
+        value = json.loads(archive.read("assets/distribution.json"))
+    return distribution_identity(value)
+
+def release_branch_allowed(branch, channel, distribution="main"):
+    if distribution == "compat":
+        return branch == COMPAT_BRANCH and channel in ("stable", "beta")
+    return distribution == "main" and (branch == "main" or (branch == "Develop" and channel == "beta"))
 
 def sha256(path):
     with Path(path).open("rb") as stream:
@@ -64,7 +102,10 @@ def apk_identity(badging):
 def validate_manifest(value):
     allowed = {"schema", "package", "versionCode", "version", "minSdk", "targetSdk", "commit", "buildUtc", "candidate", "candidateSha256", "payloadSha256", "expectedSigner", "jvm"}
     if value.get("schema") == 2: allowed.add("planSha256")
-    if value.get("schema") == 3: allowed.remove("jvm")
+    if value.get("schema") == 3:
+        allowed.remove("jvm")
+        allowed.update(("distribution", "maxSdk"))
+    distribution_identity(value)
     if (set(value) - allowed or type(value.get("minSdk")) is not int or type(value.get("targetSdk")) is not int
             or not 1 <= value["minSdk"] <= value["targetSdk"] <= 10000):
         raise ValueError("Unexpected public manifest fields")
@@ -106,4 +147,6 @@ def extract_candidate(data, folder):
     payload, stamp = apk_payload(path)
     if (payload, stamp) != (manifest["payloadSha256"], manifest["buildUtc"]):
         raise ValueError("Candidate payload mismatch")
+    if apk_distribution(path) != distribution_identity(manifest):
+        raise ValueError("Candidate distribution differs from its payload")
     return manifest, path

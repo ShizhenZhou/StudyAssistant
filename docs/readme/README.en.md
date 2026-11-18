@@ -16,6 +16,9 @@ Developed by zsz with assistance from DeepSeek and GPT.
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [Download the compatible release (v0.7.5.2)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
 - [Android 9–15 compatibility branch (Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
+- [Compatibility notes and history](../compatible/README.en.md)
+
+This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 

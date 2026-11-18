@@ -270,7 +270,9 @@ private fun AboutPage(onReport: () -> Unit) {
     val aboutContext = LocalContext.current
     Spacer(Modifier.height(8.dp))
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Text(s.format("about.tech.body", "api" to "${aboutContext.applicationInfo.minSdkVersion}",
+        Text(s.format("about.tech.body", "android" to com.zsz.studyassistant.BuildConfig.SUPPORTED_ANDROID_LABEL,
+            "api" to ("${aboutContext.applicationInfo.minSdkVersion}" +
+                if (com.zsz.studyassistant.BuildConfig.SUPPORTED_MAX_SDK > 0) "–${com.zsz.studyassistant.BuildConfig.SUPPORTED_MAX_SDK}" else ""),
             "db" to "${com.zsz.studyassistant.data.AppDatabase.SCHEMA_VERSION}",
             "bak" to "${com.zsz.studyassistant.data.BackupArchive.VERSION}"),
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
@@ -1088,7 +1090,7 @@ private fun AutoBackupSettings(vm: MainViewModel) {
         val needsRuntimePermission = com.zsz.studyassistant.data.BackupNotifications.needsPermission(context)
         val activity = context as? android.app.Activity
         val mayRequestAgain = !preferences.getBoolean("backup_failure_permission_asked", false) ||
-            (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity,
+            (android.os.Build.VERSION.SDK_INT >= 33 && activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity,
                 android.Manifest.permission.POST_NOTIFICATIONS))
         if (needsRuntimePermission && mayRequestAgain) {
             preferences.edit().putBoolean("backup_failure_permission_asked", true).apply()
@@ -1629,7 +1631,7 @@ private fun NotifyBackgroundSettings() {
     }
     fun allowReminder() {
         ReminderScheduler.ensureChannel(context)
-        val needsPermission = androidx.core.content.ContextCompat.checkSelfPermission(context,
+        val needsPermission = android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context,
             Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
         val activity = context as? android.app.Activity
         if (needsPermission && (!prefs.getBoolean("review_notification_permission_asked", false) ||
@@ -1781,7 +1783,7 @@ private fun UpdateNotificationSettings() {
         alerts.ensureChannel(context)
         val activity = context as? android.app.Activity
         val mayAsk = !prefs.getBoolean("update_notification_permission_asked", false) ||
-            (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+            (android.os.Build.VERSION.SDK_INT >= 33 && activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
                 activity, Manifest.permission.POST_NOTIFICATIONS))
         if (alerts.needsPermission(context) && mayAsk) {
             prefs.edit().putBoolean("update_notification_permission_asked", true).apply()

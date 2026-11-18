@@ -38,7 +38,7 @@ object UpdateNotifications {
             NotificationChannel(CHANNEL_ID, s["notify.update.enable"], NotificationManager.IMPORTANCE_DEFAULT))
     }
 
-    fun needsPermission(context: Context): Boolean = ContextCompat.checkSelfPermission(
+    fun needsPermission(context: Context): Boolean = android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
         context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
 
     fun canNotify(context: Context): Boolean = !needsPermission(context) &&

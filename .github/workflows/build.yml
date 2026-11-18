@@ -1,5 +1,5 @@
 name: build
-run-name: "${{ (github.ref_name == 'main' || inputs.release_channel == 'beta') && 'release' || 'build' }}: ${{ inputs.run_description || github.ref_name }}"
+run-name: "${{ (github.ref_name == 'main' || inputs.release_channel == 'beta' || inputs.release_distribution == 'compat') && 'release' || 'build' }}: ${{ inputs.run_description || github.ref_name }}"
 # Validation is local and scoped. Push/PR/tag do not start duplicate builds.
 on:
   workflow_dispatch:
@@ -20,6 +20,15 @@ on:
         options:
           - none
           - beta
+          - stable
+      release_distribution:
+        description: Explicit distribution identity; compat requires its dedicated branch
+        required: false
+        default: main
+        type: choice
+        options:
+          - main
+          - compat
 permissions:
   contents: read
 concurrency:
@@ -34,8 +43,14 @@ jobs:
       - name: Check requested source and credential boundary
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RELEASE_DISTRIBUTION: ${{ inputs.release_distribution }}
+          RELEASE_CHANNEL: ${{ inputs.release_channel }}
         run: |
-          case "$GITHUB_REF" in refs/heads/main|refs/heads/Develop) ;; *) exit 1 ;; esac
+          case "$GITHUB_REF:$RELEASE_DISTRIBUTION" in
+            refs/heads/main:main|refs/heads/Develop:main) ;;
+            refs/heads/Compatible:compat) case "$RELEASE_CHANNEL" in stable|beta) ;; *) exit 1 ;; esac ;;
+            *) exit 1 ;;
+          esac
           test "$EXPECTED_SHA" = "$GITHUB_SHA"
           python3 -B tools/check-secrets.py --tracked
       - uses: actions/setup-java@v6.2.0
@@ -48,12 +63,13 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease --console=plain
       - name: Record APK identity and hashes
-        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta'
+        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta' || inputs.release_distribution == 'compat'
         env:
           RELEASE_CHANNEL: ${{ inputs.release_channel }}
+          RELEASE_DISTRIBUTION: ${{ inputs.release_distribution }}
         run: python3 -B tools/ci-release.py
       - uses: actions/upload-artifact@v7.0.2
-        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta'
+        if: github.ref == 'refs/heads/main' || inputs.release_channel == 'beta' || inputs.release_distribution == 'compat'
         with:
           name: release-candidate
           path: |

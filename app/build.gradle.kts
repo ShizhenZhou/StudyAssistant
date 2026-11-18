@@ -15,10 +15,31 @@ plugins {
 // 版本号约定（2026-09-25 用户确定）：
 //   · `0.x.x`   —— 每次都要在 README「版本记录」+ App 内「更新内容」记一次
 //   · `0.x.x.x` —— 同系列小修补（patch），也要在 README + App 四语言「更新内容」记录
-val appVersionName = "0.7.5.2"
+fun readDistributionProperties(file: File) = Properties().apply {
+    file.reader(Charsets.UTF_8).use(::load)
+}
+val distributionSelector = rootProject.file("config/distribution.properties")
+val distributionName = providers.gradleProperty("distribution").orElse(
+    readDistributionProperties(distributionSelector).getProperty("distribution")
+).get()
+require(distributionName in setOf("main", "compat")) { "Unknown distribution" }
+val distributionFile = rootProject.file("config/distributions/$distributionName.properties")
+val distribution = readDistributionProperties(distributionFile)
+require(distribution.getProperty("distribution") == distributionName)
+val appVersionName = distribution.getProperty("versionName")
+val appVersionCode = distribution.getProperty("versionCode").toInt()
+val distributionMinSdk = distribution.getProperty("minSdk").toInt()
+val distributionMaxSdk = distribution.getProperty("maxSdk").toInt()
+require(if (distributionName == "main") distributionMinSdk == 36 && distributionMaxSdk == 0
+    else distributionMinSdk == 28 && distributionMaxSdk == 35) { "Invalid distribution SDK range" }
+require(appVersionName.matches(Regex("[0-9]+(?:\\.[0-9]+){2,3}(?:_beta[1-9][0-9]*)?")) && appVersionCode > 0)
+val distributionJson = """{"distribution":"$distributionName","minSdk":$distributionMinSdk${if (distributionMaxSdk > 0) ",\"maxSdk\":$distributionMaxSdk" else ""}}"""
+val distributionSource = "src/distributions/$distributionName"
 
 // Generated only when build inputs change; one UTC identity is shared by embedded metadata and APK names.
 abstract class GenerateBuildStamp : DefaultTask() {
+    @get:org.gradle.api.tasks.Input
+    abstract val distributionMetadata: Property<String>
     @get:org.gradle.api.tasks.InputFiles
     @get:org.gradle.api.tasks.PathSensitive(org.gradle.api.tasks.PathSensitivity.RELATIVE)
     abstract val sourceFiles: ConfigurableFileCollection
@@ -30,13 +51,14 @@ abstract class GenerateBuildStamp : DefaultTask() {
         val stamp = DateTimeFormatter.ofPattern("uuuuMMddHHmmss")
             .withZone(ZoneOffset.UTC).format(Instant.now())
         directory.resolve("build-time-utc.txt").writeText(stamp, Charsets.UTF_8)
-        directory.resolve("distribution.json").writeText(
-            """{"distribution":"main","minSdk":36}""", Charsets.UTF_8)
+        directory.resolve("distribution.json").writeText(distributionMetadata.get(), Charsets.UTF_8)
     }
 }
 val buildStampDirectory = layout.buildDirectory.dir("generated/build-stamp/assets")
 val generateBuildStamp = tasks.register<GenerateBuildStamp>("generateBuildStamp") {
-    sourceFiles.from(fileTree("src/main"), file("build.gradle.kts"), rootProject.file("gradle/libs.versions.toml"),
+    distributionMetadata.set(distributionJson)
+    sourceFiles.from(fileTree("src/main"), fileTree(distributionSource), distributionSelector, distributionFile,
+        file("build.gradle.kts"), rootProject.file("gradle/libs.versions.toml"),
         rootProject.file("gradle.properties"), rootProject.file("build.gradle.kts"), rootProject.file("settings.gradle.kts"))
     outputDirectory.set(buildStampDirectory)
 }
@@ -69,11 +91,13 @@ android {
 
     defaultConfig {
         applicationId = "com.zsz.studyassistant"
-        minSdk = 36
+        minSdk = distributionMinSdk
         targetSdk = 37
-        versionCode = 139
+        versionCode = appVersionCode
         versionName = appVersionName
-        buildConfigField("String", "DISTRIBUTION", "\"main\"")
+        buildConfigField("String", "DISTRIBUTION", "\"$distributionName\"")
+        buildConfigField("int", "SUPPORTED_MAX_SDK", distributionMaxSdk.toString())
+        buildConfigField("String", "SUPPORTED_ANDROID_LABEL", "\"${distribution.getProperty("androidLabel")}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -123,6 +147,11 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    sourceSets.getByName("main") {
+        kotlin.directories += "$distributionSource/java"
+        assets.srcDir("$distributionSource/assets")
     }
 
     packaging {
@@ -182,11 +211,16 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         // These tests read files directly instead of through the runtime classpath.
         // Declare them so README/HTML-only changes invalidate cached test results.
         inputs.files(rootProject.file("README.md"), project.file("build.gradle.kts"),
-            rootProject.fileTree("docs/readme") { include("README*.md") })
+            distributionSelector, distributionFile,
+            rootProject.fileTree("docs/readme") { include("README*.md") },
+            rootProject.fileTree("docs/compatible") { include("README*.md") })
             .withPropertyName("documentationInputs")
             .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
         inputs.dir(layout.projectDirectory.dir("src/main/assets"))
             .withPropertyName("renderAssets")
+            .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+        inputs.dir(layout.projectDirectory.dir("$distributionSource/assets"))
+            .withPropertyName("distributionAssets")
             .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
         outputs.file(layout.buildDirectory.file("identity-work/migration-plan.json"))
             .withPropertyName("identityMigrationPlan")

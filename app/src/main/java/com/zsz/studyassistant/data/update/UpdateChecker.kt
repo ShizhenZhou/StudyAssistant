@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
  *
  * 设计要点：
  *  - 仓库是**公开**的，所以不需要任何 token（未认证 API 限流 60 次/小时，自用足够）。
- *  - 每个 Release 约定**恰好 1 个 APK 附件**（见 README「发布签名」），所以优先挑 `StudyAssistant-*.apk`。
+ *  - 每个 Release 约定**恰好 1 个 APK 附件**（见 README「发布签名」），按发行线优先选择 `StudyAssistant-*.apk` 或 `SACompat-*.apk`。
  *  - **双重校验**：
  *      ① SHA-256：与 GitHub Release API 里 asset 的 `digest` 字段（`sha256:…`）比对；
  *      ② 签名证书：读下载包的签名证书 SHA-256，与**内置的期望指纹**比对 → 防伪造包。
@@ -477,7 +477,8 @@ object UpdateChecker {
         val version = normalizeVersion(tag)
         val assets = root["assets"]!!.jsonArray.mapNotNull { it as? JsonObject }
         val apks = assets.filter { it["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk") == true }
-        val asset = apks.filter { it["name"]!!.jsonPrimitive.content.startsWith("StudyAssistant-") }
+        val apkPrefix = if (tag.startsWith("compat_")) "SACompat-" else "StudyAssistant-"
+        val asset = apks.filter { it["name"]!!.jsonPrimitive.content.startsWith(apkPrefix) }
             .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, tag.trim().removePrefix("compat_").removePrefix("v").removePrefix("V")) }
             ?: apks.firstOrNull() ?: return null
         val name = asset["name"]!!.jsonPrimitive.content

@@ -13,10 +13,19 @@ import local_checks
 import release
 import apk_delta
 import apk_archive_delta
-from release_common import apk_identity, apk_payload, extract_candidate, sha256, validate_manifest
+from release_common import (COMPAT_BRANCH, apk_identity, apk_payload, extract_candidate,
+                            release_branch_allowed, release_tag, version_from_tag, sha256, validate_manifest)
 
 
 class DeliveryTest(unittest.TestCase):
+    def source_profile(self, root, distribution, version):
+        directory = root / "config/distributions"
+        directory.mkdir(parents=True)
+        (root / "config/distribution.properties").write_text("distribution=" + distribution + "\n", encoding="utf-8")
+        profile = (Path(__file__).resolve().parents[2] / f"config/distributions/{distribution}.properties").read_text(encoding="utf-8")
+        profile = "\n".join("versionName=" + version if line.startswith("versionName=") else line for line in profile.splitlines()) + "\n"
+        (directory / f"{distribution}.properties").write_text(profile, encoding="utf-8")
+
     def test_public_asset_failure_uses_one_official_alternate(self):
         from types import SimpleNamespace
         github = release.GitHub()
@@ -57,6 +66,59 @@ class DeliveryTest(unittest.TestCase):
         self.assertEqual(value, validate_manifest(value))
         for extra in ({"jvm": {"tests": 1}}, {"planSha256": "e"*64}):
             with self.assertRaises(ValueError): validate_manifest(dict(value, **extra))
+
+    def test_compat_distribution_is_bound_to_apk_and_never_latest_or_cross_line_delta(self):
+        value = self.manifest()
+        value.update(distribution="compat", minSdk=28, maxSdk=35, version="0.7.4.1", versionCode=135,
+                     candidate="StudyAssistant-0.7.4.1-20261030120000-candidate.apk")
+        self.assertEqual("compat_v0.7.4.1", release_tag(value["version"], "compat"))
+        self.assertEqual("v0.7.4.1", release_tag(value["version"]))
+        self.assertEqual(value["version"], version_from_tag(release_tag(value["version"], "compat")))
+        validate_manifest(value)
+        for fields in (dict(minSdk=36), dict(maxSdk=36), dict(distribution="unknown")):
+            with self.assertRaises(ValueError): validate_manifest(dict(value, **fields))
+        self.assertFalse(release_branch_allowed("main", "beta", "compat"))
+        self.assertFalse(release_branch_allowed(COMPAT_BRANCH, "beta", "main"))
+        self.assertTrue(release_branch_allowed(COMPAT_BRANCH, "stable", "compat"))
+        self.assertEqual("false", release.make_latest(dict(distribution="compat", channel="stable")))
+        self.assertEqual("true", release.make_latest(dict(channel="stable")))
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "compat.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("assets/distribution.json", json.dumps(dict(distribution="compat", minSdk=28, maxSdk=35)))
+            metadata = release.update_manifest(apk, value, value)
+            self.assertEqual(2, metadata["schema"])
+            self.assertEqual("compat", metadata["distribution"])
+            self.assertEqual(35, metadata["maxSdk"])
+            apk.with_name(apk.stem + "-update-manifest.json").write_text(json.dumps(metadata), encoding="utf-8")
+            bases = [apk_delta.read_base(apk)]
+            release.validate_delta_distribution(bases, "compat")
+            with self.assertRaises(release.ReleaseError): release.validate_delta_distribution(bases, "main")
+
+    def test_compat_start_requires_explicit_identity_and_freezes_dispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root / "app").mkdir()
+            self.source_profile(root, "compat", "0.7.4.1")
+            calls = []
+            class GitHub:
+                def api(self, path, value=None, **kwargs):
+                    calls.append((path, value))
+                    return {"workflow_runs": []} if "runs?" in path else None
+            r = release.Release(root, GitHub())
+            def fake_git(*args, **kwargs):
+                values = {("status", "--porcelain"): "", ("branch", "--show-current"): COMPAT_BRANCH,
+                          ("rev-parse", "HEAD"): "a"*40, ("log", "-1", "--format=%s"): "feat: support older Android"}
+                return type("Result", (), {"stdout": values[args].encode(), "returncode": 0})()
+            with patch.object(r, "git", side_effect=fake_git), patch.object(r, "remote", return_value="a"*40):
+                with self.assertRaises(release.ReleaseError): r.start("0.7.4.1")
+                self.assertEqual([], calls)
+                r.start("0.7.4.1", distribution="compat")
+                r.start("0.7.4.1", distribution="compat")
+            dispatches = [v for p, v in calls if p.endswith("/dispatches")]
+            self.assertEqual(1, len(dispatches))
+            self.assertEqual("compat", dispatches[0]["inputs"]["release_distribution"])
+            self.assertEqual("stable", dispatches[0]["inputs"]["release_channel"])
+            self.assertIn(("git/ref/tags/compat_v0.7.4.1", None), calls)
 
     def test_beta_candidate_and_signed_apk_keep_number_but_update_manifest_uses_numeric_version(self):
         base = "0.6.9.9"
@@ -307,7 +369,7 @@ class DeliveryTest(unittest.TestCase):
     def test_start_requires_merged_main_and_dispatches_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / "app").mkdir()
-            (root / "app/build.gradle.kts").write_text('val appVersionName = "0.6.8.7"')
+            self.source_profile(root, "main", "0.6.8.7")
             calls = []
             class GitHub:
                 def api(self, path, value=None, **kwargs):

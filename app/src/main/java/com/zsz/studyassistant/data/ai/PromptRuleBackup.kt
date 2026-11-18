@@ -53,7 +53,7 @@ internal object PromptRuleBackupCodec {
     }
 
     fun readBounded(input: InputStream): ByteArray {
-        val bytes = input.readNBytes(MAX_BYTES + 1)
+        val bytes = input.readAtMost(MAX_BYTES + 1)
         if (bytes.size > MAX_BYTES) throw PromptBackupException("promptBackup.tooLarge")
         return bytes
     }

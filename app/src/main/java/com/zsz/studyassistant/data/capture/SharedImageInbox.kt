@@ -34,8 +34,8 @@ class SharedImageInbox(private val context: Context, private val scope: Coroutin
         try {
             if (loading || files.isNotEmpty()) { errorKey = "share.pending"; return }
             val uris = when (intent.action) {
-                Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java))
-                else -> intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+                Intent.ACTION_SEND -> listOfNotNull(androidx.core.content.IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+                else -> androidx.core.content.IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
             }.ifEmpty {
                 val clip = intent.clipData
                 if (clip == null || clip.itemCount > 2) emptyList()

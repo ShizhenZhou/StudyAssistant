@@ -21,7 +21,7 @@ object ReminderScheduler {
 
     fun isEnabled(c: Context): Boolean = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("notify_enabled", false)
     fun canNotify(c: Context): Boolean =
-        ContextCompat.checkSelfPermission(c, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
+        (android.os.Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(c, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
             androidx.core.app.NotificationManagerCompat.from(c).areNotificationsEnabled() &&
             c.getSystemService(NotificationManager::class.java)?.getNotificationChannel(CHANNEL_ID)?.importance
                 ?.let { it != NotificationManager.IMPORTANCE_NONE } == true
@@ -60,7 +60,7 @@ object ReminderScheduler {
             val showIntent = NotificationIntents.alarmClock(c)
             // Android 12+ 精确闹钟需要 SCHEDULE_EXACT_ALARM（14+ 起默认不授予）。
             // 没拿到就退化为 setAndAllowWhileIdle：不保证分秒不差，但 Doze 下也会触发，至少不漏提醒。
-            val canExact = am.canScheduleExactAlarms()
+            val canExact = android.os.Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
             if (canExact) {
                 am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, showIntent), pending(c))
             } else {
@@ -83,7 +83,7 @@ class ReminderReceiver : BroadcastReceiver() {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             try { kotlinx.coroutines.withTimeout(7000) {
                 if (!ReminderScheduler.isEnabled(c)) return@withTimeout
-                if (ContextCompat.checkSelfPermission(c,
+                if (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(c,
                         Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return@withTimeout
                 val day = CalendarDay.now()
                 val dao = AppDatabase.get(c).questionDao()

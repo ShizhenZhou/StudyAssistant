@@ -85,7 +85,7 @@ class NativePdfExportTest {
                     original.edit(filename = "recovery-fixture", format = ConversationExportFormat.PDF)
                     original.render()
                 }
-                awaitMain("rendering phase") { original.session?.phase == ExportPhase.RENDERING }
+                awaitMain("render requested") { original.session?.phase == ExportPhase.RENDERING }
                 scenario.onActivity {
                     original.prepared(checkNotNull(original.session).id,
                         ConversationExportResult(fixture, listOf(source), "recovery-fixture", ConversationExportFormat.PDF))
@@ -93,7 +93,7 @@ class NativePdfExportTest {
                 awaitMain("durable PDF") { original.session?.phase == ExportPhase.READY }
                 lateinit var session: ConversationExportSession
                 var hostMounted = false
-                runBlocking { withContext(Dispatchers.Main) { assertTrue(original.picking()) } }
+                runBlocking(Dispatchers.Main) { assertTrue(original.picking()) }
                 scenario.onActivity { activity ->
                     session = checkNotNull(original.session)
                     activity.setContent { MaterialTheme {
@@ -137,7 +137,7 @@ class NativePdfExportTest {
                 PdfRenderer(checkNotNull(context.contentResolver.openFileDescriptor(uri, "r"))).use { pdf ->
                     assertTrue(pdf.pageCount > 0)
                     val text = (0 until pdf.pageCount).joinToString("") { index -> pdf.openPage(index).use { page ->
-                        page.textContents.joinToString("") { it.text }
+                        Api35PdfText.contents(page).joinToString("")
                     } }.replace(Regex("[\\s\\p{Z}]"), "")
                     assertTrue(text.contains("RECOVERQUESTION"))
                     assertTrue(text.contains("RECOVERANSWER"))
@@ -162,7 +162,7 @@ class NativePdfExportTest {
             val chunks=JSONArray()
             val texts=(0 until pdf.pageCount).map { index -> pdf.openPage(index).use { page ->
                 assertEquals(595,page.width);assertEquals(842,page.height)
-                val contents=page.textContents.map { it.text }
+                val contents=Api35PdfText.contents(page)
                 chunks.put(JSONArray(contents))
                 contents.joinToString("\n")
             } }
@@ -347,9 +347,15 @@ class NativePdfExportTest {
                                     put(MediaStore.Downloads.MIME_TYPE,"application/pdf")
                                     put(MediaStore.Downloads.IS_PENDING,1)
                                 }
-                                val uri=checkNotNull(context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values))
+                                val legacyDestination=File(context.cacheDir,"native-pdf-check.pdf")
+                                val uri=if(android.os.Build.VERSION.SDK_INT>=29)
+                                    checkNotNull(context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values))
+                                else android.net.Uri.fromFile(legacyDestination)
                                 try { saveConversationExport(context,proof,uri) }
-                                finally { context.contentResolver.delete(uri,null,null) }
+                                finally {
+                                    if(android.os.Build.VERSION.SDK_INT>=29) context.contentResolver.delete(uri,null,null)
+                                    else legacyDestination.delete()
+                                }
                                 proof.directory.deleteRecursively()
 
                                 // Production PDF renderer is hidden and one dp tall. Viewport/font zoom
@@ -403,4 +409,10 @@ class NativePdfExportTest {
             failure?.let { throw AssertionError("PDF export failed",it) }
         }
     }
+}
+
+// Keep API35-only return types out of JUnit's reflective scan on Android 9.
+@androidx.annotation.RequiresApi(35)
+private object Api35PdfText {
+    fun contents(page: PdfRenderer.Page): List<String> = page.textContents.map { it.text }
 }

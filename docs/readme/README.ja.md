@@ -16,6 +16,9 @@ zsz が DeepSeek と GPT の支援で開発。
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [互換版 v0.7.5.2 をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
 - [Android 9–15 互換ブランチ（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
+- [互換版の説明と更新履歴](../compatible/README.ja.md)
+
+この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 

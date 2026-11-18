@@ -77,8 +77,7 @@ internal class BackupStagedMerge(
                 check()
                 val bytes=source.rawQuery("SELECT substr(CAST(${column.name} AS BLOB),?,?) FROM $tableName WHERE __row=?",arrayOf((offset+1).toString(),minOf(BackupTree.CHUNK.toLong(),length-offset).toString(),sourceRow.toString())).use { if(!it.moveToFirst()) BackupTree.invalid(); it.getBlob(0) }
                 if(bytes.isEmpty()) BackupTree.invalid()
-                // Keep unfinished text as BLOB until the final cast below. This also lets
-                // title-cache triggers skip JSON parsing on every partial conversation chunk.
+                // Keep unfinished UTF-8 text as BLOB until the final cast below.
                 target.execSQL("UPDATE $tableName SET ${column.name}=CAST(CAST(${column.name} AS BLOB)||? AS BLOB) WHERE rowid=?",arrayOf(bytes,targetRow))
                 offset+=bytes.size
             }
@@ -121,7 +120,11 @@ internal class BackupStagedMerge(
             while(rows.moveToNext()) {
                 check(); val id=rows.getString(1); if(exists("solve_sessions",id)) continue
                 val targetRow=insert("solve_sessions",linkedMapOf("id" to id,"createdAt" to rows.getLong(2),"updatedAt" to rows.getLong(3),"source" to "","text" to "","answer" to "","conversationJson" to null,"imageBytes" to null,"imagesJson" to null,"savedQuestionId" to id.takeIf { exists("questions",id) }))
-                copyFields("solve_sessions",rows.getLong(0),targetRow,setOf("id","savedQuestionId")); sessions++; images+=rows.getInt(4)
+                copyFields("solve_sessions",rows.getLong(0),targetRow,setOf("id","savedQuestionId"))
+                // Bak4's fixed whitelist excludes the cache. Hydrate once, after every
+                // conversation chunk is present, inside the same restore transaction.
+                DatabasePlatform.rebuildTitle(target,targetRow,check)
+                sessions++; images+=rows.getInt(4)
             }
         }
         source.rawQuery("SELECT id FROM questions ORDER BY __row",null).use { rows ->

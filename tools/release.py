@@ -19,7 +19,9 @@ import zipfile
 import tempfile
 import apk_delta
 import apk_archive_delta
-from release_common import VERSION, apk_identity, apk_payload, extract_candidate, numeric_version, sha256, validate_manifest
+from distribution_config import source_distribution
+from release_common import (VERSION, COMPAT_BRANCH, apk_identity, apk_payload, apk_distribution,
+                            distribution_identity, release_branch_allowed, release_tag, version_from_tag, extract_candidate, numeric_version, sha256, validate_manifest)
 from verification import (make_plan, validate_ci_evidence,
                           validate_promotion, pre_main_gate)
 
@@ -59,8 +61,23 @@ def update_manifest(apk, identity, candidate):
         raise ReleaseError("Signed APK identity differs from the CI manifest.")
     # Existing clients compare the normalized numeric release version; the APK
     # identity retains its suffix and GitHub prerelease/channel carries the channel.
-    return dict(schema=1, version=numeric_version(identity["version"]), versionCode=identity["versionCode"],
+    distribution = distribution_identity(candidate)
+    if distribution and apk_distribution(apk) != distribution:
+        raise ReleaseError("Signed APK distribution differs from the CI manifest.")
+    return dict(schema=2 if distribution else 1, **distribution,
+                version=numeric_version(identity["version"]), versionCode=identity["versionCode"],
                 minSdk=identity["minSdk"], apkName=apk.name, apkSha256=sha256(apk), apkSize=apk.stat().st_size)
+
+def validate_delta_distribution(bases, distribution):
+    for base in bases:
+        path = Path(base["path"])
+        metadata = json.loads(path.with_name(path.stem + "-update-manifest.json").read_text(encoding="utf-8"))
+        distribution_identity(metadata)
+        if metadata.get("distribution", "main") != distribution:
+            raise ReleaseError("Delta bases must belong to the target distribution")
+
+def make_latest(state):
+    return "false" if state.get("channel") == "beta" or state.get("distribution") == "compat" else "true"
 
 def release_body(notes, metadata):
     """Keep readable notes intact; old clients retain the independent schema-1 asset."""
@@ -230,7 +247,7 @@ def update_notes(text):
 
 def recoverable_draft(release, state, body):
     return bool(state.get("draftAttempted") and release.get("draft") and
-        release.get("tag_name") == "v" + state["version"] and release.get("target_commitish") == state["commit"] and
+        release.get("tag_name") == release_tag(state["version"], state.get("distribution", "main")) and release.get("target_commitish") == state["commit"] and
         release.get("body") == body and not release.get("assets"))
 
 def local_artifact(root, relative):
@@ -340,7 +357,7 @@ class Release:
             current = self.github.api(f"releases/{release['id']}")
             if (current.get("id") != state["releaseId"] or current.get("draft") or
                 bool(current.get("prerelease")) != (self.state.get("channel", "stable") == "beta") or
-                current.get("tag_name") != "v"+self.state["version"]):
+                current.get("tag_name") != release_tag(self.state["version"], self.state.get("distribution", "main"))):
                 raise ReleaseError("Replacement release identity changed")
             assets = current["assets"]
             names = [a["name"] for a in assets]
@@ -361,7 +378,7 @@ class Release:
             if len(data) != path.stat().st_size or hashlib.sha256(data).hexdigest() != sha256(path):
                 raise ReleaseError("Replacement public download mismatch")
         def upload(path):
-            self.github.call("release", "upload", "v"+self.state["version"], str(path), "--repo", REPO)
+            self.github.call("release", "upload", release_tag(self.state["version"], self.state.get("distribution", "main")), str(path), "--repo", REPO)
         apk = next(path for name,path in files.items() if name.endswith(".apk"))
         if apk.name in old and (old[apk.name]["digest"] != "sha256:"+sha256(apk)):
             raise ReleaseError("Replacement APK name collides with the original")
@@ -451,12 +468,13 @@ class Release:
             return data
         if metadata_assets[0]["size"] > 65536: raise ReleaseError("Oversized public metadata")
         metadata = json.loads(asset_bytes(metadata_assets[0]))
+        distribution_identity(metadata)
         asset_names = [a["name"] for a in assets]
         if len(asset_names) != len(set(asset_names)) or set(asset_names) != published_asset_names(metadata):
             raise ReleaseError("Unexpected original release layout")
         apk_assets = [a for a in assets if a["name"] == metadata["apkName"]]
-        if (len(apk_assets) != 1 or metadata.get("schema") != 1 or
-            numeric_version(published["tag_name"].removeprefix("v")) != metadata["version"] or
+        if (len(apk_assets) != 1 or metadata.get("schema") != (2 if metadata.get("distribution") == "compat" else 1) or
+            numeric_version(version_from_tag(published["tag_name"])) != metadata["version"] or
             (is_beta and metadata.get("channel") != "beta")):
             raise ReleaseError("Published APK identity mismatch")
         apk = asset_bytes(apk_assets[0])
@@ -469,7 +487,7 @@ class Release:
             for path in (self.root / ".local-notes/release-state").glob("*.json"):
                 state = json.loads(path.read_text(encoding="utf-8"))
                 if (state.get("published") is True and state.get("phase") == "archived" and
-                    state.get("releaseId") == published["id"] and state.get("version") == published["tag_name"].removeprefix("v") and
+                    state.get("releaseId") == published["id"] and state.get("version") == version_from_tag(published["tag_name"]) and
                     state.get("signedSha256") == apk_sha):
                     matches.append(dict(sourceCommit=state["commit"], runId=state["runId"]))
             unique = {(item["sourceCommit"],item["runId"]) for item in matches}
@@ -480,7 +498,7 @@ class Release:
         if not re.fullmatch(r"[0-9a-f]{40}", commit) or type(run_id) is not int or run_id < 1:
             raise ReleaseError("Invalid source provenance")
         run = self.github.api(f"actions/runs/{run_id}")
-        if (run.get("head_sha") != commit or run.get("conclusion") != "success" or run.get("head_branch") not in ("main", "Develop") or
+        if (run.get("head_sha") != commit or run.get("conclusion") != "success" or run.get("head_branch") not in ("main", "Develop", COMPAT_BRANCH) or
             run.get("event") != "workflow_dispatch" or not run.get("display_title", "").startswith("release:") or
             not run.get("path", "").startswith(".github/workflows/" + WORKFLOW)):
             raise ReleaseError("Published source lacks successful release CI")
@@ -494,9 +512,10 @@ class Release:
         with tempfile.TemporaryDirectory(dir=folder) as tmp:
             manifest, _ = extract_candidate(artifact("release-candidate"), Path(tmp) / "candidate")
             if (manifest["schema"] not in (2, 3) or manifest["commit"] != commit or
-                published["tag_name"] != "v" + manifest["version"] or
+                published["tag_name"] != release_tag(manifest["version"], manifest.get("distribution", "main")) or
                 metadata["version"] != numeric_version(manifest["version"]) or
                 any(metadata.get(k) != manifest.get(k) for k in ("versionCode", "minSdk")) or
+                distribution_identity(metadata) != distribution_identity(manifest) or
                 apk_payload(io.BytesIO(apk)) != (manifest["payloadSha256"], manifest["buildUtc"])):
                 raise ReleaseError("Published APK does not match CI payload/source")
             if manifest["schema"] == 2:  # Read-only compatibility for archived releases.
@@ -504,7 +523,7 @@ class Release:
                 validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
                 self.validate_run_promotion(run, evidence)
             else:
-                if (run.get("head_branch") != "main" and not (is_beta and run.get("head_branch") == "Develop")) or required_jobs(self.run_jobs(run_id), []).get("build", {}).get("conclusion") != "success":
+                if not release_branch_allowed(run.get("head_branch"), "beta" if is_beta else "stable", manifest.get("distribution", "main")) or required_jobs(self.run_jobs(run_id), []).get("build", {}).get("conclusion") != "success":
                     raise ReleaseError("Published build did not succeed")
         if self.git("merge-base", "--is-ancestor", commit, "HEAD", check=False).returncode:
             raise ReleaseError("Published source is not an ancestor")
@@ -545,27 +564,32 @@ class Release:
         self.state['verificationBaselineReleaseId']=published['id'];self.save()
         return commit
 
-    def start(self, version, replacement=False, channel="stable", mandatory=None, delta_base=None, legacy_delta_base=None):
+    def start(self, version, replacement=False, channel="stable", mandatory=None, delta_base=None, legacy_delta_base=None, distribution="main"):
         # Merge/review happens before this command; it never starts tests or merges branches.
         if self.git("status", "--porcelain").stdout.strip():
             raise ReleaseError("Commit/review local changes first.")
         branch = self.git("branch", "--show-current").stdout.decode().strip()
-        if branch != "main" and not (branch == "Develop" and channel == "beta"):
-            raise ReleaseError("Stable releases require main; explicit beta releases may use Develop.")
+        if not release_branch_allowed(branch, channel, distribution):
+            raise ReleaseError("Distribution/channel requires its exact authorized source branch.")
         commit = self.git("rev-parse", "HEAD").stdout.decode().strip()
         if self.remote(branch) != commit:
             raise ReleaseError("Push the reviewed source branch before requesting its build.")
         if channel not in ("stable", "beta"): raise ReleaseError("Unknown release channel")
         mandatory_release(dict(channel=channel, mandatory=False if mandatory is None else mandatory))
         if numeric_version(version) != version and channel != "beta": raise ReleaseError("Beta versions require the beta channel")
-        source = (self.root / "app/build.gradle.kts").read_text(encoding="utf-8")
-        if re.search(r'val appVersionName = "([^" ]+)"', source)[1] != version:
+        profile = source_distribution(self.root)
+        if profile["distribution"] != distribution:
+            raise ReleaseError("Requested distribution differs from the checked-in source selector.")
+        if profile["versionName"] != version:
             raise ReleaseError("Requested version differs from source.")
         self.bind(version, commit)
         if self.state.get("testBeforeMain"):
             raise ReleaseError("Retired staged-release state; do not resume its promotion workflow.")
         if self.state.get("channel", channel) != channel:
             raise ReleaseError("Resume with the original release channel")
+        if self.state.get("distribution", "main" if self.state.get("dispatchAttempted") else distribution) != distribution:
+            raise ReleaseError("Resume with the original release distribution")
+        if distribution == "compat": self.state["distribution"] = distribution
         bind_mandatory(self.state, mandatory)
         if delta_base is not None or legacy_delta_base is not None:
             paths = (delta_base if isinstance(delta_base, (list, tuple)) else [delta_base]) if delta_base is not None else []
@@ -574,6 +598,7 @@ class Release:
             legacy_codes = sorted(base["baseVersionCode"] for base in old_bases)
             bases = sorted([apk_delta.read_base(path) for path in paths] + old_bases, key=lambda base: base["baseVersionCode"])
             if not 0 < len(bases) <= 8: raise ReleaseError("Support one to eight exact delta bases")
+            validate_delta_distribution(bases, distribution)
             if len({base["baseVersionCode"] for base in bases}) != len(bases):
                 raise ReleaseError("Specify only one exact delta base per versionCode")
             previous = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
@@ -586,11 +611,11 @@ class Release:
         if self.state.get("replacementRequested") and not replacement:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
         if self.state.get("dispatchAttempted"): return self.status()
-        tag = self.github.api("git/ref/tags/v" + version, missing=True)
+        tag = self.github.api("git/ref/tags/" + release_tag(version, distribution), missing=True)
         if tag and not replacement: raise ReleaseError("Tag exists; replacement must be explicitly requested.")
         if replacement:
             if not tag: raise ReleaseError("Replacement requires an existing immutable tag")
-            previous = self.github.api("releases/tags/v" + version, missing=True)
+            previous = self.github.api("releases/tags/" + release_tag(version, distribution), missing=True)
             if not previous or previous.get("draft") or bool(previous.get("prerelease")) != (channel == "beta"):
                 raise ReleaseError("Replacement requires an existing public release in the same channel")
             self.state["replacementRequested"] = True
@@ -602,6 +627,7 @@ class Release:
         self.save()  # Never blindly dispatch again after an ambiguous network response.
         inputs = {"expected_sha":commit, "run_description":run_description(version, message)}
         if branch == "Develop": inputs["release_channel"] = "beta"
+        if distribution == "compat": inputs.update(release_channel=channel, release_distribution=distribution)
         self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":branch, "inputs":inputs})
         return self.status()
     def status(self):
@@ -693,7 +719,7 @@ class Release:
         return metadata
     def verify(self, run_id, replacement=False):
         run = self.github.api(f"actions/runs/{run_id}")
-        if run["event"] != "workflow_dispatch" or run["head_branch"] not in ("main", "Develop") or run["conclusion"] != "success" or not run.get("display_title", "").startswith("release:"):
+        if run["event"] != "workflow_dispatch" or run["head_branch"] not in ("main", "Develop", COMPAT_BRANCH) or run["conclusion"] != "success" or not run.get("display_title", "").startswith("release:"):
             raise ReleaseError("A successful release-candidate run is required.")
         jobs = []
         page = 1
@@ -738,14 +764,17 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","mandatory","deltaBase","deltaBases","legacyDeltaBaseCodes","dispatchBranch","fullVerification") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","distribution","mandatory","deltaBase","deltaBases","legacyDeltaBaseCodes","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
             branch = run.get("head_branch")
             if numeric_version(manifest["version"]) != manifest["version"] and self.state.get("channel") != "beta":
                 raise ReleaseError("Beta candidates require an explicitly requested beta release")
-            if (branch != "main" and not (branch == "Develop" and self.state.get("channel") == "beta" and
-                    self.state.get("dispatchBranch") == "Develop")) or run.get("path", "").split("@")[0] != ".github/workflows/" + WORKFLOW:
-                raise ReleaseError("Candidate requires main or an explicitly requested Develop beta build")
+            distribution = manifest.get("distribution", "main")
+            if (not release_branch_allowed(branch, self.state.get("channel", "stable"), distribution) or
+                    self.state.get("distribution", "main") != distribution or
+                    (branch != "main" and self.state.get("dispatchBranch") != branch) or
+                    run.get("path", "").split("@")[0] != ".github/workflows/" + WORKFLOW):
+                raise ReleaseError("Candidate requires an explicitly requested matching distribution build")
             latest = required_jobs(jobs, [])
             if latest.get("build", {}).get("conclusion") != "success":
                 raise ReleaseError("Release build did not succeed")
@@ -763,7 +792,7 @@ class Release:
             if base:
                 release_id = self.state.get("verificationBaselineReleaseId")
                 previous = self.github.api(f"releases/{release_id}") if release_id else self.github.api("releases/latest", missing=True)
-                if (replacement or self.state.get('replacement')) and previous and previous.get('tag_name')=='v'+manifest['version']:
+                if (replacement or self.state.get('replacement')) and previous and previous.get('tag_name')==release_tag(manifest['version'], manifest.get('distribution', 'main')):
                     approved_base=self.replacement_baseline(previous,base)
                 else:
                     approved_base = self.published_baseline(previous) if previous else None
@@ -790,8 +819,11 @@ class Release:
             folder.mkdir(parents=True)
             command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.root / "tools/sign-release.ps1",
                 "-InApk", candidate, "-OutDir", folder], root=self.root, log=folder / "signing.log", timeout=120)
-            signed = folder / f"StudyAssistant-{manifest['version']}-{manifest['buildUtc']}.apk"
-            public_path = signed.with_name(published_apk_name(manifest['version'], manifest['buildUtc'], mandatory_release(self.state)))
+            compat = manifest.get("distribution") == "compat"
+            prefix = "SACompat" if compat else "StudyAssistant"
+            signed = folder / f"{prefix}-{manifest['version']}-{manifest['buildUtc']}.apk"
+            name = (signed.stem + ("-ENF" if mandatory_release(self.state) else "") + ".apk") if compat else published_apk_name(manifest['version'], manifest['buildUtc'], mandatory_release(self.state))
+            public_path = signed.with_name(name)
             if public_path != signed:
                 signed.rename(public_path)
                 signed = public_path
@@ -799,6 +831,7 @@ class Release:
             self.state.update(signedPath=str(signed.relative_to(self.root)), signedSha256=sha256(signed), phase="signed")
             self.save()
         bases = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
+        if manifest.get("distribution") == "compat": validate_delta_distribution(bases, "compat")
         if bases:
             if not self.state.get("deltas"):
                 self.state["deltas"] = build_deltas(bases, signed, manifest["versionCode"],
@@ -821,9 +854,9 @@ class Release:
         self.verify(run_id,replacement=True) if replacement else self.verify(run_id)
         manifest = self.state["manifest"]
         version = manifest["version"]
-        tag = "v" + version
+        tag = release_tag(version, self.state.get("distribution", "main"))
         signed = local_artifact(self.root, self.state["signedPath"])
-        body = update_notes((Path(notes) if notes else self.root / f".local-notes/releases/RELEASE-v{version}.md").read_text(encoding="utf-8"))
+        body = update_notes((Path(notes) if notes else self.root / f".local-notes/releases/RELEASE-{tag}.md").read_text(encoding="utf-8"))
         import importlib.util
         spec = importlib.util.spec_from_file_location("release_secret_scan", self.root / "tools/check-secrets.py")
         scanner = importlib.util.module_from_spec(spec); spec.loader.exec_module(scanner)
@@ -900,7 +933,9 @@ class Release:
         if replacement:
             assets=self.replace_assets(release,files)
             # Body changes only after all new public assets have passed download verification.
-            release=self.github.api(f"releases/{release['id']}",{"body":body},method="PATCH")
+            changes = {"body": body}
+            if self.state.get("distribution") == "compat": changes["make_latest"] = "false"
+            release=self.github.api(f"releases/{release['id']}",changes,method="PATCH")
         else:
             validate_release_assets(assets, files)
         for name, path in (() if replacement else files.items()):
@@ -912,7 +947,7 @@ class Release:
                 validate_release_assets(assets, files)
         validate_release_assets(assets, files, complete=True)
         if release["draft"]:
-            release = self.github.api(f"releases/{release['id']}", {"body":body,"draft":False,"prerelease":channel == "beta","make_latest":"false" if channel == "beta" else "true"}, method="PATCH")
+            release = self.github.api(f"releases/{release['id']}", {"body":body,"draft":False,"prerelease":channel == "beta","make_latest":make_latest(self.state)}, method="PATCH")
         self.state.update(published=True, phase="published", assetId=next(a["id"] for a in assets if a["name"] == signed.name)); self.save()
         archives = {}
         for asset in assets:
@@ -936,6 +971,7 @@ def main():
         item = sub.add_parser(operation); item.add_argument("--version", required=True)
         if operation == "start": item.add_argument("--replace",action="store_true",help="Explicitly prepare replacement CI for an existing version; preserves its tag")
         if operation == "start": item.add_argument("--channel", choices=("stable", "beta"), default="stable", help="Beta is an optional GitHub prerelease and never latest")
+        if operation == "start": item.add_argument("--distribution", choices=("main", "compat"), default="main", help="Explicit compatibility branch identity; never latest")
         if operation == "start": item.add_argument("--mandatory", action="store_true", default=None, help="Explicit stable-only forced update; adds -ENF to the APK filename")
         if operation == "start": item.add_argument("--delta-base", type=Path, action="append", help="Exact archived stable/beta APK with companion manifest; repeat for multiple versionCodes")
         if operation == "start": item.add_argument("--legacy-delta-base", type=Path, action="append", help="Explicit exception: build an old-format patch for this exact base instead of APK-aware")
@@ -947,7 +983,7 @@ def main():
     args = parser.parse_args()
     coordinator = Release()
     try:
-        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel,mandatory=args.mandatory,delta_base=args.delta_base,legacy_delta_base=args.legacy_delta_base)
+        if args.operation == "start": result = coordinator.start(args.version,replacement=args.replace,channel=args.channel,mandatory=args.mandatory,delta_base=args.delta_base,legacy_delta_base=args.legacy_delta_base,distribution=args.distribution)
         elif args.operation == "status":
             result=coordinator.load_status(args.version,args.run)
         elif args.operation == "verify": result = coordinator.verify(args.run)

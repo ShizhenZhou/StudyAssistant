@@ -16,6 +16,9 @@
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
 - **Android 9–15** · [下載相容版本 v0.7.5.2](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
 - [Android 9–15 相容分支（Compatible）](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
+- [相容版說明與更新記錄](../compatible/README.zh-TW.md)
+
+本文是兩發行線共用入口；下方技術參數及歷史記錄以主線為準。相容版的系統範圍和獨立更新彙總見上方說明。
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
