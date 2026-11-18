@@ -14,7 +14,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.1)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.1)
+- **Android 9–15** · [Download the compatible release (v0.7.5.2)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.2)
 - [Android 9–15 compatibility branch (Compatible)](https://github.com/ShizhenZhou/StudyAssistant/tree/Compatible)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
