@@ -599,6 +599,8 @@ window.thinkText = {};       // 每个气泡的思考原文（收起时 body 被
 window.thinkDone = {};       // 每个气泡的思考是否已结束（决定标题文案）
 window.thinkFirstKey = null; // 会话标识：换会话时清空上面的状态，避免旧下标串味
 function msgKey(m){
+  // Native revisions cover all presentation fields. Old/export payloads keep the fallback.
+  if(m.renderRevision !== undefined && m.renderRevision !== null) return String(m.renderRevision);
   var imgs = (m.images && m.images.length) ? m.images.length : 0;
   var imageKey = (m.images||[]).map(function(image){return image.indexOf('file:///android_asset/session-image/')===0?image:image.length;}).join(',');
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新

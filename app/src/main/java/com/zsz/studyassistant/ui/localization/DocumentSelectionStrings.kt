@@ -1,6 +1,8 @@
 package com.zsz.studyassistant.ui
 
 internal val DOCUMENT_SELECTION_ZH = mapOf(
+    "documentSelection.details" to "附件详情",
+    "documentSelection.edit" to "查看或修改内容",
     "documentSelection.pdfHint" to "选页保留正文文字和图片，不包含批注或交互表单；需要这些内容时请选择全部或先将其合并到页面正文。",
     "document.xlsxTooLarge" to "工作簿展开后的内容过大（单个 XML 上限 8 MiB，累计上限 32 MiB）。请减少内容或拆分文件。",
     "documentSelection.sheetLimit" to "最多单独选择 256 个工作表，名称最长 128 个字符。也可直接选择全部；若要从较多工作表中挑选，请先清空选择。",
@@ -42,6 +44,8 @@ internal val DOCUMENT_SELECTION_ZH = mapOf(
 )
 
 internal val DOCUMENT_SELECTION_EN = mapOf(
+    "documentSelection.details" to "Attachment details",
+    "documentSelection.edit" to "View or edit selection",
     "documentSelection.pdfHint" to "Selected pages retain text and images, but omit annotations and interactive forms. Choose All or flatten those elements into the page first if needed.",
     "document.xlsxTooLarge" to "The expanded workbook content is too large (8 MiB per XML part, 32 MiB total). Reduce its content or split the file.",
     "documentSelection.sheetLimit" to "Select up to 256 individual sheets with names up to 128 characters, or choose All. To pick from a larger workbook, clear the selection first.",
@@ -83,6 +87,8 @@ internal val DOCUMENT_SELECTION_EN = mapOf(
 )
 
 internal val DOCUMENT_SELECTION_JA = mapOf(
+    "documentSelection.details" to "添付ファイルの詳細",
+    "documentSelection.edit" to "内容の確認・変更",
     "documentSelection.pdfHint" to "選択ページの本文と画像は保持しますが、注釈や入力フォームは含めません。必要な場合は全ページを選ぶか、先にページ本文に統合してください。",
     "document.xlsxTooLarge" to "展開後のブックが大きすぎます（XML ごとに 8 MiB、累計 32 MiB まで）。内容を減らすか、ファイルを分割してください。",
     "documentSelection.sheetLimit" to "個別に選べるシートは 256 枚まで、名前は 128 文字までです。「すべて」も選べます。多くのシートから選ぶ場合は、先に選択を解除してください。",
@@ -124,6 +130,8 @@ internal val DOCUMENT_SELECTION_JA = mapOf(
 )
 
 internal val DOCUMENT_SELECTION_KO = mapOf(
+    "documentSelection.details" to "첨부 파일 상세 정보",
+    "documentSelection.edit" to "내용 확인 및 변경",
     "documentSelection.pdfHint" to "선택한 페이지의 본문과 이미지는 유지하지만 주석과 대화형 양식은 포함하지 않습니다. 필요하면 전체를 선택하거나 먼저 본문에 병합하세요.",
     "document.xlsxTooLarge" to "압축을 푼 통합 문서 내용이 너무 큽니다(XML당 8 MiB, 전체 32 MiB 제한). 내용을 줄이거나 파일을 나누세요.",
     "documentSelection.sheetLimit" to "이름이 128자 이내인 시트를 최대 256개까지 개별 선택하거나 전체를 선택할 수 있습니다. 더 큰 문서에서 고르려면 먼저 선택을 해제하세요.",

@@ -393,6 +393,7 @@ fun ConversationWebView(
 internal class ConversationPayload(private val images: ConversationImageStore? = null) {
     private var previous: List<ChatMsg> = emptyList()
     private var options: String? = null
+    private var revision = 0L
     fun reset() { previous = emptyList(); options = null; images?.clear() }
     fun javascript(messages: List<ChatMsg>, selection: String, labels: String,
                    dark: Boolean, scale: Float, thinkPref: String): String? {
@@ -400,7 +401,8 @@ internal class ConversationPayload(private val images: ConversationImageStore? =
         while (prefix < previous.size && prefix < messages.size && previous[prefix] == messages[prefix]) prefix++
         val args = "$selection, $labels, $dark, $scale, ${JSONObject.quote(thinkPref)}"
         if (prefix == previous.size && prefix == messages.size && options == args) return null
-        val tail = buildMessagesJson((images?.messages(messages) ?: messages).drop(prefix))
+        val changed = (images?.messages(messages) ?: messages).drop(prefix)
+        val tail = buildMessagesJson(changed, List(changed.size) { (++revision).toString() })
         previous = messages.toList()
         options = args
         return "patchMessages($prefix, $tail, $args);"
@@ -447,9 +449,10 @@ private class ResetOnFocusWebView(context: android.content.Context) : Conversati
     }
 }
 
-internal fun buildMessagesJson(messages: List<ChatMsg>): String = JSONArray().apply {
-    messages.forEach { m ->
+internal fun buildMessagesJson(messages: List<ChatMsg>, revisions: List<String>? = null): String = JSONArray().apply {
+    messages.forEachIndexed { index, m ->
         put(JSONObject().put("role", m.role).put("content", m.content).put("images", JSONArray(m.images))
+            .put("renderRevision", revisions?.get(index))
             .put("thinking", m.thinking ?: JSONObject.NULL).put("thinkingOpen", m.thinkingOpen)
             .put("thinkingDone", m.thinkingDone).put("quotedText", m.quotedText ?: JSONObject.NULL)
             .put("sourcesLabel", m.sourcesLabel)

@@ -2,8 +2,82 @@ package com.zsz.studyassistant.data
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.coroutines.launch
 
 class StreamCompletionTest {
+    @Test fun cancellingPreparationRetainsRequestWithoutSendingIt() = kotlinx.coroutines.runBlocking {
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var retained: String? = null
+        var sent = false
+        val job = launch {
+            SolveRequestLifecycle().prepareRetainingOnCancel(
+                prepare = { started.complete(Unit); release.await(); "prepared request" },
+                retain = { retained = it })
+            sent = true
+        }
+        started.await()
+        job.cancel()
+        release.complete(Unit)
+        job.join()
+        assertEquals("prepared request", retained)
+        assertFalse(sent)
+    }
+    @Test fun imageReferencesSurviveRestartButNotExpiryAccountOrDamage() = kotlinx.coroutines.runBlocking {
+        var stored: String? = null
+        var now = 1000L
+        var uploads = 0
+        val path = java.io.File("synthetic-image-reference-cache")
+        fun cache() = ReusableImageFiles(clock = { now }, readState = { stored }, writeState = { _, text -> stored = text }) { _, _, _ ->
+            uploads++
+            DeepSeekFile("file-fixture-$uploads", now + 86400)
+        }
+        val parts = kotlinx.serialization.json.Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
+        val original = listOf(DeepSeekMessage("user", parts))
+        val first = cache()
+        assertEquals(original, first.prepare(original, "account-a", path))
+        val uploaded = first.prepare(original, "account-a", path)
+        assertNotEquals(original, uploaded)
+        assertEquals(uploaded, cache().prepare(original, "account-a", path))
+        assertEquals(1, uploads)
+        assertFalse(stored!!.contains("account-a"))
+        assertFalse(stored!!.contains("AQID"))
+        now += 86400
+        assertEquals(original, cache().prepare(original, "account-a", path))
+        assertEquals(original, cache().prepare(original, "account-b", path))
+        stored = "damaged"
+        assertEquals(original, cache().prepare(original, "account-a", path))
+        assertEquals(1, uploads)
+    }
+
+    @Test fun extractedTextCacheSeparatesSelectionsAndBoundsMemory() {
+        val cache = DocumentTextCache(maxCharacters = 8)
+        val doc = ConversationDocument("a".repeat(64), "fixture.xlsx", 4, sheets = listOf("A"))
+        var reads = 0
+        fun read(d: ConversationDocument, text: String) = cache.get(d) { reads++; text }
+        assertEquals("abcd", read(doc, "abcd"))
+        assertEquals("abcd", read(doc, "wrong"))
+        assertEquals(1, reads)
+        assertEquals("efghi", read(doc.copy(sheets = listOf("B")), "efghi"))
+        assertEquals("abcd", read(doc, "abcd")) // Prior entry evicted, not a different sheet's text.
+        assertEquals(3, reads)
+        cache.clear()
+        read(doc, "abcd")
+        assertEquals(4, reads)
+    }
+
+    @Test fun replacingRequestCancelsOnlyPreviousOwnerAndAdvancesGeneration() {
+        val lifecycle = SolveRequestLifecycle()
+        var cancellations = 0
+        val first = lifecycle.begin().also { it.attach { cancellations++ } }
+        val generation = lifecycle.sequence
+        val second = lifecycle.begin()
+        assertNotSame(first, second)
+        assertEquals(1, cancellations)
+        assertTrue(lifecycle.sequence > generation)
+        assertSame(second, lifecycle.invalidate())
+        assertNull(lifecycle.owner)
+    }
     @Test fun similarQuestionKeepsAllLinesAndFormulaBeforeAnswer() {
         val question = "求下列两项：\n(1) 电流 I\n(2) 电压 U = IR"
         val result = StudyAssistant.parseSimilar("题目：$question\n\n解答：逐项计算。")

@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NotebookSortingTest {
+    @Test fun backgroundProjectionKeepsOrderingCountsAndIntersectsFilters() = kotlinx.coroutines.runBlocking {
+        val rows = listOf(q("one", 1).copy(categoryId = 10), q("two", 2), q("three", 3).copy(categoryId = 10))
+        val relations = listOf(QuestionTag("one", 20), QuestionTag("three", 21))
+        val projected = com.zsz.studyassistant.ui.projectNotebook(rows, relations, false, 10, setOf(20, 21), setOf("three"))
+        assertEquals(listOf("three"), projected.rows.map { it.id })
+        assertEquals(2, projected.counts[10])
+        assertEquals(1, projected.counts[UNCATEGORIZED_ORDER_ID])
+        assertEquals(listOf(21L), projected.tags["three"])
+        assertEquals(listOf("two"), com.zsz.studyassistant.ui.projectNotebook(rows, relations, true, null, emptySet(), null).rows.map { it.id })
+    }
     private fun q(id: String, time: Long) = QuestionPreview(id=id,text=id,answer="",createdAt=time)
     private val questions = listOf(q("one",100),q("two",300),q("three",200))
     private fun ids(mode: NotebookSortMode, reviews: Map<String,Review> = emptyMap()) =

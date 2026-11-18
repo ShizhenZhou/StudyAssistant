@@ -18,7 +18,8 @@ data class ConversationDraft(val id: QuestionId, val createdAt: Long, val genera
     val completedChats: List<ChatItem>? = null, val completedQuestion: String? = null, val version: Int = 1, val revision: Long = 0, val redoFor: QuestionId? = null, val gradeHistoryEnabled: Boolean = false, val webEnabled: Boolean = false,
     val requestPrefix: String = "", val continuationHistory: List<DeepSeekMessage> = emptyList(),
     val continuationAnnotations: kotlinx.serialization.json.JsonArray? = null,
-    val resumableContext: AiResponseContext? = null)
+    val resumableContext: AiResponseContext? = null,
+    val promptInventory: PromptInventory? = null)
 
 data class DraftSummary(val id: QuestionId, val title: String, val createdAt: Long)
 object ConversationDraftCodec {

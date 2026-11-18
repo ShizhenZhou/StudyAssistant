@@ -117,10 +117,6 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val haptics = LocalHapticFeedback.current
     val questions by vm.notebook.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
-    val categoryCounts = remember(questions) { questions.groupingBy { it.categoryId ?: UNCATEGORIZED_ORDER_ID }.eachCount() }
-    val chipOrder = remember(categories, categoryCounts, vm.customCategoryOrderEnabled, vm.customCategoryOrder) {
-        categoryChipOrder(categories.map { it.id }, categoryCounts, vm.customCategoryOrderEnabled, vm.customCategoryOrder)
-    }
     val categoryById = remember(categories) { categories.associateBy { it.id } }
     val tags by vm.tags.collectAsStateWithLifecycle()
     val questionTags by vm.questionTags.collectAsStateWithLifecycle()
@@ -179,7 +175,6 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     fun exitSelection() { selectionMode = false; requestedIds = emptySet() }
 
     // 每题 → 其 tagId 列表；tagId → Tag
-    val qTagIds = remember(questionTags) { questionTags.groupBy { it.questionId }.mapValues { e -> e.value.map { it.tagId } } }
     val tagById = remember(tags) { tags.associateBy { it.id } }
 
     val keyword=query.trim()
@@ -187,19 +182,15 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val searching=keyword.isNotEmpty() && searchMatches?.first!=keyword
     val searchFailed=keyword.isNotEmpty() && searchMatches?.first==keyword && searchMatches?.second==null
 
-    // 筛选结果缓存，避免每次重组都重新过滤
-    val filtered = remember(questions, showUncategorized, filterCategoryId, filterTagIds, qTagIds, keyword, searchMatches) {
-        when {
-            showUncategorized -> questions.filter { it.categoryId == null }
-            filterCategoryId != null -> questions.filter { it.categoryId == filterCategoryId }
-            else -> questions
-        }.filter { q ->
-            // 按选中的 tag 多选（命中任一即显示）
-            filterTagIds.isEmpty() || (qTagIds[q.id] ?: emptyList()).any { it in filterTagIds }
-        }.filter { q ->
-            // Match full text in the IO reader, never the bounded card preview.
-            keyword.isEmpty() || (searchMatches?.first==keyword && q.id in searchMatches?.second.orEmpty())
-        }
+    val matched = remember(keyword, searchMatches) {
+        if (keyword.isEmpty()) null else if (searchMatches?.first == keyword) searchMatches?.second?.keys.orEmpty() else emptySet()
+    }
+    val projection = rememberNotebookProjection(questions, questionTags, showUncategorized, filterCategoryId, filterTagIds, matched)
+    val categoryCounts = projection.counts
+    val qTagIds = projection.tags
+    val filtered = projection.rows
+    val chipOrder = remember(categories, categoryCounts, vm.customCategoryOrderEnabled, vm.customCategoryOrder) {
+        categoryChipOrder(categories.map { it.id }, categoryCounts, vm.customCategoryOrderEnabled, vm.customCategoryOrder)
     }
 
     // A refreshed list must never apply a batch action to rows no longer on screen.

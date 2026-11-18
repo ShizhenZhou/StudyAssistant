@@ -90,7 +90,7 @@ object StudyAssistant {
 
     /** 视觉模型首条用户消息（文字 + 图片）；带已有分类名，让模型优先归入已有分类 */
     fun visionUserMessage(imageBytes: ByteArray, categories: List<String> = emptyList(), tags: List<String> = emptyList()): DeepSeekMessage {
-        val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+        val base64 = RequestImageEncoding.encode(imageBytes)
         val content = buildJsonArray {
             addJsonObject {
                 put("type", "text")
@@ -210,7 +210,7 @@ object StudyAssistant {
 
     /** 追问等场景：文字 + 1~3 张图 → 视觉模型 user 消息（多图 image_url） */
     fun userMessageWithImages(text: String, images: List<ByteArray>): DeepSeekMessage =
-        encodedImageMessage(text, images.asSequence().map { Base64.encodeToString(it, Base64.NO_WRAP) })
+        encodedImageMessage(text, images.asSequence().map { RequestImageEncoding.encode(it) })
 
     internal fun userMessageWithEncodedImages(text: String, images: List<String>): DeepSeekMessage =
         encodedImageMessage(text, images.asSequence())
@@ -325,7 +325,7 @@ object StudyAssistant {
         val original = attachDocuments(localPrepared, documents, accountKey)
         val budget = AiRequestPolicy.budget(task, thinkingEnabled, webEnabled)
         owner.usedWeb = webEnabled
-        val prepared = AiImageUploads.cache.prepare(original, accountKey)
+        val prepared = AiImageUploads.cache.prepare(original, accountKey, documentStore?.imageReferences)
         fun request(input: List<DeepSeekMessage>) = DeepSeekRequest(
             model = model, messages = if (webEnabled) input else input.map { it.copy(reasoningContent = null, serverToolCalls = null) }, maxTokens = budget.tokens,
             stream = true, streamOptions = StreamOptions(includeUsage = true),

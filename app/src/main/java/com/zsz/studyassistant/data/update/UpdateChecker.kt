@@ -247,7 +247,7 @@ object UpdateChecker {
     }
 
     /** One check snapshots settings and remembers failed routes; concurrent checks never share routing state. */
-    private class FetchSession(val config: UpdateTransport.Config) {
+    private class FetchSession(val config: UpdateTransport.Config, val context: Context? = null) {
         private val failedRoutes = mutableSetOf<String>()
         var usedMirror = false
             private set
@@ -259,9 +259,10 @@ object UpdateChecker {
                 if (route in failedRoutes) continue
                 try {
                     val request = Request.Builder().url(address)
+                        .cacheControl(UpdateHttpCache.revalidate)
                         .header("User-Agent", "StudyAssistant-Update")
                         .header("Accept", accept).header("X-GitHub-Api-Version", "2022-11-28").build()
-                    client.newCall(request).execute().use { response ->
+                    UpdateHttpCache.client(context, client).newCall(request).execute().use { response ->
                         val body = response.body
                         if (!response.isSuccessful || body == null) {
                             failedRoutes += route
@@ -513,7 +514,7 @@ object UpdateChecker {
     /** Stable-only fallback remains compatible with existing published releases. */
     suspend fun fetchLatest(context: Context? = null): ReleaseInfo? = withContext(Dispatchers.IO) {
         if (BuildConfig.DISTRIBUTION == "compat") return@withContext fetchAvailable(context)?.stable
-        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config())
+        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config(), context)
         latest(session)?.takeIf { inCurrentDistribution(it) }?.let { if (session.usedMirror) it.copy(mandatory = false) else it }
     }
 
@@ -555,7 +556,7 @@ object UpdateChecker {
     suspend fun fetchAvailable(context: Context? = null): AvailableReleases? = withContext(Dispatchers.IO) {
         // Releases are ordered by creation date, not version. Read every page so an old
         // installation cannot miss an ENF release beyond the first 30/100 entries.
-        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config())
+        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config(), context)
         val parsed = mutableListOf<Pair<ReleaseInfo, List<JsonObject>>>()
         var complete = false
         for (page in 1..100) {

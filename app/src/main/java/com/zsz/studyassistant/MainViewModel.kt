@@ -79,7 +79,8 @@ data class ChatItem(val id: Long, val role: String, val content: String, val ima
                     /** Optional history label, stored only on the first message. */
                     val conversationTitle: String? = null,
                     /** Per-request exclusions; originals remain attached to their historical messages. */
-                    val excludedDocumentHashes: List<String> = emptyList())
+                    val excludedDocumentHashes: List<String> = emptyList(),
+                    val promptInventory: com.zsz.studyassistant.data.PromptInventory? = null)
 
 internal fun withConversationTitle(items: List<ChatItem>, title: String?): List<ChatItem> {
     val label = com.zsz.studyassistant.data.normalizedConversationTitle(title) ?: return items
@@ -375,6 +376,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- 对话流状态 ----
     private val sessionState = SolveSessionState()
+    private val requestLifecycle = com.zsz.studyassistant.data.SolveRequestLifecycle()
     var imageBytes by sessionState::imageBytes
     var chatItems by sessionState::chatItems
         private set
@@ -663,6 +665,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 currentQuestionTags = tags
                 currentNotebookBaseline=baseline
                 chatItems=value.base
+                promptInventoryBinding = sessionRecordBinding
+                requestInventory = value.promptInventory ?: chatItems.firstOrNull()?.promptInventory
                 conversationDrafts.reserve(value.id,value.generation)
                 val recovered = if (legacyGrade) value.copy(historyAllowed=true, gradeHistoryEnabled=true) else value
                 activeDraft=recovered
@@ -1451,9 +1455,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var toolProgress by mutableStateOf<String?>(null)
         private set
     private var completedAiContext: com.zsz.studyassistant.data.AiResponseContext? = null
-    private var contWebEnabled = false
-    private var contWebHistory: List<DeepSeekMessage> = emptyList()
-    private var contWebAnnotations: kotlinx.serialization.json.JsonArray? = null
+    private var contWebEnabled by requestLifecycle::webEnabled
+    private var contWebHistory by requestLifecycle::webHistory
+    private var contWebAnnotations by requestLifecycle::webAnnotations
     val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
 
     fun stopActiveGeneration() {
@@ -1463,18 +1467,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         classifying = false
         checkpointDraft()
         activeDraft=null
-        val stopping = streamOwner
-        stopping?.cancel()
-        streamOwner = null
-        callSeq++                 // 让旧请求收尾时不再覆盖界面状态
-        callJob?.cancel()
-        callJob = null
+        val stopping = requestLifecycle.invalidate()
         busy = false
         streamingText = null
         thinkingText = null
         thinkingDone = false
         streamInterrupted = false
         networkError = false
+        requestLifecycle.prepare = null
         contMessages = null
         contOnDone = null
         contPrefix = ""
@@ -1531,41 +1531,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         null
     }
 
-    private fun buildMessages(items: List<ChatItem> = chatItems, prompt: String? = customPromptText()): List<DeepSeekMessage> {
-        val msgs = mutableListOf<DeepSeekMessage>()
-        // 回答语言 + 用户自定义要求：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
-        msgs.add(StudyAssistant.languageSystemMessage(aiLang, prompt ?: return emptyList()))
-        if (multiImages.isNotEmpty()) {
-            // 多张搜题：多图一起作为题目（同一套搜题指令）
-            msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames, tagNames))
-        } else if (gradeMode && questionImages.isNotEmpty()) {
-            msgs.add(StudyAssistant.userMessageWithEncodedImages(
-                StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n【我的题目/问题】" + questionText, questionImages))
-        } else if (directImages.isNotEmpty()) {
-            // 直接提问：文字 + 多图一起作为问题
-            // ★ 带图的「直接提问」原来用追问提示词（不问分类/知识点）→ 改用搜题指令，保证与拍题一致
-            msgs.add(
-                StudyAssistant.userMessageWithImages(
-                    StudyAssistant.solvePrompt(categoryNames, tagNames) +
-                        "\n【我的题目/问题】" + questionText,
-                    directImages
+    private var promptInventoryBinding: SolveSessionBinding? = null
+    private var requestInventory: com.zsz.studyassistant.data.PromptInventory? = null
+    private fun conversationInventory(): com.zsz.studyassistant.data.PromptInventory {
+        val persisted = chatItems.firstOrNull()?.promptInventory
+        if (promptInventoryBinding !== sessionRecordBinding || requestInventory == null) {
+            promptInventoryBinding = sessionRecordBinding
+            requestInventory = persisted ?: com.zsz.studyassistant.data.PromptInventory(categoryNames.toList(), tagNames.toList())
+        }
+        return requireNotNull(requestInventory).also { inventory ->
+            if (chatItems.isNotEmpty() && persisted == null)
+                chatItems = listOf(chatItems.first().copy(promptInventory = inventory)) + chatItems.drop(1)
+        }
+    }
+
+    private fun buildMessages(items: List<ChatItem> = chatItems, prompt: String? = customPromptText()): (() -> List<DeepSeekMessage>)? {
+        if (prompt == null) return null
+        // Capture observable session state before moving CPU work off the UI thread.
+        val multiImages = multiImages.toList()
+        val directImages = directImages.toList()
+        val questionImages = questionImages.toList()
+        val imageBytes = imageBytes
+        val gradeMode = gradeMode
+        val isPhoto = isPhoto
+        val questionText = questionText
+        val aiLang = aiLang
+        val inventory = conversationInventory()
+        val categoryNames = inventory.categories
+        val tagNames = inventory.tags
+        val snapshotItems = items.toList()
+        return prepare@{
+            val items = snapshotItems
+            val msgs = mutableListOf<DeepSeekMessage>()
+            // 回答语言 + 用户自定义要求：统一在这里注入，拍题/直接提问/追问/重新生成都走这条路径
+            msgs.add(StudyAssistant.languageSystemMessage(aiLang, prompt))
+            if (multiImages.isNotEmpty()) {
+                // 多张搜题：多图一起作为题目（同一套搜题指令）
+                msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames, tagNames))
+            } else if (gradeMode && questionImages.isNotEmpty()) {
+                msgs.add(StudyAssistant.userMessageWithEncodedImages(
+                    StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n【我的题目/问题】" + questionText, questionImages))
+            } else if (directImages.isNotEmpty()) {
+                // 直接提问：文字 + 多图一起作为问题
+                // ★ 带图的「直接提问」原来用追问提示词（不问分类/知识点）→ 改用搜题指令，保证与拍题一致
+                msgs.add(
+                    StudyAssistant.userMessageWithImages(
+                        StudyAssistant.solvePrompt(categoryNames, tagNames) +
+                            "\n【我的题目/问题】" + questionText,
+                        directImages
+                    )
                 )
-            )
-        } else if (isPhoto && imageBytes != null) {
-            msgs.add(StudyAssistant.visionUserMessage(imageBytes!!, categoryNames, tagNames))
-        } else if (questionText.isNotBlank()) {
-            msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
+            } else if (isPhoto && imageBytes != null) {
+                msgs.add(StudyAssistant.visionUserMessage(imageBytes, categoryNames, tagNames))
+            } else if (questionText.isNotBlank()) {
+                msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
+            }
+            val originalQuestion = items.firstOrNull { it.role == "question" }
+            val originalDocuments = originalQuestion?.documents.orEmpty()
+            if (originalDocuments.isNotEmpty()) {
+                if (msgs.lastOrNull()?.role != "user") msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
+            }
+            val excluded = items.lastOrNull { it.role == "user" }?.excludedDocumentHashes.orEmpty().toSet()
+            if (msgs.lastOrNull()?.role == "user") msgs[msgs.lastIndex] = withQuestionAttachments(msgs.last(),
+                originalQuestion?.copy(documents = originalDocuments.filterNot { it.sha256 in excluded }))
+            msgs.addAll(chatMessages(items))
+            msgs
         }
-        val originalQuestion = items.firstOrNull { it.role == "question" }
-        val originalDocuments = originalQuestion?.documents.orEmpty()
-        if (originalDocuments.isNotEmpty()) {
-            if (msgs.lastOrNull()?.role != "user") msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
-        }
-        val excluded = items.lastOrNull { it.role == "user" }?.excludedDocumentHashes.orEmpty().toSet()
-        if (msgs.lastOrNull()?.role == "user") msgs[msgs.lastIndex] = withQuestionAttachments(msgs.last(),
-            originalQuestion?.copy(documents = originalDocuments.filterNot { it.sha256 in excluded }))
-        msgs.addAll(chatMessages(items))
-        return msgs
     }
 
     private fun withQuestionAttachments(message: DeepSeekMessage,
@@ -1688,22 +1719,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var streamInterrupted by sessionState::streamInterrupted
         private set
 
-    private var callJob: Job? = null
-    private var streamOwner: com.zsz.studyassistant.data.StreamOwner? = null
+    private var callJob by requestLifecycle::job
+    private var streamOwner by requestLifecycle::owner
 
     // 「继续生成」所需的上文：原消息 + 已生成片段 + 完成回调
-    private var contMessages: List<DeepSeekMessage>? = null
-    private var contModel: String = ""
-    private var contPrefix: String = ""
-    private var contDraftAction: String = "initial"
-    private var contOnDone: ((String) -> Unit)? = null
+    private var contMessages by requestLifecycle::messages
+    private var contModel by requestLifecycle::model
+    private var contPrefix by requestLifecycle::prefix
+    private var contDraftAction by requestLifecycle::action
+    private var contOnDone by requestLifecycle::onDone
 
     /** 中止生成：立即关闭响应流（模型思考中也能立刻停）+ 取消协程；已生成内容保留 */
     fun abortGeneration() {
         // ★ 中止时：从已生成的文本里抢救「分类/知识点」，避免中止后存错题本时丢失预选
         harvestSuggestions(streamingText.orEmpty())
-        streamOwner?.cancel()
-        callJob?.cancel()
+        requestLifecycle.cancel()
     }
 
     /**
@@ -1725,6 +1755,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         streamingText = null
         thinkingText = null
         thinkingDone = false
+        requestLifecycle.prepare = null
         contMessages = null
         contOnDone = null
         contPrefix = ""
@@ -1741,7 +1772,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // ★ 包一层：续写完成后把**同一条**搜题记录也更新掉（否则记录里永远停在被中止时的半截答案）
         val wrapped: (String) -> Unit = { out -> onDone(out); updateSolveSession() }
         streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction, useWeb=contWebEnabled,
-            webHistory=contWebHistory, webAnnotations=contWebAnnotations, requestTitle=false)
+            webHistory=contWebHistory, webAnnotations=contWebAnnotations, requestTitle=false, prepare=requestLifecycle.prepare)
     }
 
     private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
@@ -1758,8 +1789,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null, prompt: String? = customPromptText()) {
         // 非批改的流式请求（解题/追问/重新生成/继续）：按钮显示「⏸ 中止生成」
         busyIsGrade = false
-        val messages = buildMessages(prompt = prompt).toList()
-        streamCall(model, messages, prefix = "", onDone = onDone, repeat = repeat)
+        val prepare = buildMessages(prompt = prompt)
+        streamCall(model, emptyList(), prefix = "", onDone = onDone, repeat = repeat, prepare = prepare)
     }
 
     /**
@@ -1778,23 +1809,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         webAnnotations: kotlinx.serialization.json.JsonArray? = null,
         requestTitle: Boolean = sessionRecordBinding.historyAllowed &&
             replyAction in setOf("initial", "grade") && prefix.isEmpty() &&
-            chatItems.none { it.role == "assistant" || !it.conversationTitle.isNullOrBlank() }
+            chatItems.none { it.role == "assistant" || !it.conversationTitle.isNullOrBlank() },
+        prepare: (() -> List<DeepSeekMessage>)? = null
     ) {
-        if (dataBusy || messages.isEmpty()) return
-        streamOwner?.cancel()
-        callJob?.cancel()
-        val owner = com.zsz.studyassistant.data.StreamOwner()
-        streamOwner = owner
-        val mySeq = ++callSeq
+        if (dataBusy || (messages.isEmpty() && prepare == null)) return
+        val owner = requestLifecycle.begin()
+        val mySeq = callSeq
         val titleBinding = sessionRecordBinding
         val draftId=sessionRecordBinding.id
-        val template=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
+        val draftTemplate=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
             owner.id,model,replyAction,currentSource(),questionText,isPhoto,askMode,gradeMode,
             sessionRecordBinding.historyAllowed,savedQuestionId,questionImages,chatItems.toList(),messages,raw=prefix,redoFor=pendingRedoFor ?: if(gradeMode) redoQuestionId else null,
             gradeHistoryEnabled=gradeMode, webEnabled=useWeb, requestPrefix=prefix,
-            continuationHistory=webHistory, continuationAnnotations=webAnnotations) }
-        if(template!=null) { conversationDrafts.reserve(template.id,template.generation); activeDraft=template }
+            continuationHistory=webHistory, continuationAnnotations=webAnnotations,
+            promptInventory=requestInventory.takeIf { promptInventoryBinding === sessionRecordBinding }) }
+        val draftBaseline = currentNotebookBaseline
+        draftTemplate?.let { conversationDrafts.reserve(it.id, it.generation) }
+        activeDraft = null
         callJob = viewModelScope.launch {
+            var messages = messages
+            var template: com.zsz.studyassistant.data.ConversationDraft? = null
             busy = true
             error = null
             networkError = false
@@ -1816,7 +1850,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val thinkSb = StringBuilder()
             var nextThinkEmit = 0L
             try {
-                if(template!=null) { writeDraft(template.copy(revision=++draftRevision),currentNotebookBaseline); refreshDrafts() }
+                requestLifecycle.prepareRetainingOnCancel(
+                    prepare = { if (prepare != null) withContext(Dispatchers.Default) { prepare() } else messages },
+                    retain = { prepared ->
+                        messages = prepared
+                        template = draftTemplate?.copy(messages = prepared)
+                        template?.let {
+                            if (mySeq == callSeq && titleBinding === sessionRecordBinding) activeDraft = it
+                            writeDraft(it.copy(revision = ++draftRevision), draftBaseline)
+                            refreshDrafts()
+                        }
+                    })
+                if (mySeq != callSeq || titleBinding !== sessionRecordBinding || messages.isEmpty()) return@launch
                 var nextDraftWrite = 0L
                 val reply = withContext(Dispatchers.IO) {
                     val thinkOn = com.zsz.studyassistant.data.CapturePrefs.solveModel(app) != "flash"
@@ -1863,6 +1908,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 //   追问时会把上一轮答案的思考块覆盖成本轮思考。
                 //   本轮思考由 addItem() 的默认值自动挂到**新建的那条**助手消息上（见 addItem）。
                 onDone(prefix + parsedReply.body.trim())
+                if (mySeq == callSeq) conversationInventory()
                 if(mySeq==callSeq) {
                     // Initial photo/text callbacks create the question message here, so attach
                     // the label after onDone and before freezing the completed save/draft.
@@ -1885,7 +1931,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 // 放在 onDone 之后：万一 onDone 内部抛异常，已生成的内容仍留在界面上（catch 会保留）
                 streamingText = null
-                contMessages = null
+                requestLifecycle.prepare = null
+        contMessages = null
                 contOnDone = null
                 contPrefix = ""
                 contWebHistory = emptyList()
@@ -1914,6 +1961,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         contWebEnabled = useWeb
                         val continuation = if (useWeb) com.zsz.studyassistant.data.webContinuation(
                             messages, prefix, webHistory, webAnnotations, owner.resumableContext) else null
+                        requestLifecycle.prepare = prepare.takeIf { messages.isEmpty() }
                         contMessages = continuation?.messages ?: continuationMessages(messages, partial)
                         contPrefix = continuation?.prefix ?: partial
                         contWebHistory = continuation?.history.orEmpty()
@@ -2120,48 +2168,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    var preparedExport by mutableStateOf<com.zsz.studyassistant.data.BackupArchive.ArchiveSet?>(null)
+    private val manualBackup = com.zsz.studyassistant.data.ManualBackupState(getApplication())
+    var preparedExport by manualBackup::export
         private set
-    var preparedBackup by mutableStateOf<com.zsz.studyassistant.data.BackupRepository.PreparedImport?>(null)
+    var preparedBackup by manualBackup::preparedImport
         private set
-    var dataProgressKey by mutableStateOf<String?>(null)
+    var dataProgressKey by manualBackup::progress
         private set
-    private var backupReadJob: Job? = null
-    private var backupExportJob: Job? = null
-    private var backupExportDirectory: java.io.File? = null
-
-    private fun backupWorkspace(): java.io.File = java.io.File(
-        getApplication<Application>().noBackupFilesDir, "backup-manual/${java.util.UUID.randomUUID()}"
-    )
-
-    private suspend fun cleanAbandonedBackupWorkspaces(current: java.io.File) = withContext(Dispatchers.IO) {
-        val root = current.parentFile ?: return@withContext
-        if (!root.isDirectory) return@withContext
-        val keep = setOfNotNull(current.canonicalFile, backupExportDirectory?.canonicalFile,
-            preparedBackup?.directory?.canonicalFile)
-        java.nio.file.Files.newDirectoryStream(root.toPath()).use { entries ->
-            for (entry in entries) {
-                val candidate = entry.toFile()
-                if (!java.nio.file.Files.isDirectory(entry, java.nio.file.LinkOption.NOFOLLOW_LINKS)) continue
-                if (runCatching { java.util.UUID.fromString(candidate.name) }.isFailure) continue
-                if (candidate.canonicalFile !in keep &&
-                    System.currentTimeMillis() - candidate.lastModified() > 24L * 60 * 60 * 1000) {
-                    removeBackupWorkspace(candidate)
-                }
-            }
-        }
-    }
-
-    private suspend fun removeBackupWorkspace(directory: java.io.File?) {
-        withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
-            directory?.let {
-                val root = java.io.File(getApplication<Application>().noBackupFilesDir, "backup-manual").canonicalFile
-                val target = it.canonicalFile
-                check(target != root && target.toPath().startsWith(root.toPath()))
-                target.deleteRecursively()
-            }
-        }
-    }
+    private var backupReadJob by manualBackup::readJob
+    private var backupExportJob by manualBackup::exportJob
+    private var backupExportDirectory by manualBackup::exportDirectory
+    private fun backupWorkspace() = manualBackup.workspace()
+    private suspend fun cleanAbandonedBackupWorkspaces(current: java.io.File) = manualBackup.cleanAbandoned(current)
+    private suspend fun removeBackupWorkspace(directory: java.io.File?) = manualBackup.remove(directory)
 
     private fun backupError(e: Exception) {
         val s = com.zsz.studyassistant.ui.stringsFor(uiLang)
@@ -2246,7 +2265,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { removeBackupWorkspace(directory) }
     }
 
-    fun cancelBackupOperation() { backupReadJob?.cancel(); backupExportJob?.cancel() }
+    fun cancelBackupOperation() = manualBackup.cancel()
 
     fun prepareBackupImport(uris: List<android.net.Uri>) {
         if (dataBusy || preparedBackup != null || preparedExport != null || uris.isEmpty()) return
@@ -2684,7 +2703,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val followup=retained.lastOrNull()?.role=="user"
         val action=if(followup) "regenerate_followup" else "regenerate_initial"
         val model=if(isPhoto || retained.lastOrNull()?.images?.isNotEmpty()==true) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        streamCall(model,buildMessages(retained),"",onDone={ output -> applyRecoveredReply(action,output) },
+        streamCall(model,emptyList(),"",prepare=buildMessages(retained),onDone={ output -> applyRecoveredReply(action,output) },
             repeat={ regenerate() },replyAction=action)
     }
 
@@ -2704,13 +2723,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val model = if (input != null || questionImages.isNotEmpty() || isPhoto) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         val request = if (input == null && questionImages.isNotEmpty()) listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText() ?: return),
-            withQuestionAttachments(StudyAssistant.userMessageWithEncodedImages(StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n" + questionText, questionImages)))
-        else if (input == null) buildMessages(chatItems.filter { it.role == "question" }) else listOf(
+            withQuestionAttachments(StudyAssistant.userMessageWithEncodedImages(StudyAssistant.solvePrompt(conversationInventory().categories, conversationInventory().tags) + "\n" + questionText, questionImages)))
+        else if (input == null) emptyList() else listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText() ?: return),
-            withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames)))
+            withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, conversationInventory().categories, conversationInventory().tags)))
         busyIsGrade = input != null
         streamCall(model, request, "", onDone = { applyRecoveredReply(action, it) },
-            repeat = { generateMissingInitialAnswer() }, replyAction = action)
+            repeat = { generateMissingInitialAnswer() }, replyAction = action,
+            prepare = if (input == null && questionImages.isEmpty()) buildMessages(chatItems.filter { it.role == "question" }) else null)
     }
 
     private fun lastAnswer(): String =
@@ -3814,7 +3834,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val msgs = listOf(
             StudyAssistant.languageSystemMessage(aiLang, customPromptText() ?: return),
-            withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, categoryNames, tagNames))
+            withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, conversationInventory().categories, conversationInventory().tags))
         )
         busyIsGrade = true
         streamCall(
@@ -3835,7 +3855,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     /** 流式请求序号：用于识别"已被新请求取代的旧请求"，避免旧请求收尾时覆盖新请求的界面状态 */
-    private var callSeq = 0L
+    private var callSeq by requestLifecycle::sequence
 
     /** 加载某条错题的完整对话会话（用于续答） */
     /**

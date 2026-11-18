@@ -42,6 +42,8 @@ class DocumentStore(context: Context) {
     internal val context = context.applicationContext
     val directory = File(context.filesDir, "ai-documents")
     internal val referenceCache = DocumentReferenceCache(File(context.noBackupFilesDir, "ai-document-references-v1/state.json"))
+    internal val imageReferences = File(context.noBackupFilesDir, "ai-image-references-v1/state.json")
+    internal val textCache = DocumentTextCache()
     private val resolver = context.applicationContext.contentResolver
 
     suspend fun importUri(uri: Uri): ConversationDocument {
@@ -169,7 +171,9 @@ internal object ConversationDocumentUploads {
                 val file = store.file(document)
                 if (LocalDocumentText.supports(document.name)) {
                     if (DocumentStore.hash(file) { coroutine.ensureActive() } != document.sha256) throw DocumentProblem("document.damaged")
-                    val text = LocalDocumentText.read(file, document.name, document.sheets) { coroutine.ensureActive() }
+                    val text = store.textCache.get(document) {
+                        LocalDocumentText.read(file, document.name, document.sheets) { coroutine.ensureActive() }
+                    }
                     textParts += "[Attached document: ${document.name}]\n$text\n[End of attached document]"
                     extractedCharacters += textParts.last().length
                     if (extractedCharacters > LocalDocumentText.MAX_TEXT_CHARS) throw DocumentProblem("document.textTooLarge")
@@ -225,5 +229,9 @@ internal object ConversationDocumentUploads {
             System.currentTimeMillis() / 1000)
     }
 
-    suspend fun clear(store: DocumentStore) = lock.withLock { store.referenceCache.clear() }
+    suspend fun clear(store: DocumentStore) = lock.withLock {
+        store.textCache.clear()
+        store.referenceCache.clear()
+        AiImageUploads.cache.clear(store.imageReferences)
+    }
 }
