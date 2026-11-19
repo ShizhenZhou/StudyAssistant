@@ -70,13 +70,13 @@
     }
     return found;
   }
-  function resolve(idx){
-    var message=messageSources[idx], anchor=message && message.quoteAnchor, needle=normalized(message && message.quotedText);
+  function resolve(idx, bookmark){
+    var message=messageSources[idx], anchor=bookmark ? bookmark.anchor : message && message.quoteAnchor, needle=normalized(bookmark ? bookmark.text : message && message.quotedText);
     if(!needle) return null;
     if(anchor){
       if(!Object.prototype.hasOwnProperty.call(selectors,anchor.scope)) return null;
       var matches=[];
-      for(var i=0;i<idx;i++) if(messageSources[i].messageKey===anchor.messageKey) matches.push(i);
+      for(var i=0;i<(bookmark ? messageSources.length : idx);i++) if(messageSources[i].messageKey===anchor.messageKey) matches.push(i);
       if(matches.length!==1) return null;
       var source=messageSources[matches[0]], hashes=source.hashes || {};
       if(!anchor.sourceHash || hashes[anchor.scope]!==anchor.sourceHash) return null;
@@ -192,10 +192,10 @@
     range.setStart(first.a[0],first.a[1]); range.setEnd(last.b[0],last.b[1]);
     return range;
   }
-  function jump(idx){
-    var target=resolve(idx);
+  function jump(idx, bookmark){
+    var target=resolve(idx, bookmark);
     if(!target){ unavailable(); return; }
-    var origin=bubbleAt(idx), key=messageSources[idx].messageKey;
+    var origin=bookmark ? null : bubbleAt(idx), key=messageSources[idx] && messageSources[idx].messageKey;
     // Capture before opening hidden reasoning, which can shift the follow-up far below the viewport.
     var originPoint=origin && key ? {key:key,offset:origin.getBoundingClientRect().top} : null;
     clear(); window.dshNoFollow();
@@ -221,6 +221,10 @@
     if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) began-=360;
     jumpFrame=requestAnimationFrame(step);
   }
+  window.dshJumpBookmark=function(bookmark){
+    if(!bookmark || !bookmark.anchor || selectionMode){unavailable();return;}
+    jump(-1, bookmark);
+  };
   // A short tap is navigation; selection, dragging, and message multi-select keep their existing behavior.
   var tap=null, scrollTouch=null, suppressClickUntil=0;
   document.addEventListener('touchstart',function(e){

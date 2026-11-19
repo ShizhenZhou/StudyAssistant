@@ -80,7 +80,8 @@ data class ChatItem(val id: Long, val role: String, val content: String, val ima
                     val conversationTitle: String? = null,
                     /** Per-request exclusions; originals remain attached to their historical messages. */
                     val excludedDocumentHashes: List<String> = emptyList(),
-                    val promptInventory: com.zsz.studyassistant.data.PromptInventory? = null)
+                    val promptInventory: com.zsz.studyassistant.data.PromptInventory? = null,
+                    val bookmarks: List<ConversationBookmark> = emptyList())
 
 internal fun withConversationTitle(items: List<ChatItem>, title: String?): List<ChatItem> {
     val label = com.zsz.studyassistant.data.normalizedConversationTitle(title) ?: return items
@@ -3672,6 +3673,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *   ② 没存错题本 → 把这次会话落成/补齐一条**搜题记录**（首次 = INSERT，已落过 = UPDATE 同一条）。
      *   这也覆盖了"生成成功后又被中断"（onDone 没跑、记录不存在）的情况。
      */
+    fun addBookmark(text: String, anchor: QuoteAnchor?): String {
+        if (busy || dataBusy || streamInterrupted || anchor == null || chatItems.isEmpty()) return "solve.quoteUnavailable"
+        val bookmark = ConversationBookmark(java.util.UUID.randomUUID().toString(), text, anchor)
+        if (text.length > MAX_BOOKMARK_TEXT) return "bookmark.tooLong"
+        if (!bookmark.isValid() || !bookmarkSourceAvailable(chatItems, anchor)) return "solve.quoteUnavailable"
+        val existing = conversationBookmarks(chatItems)
+        if (existing.any { it.anchor == anchor && it.text == text }) return "bookmark.exists"
+        if (existing.size >= MAX_BOOKMARKS) return "bookmark.limit"
+        chatItems = listOf(chatItems.first().copy(bookmarks = existing + bookmark)) + chatItems.drop(1)
+        saveSessionOnExit()
+        return "bookmark.saved"
+    }
+
+    fun removeBookmark(id: String) {
+        if (busy || dataBusy || streamInterrupted || chatItems.isEmpty()) return
+        chatItems = listOf(chatItems.first().copy(bookmarks = conversationBookmarks(chatItems).filterNot { it.id == id })) + chatItems.drop(1)
+        saveSessionOnExit()
+    }
+
     fun saveSessionOnExit() {
         if (chatItems.isEmpty()) return
         val id = savedQuestionId

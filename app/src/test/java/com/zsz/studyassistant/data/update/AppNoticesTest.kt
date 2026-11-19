@@ -18,6 +18,45 @@ class AppNoticesTest {
         versions = listOf("v0.7.4.2"), expiresAt = "2026-12-01T00:00:00Z",
         title = mapOf("zh-CN" to "测试公告"), body = mapOf("zh-CN" to "人工数据"))
 
+    @Test fun historyRetainsExpiredButRejectsWithdrawnDisabledFutureAndOtherScopes() {
+        val expired = rule.copy(expiresAt = "2026-11-17T00:00:00Z")
+        val doc = AppNoticeDocument(1, 1, listOf(expired), emptyList())
+        fun history(d: AppNoticeDocument = doc, version: String = "0.7.4.2", distribution: String = "main") =
+            AppNotices.history(d, version, 136, distribution, now)
+        assertEquals(expired, history().single().notice)
+        assertFalse(AppNotices.matches(expired, "0.7.4.2", 136, "main", now))
+        assertTrue(history(version = "0.7.4.3").isEmpty())
+        assertTrue(history(distribution = "compat").isEmpty())
+        assertTrue(history(version = "0.7.4.2_beta1").isEmpty())
+        assertTrue(history(doc.copy(announcements = emptyList())).isEmpty())
+        assertTrue(history(doc.copy(announcements = listOf(rule.copy(enabled = false)))).isEmpty())
+        assertFalse(AppNotices.matches(rule.copy(enabled = false), "0.7.4.2", 136, "main", now))
+        assertTrue(history(doc.copy(announcements = listOf(rule.copy(startsAt = "2026-11-18T00:00:00Z")))).isEmpty())
+        assertTrue(history(doc.copy(announcements = listOf(rule.copy(minVersionCode = 137)))).isEmpty())
+    }
+
+    @Test fun historyFetchesEveryOpenWithoutValidatorsAndNeverReturnsOldBodyAfterFailure() = runBlocking {
+        var requests = 0
+        val document = AppNoticeDocument(1, 1, listOf(rule), emptyList())
+        val body = kotlinx.serialization.json.Json.encodeToString(AppNoticeDocument.serializer(), document)
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            requests++
+            assertNull(chain.request().header("If-None-Match"))
+            assertEquals("no-cache", chain.request().header("Cache-Control"))
+            if (requests == 2) throw IOException("Artificial offline state")
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .header("ETag", "ignored").body((if (requests == 1) body else
+                    """{"schema":1,"revision":2,"announcements":[],"unstableVersions":[]}""").toResponseBody()).build()
+        }.build()
+        val history = AppNoticeHistoryFetcher(client)
+        val urls = listOf(AppNoticeStore.URL)
+        assertEquals(rule, history.fetch(urls)!!.announcements.single())
+        assertNull(history.fetch(urls))
+        assertTrue(history.fetch(urls)!!.announcements.isEmpty())
+        assertEquals(3, requests)
+        assertNull(client.cache)
+    }
+
     @Test fun foregroundRefreshUsesFifteenMinutesAndRetriesFailuresAfterOneMinute() {
         val minute = 60_000L
         assertFalse(AppNoticeRefreshPolicy.shouldRefresh(now + 14 * minute, now, now - 1, true, false))

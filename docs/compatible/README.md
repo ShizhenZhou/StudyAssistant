@@ -13,18 +13,28 @@
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek 与 GPT 辅助编写。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5.3_Compat（versionCode 140，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容版更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
+> 兼容版面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5.4_Compat（versionCode 141，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容版更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
 
 [Study Assistant · README](../../README.md)
 
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.5.3_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [下载兼容版 v0.7.5.4_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 
 [全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本记录
+
+
+### v0.7.5.4_Compat
+
+- ⭐ 选中答案文字或公式可记为重点，支持预览、返回原文及随会话备份。
+- 📄 选文可在 PDF 附件文字层中查找原页，多处命中列出候选，不额外调用 AI。
+- 🔍 解题记录搜索改为点击顶栏按钮展开，收起后恢复全部记录。
+- ℹ️ 精简关于与反馈，详细信息集中展示技术、功能、隐私及 MIT License 原文；历史公告按需联网获取。
+- 📦 后续兼容安装包统一使用 SA 前缀，版本名保留 _Compat，更新渠道独立。
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3_Compat
 

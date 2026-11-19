@@ -13,18 +13,28 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.3_Compat (versionCode 140, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.4_Compat (versionCode 141, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.3_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.4_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
+
+
+### v0.7.5.4_Compat
+
+- ⭐ Bookmark selected answer text or formulas, preview them, return to the original, and include them in conversation backups.
+- 📄 Find selected text in attached PDFs and open matching original pages; multiple matches remain selectable, with no extra AI calls.
+- 🔍 Open history search with the toolbar button; closing it restores all records.
+- ℹ️ Simplify About & feedback, move technical, feature, privacy and original MIT License information to Details, and fetch announcement history on demand.
+- 📦 New compatibility APKs use the SA prefix and retain _Compat in the version name, with separate update channels.
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3_Compat
 

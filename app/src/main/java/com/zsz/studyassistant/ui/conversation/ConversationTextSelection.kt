@@ -16,6 +16,12 @@ data class QuoteSelection(val text: String, val anchor: com.zsz.studyassistant.Q
 
 /** Keep Chromium's selection handles and standard actions; add one app-owned action. */
 internal open class ConversationTextSelection(context: Context) : WebView(context) {
+    var bookmarkLabel: String = ""
+    var bookmarkEnabled = false
+    var findPdfLabel: String = ""
+    var findPdfEnabled = false
+    var onBookmark: (Int, String, String, JSONObject) -> Unit = { _, _, _, _ -> }
+    var onFindPdf: (Int, String, String, JSONObject) -> Unit = { _, _, _, _ -> }
     var quoteLabel: String = ""
     var selectionHint: String = ""
     var quoteEnabled: Boolean = false
@@ -36,6 +42,11 @@ internal open class ConversationTextSelection(context: Context) : WebView(contex
                 // Floating toolbars prioritize required actions over optional/overflow items.
                 // Keep system actions intact; OEM assist actions may still take the first slot.
                 setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS or MenuItem.SHOW_AS_ACTION_WITH_TEXT)
+            }
+            listOf(Triple(BOOKMARK_ID, bookmarkLabel, bookmarkEnabled), Triple(FIND_PDF_ID, findPdfLabel, findPdfEnabled)).forEach { (id, label, enabled) ->
+                val extra = menu.findItem(id) ?: menu.add(Menu.NONE, id, 1, label).apply { setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM) }
+                extra.title = label
+                extra.isVisible = enabled
             }
             item.title = quoteLabel
             item.isVisible = quoteEnabled
@@ -61,17 +72,23 @@ internal open class ConversationTextSelection(context: Context) : WebView(contex
                 }
                 return true
             }
-            if (item.itemId != QUOTE_ID && item.itemId != android.R.id.copy) {
+            if (item.itemId !in setOf(QUOTE_ID, BOOKMARK_ID, FIND_PDF_ID, android.R.id.copy)) {
                 return delegate.onActionItemClicked(mode, item)
             }
+            val bookmarking = item.itemId == BOOKMARK_ID
+            val findingPdf = item.itemId == FIND_PDF_ID
             val quoting = item.itemId == QUOTE_ID
+            if ((bookmarking && !bookmarkEnabled) || (findingPdf && !findPdfEnabled)) return true
             if (quoting && !quoteEnabled) return true
             // Read before finishing ActionMode: finishing first collapses Chromium's selection.
             evaluateJavascript("window.dshSelectedText ? window.dshSelectedText() : null;") { result ->
                 val selected = runCatching { JSONObject(result) }.getOrNull()
                 val text = selected?.optString("text").orEmpty()
                 if (text.isNotBlank()) {
-                    if (quoting) {
+                    if (bookmarking || findingPdf) {
+                        if (bookmarking && bookmarkEnabled) onBookmark(selected!!.optInt("idx", -1), text, selected.optString("source"), selected)
+                        if (findingPdf && findPdfEnabled) onFindPdf(selected!!.optInt("idx", -1), text, selected.optString("source"), selected)
+                    } else if (quoting) {
                         if (quoteEnabled) onQuote(selected!!.optInt("idx", -1), text, selected.optString("source"), selected)
                     } else {
                         context.getSystemService(ClipboardManager::class.java)
@@ -80,7 +97,7 @@ internal open class ConversationTextSelection(context: Context) : WebView(contex
                     mode.finish()
                     evaluateJavascript("window.getSelection().removeAllRanges();", null)
                 } else {
-                    if (quoting) Toast.makeText(context, selectionHint, Toast.LENGTH_SHORT).show()
+                    if (quoting || bookmarking || findingPdf) Toast.makeText(context, selectionHint, Toast.LENGTH_SHORT).show()
                     else delegate.onActionItemClicked(mode, item)
                 }
             }
@@ -97,5 +114,7 @@ internal open class ConversationTextSelection(context: Context) : WebView(contex
 
     private companion object {
         val QUOTE_ID = View.generateViewId()
+        val BOOKMARK_ID = View.generateViewId()
+        val FIND_PDF_ID = View.generateViewId()
     }
 }

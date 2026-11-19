@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.3_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.4_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -27,7 +27,7 @@ This entry is shared by both distributions. The technical details and history be
 
 - 📷 Ask with photos or text and images, crop and correct OCR text and formulas, and grade handwritten work while retaining the original image.
 - 📎 Ask about PDF, Word, PowerPoint, TXT, Markdown, CSV and XLSX files; select PDF pages or Excel sheets, with originals included in backups.
-- 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables, enlarged SVG diagrams and swiping through images from the same batch.
+- 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables, enlarged SVG diagrams and swiping through images from the same batch. Bookmark key passages and find selected text in original PDF pages.
 - 🌐 Optional web search, link reading and answer sources.
 - 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.
 - 🧠 Choose fast or thinking mode, set AI output language, and toggle instructions by subject; export and import instructions separately.
@@ -61,6 +61,16 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
+
+
+### v0.7.5.4
+
+- ⭐ Bookmark selected answer text or formulas, preview them, return to the original, and include them in conversation backups.
+- 📄 Find selected text in attached PDFs and open matching original pages; multiple matches remain selectable, with no extra AI calls.
+- 🔍 Open history search with the toolbar button; closing it restores all records.
+- ℹ️ Simplify About & feedback, move technical, feature, privacy and original MIT License information to Details, and fetch announcement history on demand.
+- 📦 New compatibility APKs use the SA prefix and retain _Compat in the version name, with separate update channels.
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3
 

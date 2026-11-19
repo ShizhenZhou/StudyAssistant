@@ -1,6 +1,8 @@
 package com.zsz.studyassistant.ui
 
 internal val WORKFLOW_ZH = mapOf(
+    "history.search.open" to "搜索记录",
+    "history.search.close" to "关闭搜索",
     "notify.review.blocked" to "复习提醒已开启，但系统通知权限或提醒渠道已关闭。",
     "notify.review.allow" to "允许复习提醒通知",
     "history.search.hint" to "搜索标题或题干",
@@ -16,6 +18,8 @@ internal val WORKFLOW_ZH = mapOf(
     "inputDraft.discardConfirm" to "清除当前未发送的文字、引用和附件？已发送的问答不受影响。"
 )
 internal val WORKFLOW_EN = mapOf(
+    "history.search.open" to "Search history",
+    "history.search.close" to "Close search",
     "notify.review.blocked" to "Review reminders are enabled, but system notifications or the reminder channel are blocked.",
     "notify.review.allow" to "Allow review notifications",
     "history.search.hint" to "Search titles or questions",
@@ -31,6 +35,8 @@ internal val WORKFLOW_EN = mapOf(
     "inputDraft.discardConfirm" to "Clear unsent text, quotes and attachments? Sent messages will remain."
 )
 internal val WORKFLOW_JA = mapOf(
+    "history.search.open" to "履歴を検索",
+    "history.search.close" to "検索を閉じる",
     "notify.review.blocked" to "復習リマインダーは有効ですが、システム通知または通知チャンネルが無効です。",
     "notify.review.allow" to "復習の通知を許可",
     "history.search.hint" to "タイトル・問題文を検索",
@@ -46,6 +52,8 @@ internal val WORKFLOW_JA = mapOf(
     "inputDraft.discardConfirm" to "未送信の文章・引用・添付を削除しますか？送信済みの内容は保持されます。"
 )
 internal val WORKFLOW_KO = mapOf(
+    "history.search.open" to "기록 검색",
+    "history.search.close" to "검색 닫기",
     "notify.review.blocked" to "복습 알림이 켜져 있지만 시스템 알림 또는 알림 채널이 차단되어 있습니다.",
     "notify.review.allow" to "복습 알림 허용",
     "history.search.hint" to "제목 또는 문제 검색",

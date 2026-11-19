@@ -1,0 +1,41 @@
+package com.zsz.studyassistant.data
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class PdfSourceSearchTest {
+    private val document = ConversationDocument("a".repeat(64), "fixture.pdf", 100, listOf(4, 0, 2))
+
+    @Test fun sourceContextExcludesFutureAndDisabledDocumentsButKeepsCurrentAttachments() {
+        val newer = document.copy(sha256 = "b".repeat(64), name = "later.pdf")
+        val items = listOf(
+            com.zsz.studyassistant.ChatItem(0, "question", "q", messageKey = "q", documents = listOf(document)),
+            com.zsz.studyassistant.ChatItem(1, "assistant", "a", messageKey = "a"),
+            com.zsz.studyassistant.ChatItem(2, "user", "next", messageKey = "u", documents = listOf(newer),
+                excludedDocumentHashes = listOf(document.sha256, newer.sha256)),
+            com.zsz.studyassistant.ChatItem(3, "assistant", "next answer", messageKey = "b")
+        )
+        assertEquals(listOf(document), pdfDocumentsAtMessage(items, "a"))
+        assertEquals(listOf(newer), pdfDocumentsAtMessage(items, "b"))
+        assertTrue(pdfDocumentsAtMessage(items, "missing").isEmpty())
+    }
+
+    @Test fun selectedPageOrderIsOriginalOrderAndNeverRenumbersOriginals() {
+        assertEquals(listOf(0, 2, 4), PdfSourceSearch.originalPages(document, 5))
+        assertEquals(listOf(0, 1, 2), PdfSourceSearch.originalPages(document.copy(pages = null), 3))
+        assertThrows(DocumentProblem::class.java) { PdfSourceSearch.originalPages(document, 4) }
+        assertThrows(IllegalArgumentException::class.java) {
+            PdfSourceSearch.originalPages(document.copy(pages = listOf(0, 0)), 5)
+        }
+    }
+
+    @Test fun normalizationIgnoresLayoutButPreservesDifferentTextAndMath() {
+        assertEquals(PdfSourceSearch.normalize("Café 的原文"), PdfSourceSearch.normalize("Cafe\u0301\n的\u00a0原 文"))
+        assertNotEquals(PdfSourceSearch.normalize("x > 10; ABC"), PdfSourceSearch.normalize("x ≥ 10; ABC"))
+        assertNotEquals(PdfSourceSearch.normalize("original text"), PdfSourceSearch.normalize("Original text"))
+        assertNotEquals(PdfSourceSearch.normalize("This is correct."), PdfSourceSearch.normalize("This is incorrect."))
+        assertThrows(DocumentProblem::class.java) { PdfSourceSearch.query("x = 1") }
+        assertThrows(DocumentProblem::class.java) { PdfSourceSearch.query("x".repeat(2001)) }
+        assertEquals("originaltext", PdfSourceSearch.query("original\n text"))
+    }
+}

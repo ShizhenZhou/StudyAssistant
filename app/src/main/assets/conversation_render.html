@@ -471,7 +471,7 @@ window.dshSelectedText = function(){
   var source = messageSources[idx];
   if(!text || !source) return null;
   var scope = window.dshQuoteScope(selected.scope), offsets = window.dshQuoteRange(selected.scope,selected.range,excerpt.partial);
-  return {idx:idx, text:text, visualMath:excerpt.partial, source:source.content || '', scope:scope, start:offsets.start, end:offsets.end,
+  return {idx:idx, messageKey:source.messageKey || '', text:text, visualMath:excerpt.partial, source:source.content || '', scope:scope, start:offsets.start, end:offsets.end,
     sourceHash:(source.hashes || {})[scope] || ''};
 };
 document.addEventListener('selectionchange', function(){

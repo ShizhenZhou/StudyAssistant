@@ -5,14 +5,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-internal fun HistorySearchControls(query: String, onQuery: (String) -> Unit, period: Int, onPeriod: (Int) -> Unit) {
+internal fun HistorySearchControls(query: String, onQuery: (String) -> Unit, period: Int, onPeriod: (Int) -> Unit, requestFocus: Boolean = false) {
     val s = LocalStrings.current
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(requestFocus) { if (requestFocus) focusRequester.requestFocus() }
     OutlinedTextField(value = query, onValueChange = { if (it.length <= 200) onQuery(it) }, singleLine = true,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).focusRequester(focusRequester),
         placeholder = { Text(s["history.search.hint"]) },
         trailingIcon = { if (query.isNotEmpty()) TextButton(onClick = { onQuery("") }) { Text(s["history.search.clear"]) } })
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),

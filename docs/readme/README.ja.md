@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.3_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [互換版 v0.7.5.4_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -27,7 +27,7 @@ zsz が DeepSeek と GPT の支援で開発。
 
 - 📷 写真や画像付きテキストで質問し、切り取り・OCR の文字と数式の校正・手書き解答の添削に対応。元画像も保持します。
 - 📎 PDF・Word・PowerPoint・TXT・Markdown・CSV・XLSX で質問。PDF のページや Excel のシートを選択でき、原本もバックアップします。
-- 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・SVG 図の拡大と、同じ組の画像のスワイプ表示に対応。
+- 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・SVG 図の拡大と、同じ組の画像のスワイプ表示に対応。 要点の保存や、選択文の PDF 原文ページ検索にも対応。
 - 🌐 任意のウェブ検索・リンク閲覧と回答の参照元表示。
 - 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。
 - 🧠 高速・思考モード、AI 出力言語、科目別カスタム指示に対応。指示は個別に書き出し・読み込みできます。
@@ -61,6 +61,16 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
+
+
+### v0.7.5.4
+
+- ⭐ 選択した解答の文章や数式を要点として保存し、プレビュー・原文への移動・会話と一緒のバックアップに対応。
+- 📄 添付 PDF の文字層から選択文を検索して元のページを表示。複数の一致候補から選択でき、追加の AI 通信は不要です。
+- 🔍 解題履歴の検索欄をツールバーから開閉。閉じるとすべての履歴に戻ります。
+- ℹ️ アプリ情報とフィードバック画面を簡素化。技術・機能・プライバシー・MIT License 原文は詳細へ集約し、お知らせ履歴は必要時に取得します。
+- 📦 今後の互換 APK は SA 接頭辞とバージョン名の _Compat を使用し、更新経路を分離します。
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3
 

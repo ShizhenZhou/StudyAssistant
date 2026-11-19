@@ -44,6 +44,28 @@ class ConversationSecurityIntegrationTest {
         } finally { instrumentation.runOnMainSync { web?.destroy() } }
     }
 
+    @Test fun bookmarkNavigationUsesStableSourceAndRejectsEditedOrDeletedText() {
+        val messages = buildMessagesJson(listOf(ChatMsg("assistant", "Answer important text", messageKey = "answer-key")))
+        assertEquals("true", evaluate("""(function(){
+            renderMessages($messages);
+            var scope=document.querySelector('.message-text'), range=document.createRange();
+            range.selectNodeContents(scope);
+            window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+            if(dshSelectedText().messageKey!=='answer-key') return false;
+            window.getSelection().removeAllRanges();
+            var offsets=dshQuoteRange(scope,range,false);
+            var bookmark={text:'Answer important text',anchor:{messageKey:'answer-key',scope:'body',start:offsets.start,end:offsets.end,sourceHash:messageSources[0].hashes.body}};
+            dshJumpBookmark(bookmark);
+            if(!document.querySelector('.quote-jump-highlight')) return false;
+            dshClearQuoteJump();
+            bookmark.anchor.sourceHash='wrong'; dshJumpBookmark(bookmark);
+            if(document.querySelector('.quote-jump-highlight')) return false;
+            bookmark.anchor.sourceHash=messageSources[0].hashes.body;
+            bookmark.anchor.messageKey='deleted-key'; dshJumpBookmark(bookmark);
+            return !document.querySelector('.quote-jump-highlight');
+        })()"""))
+    }
+
     @Test fun literalMathPlaceholderCannotInterruptMessageRendering() {
         assertEquals("true", evaluate("""(function(){try{var marker='\uE0000\uE000';var d=document.createElement('div');d.innerHTML=renderMath(marker+' and ${'$'}x+1${'$'}');return d.textContent.indexOf(marker)>=0 && d.querySelectorAll('.katex').length===1;}catch(e){return false;}})()"""))
     }

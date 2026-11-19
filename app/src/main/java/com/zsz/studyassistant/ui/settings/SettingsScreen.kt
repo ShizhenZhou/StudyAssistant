@@ -240,7 +240,13 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                         AppNav.SettingsPages.DATA_TAG_MERGE -> SettingsSubPage(s["tagMerge.title"], { returnToParent() }) { TagMergePage(vm) }
                         AppNav.SettingsPages.UPDATE -> SettingsSubPage(s["settings.update"], { returnToParent() }) { UpdatePage() }
                         AppNav.SettingsPages.ABOUT -> SettingsSubPage(s["settings.about"], { returnToParent() }) {
-                            AboutPage { AppNav.SettingsPages.open(settingsNav, AppNav.SettingsPages.ABOUT_REPORT) }
+                            AboutPage { AppNav.SettingsPages.open(settingsNav, it) }
+                        }
+                        AppNav.SettingsPages.ABOUT_DETAILS -> SettingsSubPage(aboutHistoryStrings(LocalUiLang.current)["details"], { returnToParent() }) {
+                            AboutDetailsPage()
+                        }
+                        AppNav.SettingsPages.ABOUT_NOTICES -> SettingsSubPage(aboutHistoryStrings(LocalUiLang.current)["history"], { returnToParent() }) {
+                            AppNoticeHistoryPage()
                         }
                         AppNav.SettingsPages.ABOUT_REPORT -> SettingsSubPage(crashReportStrings(LocalUiLang.current)["title"], { returnToParent() }) {
                             CrashReportPage()
@@ -258,14 +264,20 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
 
 /** ℹ️ 关于：上面「应用信息」，下面「功能」说明（更新历史移到「应用更新」页） */
 @Composable
-private fun AboutPage(onReport: () -> Unit) {
+private fun AboutPage(onOpen: (String) -> Unit) {
     val s = LocalStrings.current
     Text(s["about.info"], style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     AboutSettings()
     Spacer(Modifier.height(12.dp))
-    SettingEntry(crashReportStrings(LocalUiLang.current)["title"], onClick = onReport)
-    Spacer(Modifier.height(20.dp))
+    SettingEntry(crashReportStrings(LocalUiLang.current)["title"]) { onOpen(AppNav.SettingsPages.ABOUT_REPORT) }
+    SettingEntry(aboutHistoryStrings(LocalUiLang.current)["history"]) { onOpen(AppNav.SettingsPages.ABOUT_NOTICES) }
+    SettingEntry(aboutHistoryStrings(LocalUiLang.current)["details"]) { onOpen(AppNav.SettingsPages.ABOUT_DETAILS) }
+}
+
+@Composable
+private fun AboutDetailsPage() {
+    val s = LocalStrings.current
     Text(s["about.tech"], style = MaterialTheme.typography.titleMedium)
     val aboutContext = LocalContext.current
     Spacer(Modifier.height(8.dp))
@@ -300,6 +312,15 @@ private fun AboutPage(onReport: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(12.dp)
         )
+    }
+    Spacer(Modifier.height(20.dp))
+    Text("MIT License", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    val license = remember(aboutContext) { aboutContext.assets.open("LICENSE").bufferedReader(Charsets.UTF_8).use { it.readText() } }
+    Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        androidx.compose.foundation.text.selection.SelectionContainer {
+            Text(license, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
+        }
     }
 }
 

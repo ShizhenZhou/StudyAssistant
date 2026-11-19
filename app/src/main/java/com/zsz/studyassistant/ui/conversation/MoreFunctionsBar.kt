@@ -25,6 +25,7 @@ internal fun MoreFunctionsBar(
     canToggleWeb: Boolean,
     canPickDocument: Boolean,
     canExport: Boolean,
+    onBookmarks: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val s = LocalStrings.current
@@ -48,6 +49,9 @@ internal fun MoreFunctionsBar(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                onBookmarks?.let { open ->
+                    FilterChip(selected = false, onClick = open, label = { Text("☆ " + s["bookmark.title"], fontSize = 12.sp) })
+                }
                 FilterChip(selected = webEnabled, onClick = onToggleWeb, enabled = canToggleWeb,
                     label = { Text("🌐 " + s["tools.web"], fontSize = 12.sp) })
                 FilterChip(selected = false, onClick = onPickDocument, enabled = canPickDocument,

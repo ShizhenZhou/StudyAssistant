@@ -16,7 +16,7 @@
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.3_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.5.4_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 - [兼容版說明與更新記錄](../compatible/README.zh-TW.md)
 
 本文是兩發行線共用入口；下方技術參數及歷史記錄以主線為準。相容版的系統範圍和獨立更新彙總見上方說明。
@@ -27,7 +27,7 @@
 
 - 📷 拍照或圖文提問，支持圖片框選、OCR 文字與公式校對和手寫作答批改，保留原圖。
 - 📎 支援 PDF、Word、PPT、TXT、Markdown、CSV、XLSX 檔案提問；可選 PDF 頁面或 Excel 工作表，原件隨備份保存。
-- 🤖 串流解答、附圖追問與同類題練習。選文引用後可使用常用追問、查看原文並返回，支援公式、表格和 SVG 圖形放大，同批圖片可左右切換。
+- 🤖 串流解答、附圖追問與同類題練習。選文引用後可使用常用追問、查看原文並返回，支援公式、表格和 SVG 圖形放大，同批圖片可左右切換。可收藏重點，並在 PDF 附件中查找選文原頁。
 - 🌐 可選聯網搜尋、連結閱讀與答案來源檢視。
 - 📤 選中或全部問答可導出為文字型 PDF 或分張 PNG。
 - 🧠 快速與思考模式，可設定 AI 輸出語言、按科目啟停自訂要求；要求可單獨匯入匯出。
@@ -61,6 +61,16 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 構建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 
 ## 版本記錄
+
+
+### v0.7.5.4
+
+- ⭐ 選取答案文字或公式可記為重點，支援預覽、返回原文及隨對話備份。
+- 📄 選文可在 PDF 附件文字層中查找原頁，多處符合時列出候選，不額外呼叫 AI。
+- 🔍 解題紀錄搜尋改為點選頂欄按鈕展開，收起後恢復全部紀錄。
+- ℹ️ 精簡關於與回饋，詳細資訊集中展示技術、功能、隱私及 MIT License 原文；歷史公告按需連線取得。
+- 📦 後續相容安裝包統一使用 SA 前綴，版本名保留 _Compat，更新管道獨立。
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3
 

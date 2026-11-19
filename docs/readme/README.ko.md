@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.3_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.4_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -27,7 +27,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
 - 📷 사진 또는 이미지와 글로 질문하고 자르기, OCR 문자·수식 교정, 손글씨 채점을 지원하며 원본 이미지를 보관합니다.
 - 📎 PDF·Word·PowerPoint·TXT·Markdown·CSV·XLSX 파일 질문을 지원합니다. PDF 페이지나 Excel 시트를 선택하고 원본도 백업합니다.
-- 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표, SVG 그림 확대와 같은 묶음 이미지의 좌우 넘기기를 지원합니다.
+- 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표, SVG 그림 확대와 같은 묶음 이미지의 좌우 넘기기를 지원합니다. 핵심 내용을 저장하고 PDF 원문에서 선택한 구절을 찾을 수 있습니다.
 - 🌐 선택적 웹 검색, 링크 읽기와 답변 출처 확인.
 - 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.
 - 🧠 빠른 모드와 생각 모드, AI 출력 언어 및 과목별 지시 설정. 지시는 별도로 내보내고 가져올 수 있습니다.
@@ -61,6 +61,16 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
+
+
+### v0.7.5.4
+
+- ⭐ 선택한 답변 글이나 수식을 핵심 내용으로 저장하고 미리보기, 원문 이동, 대화 백업을 지원합니다.
+- 📄 첨부 PDF의 텍스트에서 선택한 구절을 찾아 원본 페이지를 엽니다. 여러 결과는 직접 선택하며 추가 AI 호출은 없습니다.
+- 🔍 풀이 기록 검색창을 상단 버튼으로 열고 닫습니다. 닫으면 전체 기록으로 돌아갑니다.
+- ℹ️ 앱 정보·피드백 화면을 간소화하고 기술·기능·개인정보·MIT License 원문을 상세 정보로 모았습니다. 공지 이력은 필요할 때 가져옵니다.
+- 📦 새 호환 APK는 SA 접두사와 버전명의 _Compat를 사용하며 업데이트 경로는 독립적으로 유지합니다.
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3
 

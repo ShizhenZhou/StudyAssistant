@@ -18,6 +18,23 @@ import org.junit.runner.RunWith
 /** Actual Compose navigation and WebView rendering, in the no-network synthetic package only. */
 @RunWith(AndroidJUnit4::class)
 class UiSmokeTest {
+    @Test fun historySearchOpensOnDemandAndClosesWithoutLeavingHistory() {
+        // This isolated fixture may retain an old prompt; migration review is a separate flow.
+        com.zsz.studyassistant.data.PromptRulesStore(context).acknowledgeLegacyReview()
+        launch().use {
+            tapPhysical(s["home.history"])
+            waitFor(s["history.title"])
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, s["history.search.hint"]))
+            tap(s["history.search.open"])
+            waitFor(s["history.search.hint"])
+            waitFor(s["history.search.close"])
+            tap(s["history.search.close"])
+            waitUntilAbsent(s["history.search.hint"])
+            waitFor(s["history.title"])
+            waitFor(s["history.search.open"])
+        }
+    }
+
     @Test fun historyCountSharesTheTitleCenterAndKeepsASmallGap() {
         launch().use { scenario ->
             tapPhysical(s["home.history"])

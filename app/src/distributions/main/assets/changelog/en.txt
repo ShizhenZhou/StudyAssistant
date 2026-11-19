@@ -1,3 +1,10 @@
+v0.7.5.4
+· ⭐ Bookmark selected answer text or formulas, preview them, return to the original, and include them in conversation backups.
+· 📄 Find selected text in attached PDFs and open matching original pages; multiple matches remain selectable, with no extra AI calls.
+· 🔍 Open history search with the toolbar button; closing it restores all records.
+· ℹ️ Simplify About & feedback, move technical, feature, privacy and original MIT License information to Details, and fetch announcement history on demand.
+· 📦 New compatibility APKs use the SA prefix and retain _Compat in the version name, with separate update channels.
+
 v0.7.5.3
 · ⚡ Prepare and reuse images and files faster for follow-up questions; retain requests interrupted during preparation so generation can resume.
 · 💬 Reduce repeated work when refreshing long conversations and filtering the notebook, while keeping category and tag hints consistent within a conversation.

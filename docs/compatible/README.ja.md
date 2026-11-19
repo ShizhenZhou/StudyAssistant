@@ -13,18 +13,28 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.3_Compat（versionCode 140、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.4_Compat（versionCode 141、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.3_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [互換版 v0.7.5.4_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
+
+
+### v0.7.5.4_Compat
+
+- ⭐ 選択した解答の文章や数式を要点として保存し、プレビュー・原文への移動・会話と一緒のバックアップに対応。
+- 📄 添付 PDF の文字層から選択文を検索して元のページを表示。複数の一致候補から選択でき、追加の AI 通信は不要です。
+- 🔍 解題履歴の検索欄をツールバーから開閉。閉じるとすべての履歴に戻ります。
+- ℹ️ アプリ情報とフィードバック画面を簡素化。技術・機能・プライバシー・MIT License 原文は詳細へ集約し、お知らせ履歴は必要時に取得します。
+- 📦 今後の互換 APK は SA 接頭辞とバージョン名の _Compat を使用し、更新経路を分離します。
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3_Compat
 

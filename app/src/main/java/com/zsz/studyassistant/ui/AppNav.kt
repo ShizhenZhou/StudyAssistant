@@ -206,10 +206,12 @@ object AppNav {
         const val UPDATE = "update"
         const val ABOUT = "about"
         const val ABOUT_REPORT = "about.report"
+        const val ABOUT_DETAILS = "about.details"
+        const val ABOUT_NOTICES = "about.notices"
 
         /** Complete registry, including leaf settings pages without children. */
         val all = setOf(MAIN, AI, AI_API, AI_CROP, AI_SOLVE, AI_PROMPT, LANG, THEME, NOTIFY,
-            DATA, DATA_BACKUP, DATA_STORAGE, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT, ABOUT_REPORT)
+            DATA, DATA_BACKUP, DATA_STORAGE, DATA_CRASH, DATA_UPGRADE, DATA_TAG_MERGE, UPDATE, ABOUT, ABOUT_REPORT, ABOUT_DETAILS, ABOUT_NOTICES)
 
         /** Direct notification/repair entries must retain the same Back parents as menu entries. */
         fun path(page: String): List<String> = buildList {
@@ -250,7 +252,7 @@ object AppNav {
             MAIN -> MAIN
             AI_API, AI_CROP, AI_SOLVE, AI_PROMPT -> AI
             DATA_BACKUP, DATA_STORAGE, DATA_UPGRADE, DATA_TAG_MERGE -> DATA
-            DATA_CRASH, ABOUT_REPORT -> ABOUT
+            DATA_CRASH, ABOUT_REPORT, ABOUT_DETAILS, ABOUT_NOTICES -> ABOUT
             LANG -> THEME
             else -> MAIN
         }

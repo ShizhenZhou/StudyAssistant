@@ -92,6 +92,13 @@ class DocumentStore(context: Context) {
         file
     }
 
+    /** Local source navigation must verify content, not merely a matching name or byte length. */
+    internal fun verifiedFile(document: ConversationDocument, check: () -> Unit = {}): File = withOriginalsLock {
+        file(document).also {
+            if (hash(it, check) != document.sha256) throw DocumentProblem("document.damaged")
+        }
+    }
+
     /** Also used by backup import, before any DB merge; never deletes or overwrites existing originals. */
     fun install(source: File, document: ConversationDocument, check: () -> Unit = {}): File = withOriginalsLock {
         validateDocument(document); ensureDirectory()

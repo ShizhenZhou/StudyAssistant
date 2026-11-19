@@ -13,18 +13,28 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.3_Compat(versionCode 140, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.4_Compat(versionCode 141, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.3_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.3_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.4_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 버전 기록
+
+
+### v0.7.5.4_Compat
+
+- ⭐ 선택한 답변 글이나 수식을 핵심 내용으로 저장하고 미리보기, 원문 이동, 대화 백업을 지원합니다.
+- 📄 첨부 PDF의 텍스트에서 선택한 구절을 찾아 원본 페이지를 엽니다. 여러 결과는 직접 선택하며 추가 AI 호출은 없습니다.
+- 🔍 풀이 기록 검색창을 상단 버튼으로 열고 닫습니다. 닫으면 전체 기록으로 돌아갑니다.
+- ℹ️ 앱 정보·피드백 화면을 간소화하고 기술·기능·개인정보·MIT License 원문을 상세 정보로 모았습니다. 공지 이력은 필요할 때 가져옵니다.
+- 📦 새 호환 APK는 SA 접두사와 버전명의 _Compat를 사용하며 업데이트 경로는 독립적으로 유지합니다.
+- 📌 `versionCode` **141**.
 
 ### v0.7.5.3_Compat
 

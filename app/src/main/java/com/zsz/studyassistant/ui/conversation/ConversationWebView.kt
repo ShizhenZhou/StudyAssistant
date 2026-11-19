@@ -78,6 +78,10 @@ fun ConversationWebView(
     onLongPressMessage: (Int) -> Unit = {},
     /** Available only where a follow-up composer can receive a selection. */
     onQuoteText: ((QuoteSelection) -> Unit)? = null,
+    onBookmarkText: ((QuoteSelection) -> Unit)? = null,
+    onFindPdfText: ((QuoteSelection) -> Unit)? = null,
+    bookmarkJump: com.zsz.studyassistant.ConversationBookmark? = null,
+    bookmarkJumpSignal: Int = 0,
     /** 是否处于多选态：气泡右上角显示选择圆圈，选中的显示红框 */
     selectionMode: Boolean = false,
     /** 多选态下已选中的消息下标 */
@@ -113,6 +117,8 @@ fun ConversationWebView(
     val currentOnContinue by rememberUpdatedState(onContinue)
     val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
     val currentOnQuote by rememberUpdatedState(onQuoteText)
+    val currentOnBookmark by rememberUpdatedState(onBookmarkText)
+    val currentOnFindPdf by rememberUpdatedState(onFindPdfText)
     val currentOnQuoteReturn by rememberUpdatedState(onQuoteReturnAvailable)
     val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
     val currentOnAtTopChange by rememberUpdatedState(onAtTopChange)
@@ -194,6 +200,16 @@ fun ConversationWebView(
         if (returnQuoteSignal > 0) webRef?.evaluateJavascript("window.dshReturnToQuote && window.dshReturnToQuote();", null)
     }
 
+    LaunchedEffect(bookmarkJumpSignal) {
+        if (bookmarkJumpSignal > 0) bookmarkJump?.let { bookmark ->
+            val a = bookmark.anchor
+            val payload = JSONObject().put("text", bookmark.text).put("anchor", JSONObject()
+                .put("messageKey", a.messageKey).put("scope", a.scope).put("start", a.start)
+                .put("end", a.end).put("sourceHash", a.sourceHash).put("visualMath", a.visualMath))
+            webRef?.evaluateJavascript("window.dshJumpBookmark && window.dshJumpBookmark($payload);", null)
+        }
+    }
+
     // 换题/换会话：立刻回到顶部（无动画）
     LaunchedEffect(resetScrollSignal) {
         if (resetScrollSignal > 0) {
@@ -223,21 +239,29 @@ fun ConversationWebView(
                     quoteLabel = s["solve.quoteAction"]
                     selectionHint = s["solve.quoteSelectionHint"]
                     quoteEnabled = onQuoteText != null && !selectionMode
-                    onQuote = { idx, text, source, selected ->
+                    bookmarkLabel = s["bookmark.action"]
+                    findPdfLabel = s["pdfSource.find"]
+                    bookmarkEnabled = onBookmarkText != null && !selectionMode
+                    findPdfEnabled = onFindPdfText != null && !selectionMode
+                    fun dispatchSelection(idx: Int, text: String, source: String, selected: JSONObject, callback: ((QuoteSelection) -> Unit)?) {
                         // A menu callback must not quote a replaced message or a released WebView.
                         val message = currentMessages.getOrNull(idx)
                         val scope = selected.optString("scope")
                         val hash = selected.optString("sourceHash")
-                        if (webRef === bridgeView && message != null && message.content == source &&
+                        if (webRef === bridgeView && message != null && !message.messageKey.isNullOrBlank() &&
+                            selected.optString("messageKey") == message.messageKey && message.content == source &&
                             message.sourceHash(scope) == hash) {
                             val start = selected.optInt("start", -1)
                             val end = selected.optInt("end", -1)
                             val anchor = message.messageKey?.takeIf { start >= 0 && end > start }?.let {
                                 com.zsz.studyassistant.QuoteAnchor(it, scope, start, end, hash, selected.optBoolean("visualMath"))
                             }
-                            currentOnQuote?.invoke(QuoteSelection(text, anchor))
+                            callback?.invoke(QuoteSelection(text, anchor))
                         }
                     }
+                    onQuote = { idx, text, source, selected -> dispatchSelection(idx, text, source, selected, currentOnQuote) }
+                    onBookmark = { idx, text, source, selected -> dispatchSelection(idx, text, source, selected, currentOnBookmark) }
+                    onFindPdf = { idx, text, source, selected -> dispatchSelection(idx, text, source, selected, currentOnFindPdf) }
                     configureConversationWebView(this)
                     setBackgroundColor(Color.TRANSPARENT)
                     isVerticalScrollBarEnabled = true
@@ -365,6 +389,10 @@ fun ConversationWebView(
                 v.quoteLabel = s["solve.quoteAction"]
                 v.selectionHint = s["solve.quoteSelectionHint"]
                 v.quoteEnabled = onQuoteText != null && !selectionMode
+                v.bookmarkEnabled = onBookmarkText != null && !selectionMode
+                v.findPdfEnabled = onFindPdfText != null && !selectionMode
+                v.bookmarkLabel = s["bookmark.action"]
+                v.findPdfLabel = s["pdfSource.find"]
                 if (loaded) {
                     payload.javascript(currentMessages, selectionJson(), thinkLabelsJson(),
                         currentDark, currentScale, currentThinkPref)?.let { v.evaluateJavascript(it, null) }
@@ -427,6 +455,8 @@ private class ResetOnFocusWebView(context: android.content.Context) : Conversati
         released = true
         quoteEnabled = false
         onQuote = { _, _, _, _ -> }
+        onBookmark = { _, _, _, _ -> }
+        onFindPdf = { _, _, _, _ -> }
         setOnTouchListener(null)
         if (!rendererGone) { removeJavascriptInterface("Android"); stopLoading() }
         (parent as? android.view.ViewGroup)?.removeView(this)

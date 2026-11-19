@@ -2863,7 +2863,7 @@ private val B10_ZH = mapOf(
         "· 🌐 可选联网搜索、链接阅读与答案来源查看。\n" +
         "· 📷 拍照或图文提问，支持图片框选、OCR 文字与公式校对和手写作答批改，保留原图。\n" +
         "· 📎 支持 PDF、Word、PPT、TXT、Markdown、CSV、XLSX 文件提问；可选 PDF 页面或 Excel 工作表，原件随备份保存。\n" +
-        "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和 SVG 图形放大，同批图片可左右切换。\n" +
+        "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和 SVG 图形放大，同批图片可左右切换。可收藏重点，并在 PDF 附件中查找选文原页。\n" +
         "· 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、按科目启停自定义要求；要求可单独导入导出。\n" +
         "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
@@ -2942,7 +2942,7 @@ private val B10_EN = mapOf(
         "· 🌐 Optional web search, link reading and answer sources.\n" +
         "· 📷 Ask with photos or text and images, crop and correct OCR text and formulas, and grade handwritten work while retaining the original image.\n" +
         "· 📎 Ask about PDF, Word, PowerPoint, TXT, Markdown, CSV and XLSX files; select PDF pages or Excel sheets, with originals included in backups.\n" +
-        "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables, enlarged SVG diagrams and swiping through images from the same batch.\n" +
+        "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables, enlarged SVG diagrams and swiping through images from the same batch. Bookmark key passages and find selected text in original PDF pages.\n" +
         "· 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language, and toggle instructions by subject; export and import instructions separately.\n" +
         "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
@@ -3021,7 +3021,7 @@ private val B10_JA = mapOf(
         "· 🌐 任意のウェブ検索・リンク閲覧と回答の参照元表示。\n" +
         "· 📷 写真や画像付きテキストで質問し、切り取り・OCR の文字と数式の校正・手書き解答の添削に対応。元画像も保持します。\n" +
         "· 📎 PDF・Word・PowerPoint・TXT・Markdown・CSV・XLSX で質問。PDF のページや Excel のシートを選択でき、原本もバックアップします。\n" +
-        "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・SVG 図の拡大と、同じ組の画像のスワイプ表示に対応。\n" +
+        "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・SVG 図の拡大と、同じ組の画像のスワイプ表示に対応。 要点の保存や、選択文の PDF 原文ページ検索にも対応。\n" +
         "· 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。\n" +
         "· 🧠 高速・思考モード、AI 出力言語、科目別カスタム指示に対応。指示は個別に書き出し・読み込みできます。\n" +
         "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
@@ -3100,7 +3100,7 @@ private val B10_KO = mapOf(
         "· 🌐 선택적 웹 검색, 링크 읽기와 답변 출처 확인.\n" +
         "· 📷 사진 또는 이미지와 글로 질문하고 자르기, OCR 문자·수식 교정, 손글씨 채점을 지원하며 원본 이미지를 보관합니다.\n" +
         "· 📎 PDF·Word·PowerPoint·TXT·Markdown·CSV·XLSX 파일 질문을 지원합니다. PDF 페이지나 Excel 시트를 선택하고 원본도 백업합니다.\n" +
-        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표, SVG 그림 확대와 같은 묶음 이미지의 좌우 넘기기를 지원합니다.\n" +
+        "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표, SVG 그림 확대와 같은 묶음 이미지의 좌우 넘기기를 지원합니다. 핵심 내용을 저장하고 PDF 원문에서 선택한 구절을 찾을 수 있습니다.\n" +
         "· 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어 및 과목별 지시 설정. 지시는 별도로 내보내고 가져올 수 있습니다.\n" +
         "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
@@ -3491,7 +3491,7 @@ private val UPDATE_CHANNEL_ZH = mapOf(
     "update.downloadBeta" to "下载测试版（可选）"
 )
 
-internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH + PROMPT_BACKUP_ZH + DOCUMENT_SELECTION_ZH + UPDATE_RECOVERY_ZH + WORKFLOW_ZH
+internal val ZH: Map<String, String> = B0_ZH + B1_ZH + B2_ZH + B3_ZH + B4_ZH + B5_ZH + B6_ZH + B7_ZH + B8_ZH + B9_ZH + B10_ZH + B11_ZH + B12_ZH + B13_ZH + B14_ZH + UPDATE_CHANNEL_ZH + V688_ZH + PROMPT_RULES_ZH + PROMPT_BACKUP_ZH + DOCUMENT_SELECTION_ZH + UPDATE_RECOVERY_ZH + WORKFLOW_ZH + BOOKMARK_ZH + PDF_SOURCE_ZH
 private val B12_EN = mapOf(
     "about.tech" to "Technology & compatibility",
     "about.tech.body" to "Android {android} · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3550,7 +3550,7 @@ private val UPDATE_CHANNEL_EN = mapOf(
     "update.downloadBeta" to "Download test version (optional)"
 )
 
-internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN + PROMPT_BACKUP_EN + DOCUMENT_SELECTION_EN + UPDATE_RECOVERY_EN + WORKFLOW_EN
+internal val EN: Map<String, String> = B0_EN + B1_EN + B2_EN + B3_EN + B4_EN + B5_EN + B6_EN + B7_EN + B8_EN + B9_EN + B10_EN + B11_EN + B12_EN + B13_EN + B14_EN + UPDATE_CHANNEL_EN + V688_EN + PROMPT_RULES_EN + PROMPT_BACKUP_EN + DOCUMENT_SELECTION_EN + UPDATE_RECOVERY_EN + WORKFLOW_EN + BOOKMARK_EN + PDF_SOURCE_EN
 private val B12_JA = mapOf(
     "about.tech" to "技術と互換性",
     "about.tech.body" to "Android {android} · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3609,7 +3609,7 @@ private val UPDATE_CHANNEL_JA = mapOf(
     "update.downloadBeta" to "テスト版をダウンロード（任意）"
 )
 
-internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA + PROMPT_BACKUP_JA + DOCUMENT_SELECTION_JA + UPDATE_RECOVERY_JA + WORKFLOW_JA
+internal val JA: Map<String, String> = B0_JA + B1_JA + B2_JA + B3_JA + B4_JA + B5_JA + B6_JA + B7_JA + B8_JA + B9_JA + B10_JA + B11_JA + B12_JA + B13_JA + B14_JA + UPDATE_CHANNEL_JA + V688_JA + PROMPT_RULES_JA + PROMPT_BACKUP_JA + DOCUMENT_SELECTION_JA + UPDATE_RECOVERY_JA + WORKFLOW_JA + BOOKMARK_JA + PDF_SOURCE_JA
 private val B12_KO = mapOf(
     "about.tech" to "기술 및 호환성",
     "about.tech.body" to "Android {android} · API {api} · DB v{db} · Bak v{bak}\nKotlin · Compose (Material3) · Room · CameraX · Retrofit/OkHttp · WebView/KaTeX",
@@ -3668,4 +3668,4 @@ private val UPDATE_CHANNEL_KO = mapOf(
     "update.downloadBeta" to "테스트 버전 다운로드 (선택)"
 )
 
-internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO + PROMPT_BACKUP_KO + DOCUMENT_SELECTION_KO + UPDATE_RECOVERY_KO + WORKFLOW_KO
+internal val KO: Map<String, String> = B0_KO + B1_KO + B2_KO + B3_KO + B4_KO + B5_KO + B6_KO + B7_KO + B8_KO + B9_KO + B10_KO + B11_KO + B12_KO + B13_KO + B14_KO + UPDATE_CHANNEL_KO + V688_KO + PROMPT_RULES_KO + PROMPT_BACKUP_KO + DOCUMENT_SELECTION_KO + UPDATE_RECOVERY_KO + WORKFLOW_KO + BOOKMARK_KO + PDF_SOURCE_KO

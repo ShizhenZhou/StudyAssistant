@@ -73,6 +73,41 @@ class SessionOwnershipRegressionTest {
         assertFalse(model.similarBusy)
     }
 
+    @Test fun bookmarksPersistReopenAndRejectReplacedSource() = runBlocking {
+        val content = "Synthetic answer with important text"
+        val hash = java.security.MessageDigest.getInstance("SHA-256").digest(content.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        val anchor = com.zsz.studyassistant.QuoteAnchor("answer-key", "body", 22, 36, hash)
+        val chats = listOf(ChatItem(0, "question", "bookmark fixture", messageKey = "question-key"),
+            ChatItem(1, "assistant", content, messageKey = "answer-key"))
+        val row = Question(QuestionIdentity.create(10000), "bookmark fixture", content, 10000,
+            conversationJson = Json.encodeToString(chats))
+        db.questionDao().insert(row)
+        main {
+            model.loadQuestion(row)
+            assertEquals("bookmark.saved", model.addBookmark("important text", anchor))
+            assertEquals("bookmark.exists", model.addBookmark("important text", anchor))
+        }
+        await { db.questionDao().heavyOnce(row.id)?.conversationJson?.contains("bookmarks") == true && model.saveOperations == 0 }
+        val saved = db.questionDao().heavyOnce(row.id)!!
+        main { model.loadQuestion(saved) }
+        val restored = com.zsz.studyassistant.conversationBookmarks(model.chatItems).single()
+        assertEquals(anchor, restored.anchor)
+        assertTrue(com.zsz.studyassistant.bookmarkSourceAvailable(model.chatItems, restored.anchor))
+        val backupText = BackupTree.imagesJson(saved.conversationJson!!, app.cacheDir, false, true, {})
+        val restoredText = BackupTree.imagesJson(backupText, app.cacheDir, true, true, {})
+        assertEquals(restored, com.zsz.studyassistant.conversationBookmarks(Json.decodeFromString<List<ChatItem>>(restoredText)).single())
+        assertEquals(restored, com.zsz.studyassistant.conversationBookmarks(regenerationBase(model.chatItems)).single())
+        assertEquals(restored, com.zsz.studyassistant.conversationBookmarks(
+            com.zsz.studyassistant.deleteConversationMessages(model.chatItems, setOf(1))).single())
+        val replaced = chats.map { if (it.role == "assistant") it.copy(messageKey = "replacement") else it }
+        assertFalse(com.zsz.studyassistant.bookmarkSourceAvailable(replaced, restored.anchor))
+        main { model.removeBookmark(restored.id) }
+        await { db.questionDao().heavyOnce(row.id)?.conversationJson?.contains("bookmarks") == false && model.saveOperations == 0 }
+        main { model.loadQuestion(db.questionDao().heavyOnce(row.id)!!) }
+        assertTrue(com.zsz.studyassistant.conversationBookmarks(model.chatItems).isEmpty())
+    }
+
     @Test fun initialSimilarCompletionUpdatesAnInsertStillWaitingForTheWriteLock() = runBlocking {
         initialSimilarSavedWhileStreaming("success")
     }

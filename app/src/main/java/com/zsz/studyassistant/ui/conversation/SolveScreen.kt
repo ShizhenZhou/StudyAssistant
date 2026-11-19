@@ -229,6 +229,12 @@ fun SolveScreen(
     var clearQuoteHighlightTick by remember { mutableIntStateOf(0) }
     var conversationBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var screenOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var pdfLookup by remember(vm.chatItems.firstOrNull()?.messageKey) {
+        mutableStateOf<Pair<String, List<com.zsz.studyassistant.data.ConversationDocument>>?>(null)
+    }
+    pdfLookup?.let { (text, documents) ->
+        PdfSourceSearchDialog(text, documents, onDismiss = { pdfLookup = null })
+    }
     var quoteReturnAvailable by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf(false) }
     // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
     var atTop by remember { mutableStateOf(true) }
@@ -385,8 +391,22 @@ fun SolveScreen(
             )
         }
     }
+    var bookmarksOpen by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf(false) }
+    var bookmarkJump by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf<com.zsz.studyassistant.ConversationBookmark?>(null) }
+    var bookmarkJumpTick by remember { mutableStateOf(0) }
+    val bookmarks = com.zsz.studyassistant.conversationBookmarks(vm.chatItems)
+    if (bookmarksOpen) ConversationBookmarksDialog(bookmarks, enabled = !vm.busy && !vm.dataBusy && !vm.streamInterrupted,
+        onDismiss = { bookmarksOpen = false }, onRemove = vm::removeBookmark,
+        onJump = { bookmark ->
+            if (com.zsz.studyassistant.bookmarkSourceAvailable(vm.chatItems, bookmark.anchor)) {
+                bookmarksOpen = false
+                bookmarkJump = bookmark
+                bookmarkJumpTick++
+            } else feedback.show(s["solve.quoteUnavailable"])
+        })
     val moreTools: @Composable () -> Unit = {
         MoreFunctionsBar(
+            onBookmarks = { bookmarksOpen = true },
             webEnabled = vm.webEnabled,
             onToggleWeb = { vm.updateWebEnabled(!vm.webEnabled) },
             onPickDocument = ::pickDocument,
@@ -905,11 +925,27 @@ fun SolveScreen(
                     }
                 }
             } else {
+                if (sessionMode == SessionMode.REVIEW) TextButton(onClick = { bookmarksOpen = true }) {
+                    Text("☆ " + s["bookmark.title"])
+                }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     ConversationWebView(
                         messages = messages,
                         scrollTopSignal = scrollTopTick,
                         onContinue = { if (vm.initialAnswerPending) vm.generateMissingInitialAnswer() else vm.continueGeneration() },
+                        bookmarkJump = bookmarkJump,
+                        bookmarkJumpSignal = bookmarkJumpTick,
+                        onBookmarkText = if (!vm.busy && !vm.dataBusy && !vm.streamInterrupted && !editMode) { selection ->
+                            feedback.show(s[vm.addBookmark(selection.text, selection.anchor)])
+                        } else null,
+                        onFindPdfText = if (!vm.busy && !editMode && vm.chatItems.any { item ->
+                            item.documents.any { it.name.endsWith(".pdf", ignoreCase = true) }
+                        }) { selection ->
+                            val documents = selection.anchor?.let {
+                                com.zsz.studyassistant.data.pdfDocumentsAtMessage(vm.chatItems, it.messageKey)
+                            }.orEmpty()
+                            pdfLookup = selection.text to documents
+                        } else null,
                         onQuoteText = if (inputEnabled && sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { selection ->
                             draft.quote = selection
                             quoteFocusSignal++

@@ -21,7 +21,8 @@ data class AppNotice(
     val startsAt: String? = null,
     val expiresAt: String,
     val title: Map<String, String>,
-    val body: Map<String, String>
+    val body: Map<String, String>,
+    val enabled: Boolean = true
 ) {
     fun text(values: Map<String, String>, language: String): String =
         values[language] ?: values[if (language == "zh-TW") "zh-CN" else "en"] ?: values.getValue("zh-CN")
@@ -82,10 +83,14 @@ object AppNotices {
     }
 
     fun matches(n: AppNotice, installed: String, code: Long, distribution: String, now: Long): Boolean {
+        return matchesScope(n, installed, code, distribution, now) && now < Instant.parse(n.expiresAt).toEpochMilli()
+    }
+
+    private fun matchesScope(n: AppNotice, installed: String, code: Long, distribution: String, now: Long): Boolean {
+        if (!n.enabled) return false
         if (distribution !in n.distributions ||
             (if (installed.contains("_beta")) "beta" else "stable") !in n.channels) return false
-        if (now >= Instant.parse(n.expiresAt).toEpochMilli() ||
-            n.startsAt?.let { now < Instant.parse(it).toEpochMilli() } == true) return false
+        if (n.startsAt?.let { now < Instant.parse(it).toEpochMilli() } == true) return false
         if (n.versions.isNotEmpty() && n.versions.none { UpdateChecker.compareVersions(installed, it) == 0 }) return false
         if (n.minVersion?.let { UpdateChecker.compareVersions(installed, it) < 0 } == true ||
             n.maxVersion?.let { UpdateChecker.compareVersions(installed, it) > 0 } == true) return false
@@ -101,6 +106,14 @@ object AppNotices {
         }
 
     fun cacheFresh(fetchedAt: Long, now: Long): Boolean = fetchedAt > 0 && now >= fetchedAt && now - fetchedAt < CACHE_MAX_AGE
+
+    /** History uses only the newly fetched document; expiry and acknowledgement do not hide it. */
+    fun history(document: AppNoticeDocument, installed: String, code: Long, distribution: String,
+        now: Long): List<PendingAppNotice> =
+        (document.announcements.map { PendingAppNotice(it, false) } +
+            document.unstableVersions.map { PendingAppNotice(it, true) })
+            .filter { matchesScope(it.notice, installed, code, distribution, now) }
+            .sortedByDescending { it.notice.id }
 
     /** Re-evaluate scheduled starts, expiry edits and cache expiry without polling the network. */
     fun nextChangeAt(document: AppNoticeDocument, fetchedAt: Long, now: Long): Long? {

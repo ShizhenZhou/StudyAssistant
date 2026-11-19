@@ -47,6 +47,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.navigation.NavHostController
 import com.zsz.studyassistant.MainViewModel
 import com.zsz.studyassistant.data.AppDatabase
@@ -79,6 +82,14 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 
     var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var period by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    var searchExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    fun closeSearch() {
+        query = ""
+        period = 0
+        searchExpanded = false
+        focusManager.clearFocus()
+    }
     val day by vm.currentDay.collectAsStateWithLifecycle()
     val since = when (period) { 1 -> day.start; 7 -> day.after(-6); 30 -> day.after(-29); else -> 0L }
     var searchFailed by remember { mutableStateOf(false) }
@@ -108,6 +119,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 
     // 返回键：选择模式 → 先退出选择，而不是直接退页面
     BackHandler(enabled = selectionMode) { exitSelection() }
+    BackHandler(enabled = searchExpanded && !selectionMode) { closeSearch() }
 
     val groups = remember(sessions, day) { groupSolveSessionsByDay(sessions, day) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -161,7 +173,7 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             contentPadding = PaddingValues(horizontal = 6.dp)
                         ) { Text("✕", fontSize = 18.sp) }
                     } else {
-                        SubPageBackArrow(onClick = { nav.popBackStack() })
+                        SubPageBackArrow(onClick = { if (searchExpanded) closeSearch() else nav.popBackStack() })
                     }
                 },
                 actions = {
@@ -172,10 +184,16 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
                             enabled = selectedIds.isNotEmpty(),
                             contentPadding = compact
                         ) { Text(s["solve.delete"], fontSize = BTN_LABEL_SOLVE, maxLines = 1, softWrap = false) }
+                    } else {
+                        val searchAction = s[if (searchExpanded) "history.search.close" else "history.search.open"]
+                        androidx.compose.material3.IconButton(
+                            onClick = { if (searchExpanded) closeSearch() else searchExpanded = true },
+                            modifier = Modifier.semantics { contentDescription = searchAction }
+                        ) { Text(if (searchExpanded) "✕" else "🔍", fontSize = 20.sp) }
                     }
                 }
             )
-            HistorySearchControls(query, { query = it }, period, { period = it })
+            if (searchExpanded) HistorySearchControls(query, { query = it }, period, { period = it }, requestFocus = true)
             }
         }
     ) { padding ->
