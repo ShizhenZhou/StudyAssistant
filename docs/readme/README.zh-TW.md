@@ -2,7 +2,7 @@
 
 [简体中文](../../README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
-> 兩種發行版均從 main 建置；Compatible 分支僅保留歷史。
+> 兩種發行版均從 main 建置；歷史相容版 Release 和標籤繼續保留。
 
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)

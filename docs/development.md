@@ -155,4 +155,4 @@ PDF 导出由 `ui/conversation/ConversationPdfExport` 协调语义读取、公�
 
 ## 两发行线共同维护
 
-构建变体与发布命令见 [发行线布局](distributions.md)。两种正式版均从 main 发布；兼容版用 `--distribution compat`。版本以 `config/distributions/` 为准；Compatible 仅保留历史。默认验证 modern，必要时用 `-Distribution compat`，不重复执行。
+构建变体与发布命令见 [发行线布局](distributions.md)。两种正式版均从 main 发布；兼容版用 `--distribution compat`。版本以 `config/distributions/` 为准；旧 Compatible 分支已停用并删除，历史 Release 和标签保留。默认验证 modern，必要时用 `-Distribution compat`，不重复执行。

@@ -14,7 +14,7 @@
 
 ## 单主线与双构建变体
 
-- 所有功能和兼容适配在主线开发流程完成并合入 main；不再向 Compatible 合并或 cherry-pick。旧分支、发布和标签保留历史，不删除、不改写。
+- 所有功能和兼容适配在主线开发流程完成并合入 main；不再向 Compatible 合并或 cherry-pick。已停用的 Compatible 分支按用户要求删除；历史提交、发布和标签保留，不改写。
 - 使用原生 modern / compat product flavors；modern 对应发行身份 main，compat 对应 compat。两种正式版均从 main 发布，Beta 按当次授权从 Develop 发布。每次 CI 仅构建指定变体。
 - 各自版本与系统范围在 `config/distributions/{main,compat}.properties`；差异实现和应用记录在 `app/src/distributions/{main,compat}/`，兼容版说明在 `docs/compatible/`。共用代码、工具和五语言 README 只维护一份，不再设置分支选择器。
 - 兼容版新版本使用 `_Compat` 后缀（Beta 如 `0.7.6_beta1_Compat`），历史发布不改名。独立发布不要求同时提升另一发行线版本。主线 Latest、兼容标签/包名、系统范围、签名和差分基准继续隔离；同一提交与版本的发布状态也要按发行身份区分。
@@ -38,4 +38,4 @@
 
 `docs/compatible/` 与兼容版应用更新资源保留单独的兼容更新汇总，使用“以上版本开始为兼容分支”分隔说明。两条分支均不再把 v0.6.7.9 标为 Android 9–15 的最后一次更新。
 
-主线 README 下载区提供兼容版说明入口；历史分隔说明中的“兼容版说明”链接到 docs/compatible 对应语言页面。v0.7.4.2 保留原主线 APK 包名；从 v0.7.5 起使用 SA-<版本>-<构建时间>.apk，强制版使用 SA-ENF-<版本>-<构建时间>.apk，兼容版保持 SACompat 命名。
+主线 README 下载区提供兼容版说明入口；历史分隔说明中的“兼容版说明”链接到 docs/compatible 对应语言页面。v0.7.4.2 保留原主线 APK 包名；从 v0.7.5 起使用 SA-<版本>-<构建时间>.apk，强制版使用 SA-ENF-<版本>-<构建时间>.apk，后续兼容版的版本名已有 _Compat 后缀时，同样使用 SA 前缀（强制版 SA-ENF）；历史 SACompat 附件保持原名。

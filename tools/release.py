@@ -829,7 +829,8 @@ class Release:
             compat = manifest.get("distribution") == "compat"
             prefix = "SACompat" if compat else "StudyAssistant"
             signed = folder / f"{prefix}-{manifest['version']}-{manifest['buildUtc']}.apk"
-            name = (signed.stem + ("-ENF" if mandatory_release(self.state) else "") + ".apk") if compat else published_apk_name(manifest['version'], manifest['buildUtc'], mandatory_release(self.state))
+            legacy_compat_name = compat and not manifest["version"].endswith("_Compat")
+            name = (signed.stem + ("-ENF" if mandatory_release(self.state) else "") + ".apk") if legacy_compat_name else published_apk_name(manifest['version'], manifest['buildUtc'], mandatory_release(self.state))
             public_path = signed.with_name(name)
             if public_path != signed:
                 signed.rename(public_path)

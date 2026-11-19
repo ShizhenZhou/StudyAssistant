@@ -23,6 +23,8 @@ class DeliveryTest(unittest.TestCase):
         directory.mkdir(parents=True, exist_ok=True)
         profile = (Path(__file__).resolve().parents[2] / f"config/distributions/{distribution}.properties").read_text(encoding="utf-8")
         profile = "\n".join("versionName=" + version if line.startswith("versionName=") else line for line in profile.splitlines()) + "\n"
+        if distribution == "compat" and not version.endswith("_Compat"):
+            profile = profile.replace("apkPrefix=SA\n", "apkPrefix=SACompat\n")
         (directory / f"{distribution}.properties").write_text(profile, encoding="utf-8")
 
     def test_public_asset_failure_uses_one_official_alternate(self):
@@ -189,6 +191,9 @@ class DeliveryTest(unittest.TestCase):
         with self.assertRaises(release.ReleaseError): release.required_jobs(jobs, [])
 
     def test_mandatory_is_explicit_stable_and_immutable_on_resume(self):
+        self.assertEqual("SA-0.7.5.4_Compat-20261119120000.apk", release.published_apk_name("0.7.5.4_Compat", "20261119120000"))
+        self.assertEqual("SA-ENF-0.7.5.4_Compat-20261119120000.apk", release.published_apk_name("0.7.5.4_Compat", "20261119120000", True))
+        self.assertEqual("SA-0.7.6_beta1_Compat-20261119120000.apk", release.published_apk_name("0.7.6_beta1_Compat", "20261119120000"))
         self.assertEqual("SA-0.7.5-20261117120000.apk", release.published_apk_name("0.7.5", "20261117120000"))
         self.assertEqual("SA-ENF-0.7.5-20261117120000.apk", release.published_apk_name("0.7.5", "20261117120000", True))
         self.assertEqual("StudyAssistant-0.7.4.2-20261116120000-ENF.apk", release.published_apk_name("0.7.4.2", "20261116120000", True))

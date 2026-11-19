@@ -32,7 +32,8 @@ def source_distribution(root, selected="main"):
     if name == "main" and profile["versionName"].endswith("_Compat"):
         raise ValueError("Main profile must not carry Compat suffix")
     identity = (profile["minSdk"], profile["maxSdk"], profile["apkPrefix"], profile["tagPrefix"], profile["androidLabel"])
-    if identity != ((36, 0, "SA", "v", "16+") if name == "main" else (28, 35, "SACompat", "compat_v", "9–15")):
+    compat_prefix = "SA" if profile["versionName"].endswith("_Compat") else "SACompat"
+    if identity != ((36, 0, "SA", "v", "16+") if name == "main" else (28, 35, compat_prefix, "compat_v", "9–15")):
         raise ValueError("Invalid distribution identity")
     return profile
 

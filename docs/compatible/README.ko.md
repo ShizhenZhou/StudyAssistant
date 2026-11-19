@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [EN](README.en.md) · [JA](README.ja.md) · [KO](README.ko.md)
 
-> 두 배포판 모두 main에서 빌드합니다. Compatible 브랜치는 과거 기록으로만 보존합니다.
+> 두 배포판 모두 main에서 빌드합니다. 이전 호환 버전의 릴리스와 태그는 계속 보존합니다.
 
 ![License](https://img.shields.io/github/license/ShizhenZhou/StudyAssistant)
 ![Release](https://img.shields.io/github/v/release/ShizhenZhou/StudyAssistant)
