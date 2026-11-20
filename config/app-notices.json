@@ -1,35 +1,6 @@
 {
   "schema": 1,
-  "revision": 2,
-  "announcements": [
-    {
-      "id": "20261117-234921-01",
-      "revision": 1,
-      "distributions": [
-        "main",
-        "compat"
-      ],
-      "channels": [
-        "stable",
-        "beta"
-      ],
-      "minVersion": "0.7.5",
-      "expiresAt": "2026-11-17T15:55:00Z",
-      "title": {
-        "zh-CN": "测试公告",
-        "zh-TW": "測試公告",
-        "en": "Test announcement",
-        "ja": "テストのお知らせ",
-        "ko": "테스트 공지"
-      },
-      "body": {
-        "zh-CN": "欢迎您使用Study Assistant！",
-        "zh-TW": "歡迎您使用Study Assistant！",
-        "en": "Welcome to Study Assistant!",
-        "ja": "Study Assistantへようこそ！",
-        "ko": "Study Assistant에 오신 것을 환영합니다!"
-      }
-    }
-  ],
+  "revision": 3,
+  "announcements": [],
   "unstableVersions": []
 }
