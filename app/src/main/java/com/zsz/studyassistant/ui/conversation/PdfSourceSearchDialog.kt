@@ -16,25 +16,33 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.zsz.studyassistant.data.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 
 /** The caller supplies only documents in scope for the selected message. */
 @Composable
-internal fun PdfSourceSearchDialog(query: String, documents: List<ConversationDocument>, onDismiss: () -> Unit) {
+internal fun PdfSourceSearchDialog(query: String, documents: List<ConversationDocument>,
+    session: PdfSourceSession, onDismiss: () -> Unit) {
     val s = LocalStrings.current
     val context = LocalContext.current.applicationContext
     var matches by remember(query, documents) { mutableStateOf<List<PdfSourceMatch>?>(null) }
     var failure by remember(query, documents) { mutableStateOf<String?>(null) }
+    var progress by remember(query, documents) { mutableStateOf<PdfSourceProgress?>(null) }
     var selected by remember(query, documents) { mutableStateOf<PdfSourceMatch?>(null) }
     var bitmap by remember(selected) { mutableStateOf<Bitmap?>(null) }
     var previewFailure by remember(selected) { mutableStateOf<String?>(null) }
-    LaunchedEffect(query, documents) {
+    LaunchedEffect(query, documents, session) {
+        // Conflate worker updates and publish Compose state on the main coroutine only.
+        val updates = Channel<PdfSourceProgress>(Channel.CONFLATED)
+        val collector = launch { for (update in updates) progress = update }
         try {
             matches = withContext(Dispatchers.IO) {
                 val job = currentCoroutineContext()
-                PdfSourceSearch.find(DocumentStore(context), documents, query) { job.ensureActive() }
+                PdfSourceSearch.find(DocumentStore(context), documents, query, session,
+                    onProgress = { updates.trySend(it) }, check = { job.ensureActive() })
             }
         } catch (error: CancellationException) { throw error }
         catch (error: Exception) { failure = (error as? DocumentProblem)?.messageKey ?: "document.pdfUnreadable" }
+        finally { updates.close(); collector.cancel() }
     }
     LaunchedEffect(selected) {
         val match = selected ?: return@LaunchedEffect
@@ -59,7 +67,24 @@ internal fun PdfSourceSearchDialog(query: String, documents: List<ConversationDo
                 Text(s["pdfSource.hint"], style = MaterialTheme.typography.bodySmall)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (selected == null) {
-                        if (failure == null && matches == null) item { CircularProgressIndicator() }
+                        if (failure == null && matches == null) item {
+                            val current = progress
+                            if (current == null || current.pageCount == 0) {
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
+                            } else {
+                                LinearProgressIndicator(progress = { current.completedPages.toFloat() / current.pageCount },
+                                    modifier = Modifier.fillMaxWidth())
+                            }
+                            current?.let {
+                                Text(s.format("pdfSource.documentProgress", "name" to it.documentName,
+                                    "n" to it.documentNumber.toString(), "total" to it.documentCount.toString()))
+                                if (it.pageCount == 0) Text(s["pdfSource.verifying"])
+                                else Text(s.format("pdfSource.pageProgress",
+                                    "done" to it.completedPages.toString(), "total" to it.pageCount.toString(),
+                                    "page" to (it.originalPage ?: 1).toString(),
+                                    "percent" to (it.completedPages * 100 / it.pageCount).toString()))
+                            }
+                        }
                         failure?.let { key -> item { Text(s[key], color = MaterialTheme.colorScheme.error) } }
                         if (matches?.isEmpty() == true) item { Text(s["pdfSource.noMatch"]) }
                         itemsIndexed(matches.orEmpty()) { _, match ->
@@ -83,7 +108,9 @@ internal fun PdfSourceSearchDialog(query: String, documents: List<ConversationDo
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     if (selected != null) TextButton(onClick = { selected = null }) { Text(s["pdfSource.results"]) }
-                    TextButton(onClick = onDismiss) { Text(s["pdfSource.close"]) }
+                    val loading = if (selected == null) matches == null && failure == null
+                        else bitmap == null && previewFailure == null
+                    TextButton(onClick = onDismiss) { Text(s[if (loading) "pdfSource.cancel" else "pdfSource.close"]) }
                 }
             }
         }

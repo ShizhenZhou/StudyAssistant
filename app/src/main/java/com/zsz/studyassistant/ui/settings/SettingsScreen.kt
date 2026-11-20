@@ -245,7 +245,7 @@ fun SettingsTab(vm: MainViewModel, returnToRootRequest: Int = 0, rootScroll: and
                         AppNav.SettingsPages.ABOUT_DETAILS -> SettingsSubPage(aboutHistoryStrings(LocalUiLang.current)["details"], { returnToParent() }) {
                             AboutDetailsPage()
                         }
-                        AppNav.SettingsPages.ABOUT_NOTICES -> SettingsSubPage(aboutHistoryStrings(LocalUiLang.current)["history"], { returnToParent() }) {
+                        AppNav.SettingsPages.ABOUT_NOTICES -> SettingsSubPage(aboutHistoryStrings(LocalUiLang.current)["history"], { returnToParent() }, scrollContent = false) {
                             AppNoticeHistoryPage()
                         }
                         AppNav.SettingsPages.ABOUT_REPORT -> SettingsSubPage(crashReportStrings(LocalUiLang.current)["title"], { returnToParent() }) {
@@ -361,6 +361,7 @@ internal fun SettingsSubPage(
     title: String,
     onBack: () -> Unit,
     bottomBar: (@Composable () -> Unit)? = null,
+    scrollContent: Boolean = true,
     content: @Composable () -> Unit
 ) {
     // ★ 2026-10-13（用户要求）：头部行**不再吃外层 16dp 内边距**（原来箭头因此又小又靠右），
@@ -393,7 +394,8 @@ internal fun SettingsSubPage(
         Spacer(Modifier.height(8.dp))
         // weight(1f)：把剩余高度都给内容区，底部操作栏因此始终贴在容器底部（键盘弹出时=键盘上方）
         Column(
-            Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
+            Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)
+                .then(if (scrollContent) Modifier.verticalScroll(rememberScrollState()) else Modifier)
         ) { content() }
         if (bottomBar != null) {
             Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {

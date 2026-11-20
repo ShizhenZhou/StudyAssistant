@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.4_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.5_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -62,6 +62,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+
+### v0.7.5.5
+
+- 📄 PDF source lookup reuses page text within the current conversation, shows document and page progress, and supports cancellation while retaining original-file verification.
+- 📢 Refresh notice history manually, read publication dates in Beijing time, and expand notice IDs in details; long lists render on demand.
+- 🛠 Separate bookmark operations and PDF lookup state while retaining existing conversation persistence and data formats.
+- 📌 `versionCode` **142**.
 
 ### v0.7.5.4
 

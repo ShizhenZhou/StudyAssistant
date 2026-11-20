@@ -13,19 +13,26 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.4_Compat（versionCode 141，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.5_Compat（versionCode 142，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.4_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.5.5_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本記錄
 
+
+### v0.7.5.5_Compat
+
+- 📄 PDF 原文查找重用目前對話內的頁面文字，顯示文件與頁數進度，支援取消並保留原件驗證。
+- 📢 歷史公告支援手動重新整理，顯示易讀的北京時間，公告編號收於詳情；長清單按需顯示。
+- 🛠 分離重點管理與 PDF 查找狀態，保留既有對話儲存與資料格式。
+- 📌 `versionCode` **142**.
 
 ### v0.7.5.4_Compat
 

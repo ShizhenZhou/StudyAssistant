@@ -13,19 +13,26 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.4_Compat (versionCode 141, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.5_Compat (versionCode 142, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.4_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.5_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
 
+
+### v0.7.5.5_Compat
+
+- 📄 PDF source lookup reuses page text within the current conversation, shows document and page progress, and supports cancellation while retaining original-file verification.
+- 📢 Refresh notice history manually, read publication dates in Beijing time, and expand notice IDs in details; long lists render on demand.
+- 🛠 Separate bookmark operations and PDF lookup state while retaining existing conversation persistence and data formats.
+- 📌 `versionCode` **142**.
 
 ### v0.7.5.4_Compat
 

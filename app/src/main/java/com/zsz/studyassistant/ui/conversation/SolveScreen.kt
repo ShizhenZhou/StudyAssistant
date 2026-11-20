@@ -229,12 +229,7 @@ fun SolveScreen(
     var clearQuoteHighlightTick by remember { mutableIntStateOf(0) }
     var conversationBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var screenOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    var pdfLookup by remember(vm.chatItems.firstOrNull()?.messageKey) {
-        mutableStateOf<Pair<String, List<com.zsz.studyassistant.data.ConversationDocument>>?>(null)
-    }
-    pdfLookup?.let { (text, documents) ->
-        PdfSourceSearchDialog(text, documents, onDismiss = { pdfLookup = null })
-    }
+    val pdfSource = rememberPdfSourceController(vm.chatItems.firstOrNull()?.messageKey)
     var quoteReturnAvailable by remember(vm.chatItems.firstOrNull()?.messageKey) { mutableStateOf(false) }
     // 会话是否已在顶部（网页上报）→ 按钮显示 ↓
     var atTop by remember { mutableStateOf(true) }
@@ -944,7 +939,7 @@ fun SolveScreen(
                             val documents = selection.anchor?.let {
                                 com.zsz.studyassistant.data.pdfDocumentsAtMessage(vm.chatItems, it.messageKey)
                             }.orEmpty()
-                            pdfLookup = selection.text to documents
+                            pdfSource.find(selection.text, documents)
                         } else null,
                         onQuoteText = if (inputEnabled && sessionMode != SessionMode.REVIEW && !vm.busy && !editMode) { selection ->
                             draft.quote = selection

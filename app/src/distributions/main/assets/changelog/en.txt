@@ -1,3 +1,8 @@
+v0.7.5.5
+· 📄 PDF source lookup reuses page text within the current conversation, shows document and page progress, and supports cancellation while retaining original-file verification.
+· 📢 Refresh notice history manually, read publication dates in Beijing time, and expand notice IDs in details; long lists render on demand.
+· 🛠 Separate bookmark operations and PDF lookup state while retaining existing conversation persistence and data formats.
+
 v0.7.5.4
 · ⭐ Bookmark selected answer text or formulas, preview them, return to the original, and include them in conversation backups.
 · 📄 Find selected text in attached PDFs and open matching original pages; multiple matches remain selectable, with no extra AI calls.

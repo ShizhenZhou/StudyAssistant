@@ -42,7 +42,7 @@ Release APK 显式压缩 DEX（`packaging.dex.useLegacyPackaging`），降低完
 
 GitHub Actions 直接使用官方 Google Maven、Maven Central 与 Gradle Plugin Portal；国内本地开发保留原镜像优先配置。定向 JVM 的实际任务为 `testModernIntegrationUnitTest`（AGP 9 对应 `testBuildType = integration`），仍由 `-TestClass` 显式选择，不启动设备。
 
-Develop 或 codex/ 功能分支开发 → 本地最小必要检查 → 必要时 Beta 真机/ADB → 相关修正与补验 → 规范合并 main → 一次 CI 构建 → 本地签名、Release、下载校验。
+默认在 Develop 开发（独立功能分支需按当次安排） → 本地最小必要检查 → 必要时 Beta 真机/ADB → 相关修正与补验 → 规范合并 main → 一次 CI 构建 → 本地签名、Release、下载校验。
 
 每次先说明具体风险及最小验证范围。不要给每项功能增加新测试、流程或门禁；没有必要就不测。保留对可靠性的要求，但不以全套测试替代判断。同输入结果复用；改动只补相关部分。失败不扩大范围、不默认重跑、不改断言求绿色。测试失败、应用错误、环境问题和未确定原因分别报告。
 
@@ -156,3 +156,5 @@ PDF 导出由 `ui/conversation/ConversationPdfExport` 协调语义读取、公�
 ## 两发行线共同维护
 
 构建变体与发布命令见 [发行线布局](distributions.md)。两种正式版均从 main 发布；兼容版用 `--distribution compat`。版本以 `config/distributions/` 为准；旧 Compatible 分支已停用并删除，历史 Release 和标签保留。默认验证 modern，必要时用 `-Distribution compat`，不重复执行。
+
+重点新增/删除的校验与会话快照转换集中在 `ConversationBookmarks`，MainViewModel 保留忙碌状态及既有保存队列协调。`PdfSourceController` 管理解题页内查找请求与缓存生命周期；PDF 页文字使用有界 LRU 缓存，退出后释放，不缓存打开的 PDF 或图片，不改变 DB/Bak 格式。公告历史使用独立懒列表和手动刷新，正文仍只在页面内存中存在。

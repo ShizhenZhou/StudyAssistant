@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.4_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.5_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -62,6 +62,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## 버전 기록
 
+
+### v0.7.5.5
+
+- 📄 현재 대화에서 PDF 페이지 텍스트를 재사용하고 문서·페이지 진행 상황과 취소를 지원하며 원본 검증을 유지합니다.
+- 📢 공지 이력을 수동 새로고침하고 게시 시간을 베이징 시간으로 표시합니다. 공지 번호는 상세 정보에 모으고 긴 목록은 필요할 때 표시합니다.
+- 🛠 핵심 내용 관리와 PDF 검색 상태를 분리하며 기존 대화 저장 방식과 데이터 형식을 유지합니다.
+- 📌 `versionCode` **142**.
 
 ### v0.7.5.4
 

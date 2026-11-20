@@ -16,7 +16,7 @@
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.5.4_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.4_Compat)
+- **Android 9–15** · [下载兼容版 v0.7.5.5_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
 - [兼容版说明与更新记录](docs/compatible/README.md)
 
 本文是两发行线共用入口；下方技术参数及历史记录以主线为准。兼容版的系统范围和独立更新汇总见上方说明。
@@ -62,6 +62,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 
 ## 版本记录
 
+
+### v0.7.5.5
+
+- 📄 PDF 原文查找复用当前会话内的页面文字，显示文档与页数进度，支持取消并保留原件校验。
+- 📢 历史公告支持手动刷新，显示易读的北京时间，公告编号收于详情；长列表按需展示。
+- 🛠 拆分重点管理与 PDF 查找状态，保持既有会话保存与数据格式。
+- 📌 `versionCode` **142**.
 
 ### v0.7.5.4
 

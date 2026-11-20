@@ -3663,35 +3663,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * 退出页面/应用时调用（`SolveScreen` 的 `onDispose`）。
-     *
-     * ★ 2026-10-13 修复「忘了存错题本就退出 → 记录丢失」：
-     *   原实现第一行是 `val id = savedQuestionId ?: return` —— **没存错题本就什么都不做**，
-     *   整个会话就此消失。现在分两种情况：
-     *   ① 已存错题本 → 照旧把完整对话更新进那条错题；
-     *   ② 没存错题本 → 把这次会话落成/补齐一条**搜题记录**（首次 = INSERT，已落过 = UPDATE 同一条）。
-     *   这也覆盖了"生成成功后又被中断"（onDone 没跑、记录不存在）的情况。
-     */
     fun addBookmark(text: String, anchor: QuoteAnchor?): String {
-        if (busy || dataBusy || streamInterrupted || anchor == null || chatItems.isEmpty()) return "solve.quoteUnavailable"
-        val bookmark = ConversationBookmark(java.util.UUID.randomUUID().toString(), text, anchor)
-        if (text.length > MAX_BOOKMARK_TEXT) return "bookmark.tooLong"
-        if (!bookmark.isValid() || !bookmarkSourceAvailable(chatItems, anchor)) return "solve.quoteUnavailable"
-        val existing = conversationBookmarks(chatItems)
-        if (existing.any { it.anchor == anchor && it.text == text }) return "bookmark.exists"
-        if (existing.size >= MAX_BOOKMARKS) return "bookmark.limit"
-        chatItems = listOf(chatItems.first().copy(bookmarks = existing + bookmark)) + chatItems.drop(1)
-        saveSessionOnExit()
-        return "bookmark.saved"
+        if (busy || dataBusy || streamInterrupted) return "solve.quoteUnavailable"
+        return when (val result = addConversationBookmark(chatItems, text, anchor)) {
+            is BookmarkAddition.Rejected -> result.messageKey
+            is BookmarkAddition.Added -> {
+                chatItems = result.items
+                saveSessionOnExit()
+                "bookmark.saved"
+            }
+        }
     }
 
     fun removeBookmark(id: String) {
-        if (busy || dataBusy || streamInterrupted || chatItems.isEmpty()) return
-        chatItems = listOf(chatItems.first().copy(bookmarks = conversationBookmarks(chatItems).filterNot { it.id == id })) + chatItems.drop(1)
+        if (busy || dataBusy || streamInterrupted) return
+        chatItems = removeConversationBookmark(chatItems, id) ?: return
         saveSessionOnExit()
     }
 
+    /**
+     * 退出页面/应用或更新书签时，按现有会话绑定将快照交给保存队列。
+     * 已存错题同步更新；搜题记录仍由 recordSolveSession 决定创建或更新。
+     */
     fun saveSessionOnExit() {
         if (chatItems.isEmpty()) return
         val id = savedQuestionId

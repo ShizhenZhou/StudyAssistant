@@ -6,6 +6,31 @@ import org.junit.Test
 class PdfSourceSearchTest {
     private val document = ConversationDocument("a".repeat(64), "fixture.pdf", 100, listOf(4, 0, 2))
 
+    @Test fun sessionEvictsLeastRecentlyUsedPagesWithinCharacterAndPageLimits() {
+        val session = PdfSourceSession(maxChars = 10, maxPages = 2)
+        session.rememberPage("a", 0, PdfSourceSession.Page("aaaa", 8))
+        session.rememberPage("a", 1, PdfSourceSession.Page("bbbb", 4))
+        assertEquals(8, session.page("a", 0)?.extractedChars)
+        session.rememberPage("b", 0, PdfSourceSession.Page("cc", 2))
+        assertNull(session.page("a", 1))
+        assertEquals("aaaa", session.page("a", 0)?.text)
+        session.rememberPage("a", 2, PdfSourceSession.Page("123456789", 9))
+        assertNull(session.page("a", 0))
+        assertNull(session.page("b", 0))
+        assertEquals("123456789", session.page("a", 2)?.text)
+    }
+
+    @Test fun disposedSessionClearsTextAndMetadataAndRejectsLateWorkerWrites() {
+        val session = PdfSourceSession()
+        session.rememberPageCount("a", 3)
+        session.rememberPage("a", 0, PdfSourceSession.Page("source", 6))
+        session.dispose()
+        session.rememberPageCount("a", 3)
+        session.rememberPage("a", 0, PdfSourceSession.Page("late", 4))
+        assertNull(session.pageCount("a"))
+        assertNull(session.page("a", 0))
+    }
+
     @Test fun sourceContextExcludesFutureAndDisabledDocumentsButKeepsCurrentAttachments() {
         val newer = document.copy(sha256 = "b".repeat(64), name = "later.pdf")
         val items = listOf(
