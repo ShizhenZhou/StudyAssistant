@@ -71,12 +71,34 @@ class StreamCompletionTest {
         var cancellations = 0
         val first = lifecycle.begin().also { it.attach { cancellations++ } }
         val generation = lifecycle.sequence
+        assertTrue(lifecycle.owns(first, generation))
         val second = lifecycle.begin()
+        assertFalse(lifecycle.owns(first, generation))
+        assertTrue(lifecycle.owns(second, lifecycle.sequence))
         assertNotSame(first, second)
         assertEquals(1, cancellations)
         assertTrue(lifecycle.sequence > generation)
         assertSame(second, lifecycle.invalidate())
         assertNull(lifecycle.owner)
+        assertFalse(lifecycle.owns(second, lifecycle.sequence))
+    }
+
+    @Test fun laterConversationOpenWinsAcrossHistoryNotebookAndDraft() = kotlinx.coroutines.runBlocking {
+        val requests = ConversationOpenRequests()
+        val releaseHistory = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var visible = "original"
+        val history = requests.begin()
+        val read = launch {
+            releaseHistory.await()
+            if (requests.isCurrent(history)) visible = "history"
+        }
+        val notebook = requests.begin()
+        val draft = requests.begin()
+        if (requests.isCurrent(draft)) visible = "draft"
+        releaseHistory.complete(Unit)
+        read.join()
+        if (requests.isCurrent(notebook)) visible = "notebook"
+        assertEquals("draft", visible)
     }
     @Test fun similarQuestionKeepsAllLinesAndFormulaBeforeAnswer() {
         val question = "求下列两项：\n(1) 电流 I\n(2) 电压 U = IR"

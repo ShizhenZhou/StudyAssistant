@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.5_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
+- **Android 9–15** · [互換版 v0.7.5.6_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -62,6 +62,13 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 
 ## バージョン履歴
 
+
+### v0.7.5.6
+
+- 💾 会話の保存と復元を統合。解答完了時のスナップショットを保存し、問題切り替えによる状態の混在を防ぎます。
+- 🧠 解答生成と中断からの再開処理を整理し、古いリクエストの終了処理が新しい会話に影響しないようにしました。
+- 📂 間違いノート・履歴・下書きの読み込みを統一。読み込み完了後に切り替え、古いリクエストによる選択の上書きを防ぎます。
+- 📌 `versionCode` **143**.
 
 ### v0.7.5.5
 

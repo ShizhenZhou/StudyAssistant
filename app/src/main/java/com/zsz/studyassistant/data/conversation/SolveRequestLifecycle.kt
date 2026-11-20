@@ -31,6 +31,9 @@ internal class SolveRequestLifecycle {
 
     fun cancel() { owner?.cancel(); job?.cancel() }
 
+    fun owns(candidate: StreamOwner, expectedSequence: Long): Boolean =
+        owner === candidate && sequence == expectedSequence
+
     /** Only bounded local preparation/storage belongs here, never a network request.
      * A user can stop generation while encoding; retain the request before honouring that stop. */
     suspend fun <T> prepareRetainingOnCancel(prepare: suspend () -> T, retain: suspend (T) -> Unit) {

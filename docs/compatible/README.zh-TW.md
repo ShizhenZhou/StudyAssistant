@@ -13,19 +13,26 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.5_Compat（versionCode 142，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.6_Compat（versionCode 143，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.5_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.5.6_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本記錄
 
+
+### v0.7.5.6_Compat
+
+- 💾 統一對話儲存與復原，答案完成後使用原對話快照儲存，減少切換題目時的狀態干擾。
+- 🧠 整理解答生成與中斷復原流程，舊請求結束後不再影響新對話。
+- 📂 統一錯題、解題記錄和草稿的開啟流程，內容讀取完成後再切換，避免較早請求覆蓋新選擇。
+- 📌 `versionCode` **143**.
 
 ### v0.7.5.5_Compat
 

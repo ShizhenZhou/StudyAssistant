@@ -13,19 +13,26 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.5_Compat(versionCode 142, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.6_Compat(versionCode 143, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.5_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.6_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 버전 기록
 
+
+### v0.7.5.6_Compat
+
+- 💾 대화 저장과 복구를 통합했습니다. 문제를 전환해도 완성된 답변은 원래 대화의 스냅샷으로 저장됩니다.
+- 🧠 답변 생성과 중단 후 재개 흐름을 정리하고, 이전 요청의 종료 처리가 새 대화에 영향을 주지 않도록 했습니다.
+- 📂 오답 노트·기록·초안 열기를 통합했습니다. 읽기를 마친 후 전환하며 이전 요청이 새 선택을 덮어쓰지 않도록 했습니다.
+- 📌 `versionCode` **143**.
 
 ### v0.7.5.5_Compat
 

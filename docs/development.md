@@ -12,6 +12,8 @@
 
 `MainViewModel` 负责页面状态与会话业务协调；`data/review/StudyStatistics` 从轻量投影一次汇总统计，按自然日边界分桶；`data/conversation/ConversationDraftPersistence` 负责草稿调度和磁盘访问，`ui/capture/CaptureFlowController` 管理拍摄框选状态、检测任务及恢复检查点。控制器沿用 ViewModel 生命周期和既有界面入口，框选恢复不会自动请求解题；完整内容保存的冲突与恢复逻辑继续由 `PendingSaveRepository` 负责。
 
+会话保存与恢复由 `data/conversation/ConversationPersistence` 统一协调历史和错题本写入、失败重试及已完成草稿的落盘确认，继续共用写入锁和原有日志。生成完成的快照在任何后续挂起前入队，后来的编辑不会被旧完成回调覆盖。`ConversationGeneration` 管理流式请求的准备、接收节流、完成/中断和通知收尾；旧请求只能结算自身用量与服务，不修改新会话。`ConversationLoader` 读取会话及图片，`PreparedConversation` 在主线程一次性应用已读内容；错题本、历史和草稿共享 `ConversationOpenRequests` 的打开顺序，读取失败保留当前内容。
+
 备份目录摘要使用挂起接口，在 IO 调度器扫描；调用方取消会传递到扫描检查点，不能吞掉取消并记录为备份失败。设置页仅复用同次读取所得摘要，并校验目录与配置世代，避免显示旧目录结果。系统 Provider 的同步 IO 不保证可即时打断。
 
 ## 日常开发
@@ -30,7 +32,7 @@ Release APK 显式压缩 DEX（`packaging.dex.useLegacyPackaging`），降低完
 
 流式对话渲染复用未变更的 DOM 子树，并以 2 MiB / 128 项上限缓存公式与图形的 HTML。Markdown 结构改变时仍以完整解析结果校正节点，避免增量追加破坏表格、代码块或未完成公式。PDF 表格只重复明确的表头，超高行按完整文字/公式行分片，每个单元格每页绘制一段边框；这些运行时优化不增加默认测试或发布门禁。
 
-交互会话图片由每个 WebView 独立的 `ConversationImageStore` 提供短地址，原件按需流式读取，点击放大也只传地址。普通文件、网络地址仍被 WebView 拦截；退出或重建后释放地址映射。数据库、备份与独立导出继续保留原图片格式。`SolveSessionState` 集中管理当前会话显示与图片引用，生成任务和持久化仍由 ViewModel 协调。
+交互会话图片由每个 WebView 独立的 `ConversationImageStore` 提供短地址，原件按需流式读取，点击放大也只传地址。普通文件、网络地址仍被 WebView 拦截；退出或重建后释放地址映射。数据库、备份与独立导出继续保留原图片格式。`SolveSessionState` 集中管理当前会话显示与图片引用，生成任务由 `ConversationGeneration` 管理流接收、节流、归属检查及通知清理，`ConversationPersistence` 管理冻结快照写入与恢复；ViewModel 应用业务结果。
 
 更新断点下载由执行中的 WorkManager 任务维护前台进度，网络等待／重试退避期间仅留普通通知；完成胶囊最多显示两分钟，点击进入或安装后移除。历史 DownloadManager 任务仍沿用旧监控以兼容升级中的下载。通知卡片使用 SA 大图标，胶囊保留语义线条小图标，最终位置由系统决定。
 

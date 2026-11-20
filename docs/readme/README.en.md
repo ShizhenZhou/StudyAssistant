@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.5_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.6_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -62,6 +62,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+
+### v0.7.5.6
+
+- 💾 Consolidate conversation saving and recovery; completed answers save their original snapshots across question switches.
+- 🧠 Centralize answer streaming and interruption recovery, keeping stale request cleanup from affecting a new conversation.
+- 📂 Unify opening notebook entries, history and drafts; finish reading before switching and prevent older requests from overriding newer selections.
+- 📌 `versionCode` **143**.
 
 ### v0.7.5.5
 

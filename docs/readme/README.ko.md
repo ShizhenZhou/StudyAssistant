@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.5_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.6_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -62,6 +62,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## 버전 기록
 
+
+### v0.7.5.6
+
+- 💾 대화 저장과 복구를 통합했습니다. 문제를 전환해도 완성된 답변은 원래 대화의 스냅샷으로 저장됩니다.
+- 🧠 답변 생성과 중단 후 재개 흐름을 정리하고, 이전 요청의 종료 처리가 새 대화에 영향을 주지 않도록 했습니다.
+- 📂 오답 노트·기록·초안 열기를 통합했습니다. 읽기를 마친 후 전환하며 이전 요청이 새 선택을 덮어쓰지 않도록 했습니다.
+- 📌 `versionCode` **143**.
 
 ### v0.7.5.5
 

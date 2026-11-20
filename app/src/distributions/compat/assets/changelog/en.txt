@@ -1,3 +1,8 @@
+v0.7.5.6_Compat
+· 💾 Consolidate conversation saving and recovery; completed answers save their original snapshots across question switches.
+· 🧠 Centralize answer streaming and interruption recovery, keeping stale request cleanup from affecting a new conversation.
+· 📂 Unify opening notebook entries, history and drafts; finish reading before switching and prevent older requests from overriding newer selections.
+
 v0.7.5.5_Compat
 · 📄 PDF source lookup reuses page text within the current conversation, shows document and page progress, and supports cancellation while retaining original-file verification.
 · 📢 Refresh notice history manually, read publication dates in Beijing time, and expand notice IDs in details; long lists render on demand.

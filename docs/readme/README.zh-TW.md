@@ -16,7 +16,7 @@
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.5_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.5_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.5.6_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
 - [兼容版說明與更新記錄](../compatible/README.zh-TW.md)
 
 本文是兩發行線共用入口；下方技術參數及歷史記錄以主線為準。相容版的系統範圍和獨立更新彙總見上方說明。
@@ -62,6 +62,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 
 ## 版本記錄
 
+
+### v0.7.5.6
+
+- 💾 統一對話儲存與復原，答案完成後使用原對話快照儲存，減少切換題目時的狀態干擾。
+- 🧠 整理解答生成與中斷復原流程，舊請求結束後不再影響新對話。
+- 📂 統一錯題、解題記錄和草稿的開啟流程，內容讀取完成後再切換，避免較早請求覆蓋新選擇。
+- 📌 `versionCode` **143**.
 
 ### v0.7.5.5
 
