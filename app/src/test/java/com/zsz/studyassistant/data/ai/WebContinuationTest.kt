@@ -5,6 +5,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WebContinuationTest {
+    @Test fun networkResumePreservesWhitespaceAcrossSegments() {
+        val original = listOf(DeepSeekMessage("user", JsonPrimitive("fixture")))
+        val blank = continuationContext(original, "", "", false, emptyList(), null, null)
+        assertTrue(java.net.UnknownHostException("fixture.invalid").isConnectionFailure())
+        assertTrue(java.net.SocketException("Connection reset").isConnectionFailure())
+        assertFalse(DocumentProblem("document.missing").isConnectionFailure())
+        assertEquals(original, blank.messagesForRequest(false))
+
+        val joined = ThinkingOutput.split("<thinking>thought</thinking> value\n", "return")
+        assertEquals("return value\n", joined.body)
+        val retry = continuationContext(original, joined.body, "", false, emptyList(), null, null)
+        assertEquals(joined.body, retry.messagesForRequest(false)[1].content.jsonPrimitive.content)
+        assertEquals("return value\n    next()\n", ThinkingOutput.split("    next()\n", retry.prefix).body)
+    }
+
     @Test fun ordinaryResumesAndLegacyDraftsSendTheWholePrefixOnlyOnce() {
         val original = listOf(DeepSeekMessage("user", JsonPrimitive("question")))
         fun plain(messages: List<DeepSeekMessage>, partial: String, previous: String = "") =

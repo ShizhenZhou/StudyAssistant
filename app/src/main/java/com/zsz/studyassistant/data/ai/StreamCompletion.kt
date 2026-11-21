@@ -5,6 +5,13 @@ import kotlinx.serialization.json.Json
 /** Fixed, localized reasons only: never include raw server data in exceptions or logs. */
 class StreamIncompleteException(val messageKey: String) : Exception(messageKey)
 
+internal fun Exception.isConnectionFailure(): Boolean {
+    if (this is java.net.SocketException || this is java.net.UnknownHostException ||
+        this is java.io.InterruptedIOException || this is java.io.EOFException || this is javax.net.ssl.SSLException) return true
+    val detail = message.orEmpty().lowercase()
+    return listOf("timed out", "timeout", "connect", "unreachable", "socket", "network").any { it in detail }
+}
+
 /** Pure protocol state shared by production reads and synthetic SSE regression tests. */
 class StreamCompletion(private val maxCharacters: Int = 4_000_000) {
     private val json = Json { ignoreUnknownKeys = true }

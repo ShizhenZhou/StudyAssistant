@@ -5,7 +5,7 @@ internal object ThinkingOutput {
     data class Parts(val body: String, val thinking: String?)
     private val code = Regex("""^[ \t]*```[^\n]*(?:\n|$)[\s\S]*?(?:^[ \t]*```[^\n]*(?=\n|$)|\z)|`[^`\n]+`""", RegexOption.MULTILINE)
 
-    fun split(raw: String): Parts {
+    fun split(raw: String, prefix: String = ""): Parts {
         // Code examples can legitimately contain reasoning tags and heading words.
         // Mask literal code before normalization, then restore it byte-for-byte in either part.
         var marker = "\uE001"
@@ -17,7 +17,7 @@ internal object ThinkingOutput {
         }
         val token = Regex(Regex.escape(marker) + "([0-9]+)" + Regex.escape(marker))
         fun restore(text: String): String = token.replace(text) { literals[it.groupValues[1].toInt()] }
-        fun parts(body: String, thought: String?) = Parts(restore(body), thought?.let(::restore))
+        fun parts(body: String, thought: String?) = Parts(prefix + restore(body), thought?.let(::restore))
         val text = masked.replace("〈思考〉", "<思考>").replace("〈/思考〉", "</思考>")
             .replace("&lt;思考&gt;", "<思考>").replace("&lt;/思考&gt;", "</思考>")
             .replace("<thinking>", "<思考>").replace("</thinking>", "</思考>")

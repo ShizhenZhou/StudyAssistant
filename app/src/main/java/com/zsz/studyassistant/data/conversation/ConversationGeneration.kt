@@ -33,7 +33,7 @@ internal class ConversationGeneration(
         fun toolProgress(key: String)
         suspend fun completed(body: String, thinking: String?)
         suspend fun interrupted(error: Exception, partial: String, thinking: String?,
-                                messages: List<DeepSeekMessage>, aborted: Boolean, keepPartial: Boolean)
+                                messages: List<DeepSeekMessage>, aborted: Boolean, keepPartial: Boolean, networkFailure: Boolean)
         fun finished(keepPartial: Boolean)
     }
 
@@ -67,11 +67,11 @@ internal class ConversationGeneration(
                             val now = SystemClock.elapsedRealtime()
                             if (now < nextBodyEmit) return@delta
                             nextBodyEmit = now + 180
-                            val parsed = ThinkingOutput.split(body.toString())
+                            val parsed = ThinkingOutput.split(body.toString(), request.prefix)
                             val checkpoint = now >= nextDraftWrite
                             if (checkpoint) nextDraftWrite = now + 1000
                             withContext(Dispatchers.Main) {
-                                if (current()) events.body(request.prefix + parsed.body, parsed.thinking, checkpoint)
+                                if (current()) events.body(parsed.body, parsed.thinking, checkpoint)
                             }
                         },
                         thinkingEnabled = CapturePrefs.solveModel(app) != "flash", owner = owner,
@@ -92,16 +92,17 @@ internal class ConversationGeneration(
                         })
                 }
                 if (!current()) return@launch
-                val parsed = ThinkingOutput.split(reply)
+                val parsed = ThinkingOutput.split(reply, request.prefix)
                 events.completed(parsed.body, thinking.toString().takeIf { it.isNotEmpty() } ?: parsed.thinking)
                 completed = current() && currentCoroutineContext().isActive
             } catch (e: Exception) {
                 val aborted = e is CancellationException || !currentCoroutineContext().isActive
-                val parsed = ThinkingOutput.split(body.toString())
-                val partial = request.prefix + parsed.body
-                keepPartial = partial.isNotBlank() || aborted || e is StreamIncompleteException
+                val parsed = ThinkingOutput.split(body.toString(), request.prefix)
+                val partial = parsed.body
+                val networkFailure = !aborted && messages.isNotEmpty() && e.isConnectionFailure()
+                keepPartial = partial.isNotBlank() || aborted || e is StreamIncompleteException || networkFailure
                 if (current()) events.interrupted(e, partial,
-                    thinking.toString().takeIf { it.isNotEmpty() } ?: parsed.thinking, messages, aborted, keepPartial)
+                    thinking.toString().takeIf { it.isNotEmpty() } ?: parsed.thinking, messages, aborted, keepPartial, networkFailure)
                 if (e is CancellationException) throw e
             } finally {
                 try {

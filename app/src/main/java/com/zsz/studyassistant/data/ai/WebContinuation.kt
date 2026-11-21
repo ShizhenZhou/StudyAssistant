@@ -53,7 +53,7 @@ internal fun webContinuation(
         DeepSeekMessage("assistant", JsonPrimitive(resumable.rawContent), resumable.reasoningContent, resumable.serverToolCalls),
         continueInstruction
     )
-    return ContinuationContext(messages + turn, prefix + ThinkingOutput.split(resumable.rawContent).body,
+    return ContinuationContext(messages + turn, ThinkingOutput.split(resumable.rawContent, prefix).body,
         history + turn, mergeAnnotations(annotations, resumable.annotations))
 }
 

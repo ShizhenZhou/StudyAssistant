@@ -567,8 +567,10 @@ fun SolveScreen(
                                 modifier = actionModifier
                             ) { Text(s["solve.abort"], fontSize = BTN_LABEL_SOLVE) }
                         } else {
+                            val continueAnswer = vm.streamInterrupted || vm.initialAnswerPending
                             TextButton(
-                                onClick = { if (vm.initialAnswerPending) vm.generateMissingInitialAnswer()
+                                onClick = { if (vm.streamInterrupted) vm.continueGeneration()
+                                    else if (vm.initialAnswerPending) vm.generateMissingInitialAnswer()
                                     else if (sessionMode == SessionMode.GRADE) vm.regrade() else vm.regenerate() },
                                 // ★ 中止后 chatItems 可能还是空的（题干/答案要流式结束才进），
                                 //   但仍有流式气泡/已中断状态 → 「重新生成」必须可用
@@ -576,7 +578,7 @@ fun SolveScreen(
                                     vm.streamInterrupted || vm.streamingText != null,
                                 contentPadding = smallPad,
                                 modifier = actionModifier
-                            ) { Text(s[if (vm.initialAnswerPending) "solve.continueGen" else "solve.regen"], fontSize = BTN_LABEL_SOLVE) }
+                            ) { Text(if (continueAnswer) "▶ " + s["solve.continueGen"] else s["solve.regen"], fontSize = BTN_LABEL_SOLVE) }
                         }
                         // ★ 2026-10-13（用户要求）：「📚 存错题本」与「📁 分类」是同一个位置的两种状态，
                         //   **占位必须完全一致** —— 所以两者共用同一份宽度：都按「📁 + 空格 + 5 个汉字」的实测宽，
@@ -830,12 +832,11 @@ fun SolveScreen(
                 }
             }
 
-            // 网络意外断开 → 蓝色下划线"继续生成"，点击后用最后提问内容重新生成
-            if (vm.networkError) {
+            if (vm.networkError && vm.streamInterrupted) {
                 Card(Modifier.fillMaxWidth().padding(8.dp)) {
                     Column(Modifier.padding(12.dp)) {
                         Text(s["solve.networkLost"], style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { vm.retry() }) {
+                        TextButton(onClick = vm::continueGeneration, enabled = !vm.busy && !vm.dataBusy) {
                             Text(
                                 s["solve.continueGen"],
                                 color = Color(0xFF2196F3),

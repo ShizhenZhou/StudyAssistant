@@ -398,7 +398,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var networkError by mutableStateOf(false)
         private set
-    private var retryAction: (() -> Unit)? = null
     private var saving: Boolean
         get() = sessionRecordBinding.saving
         set(value) { sessionRecordBinding.saving = value }
@@ -509,7 +508,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         draft.clearInput()
     }
     private var sessionRecordBinding = SolveSessionBinding()
-    private var retryBinding: SolveSessionBinding? = null
     private val solveSessionWriteMutex = kotlinx.coroutines.sync.Mutex()
     private val persistence = com.zsz.studyassistant.data.ConversationPersistence(
         app, viewModelScope, solveSessionWriteMutex, ::historyCutoff,
@@ -1188,19 +1186,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ask: Boolean = false,
         fromNotebook: Boolean = false
     ): Boolean {
-        val retry = retryBinding
         val capture = if (photo && !ask && !grade) captureIdentity else null
-        val pendingInput = solveInputDraft.takeIf { retry === sessionRecordBinding }
         if (!resetSession()) return false
-        if (pendingInput != null) solveInputDraft = pendingInput
         val firstTime = capture?.second ?: System.currentTimeMillis()
-        sessionRecordBinding = retry ?: SolveSessionBinding(
+        sessionRecordBinding = SolveSessionBinding(
             id = capture?.first ?: QuestionIdentity.create(firstTime), createdAt = firstTime,
             historyAllowed = !fromNotebook
         )
-        if (pendingInput == null) bindInputDraft(checkNotNull(sessionRecordBinding.id))
-        else if (pendingInput.restoring) bindInputDraft(checkNotNull(pendingInput.storageKey))
-        else if (pendingInput.editable) observeInputDraft(pendingInput)
+        bindInputDraft(checkNotNull(sessionRecordBinding.id))
         if (capture != null) captureIdentity = null
         currentQuestionCreatedAt = sessionRecordBinding.createdAt
         isPhoto = photo
@@ -1617,19 +1610,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 继续生成：把已生成部分作为 assistant 上文，要求模型接着往下写（不重复、不重开） */
     fun continueGeneration() {
         val next = requestLifecycle.continuation ?: return
-        if (busy || !streamInterrupted) return
+        if (busy || dataBusy || !streamInterrupted) return
         val context = next.context
         streamCall(next.model, context.messagesForRequest(next.webEnabled), context.prefix, next.onDone,
-            repeat = null, replyAction = next.action, useWeb = next.webEnabled, webHistory = context.history,
-            webAnnotations = context.annotations, requestTitle = false, prepare = next.prepare,
+            replyAction = next.action, useWeb = next.webEnabled, webHistory = context.history,
+            webAnnotations = context.annotations, prepare = next.prepare,
             plainBase = context.messages.takeUnless { next.webEnabled || next.prepare != null })
     }
 
-    private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null, prompt: String? = customPromptText()) {
+    private fun runCall(model: String, onDone: (String) -> Unit, prompt: String? = customPromptText()) {
         // 非批改的流式请求（解题/追问/重新生成/继续）：按钮显示「⏸ 中止生成」
         busyIsGrade = false
         val prepare = buildMessages(prompt = prompt)
-        streamCall(model, emptyList(), prefix = "", onDone = onDone, repeat = repeat, prepare = prepare)
+        streamCall(model, emptyList(), prefix = "", onDone = onDone, prepare = prepare)
     }
 
     /**
@@ -1641,7 +1634,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         messages: List<DeepSeekMessage>,
         prefix: String,
         onDone: (String) -> Unit,
-        repeat: (() -> Unit)?,
         replyAction: String = if(chatItems.lastOrNull()?.role=="user") "followup" else if(gradeMode) "grade" else "initial",
         useWeb: Boolean = webEnabled,
         webHistory: List<DeepSeekMessage> = emptyList(),
@@ -1674,7 +1666,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     busy = true
                     error = null
                     networkError = false
-                    retryAction = null
                     streamInterrupted = false
                     streamingText = prefix
                     thinkingText = null
@@ -1708,14 +1699,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     thinkingDone = true
                     completedAiContext = com.zsz.studyassistant.data.completedWebContext(owner.responseContext, webHistory, webAnnotations)
                     // Bind reasoning to the new reply through onDone, never the previous assistant message.
-                    onDone(prefix + body.trim())
+                    onDone(body)
                     if (isCurrent()) conversationInventory()
                     if(isCurrent()) {
                         // Initial photo/text callbacks create the question message here, so attach
                         // the label after onDone and before freezing the completed save/draft.
                         if (requestTitle && sessionRecordBinding === titleBinding)
                             chatItems = withConversationTitle(chatItems, owner.conversationTitle)
-                        val completed=activeDraft?.copy(raw=prefix+body,thinking=thinkingText,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
+                        val completed=activeDraft?.copy(raw=body,thinking=thinkingText,complete=true,completedChats=chatItems.toList(),completedQuestion=questionText)
                         activeDraft=completed
                         val frozenSave = captureConversationSave()
                         val baseline = currentNotebookBaseline
@@ -1740,7 +1731,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     requestLifecycle.continuation = null
                 }
                 override suspend fun interrupted(error: Exception, partial: String, thinking: String?,
-                    messages: List<DeepSeekMessage>, aborted: Boolean, keepPartial: Boolean) {
+                    messages: List<DeepSeekMessage>, aborted: Boolean, keepPartial: Boolean, networkFailure: Boolean) {
                     thinkingText = thinking ?: thinkingText
                     activeDraft=activeDraft?.copy(raw=partial,thinking=thinkingText,resumableContext=owner.resumableContext)
                     activeDraft?.let { writeDraft(it.copy(revision=++draftRevision),currentNotebookBaseline) }
@@ -1760,24 +1751,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     } else {
                         streamingText = null
                     }
+                    networkError = networkFailure
                     if (aborted) {
                         this@MainViewModel.error = null
-                        retryAction = null
                     } else {
                         this@MainViewModel.error = friendlyError(error, com.zsz.studyassistant.ui.stringsFor(uiLang)["err.requestFailed"])
-                        val msg = error.message.orEmpty().lowercase()
-                        if (msg.contains("timed out") || msg.contains("timeout") || msg.contains("connect") ||
-                            msg.contains("unreachable") || msg.contains("socket") || msg.contains("network")
-                        ) {
-                            networkError = true
-                            val failedBinding = sessionRecordBinding
-                            retryAction = repeat?.let { action -> {
-                                if (sessionRecordBinding === failedBinding) {
-                                    retryBinding = failedBinding
-                                    try { action() } finally { retryBinding = null }
-                                }
-                            } }
-                        }
                     }
                 }
                 override fun finished(keepPartial: Boolean) {
@@ -1788,11 +1766,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
-    }
-
-    /** 网络断开后点击"继续生成"：用最后一次提问内容重新调用 */
-    fun retry() {
-        retryAction?.invoke()
     }
 
     override fun onCleared() {
@@ -2348,8 +2321,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun solveWithImages(images: List<ByteArray>) {
         if (images.isEmpty()) return
-        fun start(encoded: List<String>): Boolean {
-            if (!prepareSession(photo = true)) return false
+        withEncodedImages(images) { encoded ->
+            if (!prepareSession(photo = true)) return@withEncodedImages false
             questionFromPhoto = true
             if (images.size == 1) imageBytes = images.single() else multiImages = images
             questionImages = encoded
@@ -2361,10 +2334,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedTags = result.tags
                 addItem("question", result.question, encoded.takeIf { it.size > 1 })
                 addItem("assistant", result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            }, repeat = { start(encoded) })
-            return true
+            })
+            true
         }
-        withEncodedImages(images, ::start)
     }
 
     /** 文字解答 */
@@ -2385,20 +2357,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedCategory = r.category
             suggestedTags = r.tags
             addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-        }, repeat = { solveText(question) })
+        })
     }
 
     /** 直接提问：文字 + 可选多张图，作为一条问题解答 */
     fun solveDirect(text: String, images: List<ByteArray>, documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
                     fromCamera: Boolean = false): Boolean {
-        if (!fromCamera && retryBinding == null && !solveInputDraft.editable) return false
+        if (!fromCamera && !solveInputDraft.editable) return false
         if (busy || dataBusy || (text.isBlank() && images.isEmpty() && documents.isEmpty())) return false
         if (documents.size > 20) { error = com.zsz.studyassistant.ui.stringsFor(uiLang)["document.tooMany"]; return false }
         val prompt = customPromptText(categoryId = null) ?: return false
-        val acceptedInput = solveInputDraft.takeIf { !fromCamera && retryBinding == null &&
+        val acceptedInput = solveInputDraft.takeIf { !fromCamera &&
             it.storageKey == com.zsz.studyassistant.data.InputDraftStore.NEW_ASK }
-        fun start(encoded: List<String>, prompt: String): Boolean {
-            if (!prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)) return false
+        return withEncodedImages(images) { encoded ->
+            if (!prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)) return@withEncodedImages false
             questionFromPhoto = false
             questionText = text
             directImages = images
@@ -2411,11 +2383,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedCategory = result.category
                 suggestedTags = result.tags
                 addItem("assistant", result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            }, repeat = { customPromptText(categoryId = null)?.let { start(encoded, it) } }, prompt = prompt)
-            return true
-        }
-        return withEncodedImages(images) { encoded ->
-            if (!start(encoded, prompt)) return@withEncodedImages false
+            }, prompt = prompt)
             acceptedInput?.let(::acceptInputDraft)
             true
         }
@@ -2449,7 +2417,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runCall(model, onDone = { reply ->
                 // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
                 addItem("assistant", StudyAssistant.stripMetaLines(reply))
-            }, repeat = { retryFollowUp(model) }, prompt = prompt)
+            }, prompt = prompt)
             acceptInputDraft(acceptedInput)
             true
         }
@@ -2461,13 +2429,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         askMode -> "ask"
         isPhoto -> "camera"
         else -> "text"
-    }
-
-    /** 网络失败后重新发送最后一次追问（不重复添加 user 消息，保留附图） */
-    private fun retryFollowUp(model: String) {
-        runCall(model, onDone = { reply ->
-            addItem("assistant", StudyAssistant.stripMetaLines(reply))
-        }, repeat = { retryFollowUp(model) })
     }
 
     /** 重新生成：**保留提问气泡**，只重做回答 */
@@ -2482,7 +2443,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val action=if(followup) "regenerate_followup" else "regenerate_initial"
         val model=if(isPhoto || retained.lastOrNull()?.images?.isNotEmpty()==true) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
         streamCall(model,emptyList(),"",prepare=buildMessages(retained),onDone={ output -> applyRecoveredReply(action,output) },
-            repeat={ regenerate() },replyAction=action)
+            replyAction=action)
     }
 
     val initialAnswerPending: Boolean get() = chatItems.any { it.answerPending }
@@ -2507,7 +2468,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             withQuestionAttachments(StudyAssistant.gradeUserMessage(input, aiLang, conversationInventory().categories, conversationInventory().tags)))
         busyIsGrade = input != null
         streamCall(model, request, "", onDone = { applyRecoveredReply(action, it) },
-            repeat = { generateMissingInitialAnswer() }, replyAction = action,
+            replyAction = action,
             prepare = if (input == null && questionImages.isEmpty()) buildMessages(chatItems.filter { it.role == "question" }) else null)
     }
 
@@ -3103,9 +3064,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (mySeq == similarSeq) {
                     thinkingDone = true
-                recordUsage(app, owner.usage)
-                // ⚠️ 已删除「挂到 indexOfLast{assistant}」的旧代码：同类题的产物存进 similarQuestion/
-                //   similarAnswer，并不在 chatItems 里 → 那段只会去改**别的**气泡，纯属误伤。
                     similarQuestion = r.question
                     similarAnswer = r.answer
                     similarStreamingText = null
@@ -3132,10 +3090,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     similarStreamingText = null
                     persistSimilarConversation()
                 }
+            } finally {
+                finishSimilarRequest(mySeq, owner, answerCompleted && currentCoroutineContext().isActive)
             }
-            if (mySeq == similarSeq) { similarBusy = false; similarProgress = null }
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
-                completed = answerCompleted && mySeq == similarSeq && currentCoroutineContext().isActive)
         }
     }
 
@@ -3229,9 +3186,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (mySeq == similarSeq) {
                     thinkingDone = true
-                recordUsage(app, owner.usage)
-                // ⚠️ 已删除「挂到 indexOfLast{assistant}」的旧代码：此处该挂的是**新建的** similarMessages 末条，
-                //   而旧代码去改 chatItems 里的别的气泡（同类题页也不渲染思考块）。
                     similarStreamingText = null
                     similarMessages = similarMessages + ChatItem(baseCount.toLong(), "assistant", reply)
                     persistSimilarConversation()
@@ -3252,12 +3206,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     persistSimilarConversation()
                 }
+            } finally {
+                finishSimilarRequest(mySeq, owner, answerCompleted && currentCoroutineContext().isActive)
             }
-            if (mySeq == similarSeq) { similarBusy = false; similarProgress = null }
-            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id,
-                completed = answerCompleted && mySeq == similarSeq && currentCoroutineContext().isActive)
         }
         return true
+    }
+
+    private fun finishSimilarRequest(sequence: Long, owner: com.zsz.studyassistant.data.StreamOwner, completed: Boolean) {
+        val app = getApplication<Application>()
+        val current = sequence == similarSeq
+        try {
+            if (completed || owner.usage != null) recordUsage(app, owner.usage)
+        } finally {
+            if (current) { similarBusy = false; similarProgress = null }
+            com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id, completed = completed && current)
+        }
     }
 
     // ---- 同类题：存错题本（逻辑与解题页一致：分类 + 标签，可取消保存）----
@@ -3617,7 +3581,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 批改请求（流式）；repeat 用于网络失败重试 */
+    /** 批改请求（流式）。 */
     private fun gradeCall() {
         val input = gradingInput(gradeMode, questionText, chatItems, questionImages) ?: return
         if (!input.canGrade) {
@@ -3632,7 +3596,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         streamCall(
             StudyAssistant.MODEL_VISION, msgs, prefix = "",
             onDone = { onGradeReply(it) },
-            repeat = { gradeCall() }, replyAction = "grade"
+            replyAction = "grade"
         )
     }
 
