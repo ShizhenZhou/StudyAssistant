@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.6_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.7_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -62,6 +62,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+
+### v0.7.5.7
+
+- 📄 Zoom and pan the original PDF page after a text search. On Android 15 and later, matched passages are highlighted line by line when their position can be verified.
+- 💾 Recover drafts more reliably after an interruption during reasoning. Draft exports keep readable entries and report how many could not be exported.
+- 🏠 Resume a draft below the main actions on the Study tab. The other buttons stay in place as the draft appears or disappears.
+- 📌 `versionCode` **144**.
 
 ### v0.7.5.6
 

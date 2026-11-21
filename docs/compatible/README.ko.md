@@ -13,19 +13,26 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.6_Compat(versionCode 143, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.7_Compat(versionCode 144, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.6_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.7_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 버전 기록
 
+
+### v0.7.5.7_Compat
+
+- 📄 PDF 원문 검색 후 원본 페이지를 확대하거나 드래그해서 볼 수 있습니다. Android 15 이상에서는 위치를 확인한 구절을 줄 단위로 강조합니다.
+- 💾 추론 중 작업이 중단됐을 때 초안 복구를 개선했습니다. 내보낼 때 읽을 수 있는 초안을 저장하고 제외된 항목 수를 표시합니다.
+- 🏠 초안 이어가기 버튼을 학습 화면의 주요 버튼 아래로 옮겼습니다. 초안 유무에 따라 다른 버튼의 위치가 바뀌지 않습니다.
+- 📌 `versionCode` **144**.
 
 ### v0.7.5.6_Compat
 

@@ -13,19 +13,26 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.6_Compat (versionCode 143, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.7_Compat (versionCode 144, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.6_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.7_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
 
+
+### v0.7.5.7_Compat
+
+- 📄 Zoom and pan the original PDF page after a text search. On Android 15 and later, matched passages are highlighted line by line when their position can be verified.
+- 💾 Recover drafts more reliably after an interruption during reasoning. Draft exports keep readable entries and report how many could not be exported.
+- 🏠 Resume a draft below the main actions on the Study tab. The other buttons stay in place as the draft appears or disappears.
+- 📌 `versionCode` **144**.
 
 ### v0.7.5.6_Compat
 

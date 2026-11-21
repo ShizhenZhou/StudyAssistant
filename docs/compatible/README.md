@@ -13,19 +13,26 @@
 个人自用安卓学习工具，用于拍照/图文提问、AI 解答、错题整理与复习，无账号体系或自有服务器。
 由 zsz 开发，DeepSeek 与 GPT 辅助编写。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5.6_Compat（versionCode 143，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容版更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
+> 兼容版面向 **Android 9–15（API 28–35）**，当前版本为 v0.7.5.7_Compat（versionCode 144，与主线同版本一致）。首次从 v0.6.7.9 升级需手动安装完整兼容包；之后只接收兼容版更新。主线继续支持 Android 16+，GitHub Latest 保留给主线。
 
 [Study Assistant · README](../../README.md)
 
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.5.6_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
+- **Android 9–15** · [下载兼容版 v0.7.5.7_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
 
 [全部历史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本记录
 
+
+### v0.7.5.7_Compat
+
+- 📄 查找 PDF 原文后可缩放、拖动查看原页。在 Android 15 及以上，能定位的选文会逐行高亮。
+- 💾 改进思考中断后的草稿恢复。导出时保留可读草稿，并提示未能导出的数量。
+- 🏠 草稿恢复入口移到学习页所有常用按钮下方，出现或消失时其他按钮位置固定。
+- 📌 `versionCode` **144**.
 
 ### v0.7.5.6_Compat
 

@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.6_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
+- **Android 9–15** · [互換版 v0.7.5.7_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -62,6 +62,13 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 
 ## バージョン履歴
 
+
+### v0.7.5.7
+
+- 📄 PDF 原文の検索後に元のページを拡大・移動して確認できます。Android 15 以降では、位置を特定できた箇所を行ごとに強調表示します。
+- 💾 思考中に中断した場合の下書き復元を改善しました。エクスポート時には読み取れる下書きを保存し、出力できなかった件数を表示します。
+- 🏠 下書きの再開ボタンを学習画面の主要ボタンの下に移動しました。下書きの有無で他のボタンの位置は変わりません。
+- 📌 `versionCode` **144**.
 
 ### v0.7.5.6
 

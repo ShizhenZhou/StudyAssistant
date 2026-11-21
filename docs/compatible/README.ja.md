@@ -13,19 +13,26 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.6_Compat（versionCode 143、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.7_Compat（versionCode 144、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.6_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.6_Compat)
+- **Android 9–15** · [互換版 v0.7.5.7_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
 
+
+### v0.7.5.7_Compat
+
+- 📄 PDF 原文の検索後に元のページを拡大・移動して確認できます。Android 15 以降では、位置を特定できた箇所を行ごとに強調表示します。
+- 💾 思考中に中断した場合の下書き復元を改善しました。エクスポート時には読み取れる下書きを保存し、出力できなかった件数を表示します。
+- 🏠 下書きの再開ボタンを学習画面の主要ボタンの下に移動しました。下書きの有無で他のボタンの位置は変わりません。
+- 📌 `versionCode` **144**.
 
 ### v0.7.5.6_Compat
 
