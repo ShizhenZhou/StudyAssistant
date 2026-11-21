@@ -136,7 +136,7 @@ fun SolveScreen(
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
     val draft = vm.solveInputDraft
-    val inputEnabled = draft.editable && !vm.dataBusy
+    val inputEnabled = draft.editable && !vm.dataBusy && !vm.preparingInputImages
     var inputDiscardConfirm by remember(draft) { mutableStateOf(false) }
     var pendingGallery by remember(draft) { mutableStateOf<ImageGallery?>(null) }
     pendingGallery?.let { gallery -> ImageGalleryDialog(gallery) { pendingGallery = null } }
@@ -146,7 +146,7 @@ fun SolveScreen(
     val inputScope = androidx.compose.runtime.rememberCoroutineScope()
     val selectedImages = attachments.mapNotNull { loaded[it] }
     val pickingImages = draft.importingImages || selectedImages.size != attachments.size
-    val importingAttachments = pickingImages || draft.importingDocuments || !draft.editable
+    val importingAttachments = vm.preparingInputImages || pickingImages || draft.importingDocuments || !draft.editable
     LaunchedEffect(draft, attachments) {
         loaded.keys.toList().filterNot { it in attachments }.forEach { loaded.remove(it) }
         val missing = attachments.filterNot(loaded::containsKey)

@@ -16,6 +16,9 @@ import com.zsz.studyassistant.data.AppDatabase
 import com.zsz.studyassistant.data.Category
 import com.zsz.studyassistant.data.StatsSnapshot
 import com.zsz.studyassistant.data.StudyStatistics
+import com.zsz.studyassistant.data.SolveRequestLifecycle
+import com.zsz.studyassistant.data.continuationContext
+import com.zsz.studyassistant.data.messagesForRequest
 import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.gradingInput
 import com.zsz.studyassistant.data.KeyManager
@@ -377,7 +380,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- 对话流状态 ----
     private val sessionState = SolveSessionState()
-    private val requestLifecycle = com.zsz.studyassistant.data.SolveRequestLifecycle()
+    private val requestLifecycle = SolveRequestLifecycle()
     private val generation = com.zsz.studyassistant.data.ConversationGeneration(
         app, viewModelScope, requestLifecycle, { documentStore }, { recordUsage(app, it) }
     )
@@ -667,16 +670,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     streamingText=partial.body; thinkingText=value.thinking ?: partial.thinking; streamInterrupted=true
                     activeDraft=activeDraft?.copy(raw=partial.body, thinking=thinkingText)
                     webEnabled=value.webEnabled
-                    val continuation = if (value.webEnabled) com.zsz.studyassistant.data.webContinuation(
-                        value.messages, value.requestPrefix, value.continuationHistory,
-                        value.continuationAnnotations, value.resumableContext) else null
-                    contModel=value.model; contPrefix=continuation?.prefix ?: partial.body
-                    contWebEnabled=value.webEnabled
-                    contWebHistory=continuation?.history.orEmpty()
-                    contWebAnnotations=continuation?.annotations
-                    contMessages=continuation?.messages ?: continuationMessages(value.messages,partial.body)
-                    contDraftAction=value.action
-                    contOnDone={ output -> applyRecoveredReply(value.action,output) }
+                    requestLifecycle.continuation = SolveRequestLifecycle.Continuation(
+                        value.model, value.action, value.webEnabled,
+                        continuationContext(value.messages, partial.body, value.requestPrefix, value.webEnabled,
+                            value.continuationHistory, value.continuationAnnotations, value.resumableContext)
+                    ) { output -> applyRecoveredReply(value.action, output) }
                 }
                 if (!current()) return@launch
                 restoreGradeContext(value.grade)
@@ -1321,12 +1319,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var toolProgress by mutableStateOf<String?>(null)
         private set
     private var completedAiContext: com.zsz.studyassistant.data.AiResponseContext? = null
-    private var contWebEnabled by requestLifecycle::webEnabled
-    private var contWebHistory by requestLifecycle::webHistory
-    private var contWebAnnotations by requestLifecycle::webAnnotations
     val thinkingEnabled: Boolean get() = com.zsz.studyassistant.data.CapturePrefs.solveModel(getApplication()) != "flash"
 
     fun stopActiveGeneration() {
+        cancelImageSubmission()
         classificationOwner = null
         classificationJob?.cancel()
         classificationJob = null
@@ -1340,12 +1336,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         thinkingDone = false
         streamInterrupted = false
         networkError = false
-        requestLifecycle.prepare = null
-        contMessages = null
-        contOnDone = null
-        contPrefix = ""
-        contWebHistory = emptyList()
-        contWebAnnotations = null
+        requestLifecycle.continuation = null
         toolProgress = null
         completedAiContext = null
         stopping?.let { com.zsz.studyassistant.data.AnswerForegroundService.stop(getApplication(), it.id) }
@@ -1433,22 +1424,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             msgs.add(StudyAssistant.languageSystemMessage(aiLang, prompt))
             if (multiImages.isNotEmpty()) {
                 // 多张搜题：多图一起作为题目（同一套搜题指令）
-                msgs.add(StudyAssistant.visionUserMessageMulti(multiImages, categoryNames, tagNames))
+                msgs.add(if (questionImages.size == multiImages.size) StudyAssistant.userMessageWithEncodedImages(
+                    StudyAssistant.solvePrompt(categoryNames, tagNames), questionImages)
+                else StudyAssistant.visionUserMessageMulti(multiImages, categoryNames, tagNames))
             } else if (gradeMode && questionImages.isNotEmpty()) {
                 msgs.add(StudyAssistant.userMessageWithEncodedImages(
                     StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n【我的题目/问题】" + questionText, questionImages))
             } else if (directImages.isNotEmpty()) {
                 // 直接提问：文字 + 多图一起作为问题
                 // ★ 带图的「直接提问」原来用追问提示词（不问分类/知识点）→ 改用搜题指令，保证与拍题一致
-                msgs.add(
-                    StudyAssistant.userMessageWithImages(
-                        StudyAssistant.solvePrompt(categoryNames, tagNames) +
-                            "\n【我的题目/问题】" + questionText,
-                        directImages
-                    )
-                )
+                val text = StudyAssistant.solvePrompt(categoryNames, tagNames) + "\n【我的题目/问题】" + questionText
+                msgs.add(if (questionImages.size == directImages.size)
+                    StudyAssistant.userMessageWithEncodedImages(text, questionImages)
+                else StudyAssistant.userMessageWithImages(text, directImages))
             } else if (isPhoto && imageBytes != null) {
-                msgs.add(StudyAssistant.visionUserMessage(imageBytes, categoryNames, tagNames))
+                msgs.add(if (questionImages.size == 1) StudyAssistant.userMessageWithEncodedImages(
+                    StudyAssistant.solvePrompt(categoryNames, tagNames), questionImages)
+                else StudyAssistant.visionUserMessage(imageBytes, categoryNames, tagNames))
             } else if (questionText.isNotBlank()) {
                 msgs.add(StudyAssistant.textSolveMessage(questionText, categoryNames, tagNames))
             }
@@ -1549,6 +1541,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun resetSession(preserveInput: Boolean = true): Boolean {
         if (preserveInput && !flushInputDraft()) return false
+        cancelImageSubmission()
         inputDraftObserver?.cancel(); inputDraftRestore?.cancel()
         webEnabled = com.zsz.studyassistant.data.CapturePrefs.webEnabled(getApplication())
         attachmentCropFlow?.cancelCropFlow()
@@ -1589,11 +1582,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var streamOwner by requestLifecycle::owner
 
     // 「继续生成」所需的上文：原消息 + 已生成片段 + 完成回调
-    private var contMessages by requestLifecycle::messages
-    private var contModel by requestLifecycle::model
-    private var contPrefix by requestLifecycle::prefix
-    private var contDraftAction by requestLifecycle::action
-    private var contOnDone by requestLifecycle::onDone
 
     /** 中止生成：立即关闭响应流（模型思考中也能立刻停）+ 取消协程；已生成内容保留 */
     fun abortGeneration() {
@@ -1608,7 +1596,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 背景：中止后那条气泡**只存在于渲染层**（`streamingText` + `thinkingText`），它不在 `chatItems` 里，
      * 所以多选/删除（都按 `chatItems` 下标操作）覆盖不到它，长按还会被守卫拒绝。
      * 用户明确删掉它时调用这里：清掉中断态与「继续生成」的上下文 → 气泡消失。
-     * 不把它固化进 `chatItems`：`continueGeneration()` 依赖 `contPrefix` + `streamingText` 重放，
+     * 不把它固化进 `chatItems`：`continueGeneration()` 依赖 已保存的续写上下文 重放，
      * 固化后会重复出现两次（见 FIXES 记录里的取舍说明）。
      */
     fun discardInterrupted() {
@@ -1621,35 +1609,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         streamingText = null
         thinkingText = null
         thinkingDone = false
-        requestLifecycle.prepare = null
-        contMessages = null
-        contOnDone = null
-        contPrefix = ""
-        contWebHistory = emptyList()
-        contWebAnnotations = null
+        requestLifecycle.continuation = null
         toolProgress = null
         completedAiContext = null
     }
 
     /** 继续生成：把已生成部分作为 assistant 上文，要求模型接着往下写（不重复、不重开） */
     fun continueGeneration() {
-        val msgs = contMessages ?: return
-        val onDone = contOnDone ?: return
-        // ★ 包一层：续写完成后把**同一条**搜题记录也更新掉（否则记录里永远停在被中止时的半截答案）
-        val wrapped: (String) -> Unit = { out -> onDone(out); updateSolveSession() }
-        streamCall(contModel, msgs, contPrefix, wrapped, repeat = null, replyAction=contDraftAction, useWeb=contWebEnabled,
-            webHistory=contWebHistory, webAnnotations=contWebAnnotations, requestTitle=false, prepare=requestLifecycle.prepare)
-    }
-
-    private fun continuationMessages(original: List<DeepSeekMessage>, partial: String): List<DeepSeekMessage> {
-        // 一个字都没生成（还在「思考中…」就被中止）：直接重发原请求，不附加空的 assistant 消息
-        if (partial.isBlank()) return original
-        return original +
-            DeepSeekMessage("assistant", JsonPrimitive(partial)) +
-            DeepSeekMessage(
-                "user",
-                JsonPrimitive("请接着上面未写完的内容继续输出，从中断处直接续写；不要重复已经写过的部分，也不要重新开始。")
-            )
+        val next = requestLifecycle.continuation ?: return
+        if (busy || !streamInterrupted) return
+        val context = next.context
+        streamCall(next.model, context.messagesForRequest(next.webEnabled), context.prefix, next.onDone,
+            repeat = null, replyAction = next.action, useWeb = next.webEnabled, webHistory = context.history,
+            webAnnotations = context.annotations, requestTitle = false, prepare = next.prepare,
+            plainBase = context.messages.takeUnless { next.webEnabled || next.prepare != null })
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, repeat: (() -> Unit)? = null, prompt: String? = customPromptText()) {
@@ -1676,7 +1649,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         requestTitle: Boolean = sessionRecordBinding.historyAllowed &&
             replyAction in setOf("initial", "grade") && prefix.isEmpty() &&
             chatItems.none { it.role == "assistant" || !it.conversationTitle.isNullOrBlank() },
-        prepare: (() -> List<DeepSeekMessage>)? = null
+        prepare: (() -> List<DeepSeekMessage>)? = null,
+        plainBase: List<DeepSeekMessage>? = null
     ) {
         if (dataBusy || (messages.isEmpty() && prepare == null)) return
         generation.start(com.zsz.studyassistant.data.ConversationGeneration.Request(
@@ -1687,7 +1661,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val draftTemplate=draftId?.let { com.zsz.studyassistant.data.ConversationDraft(it,sessionRecordBinding.createdAt,
                 owner.id,model,replyAction,currentSource(),questionText,isPhoto,askMode,gradeMode,
                 sessionRecordBinding.historyAllowed,savedQuestionId,questionImages,chatItems.toList(),messages,raw=prefix,redoFor=pendingRedoFor ?: if(gradeMode) redoQuestionId else null,
-                gradeHistoryEnabled=gradeMode, webEnabled=useWeb, requestPrefix=prefix,
+                gradeHistoryEnabled=gradeMode, webEnabled=useWeb, requestPrefix=if (useWeb) prefix else "",
                 continuationHistory=webHistory, continuationAnnotations=webAnnotations,
                 promptInventory=requestInventory.takeIf { promptInventoryBinding === sessionRecordBinding }) }
             val draftBaseline = currentNotebookBaseline
@@ -1709,7 +1683,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     completedAiContext = null
                 }
                 override suspend fun prepared(messages: List<DeepSeekMessage>) {
-                    template = draftTemplate?.copy(messages = messages)
+                    template = draftTemplate?.copy(messages = plainBase ?: messages)
                     template?.let {
                         if (isCurrent()) activeDraft = it
                         writeDraft(it.copy(revision = ++draftRevision), draftBaseline)
@@ -1763,12 +1737,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     // 放在 onDone 之后：万一 onDone 内部抛异常，已生成的内容仍留在界面上（catch 会保留）
                     streamingText = null
-                    requestLifecycle.prepare = null
-                    contMessages = null
-                    contOnDone = null
-                    contPrefix = ""
-                    contWebHistory = emptyList()
-                    contWebAnnotations = null
+                    requestLifecycle.continuation = null
                 }
                 override suspend fun interrupted(error: Exception, partial: String, thinking: String?,
                     messages: List<DeepSeekMessage>, aborted: Boolean, keepPartial: Boolean) {
@@ -1778,19 +1747,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     withContext(kotlinx.coroutines.NonCancellable) { refreshDrafts() }
                     // Disk writes survive cancellation; the visible session may have changed meanwhile.
                     if (!isCurrent()) return
-                    contDraftAction=replyAction
                     if (keepPartial) {
                         streamInterrupted = true
-                        contModel = model
-                        contWebEnabled = useWeb
-                        val continuation = if (useWeb) com.zsz.studyassistant.data.webContinuation(
-                            messages, prefix, webHistory, webAnnotations, owner.resumableContext) else null
-                        requestLifecycle.prepare = prepare.takeIf { messages.isEmpty() }
-                        contMessages = continuation?.messages ?: continuationMessages(messages, partial)
-                        contPrefix = continuation?.prefix ?: partial
-                        contWebHistory = continuation?.history.orEmpty()
-                        contWebAnnotations = continuation?.annotations
-                        contOnDone = onDone
+                        requestLifecycle.continuation = SolveRequestLifecycle.Continuation(
+                            model, replyAction, useWeb,
+                            continuationContext(plainBase ?: messages, partial, if (useWeb) prefix else "",
+                                useWeb, webHistory, webAnnotations, owner.resumableContext),
+                            prepare.takeIf { messages.isEmpty() }, onDone
+                        )
                         // 用完整累积文本刷新一次界面（可能是空串 → 界面显示「思考中…」+ 蓝色「继续生成」）
                         streamingText = partial
                     } else {
@@ -2342,49 +2306,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 拍照解答 */
-    fun solveWithImage(bytes: ByteArray) {
-        if (!prepareSession(photo = true)) return
-        imageBytes = bytes
-        isPhoto = true
-        isFromNotebook = false
-        questionFromPhoto = true
-        questionImages = listOf(Base64.encodeToString(bytes, Base64.NO_WRAP))
-        recordSolveSession("camera", create = true)
-        runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
-            val r = StudyAssistant.parseVisionOutput(output)
-            questionText = r.question
-            suggestedCategory = r.category
-            suggestedTags = r.tags
-            addItem("question", r.question)
-            addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            recordSolveSession("camera")     // ★ 尽早落库：进程被杀也不丢（见 recordSolveSession）
-        }, repeat = { solveWithImage(bytes) })
+    private var imageSubmission by mutableStateOf<Job?>(null)
+    internal val preparingInputImages: Boolean get() = imageSubmission != null
+
+    private fun cancelImageSubmission() {
+        imageSubmission?.cancel()
+        imageSubmission = null
     }
 
-    /** 拍照解答（多张）：两张图作为同一道题目一起识别解答 */
+    /** Admit one send. Keep the editable draft intact until its images are ready. */
+    private fun withEncodedImages(images: List<ByteArray>, submit: (List<String>) -> Boolean): Boolean {
+        if (preparingInputImages || busy || dataBusy) return false
+        if (images.isEmpty()) return submit(emptyList())
+        val binding = sessionRecordBinding
+        val input = solveInputDraft
+        val sequence = callSeq
+        fun current() = sessionRecordBinding === binding && solveInputDraft === input && callSeq == sequence
+        val sources = images.toList()
+        val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            val encoded = try {
+                withContext(Dispatchers.Default) {
+                    sources.map { bytes ->
+                        ensureActive()
+                        Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    }
+                }
+            } catch (_: OutOfMemoryError) {
+                if (current()) error = com.zsz.studyassistant.ui.stringsFor(uiLang)["inputDraft.imageEncodingFailed"]
+                return@launch
+            } finally {
+                if (imageSubmission === coroutineContext[Job]) imageSubmission = null
+            }
+            if (current() && !busy && !dataBusy) submit(encoded)
+        }
+        imageSubmission = job
+        job.start()
+        return true
+    }
+
+    fun solveWithImage(bytes: ByteArray) = solveWithImages(listOf(bytes))
+
     fun solveWithImages(images: List<ByteArray>) {
-        if (!prepareSession(photo = true)) return
-        isPhoto = true
-        isFromNotebook = false
-        multiImages = images
-        questionFromPhoto = true
-        questionImages = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
-        recordSolveSession("camera", create = true)
-        runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
-            val r = StudyAssistant.parseVisionOutput(output)
-            questionText = r.question
-            suggestedCategory = r.category
-            suggestedTags = r.tags
-            // ★★ 2026-10-14 修「两张图存进错题本后只剩一张」的**真正根因**：
-            //   这里原来 `addItem("question", r.question)` **没带 images** → 题目气泡的 `ChatItem.images` 为空
-            //   → 而 `saveToNotebook` 存的 `conversationJson = chatItems` **正是从它来的** →
-            //   第二张图**从来没被存下来**（读取端再怎么兜底也找不到）。
-            //   现在把 `questionImages`（全部图，base64）一起写进题目气泡，存档后即可完整还原。
-            addItem("question", r.question, questionImages.ifEmpty { null })
-            addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            recordSolveSession("camera")     // ★ 多图一并落进 imagesJson（搜题记录侧也存全）
-        }, repeat = { solveWithImages(images) })
+        if (images.isEmpty()) return
+        fun start(encoded: List<String>): Boolean {
+            if (!prepareSession(photo = true)) return false
+            questionFromPhoto = true
+            if (images.size == 1) imageBytes = images.single() else multiImages = images
+            questionImages = encoded
+            recordSolveSession("camera", create = true)
+            runCall(StudyAssistant.MODEL_VISION, onDone = { output ->
+                val result = StudyAssistant.parseVisionOutput(output)
+                questionText = result.question
+                suggestedCategory = result.category
+                suggestedTags = result.tags
+                addItem("question", result.question, encoded.takeIf { it.size > 1 })
+                addItem("assistant", result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+            }, repeat = { start(encoded) })
+            return true
+        }
+        withEncodedImages(images, ::start)
     }
 
     /** 文字解答 */
@@ -2405,7 +2385,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             suggestedCategory = r.category
             suggestedTags = r.tags
             addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            recordSolveSession("text")
         }, repeat = { solveText(question) })
     }
 
@@ -2418,39 +2397,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val prompt = customPromptText(categoryId = null) ?: return false
         val acceptedInput = solveInputDraft.takeIf { !fromCamera && retryBinding == null &&
             it.storageKey == com.zsz.studyassistant.data.InputDraftStore.NEW_ASK }
-        if (!prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)) return false
-        isPhoto = images.isNotEmpty()
-        isFromNotebook = false
-        questionFromPhoto = false   // 直接提问显示用户自己写的文字，不是 AI 转译题干
-        questionText = text
-        directImages = images
-        suggestedCategory = null
-        suggestedTags = emptyList()
-        // 把"我的提问 + 附图"作为一条对话消息显示（与拍题后的问答一致）
-        // 附图同时存进该条消息，重开会话（如从错题本进入）仍能看到原图
-        val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
-        questionImages = encoded
-        addItem("question", text, if (encoded.isEmpty()) null else encoded, documents = documents)
-        recordSolveSession(if (fromCamera) "camera" else "ask", create = true)
-        val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        runCall(model, onDone = { reply ->
-            if (images.isNotEmpty()) {
-                val r = StudyAssistant.parseVisionOutput(reply)
-                suggestedCategory = r.category
-                suggestedTags = r.tags
-                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            } else {
-                // ★ 纯文字的「直接提问」也要解析分类/知识点——这里原来直接 addItem(reply)，
-                //   不解析就永远拿不到预选（拍题/带图提问都解析了，只有这条路径漏了）
-                val r = StudyAssistant.parseVisionOutput(reply)
-                suggestedCategory = r.category
-                suggestedTags = r.tags
-                addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-            }
-            recordSolveSession(if (fromCamera) "camera" else "ask")
-        }, repeat = { solveDirect(text, images, documents, fromCamera) }, prompt = prompt)
-        acceptedInput?.let(::acceptInputDraft)
-        return true
+        fun start(encoded: List<String>, prompt: String): Boolean {
+            if (!prepareSession(photo = images.isNotEmpty(), ask = !fromCamera)) return false
+            questionFromPhoto = false
+            questionText = text
+            directImages = images
+            questionImages = encoded
+            addItem("question", text, encoded.ifEmpty { null }, documents = documents)
+            recordSolveSession(if (fromCamera) "camera" else "ask", create = true)
+            val model = if (images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+            runCall(model, onDone = { reply ->
+                val result = StudyAssistant.parseVisionOutput(reply)
+                suggestedCategory = result.category
+                suggestedTags = result.tags
+                addItem("assistant", result.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
+            }, repeat = { customPromptText(categoryId = null)?.let { start(encoded, it) } }, prompt = prompt)
+            return true
+        }
+        return withEncodedImages(images) { encoded ->
+            if (!start(encoded, prompt)) return@withEncodedImages false
+            acceptedInput?.let(::acceptInputDraft)
+            true
+        }
     }
 
     /** 接续追问（可附带 1~3 张图，文字 + 图一起发给视觉模型） */
@@ -2468,23 +2436,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val prompt = customPromptText() ?: return false
         val acceptedInput = solveInputDraft
-        val encoded = images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
-        // Store the complete quote in the existing message body, so retries, history,
-        // notebook saves and backups all retain the same context without a format change.
-        val content = quotedText?.takeIf { it.isNotBlank() }?.let { quote ->
-            val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
-            strings["solve.quoteTitle"] + ":\n" + quote + "\n\n" + strings["solve.quoteQuestion"] + ":\n" + text
-        } ?: text
-        addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text, quoteAnchor) },
-            documents = documents, excludedDocumentHashes = excluded.sorted())
-        val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
-        runCall(model, onDone = { reply ->
-            // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
-            addItem("assistant", StudyAssistant.stripMetaLines(reply))
-            updateSolveSession()
-        }, repeat = { retryFollowUp(encoded) }, prompt = prompt)
-        acceptInputDraft(acceptedInput)
-        return true
+        return withEncodedImages(images) { encoded ->
+            // Store the complete quote in the existing message body, so retries, history,
+            // notebook saves and backups all retain the same context without a format change.
+            val content = quotedText?.takeIf { it.isNotBlank() }?.let { quote ->
+                val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                strings["solve.quoteTitle"] + ":\n" + quote + "\n\n" + strings["solve.quoteQuestion"] + ":\n" + text
+            } ?: text
+            addItem("user", content, encoded, quote = quotedText?.takeIf { it.isNotBlank() }?.let { QuotedFollowUp(it, text, quoteAnchor) },
+                documents = documents, excludedDocumentHashes = excluded.sorted())
+            val model = if (isPhoto || gradeMode || images.isNotEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+            runCall(model, onDone = { reply ->
+                // 追问也剔掉回显的元信息行（否则答案里会又冒出「题目：…」）
+                addItem("assistant", StudyAssistant.stripMetaLines(reply))
+            }, repeat = { retryFollowUp(model) }, prompt = prompt)
+            acceptInputDraft(acceptedInput)
+            true
+        }
     }
 
     /** 当前会话的来源标签（camera/ask/text/grade）——更新已有记录时沿用，避免来回改来源 */
@@ -2495,18 +2463,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         else -> "text"
     }
 
-    /** 追问 / 继续生成后的更新：**UPDATE 同一条**记录（没落过库则什么都不做，由生成入口负责 insert） */
-    private fun updateSolveSession() {
-        if (currentSessionId == null) return
-        recordSolveSession(currentSource())
-    }
-
     /** 网络失败后重新发送最后一次追问（不重复添加 user 消息，保留附图） */
-    private fun retryFollowUp(images: List<String>? = null) {
-        val model = if (isPhoto || !images.isNullOrEmpty()) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+    private fun retryFollowUp(model: String) {
         runCall(model, onDone = { reply ->
             addItem("assistant", StudyAssistant.stripMetaLines(reply))
-        }, repeat = { retryFollowUp(images) })
+        }, repeat = { retryFollowUp(model) })
     }
 
     /** 重新生成：**保留提问气泡**，只重做回答 */
@@ -3448,11 +3409,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val thinking = thinkingText
         val thoughtDone = thinkingDone
         val interrupted = streamInterrupted
-        val continuation = contMessages
-        val completion = contOnDone
-        val prefix = contPrefix
-        val webHistory = contWebHistory
-        val webAnnotations = contWebAnnotations
+        val continuation = requestLifecycle.continuation
         val aiContext = completedAiContext
         chatItems = after
         if (removePartial) clearInterruptedState()
@@ -3477,8 +3434,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (removePartial) {
                     activeDraft = draft; streamingText = partial; thinkingText = thinking
                     thinkingDone = thoughtDone; streamInterrupted = interrupted
-                    contMessages = continuation; contOnDone = completion; contPrefix = prefix
-                    contWebHistory = webHistory; contWebAnnotations = webAnnotations
+                    requestLifecycle.continuation = continuation
                     completedAiContext = aiContext
                 }
             }
@@ -3653,8 +3609,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         suggestedCategory = r.category
         suggestedTags = r.tags
         addItem("assistant", r.withHint(com.zsz.studyassistant.ui.stringsFor(uiLang)))
-        // Update the row reserved at grading input, before completed-draft cleanup.
-        recordSolveSession("grade")
         // B6：重做的批改 → 按结论给出待确认的建议（一次性，取完即清）
         val redoFor = pendingRedoFor
         if (redoFor != null) {

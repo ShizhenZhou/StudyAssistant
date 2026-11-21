@@ -5,27 +5,27 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.serialization.json.JsonArray
 
 /** Main-thread owner of the active generation and its resumable request, independent of UI/persistence. */
 internal class SolveRequestLifecycle {
     var job: Job? = null
     var owner: StreamOwner? = null
     var sequence = 0L
-    var prepare: (() -> List<DeepSeekMessage>)? = null
-    var messages: List<DeepSeekMessage>? = null
-    var model = ""
-    var prefix = ""
-    var action = "initial"
-    var onDone: ((String) -> Unit)? = null
-    var webEnabled = false
-    var webHistory: List<DeepSeekMessage> = emptyList()
-    var webAnnotations: JsonArray? = null
+    data class Continuation(
+        val model: String,
+        val action: String,
+        val webEnabled: Boolean,
+        val context: ContinuationContext,
+        val prepare: (() -> List<DeepSeekMessage>)? = null,
+        val onDone: (String) -> Unit
+    )
 
+    var continuation: Continuation? = null
     fun begin(): StreamOwner {
         owner?.cancel()
         job?.cancel()
         sequence++
+        continuation = null
         return StreamOwner().also { owner = it }
     }
 

@@ -5,6 +5,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WebContinuationTest {
+    @Test fun ordinaryResumesAndLegacyDraftsSendTheWholePrefixOnlyOnce() {
+        val original = listOf(DeepSeekMessage("user", JsonPrimitive("question")))
+        fun plain(messages: List<DeepSeekMessage>, partial: String, previous: String = "") =
+            continuationContext(messages, partial, previous, false, emptyList(), null, null)
+        val first = plain(original, "A")
+        val second = plain(first.messages, "AB")
+        val nextRequest = second.messagesForRequest(false)
+        assertEquals(3, nextRequest.size)
+        assertEquals(original.single(), nextRequest[0])
+        assertEquals(DeepSeekMessage("assistant", JsonPrimitive("AB")), nextRequest[1])
+        assertEquals(first.messagesForRequest(false).last(), nextRequest[2])
+        assertEquals(original, plain(original, "").messagesForRequest(false))
+
+        // Older clients appended a new pair for each interruption and persisted the expanded request.
+        val legacy = first.messagesForRequest(false) + nextRequest.takeLast(2)
+        val draft = ConversationDraft(QuestionIdentity.create(10000), 10000, java.util.UUID.randomUUID().toString(),
+            "fixture", "followup", "text", "question", false, true, false, true, null, emptyList(), emptyList(),
+            legacy, raw = "ABC", requestPrefix = "AB")
+        val restored = ConversationDraftCodec.decode(ConversationDraftCodec.encode(draft))
+        assertEquals(plain(original, "ABC"), plain(restored.messages, restored.raw, restored.requestPrefix))
+        // An ordinary message matching the instruction is preserved when there is no legacy prefix.
+        assertEquals(legacy, plain(legacy, "ABC").messages)
+    }
+
     @Test fun safeSegmentsKeepExactToolContextAcrossRepeatedContinuation() {
         val original = listOf(DeepSeekMessage("user", JsonPrimitive("question")))
         val tools = Json.parseToJsonElement("""[{"index":0,"calls":[{"signature":"synthetic"}]}]""") as JsonArray
