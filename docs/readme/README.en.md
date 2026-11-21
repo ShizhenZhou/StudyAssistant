@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.7_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.8_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.8_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -62,6 +62,13 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+
+### v0.7.5.8
+
+- 💬 Resuming an answer after several interruptions sends the partial answer only once. Restoring an older draft also removes duplicate continuation instructions.
+- 💾 Completing a reply updates its history entry once, even after multiple interruptions.
+- 🖼️ Photos and images attached to questions or follow-ups are encoded in the background. Switching questions cancels pending image submissions.
+- 📌 `versionCode` **145**.
 
 ### v0.7.5.7
 

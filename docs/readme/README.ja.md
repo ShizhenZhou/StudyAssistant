@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.7_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
+- **Android 9–15** · [互換版 v0.7.5.8_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.8_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -62,6 +62,13 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 
 ## バージョン履歴
 
+
+### v0.7.5.8
+
+- 💬 生成を何度中断しても、再開時にはそれまでの回答を一度だけ送信します。古い下書きの復元時にも重複した続行指示を整理します。
+- 💾 回答が完成した時点で履歴を一度だけ更新します。生成を繰り返し再開した場合も同様です。
+- 🖼️ 撮影した写真や質問・追加質問の添付画像をバックグラウンドで処理します。別の問題に切り替えると送信待ちの画像を取り消します。
+- 📌 `versionCode` **145**.
 
 ### v0.7.5.7
 

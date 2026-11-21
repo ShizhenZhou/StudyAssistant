@@ -1,3 +1,8 @@
+v0.7.5.8_Compat
+· 💬 Resuming an answer after several interruptions sends the partial answer only once. Restoring an older draft also removes duplicate continuation instructions.
+· 💾 Completing a reply updates its history entry once, even after multiple interruptions.
+· 🖼️ Photos and images attached to questions or follow-ups are encoded in the background. Switching questions cancels pending image submissions.
+
 v0.7.5.7_Compat
 · 📄 Zoom and pan the original PDF page after a text search. On Android 15 and later, matched passages are highlighted line by line when their position can be verified.
 · 💾 Recover drafts more reliably after an interruption during reasoning. Draft exports keep readable entries and report how many could not be exported.

@@ -16,7 +16,7 @@
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.7_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.7_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.5.8_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.8_Compat)
 - [兼容版說明與更新記錄](../compatible/README.zh-TW.md)
 
 本文是兩發行線共用入口；下方技術參數及歷史記錄以主線為準。相容版的系統範圍和獨立更新彙總見上方說明。
@@ -62,6 +62,13 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 
 ## 版本記錄
 
+
+### v0.7.5.8
+
+- 💬 多次中斷後繼續生成只傳送一份累積正文，從舊草稿還原時也會合併重複的續寫指令。
+- 💾 回答完成後統一儲存，連續續寫不會重複登記紀錄更新。
+- 🖼️ 拍照、圖文提問和追問的圖片改在背景編碼，切換題目時取消待傳送的圖片。
+- 📌 `versionCode` **145**.
 
 ### v0.7.5.7
 
