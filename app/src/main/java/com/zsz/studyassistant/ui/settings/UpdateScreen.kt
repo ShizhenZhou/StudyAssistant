@@ -169,7 +169,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     fun packageKey(rel: UpdateChecker.ReleaseInfo) = rel.assetUrl + "|" + rel.assetSha256
     var progress by remember { mutableIntStateOf(-1) }
     var usingMirror by remember { mutableStateOf(false) }
-    var currentPackageSize by remember { mutableStateOf(0L) }
+    var downloadTask by remember { mutableStateOf<UpdateDownloads.Snapshot?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var recoveryError by remember { mutableStateOf<String?>(null) }
     var recovering by remember { mutableStateOf(false) }
@@ -192,7 +192,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         latest = task.release
         progress = task.progress
         usingMirror = task.usingMirror
-        currentPackageSize = task.currentPackageSize
+        downloadTask = task
         verifiedSha = task.phase == UpdateDownloads.Phase.READY && task.release.assetSha256 != null
         message = task.errorKey?.let { s.format(it, "api" to (task.release.minSdk?.toString() ?: "")) }
         phase = when (task.phase) {
@@ -340,7 +340,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         latest = rel
         compatibilityMessage(rel)?.let { message = it; phase = Phase.FAILED; return }
         val generation = ++operationGeneration
-        phase = Phase.DOWNLOADING; progress = 0; message = null; usingMirror = false; currentPackageSize = 0L
+        phase = Phase.DOWNLOADING; progress = 0; message = null; usingMirror = false; downloadTask = null
         observingDownload = false
         val notification = UpdateDownloadMonitor.request(context)
         val handoff = downloads.enqueue(rel, notification = notification,
@@ -520,9 +520,15 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         },
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    if (currentPackageSize > 0) Text(
-                        s.format("update.currentPackageSize", "size" to formatUpdateSize(currentPackageSize)),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    downloadTask?.takeIf { it.currentPackageSize > 0 }?.let { task ->
+                        val size = formatUpdateSize(task.currentPackageSize)
+                        val label = task.chain?.let { chain ->
+                            s.format("update.chainSize", "size" to formatUpdateSize(chain.downloadSize)) + " · " +
+                                s.format("update.chainPackage", "number" to task.packageNumber.toString(),
+                                    "count" to chain.steps.size.toString(), "size" to size)
+                        } ?: s.format("update.currentPackageSize", "size" to size)
+                        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    }
                     Spacer(Modifier.height(10.dp))
                     if (progress >= 0) {
                         LinearProgressIndicator(

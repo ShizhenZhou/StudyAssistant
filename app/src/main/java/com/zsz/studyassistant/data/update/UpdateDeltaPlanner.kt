@@ -14,6 +14,12 @@ data class UpdateDeltaStep(val delta: UpdateDeltaInfo, val targetSha256: String,
 data class UpdateDeltaPlan(val steps: List<UpdateDeltaStep>) {
     val downloadSize: Long get() = steps.sumOf { it.delta.patchSize }
 
+    internal fun downloadPercent(stepIndex: Int, currentBytes: Long): Int {
+        val previousBytes = steps.take(stepIndex).sumOf { it.delta.patchSize }
+        val received = previousBytes + currentBytes.coerceIn(0L, steps[stepIndex].delta.patchSize)
+        return (100L * received / downloadSize).toInt()
+    }
+
     fun versionPath(installedVersion: String): String =
         (listOf(installedVersion) + steps.map { it.tagName }).joinToString("→") {
             "v" + it.removePrefix("compat_").removePrefix("v").removePrefix("V")

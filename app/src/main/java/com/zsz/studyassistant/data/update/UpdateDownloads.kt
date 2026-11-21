@@ -42,7 +42,8 @@ internal class UpdateDownloads(
     }
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
         val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false,
-        val resumable: Boolean = false, val usingMirror: Boolean = false, val currentPackageSize: Long = 0)
+        val resumable: Boolean = false, val usingMirror: Boolean = false, val currentPackageSize: Long = 0,
+        val chain: UpdateDeltaPlan? = null, val packageNumber: Int = 1)
     private data class Record(val token: String, val release: UpdateChecker.ReleaseInfo,
         val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false,
         val delta: UpdateDeltaInfo? = null, val transferToken: String = token, val enqueuePending: Boolean = false,
@@ -154,7 +155,7 @@ internal class UpdateDownloads(
         val record = pending.copy(id = id, enqueuePending = false)
         try { write(record) }
         catch (error: Exception) { backend.remove(id); throw error }
-        return status(record, Phase.DOWNLOADING, 0)
+        return status(record, Phase.DOWNLOADING, receivedBytes = 0)
     }
 
     suspend fun snapshot(): Snapshot? = locked {
@@ -224,7 +225,7 @@ internal class UpdateDownloads(
         if (!record.ready) return@locked snapshotLocked(record)
         val file = ready(record)
         if (!valid(file, record.release)) return@locked fail(record, "update.verifyFailed")
-        status(record, Phase.READY, 100, file)
+        status(record, Phase.READY, file = file)
     }
 
     private class TransferCancelled : kotlinx.coroutines.CancellationException()
@@ -248,7 +249,7 @@ internal class UpdateDownloads(
         UpdateChecker.compatibilityError(initial.release)?.let { return fail(initial, it) }
         if (initial.ready) {
             val file = ready(initial)
-            return if (file.isFile) status(initial, Phase.READY, 100, file)
+            return if (file.isFile) status(initial, Phase.READY, file = file)
             else fail(initial, "update.downloadMissing")
         }
         initial.error?.let { return status(initial,
@@ -272,15 +273,12 @@ internal class UpdateDownloads(
         val expectedSize = transferRelease(record).assetSize
         if (expectedSize > 0 && (transfer.bytes > expectedSize || transfer.total > expectedSize))
             return fail(record, "update.verifyFailed")
-        val total = transfer.total.takeIf { it > 0 } ?: expectedSize
-        val completed = record.steps.take(record.stepIndex).sumOf { it.delta.patchSize }
-        val totalDownload = record.steps.takeIf { it.isNotEmpty() }?.sumOf { it.delta.patchSize } ?: total
-        val percent = if (totalDownload > 0) ((completed + transfer.bytes.coerceAtLeast(0)).toDouble() / totalDownload * 100)
-            .toInt().coerceIn(0, 100) else -1
         return when (transfer.status) {
-            TransferPhase.QUEUED, TransferPhase.RUNNING -> status(record, Phase.DOWNLOADING, percent)
+            TransferPhase.QUEUED, TransferPhase.RUNNING -> status(record, Phase.DOWNLOADING,
+                receivedBytes = transfer.bytes, reportedTotal = transfer.total)
                 .copy(usingMirror = transfer.status == TransferPhase.RUNNING && transfer.usingMirror)
-            TransferPhase.WAITING -> status(record, Phase.WAITING, percent, errorKey = transfer.errorKey)
+            TransferPhase.WAITING -> status(record, Phase.WAITING, receivedBytes = transfer.bytes,
+                reportedTotal = transfer.total, errorKey = transfer.errorKey)
             TransferPhase.FAILED -> fail(record, transfer.errorKey ?: "update.downloadInterrupted")
             TransferPhase.SUCCESS -> complete(record)
         }
@@ -334,7 +332,7 @@ internal class UpdateDownloads(
             // Failure to tidy an OS row must not invalidate a verified package.
             runCatching { backend.remove(record.id) }
             cleanupIntermediates(record)
-            status(record, Phase.READY, 100, output)
+            status(record, Phase.READY, file = output)
         } catch (error: TransferCancelled) { cancelLocked(); throw error }
           catch (error: Exception) {
             if (UpdateStorage.isInsufficient(error)) return pauseForStorage(record)
@@ -415,10 +413,21 @@ internal class UpdateDownloads(
             uri.scheme == "file" && File(checkNotNull(uri.path)).canonicalFile == partial(record).canonicalFile
         }.getOrDefault(false))
 
-    private fun status(record: Record, phase: Phase, progress: Int = -1, file: File? = null, errorKey: String? = null) =
-        Snapshot(record.token, record.release, phase, progress, file, errorKey, record.appNotification,
+    private fun status(record: Record, phase: Phase, file: File? = null, errorKey: String? = null,
+        receivedBytes: Long? = null, reportedTotal: Long = 0): Snapshot {
+        val currentSize = transferRelease(record).assetSize.takeIf { it > 0 } ?: reportedTotal
+        val chain = record.steps.takeIf { it.size > 1 }?.let(::UpdateDeltaPlan)
+        val progress = when {
+            phase == Phase.READY -> 100
+            receivedBytes == null -> -1
+            chain != null -> chain.downloadPercent(record.stepIndex, receivedBytes)
+            currentSize > 0 -> (receivedBytes.coerceIn(0L, currentSize).toDouble() / currentSize * 100).toInt()
+            else -> -1
+        }
+        return Snapshot(record.token, record.release, phase, progress, file, errorKey, record.appNotification,
             record.id >= ResumableUpdateBackend.ID_BASE || errorKey == UpdateStorage.ERROR_KEY,
-            currentPackageSize = transferRelease(record).assetSize)
+            currentPackageSize = currentSize, chain = chain, packageNumber = record.stepIndex + 1)
+    }
 
     private fun partial(record: Record): File {
         val root = checkNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))

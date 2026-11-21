@@ -25,6 +25,8 @@ class L10nTableTest {
             assertTrue(table.getValue("update.chainSize").contains("{size}"))
             assertTrue(!table.getValue("update.chainSize").contains("{count}"))
             assertTrue(table.getValue("update.currentPackageSize").contains("{size}"))
+            val currentStep = table.getValue("update.chainPackage")
+            assertTrue(listOf("{number}", "{count}", "{size}").all { it in currentStep })
         }
         val tw = stringsFor(UiLang.ZH_TW)
         assertEquals("所有差分包共 2 MB", tw.format("update.chainSize", "size" to "2 MB"))
