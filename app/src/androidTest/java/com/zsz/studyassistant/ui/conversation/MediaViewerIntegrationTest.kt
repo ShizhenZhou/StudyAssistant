@@ -31,6 +31,7 @@ import org.json.JSONArray
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.zsz.studyassistant.data.*
 
 /** Explicit API 36 media checks: artificial pixels only, no MainActivity, DB, keys or network. */
 @RunWith(AndroidJUnit4::class)
@@ -39,6 +40,81 @@ class MediaViewerIntegrationTest {
     private val context get() = instrumentation.targetContext
     private val green = Color.rgb(30, 170, 85)
     private val blue = Color.rgb(40, 100, 220)
+
+    @Test fun pdfSourceHighlightsWrappedAndRotatedTextAndSupportsPinch() {
+        check(context.packageName == "com.zsz.studyassistant.integration")
+        val work = File(context.cacheDir, "pdf-preview-${java.util.UUID.randomUUID()}").apply { mkdirs() }
+        val query = "Exact source sentence wrapped over two lines"
+        try {
+            val original = File(work, "source.pdf")
+            val pdf = android.graphics.pdf.PdfDocument()
+            try {
+                repeat(3) { index ->
+                    val page = pdf.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, index + 1).create())
+                    val paint = android.graphics.Paint().apply { textSize = 18f }
+                    page.canvas.drawText("Exact source sentence", 40f, 90f, paint)
+                    page.canvas.drawText("wrapped over two lines", 40f, 115f, paint)
+                    page.canvas.drawText("Do not highlight this line", 40f, 150f, paint)
+                    pdf.finishPage(page)
+                }
+                original.outputStream().use(pdf::writeTo)
+            } finally { pdf.close() }
+            com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context)
+            val rotated = File(work, "rotated.pdf")
+            com.tom_roush.pdfbox.pdmodel.PDDocument.load(original).use { pdf ->
+                pdf.getPage(1).rotation = 90
+                pdf.getPage(2).rotation = 270
+                pdf.save(rotated)
+            }
+            val metadata = ConversationDocument(DocumentStore.hash(rotated), "preview.pdf", rotated.length())
+            var visible: PdfSourcePreview? = null
+            repeat(3) { index ->
+                val preview = PdfSourcePreview.load(rotated, PdfSourceMatch(metadata, index), query) {}
+                assertEquals("two separate line bounds, page $index", 2, preview.highlights.size)
+                // Each highlighted rectangle must cover actual glyphs rather than blank page space.
+                for (rect in preview.highlights) {
+                    var ink = 0
+                    for (y in rect.top.toInt() until rect.bottom.toInt())
+                        for (x in rect.left.toInt() until rect.right.toInt())
+                            if (Color.red(preview.bitmap.getPixel(x, y)) < 100) ink++
+                    assertTrue("bounds overlap text, page $index", ink > 100)
+                }
+                val marked = preview.bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                val canvas = android.graphics.Canvas(marked)
+                val paint = android.graphics.Paint().apply { color = 0x66FFB300 }
+                preview.highlights.forEach { canvas.drawRect(it, paint) }
+                File(context.getExternalFilesDir(null), "pdf-source-page-$index.png").outputStream().use {
+                    marked.compress(Bitmap.CompressFormat.PNG, 100, it)
+                }
+                marked.recycle()
+                if (index == 0) visible = preview else preview.bitmap.recycle()
+            }
+            // A case-insensitive platform search must never highlight a different exact excerpt.
+            val absent = PdfSourcePreview.load(rotated, PdfSourceMatch(metadata, 0), query.lowercase()) {}
+            assertTrue(absent.highlights.isEmpty())
+            absent.bitmap.recycle()
+            ActivityScenario.launch(UpdatePageTestActivity::class.java).use { scenario ->
+                scenario.onActivity { activity -> activity.setContent {
+                    CompositionLocalProvider(LocalStrings provides stringsFor(UiLang.EN), LocalUiLang provides UiLang.EN) {
+                        MaterialTheme { PdfSourcePage(requireNotNull(visible), "Synthetic PDF page", Modifier.fillMaxSize()) }
+                    }
+                } }
+                waitFor("100%")
+                val page = bounds(waitFor("Synthetic PDF page"))
+                pinchOut(page)
+                awaitCondition("PDF pinch enlarges") { nodes("100%").isEmpty() }
+                swipe(page, left = true)
+                screenshot("ui-pdf-source-zoomed.png")
+                tap(bounds(waitFor("Fit page")))
+                waitFor("100%")
+                tap(bounds(waitFor("Zoom in")))
+                waitFor("150%")
+                tap(bounds(waitFor("Zoom out")))
+                waitFor("100%")
+                screenshot("ui-pdf-source-fit.png")
+            }
+        } finally { work.deleteRecursively() }
+    }
 
     @Test fun nativeGalleryOpensTappedPageSwipesAndKeepsZoomedPage() {
         check(context.packageName == "com.zsz.studyassistant.integration")

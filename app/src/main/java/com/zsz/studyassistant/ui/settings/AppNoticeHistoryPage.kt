@@ -36,28 +36,23 @@ internal fun AppNoticeHistoryPage() {
             catch (_: Exception) { null }
         loading = false
     }
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(labels["hint"], style = MaterialTheme.typography.bodySmall)
-        Button(enabled = !loading, onClick = {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item(key = "hint") { Text(labels["hint"], style = MaterialTheme.typography.bodySmall) }
+        item(key = "refresh") { Button(enabled = !loading, onClick = {
             // Clear synchronously so a refresh never leaves a withdrawn body visible.
             loading = true
             notices = null
             attempt++
         }) {
             Text(labels[if (!loading && notices == null) "retry" else "refresh"])
-        }
+        } }
         when {
-            loading -> Text(labels["loading"])
-            notices == null -> Text(labels["error"])
-            notices!!.isEmpty() -> Text(labels["empty"])
-            else -> LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(notices.orEmpty(), key = { it.key }) { item ->
-                    AppNoticeHistoryCard(item, language, labels, s)
-                }
+            loading -> item(key = "status") { Text(labels["loading"]) }
+            notices == null -> item(key = "status") { Text(labels["error"]) }
+            notices!!.isEmpty() -> item(key = "status") { Text(labels["empty"]) }
+            else -> items(notices.orEmpty(), key = { "notice:${it.key}" }) { item ->
+                AppNoticeHistoryCard(item, language, labels, s)
             }
         }
     }

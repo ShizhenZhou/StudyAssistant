@@ -40,6 +40,7 @@ internal class ConversationPersistence(
         private set
     var saveRevision by mutableStateOf(0L)
         private set
+    private var statusDirty = false
 
     suspend fun recover() = writeMutex.withLock {
         try {
@@ -106,6 +107,13 @@ internal class ConversationPersistence(
         } catch (e: CancellationException) { throw e }
         catch (_: Exception) { saveJournalIssue = true }
         saveRevision++
+        statusDirty = false
+    }
+
+    // Called under writeMutex. All admitted writes are counted before suspending; the last
+    // writer scans once, including when its own snapshot has already been superseded.
+    private suspend fun refreshAfterWrite(enabled: Boolean) {
+        if (enabled && statusDirty && saveOperations == 1) refresh()
     }
 
     fun queueNotebookSave(payload: SavePayload) =
@@ -119,45 +127,49 @@ internal class ConversationPersistence(
             withContext(kotlinx.coroutines.NonCancellable) { persistNotebookContent(snapshot) }
         }
     }
-    private suspend fun persistNotebookContent(snapshot: SaveSnapshot<SavePayload>) {
+    private suspend fun persistNotebookContent(snapshot: SaveSnapshot<SavePayload>, refreshAfter: Boolean = true) {
         saveOperations++
         try {
             solveSessionWriteMutex.withLock {
-                fun current() = pendingNotebookContent[snapshot.id] === snapshot &&
-                    !isNotebookDeleted(snapshot.id)
-                if (!current()) return@withLock
                 try {
-                    val payload = snapshot.value()
+                    fun current() = pendingNotebookContent[snapshot.id] === snapshot &&
+                        !isNotebookDeleted(snapshot.id)
                     if (!current()) return@withLock
-                    pendingSaveRepository.saveNotebook(payload)
-                    if (pendingNotebookContent[snapshot.id] === snapshot) pendingNotebookContent.remove(snapshot.id)
-                    onNotebookSaved(payload)
-                } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { /* Keep the frozen snapshot if preparation or journal creation failed. */ }
-                refresh()
+                    statusDirty = true
+                    try {
+                        val payload = snapshot.value()
+                        if (!current()) return@withLock
+                        pendingSaveRepository.saveNotebook(payload)
+                        if (pendingNotebookContent[snapshot.id] === snapshot) pendingNotebookContent.remove(snapshot.id)
+                        onNotebookSaved(payload)
+                    } catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { /* Keep the frozen snapshot if preparation or journal creation failed. */ }
+                } finally { refreshAfterWrite(refreshAfter) }
             }
         } finally { saveOperations-- }
     }
 
-    private suspend fun persistHistoryTicket(ticket: HistoryWriteQueue.Ticket) {
+    private suspend fun persistHistoryTicket(ticket: HistoryWriteQueue.Ticket, refreshAfter: Boolean = true) {
         saveOperations++
         try { solveSessionWriteMutex.withLock {
-            if (!historyWriteQueue.isCurrent(ticket)) return@withLock
             try {
-                val row = ticket.row()
                 if (!historyWriteQueue.isCurrent(ticket)) return@withLock
-                pendingSaveRepository.saveHistory(row, historyWriteQueue.canCreate(ticket), historyCutoff())
-                historyWriteQueue.complete(ticket)
-            } catch (e: CancellationException) {
-                historyWriteQueue.fail(ticket)
-                throw e
-            } catch (_: Exception) {
-                // Retain the snapshot for explicit retry; never expose exception payloads or question text.
-                historyWriteQueue.fail(ticket)
-            } finally {
-                failedHistoryWrites = historyWriteQueue.failedTickets().size
-                refresh()
-            }
+                statusDirty = true
+                try {
+                    val row = ticket.row()
+                    if (!historyWriteQueue.isCurrent(ticket)) return@withLock
+                    pendingSaveRepository.saveHistory(row, historyWriteQueue.canCreate(ticket), historyCutoff())
+                    historyWriteQueue.complete(ticket)
+                } catch (e: CancellationException) {
+                    historyWriteQueue.fail(ticket)
+                    throw e
+                } catch (_: Exception) {
+                    // Retain the snapshot for explicit retry; never expose exception payloads or question text.
+                    historyWriteQueue.fail(ticket)
+                } finally {
+                    failedHistoryWrites = historyWriteQueue.failedTickets().size
+                }
+            } finally { refreshAfterWrite(refreshAfter) }
         } } finally { saveOperations-- }
     }
 
@@ -167,8 +179,8 @@ internal class ConversationPersistence(
         val tickets = historyWriteQueue.failedTickets()
         scope.launch {
             try {
-                tickets.forEach { persistHistoryTicket(it) }
-                pendingNotebookContent.values.toList().forEach { persistNotebookContent(it) }
+                tickets.forEach { persistHistoryTicket(it, refreshAfter = false) }
+                pendingNotebookContent.values.toList().forEach { persistNotebookContent(it, refreshAfter = false) }
                 solveSessionWriteMutex.withLock {
                     try { pendingSaveRepository.retryAll(historyCutoff()) }
                     catch (e: CancellationException) { throw e }
@@ -176,7 +188,11 @@ internal class ConversationPersistence(
                     refresh()
                 }
                 afterRetry()
-            } finally { retryingHistoryWrites = false }
+            } finally {
+                // A cancelled retry must also publish the state of writes it already finished.
+                withContext(NonCancellable) { writeMutex.withLock { if (statusDirty) refresh() } }
+                retryingHistoryWrites = false
+            }
         }
     }
 

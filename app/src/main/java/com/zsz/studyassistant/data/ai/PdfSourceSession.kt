@@ -17,6 +17,12 @@ internal class PdfSourceSession(
     fun pageCount(sha256: String): Int? = synchronized(lock) { counts[sha256] }
     fun page(sha256: String, index: Int): Page? = synchronized(lock) { pages[sha256 to index] }
 
+    /** Protect this scan's existing entries from misses earlier in the same scan. Only keys
+     * are retained, not another copy of the text; a different document can still replace them. */
+    fun retainedPages(sha256: String, indices: List<Int>): Set<Pair<String, Int>> = synchronized(lock) {
+        indices.map { sha256 to it }.filterTo(hashSetOf()) { it in pages }
+    }
+
     // Call only after verifying the original and its PDF extraction permission.
     fun rememberPageCount(sha256: String, count: Int) = synchronized(lock) {
         if (!disposed) {
@@ -26,14 +32,16 @@ internal class PdfSourceSession(
         }
     }
 
-    fun rememberPage(sha256: String, index: Int, page: Page) = synchronized(lock) {
+    fun rememberPage(sha256: String, index: Int, page: Page,
+        retained: Set<Pair<String, Int>> = emptySet()) = synchronized(lock) {
         if (!disposed) {
             require(index in 0..999 && page.extractedChars in 0..200_000)
             val key = sha256 to index
             pages.remove(key)?.let { chars -= it.text.length }
             if (page.text.length <= maxChars) {
-                while (pages.isNotEmpty() && (pages.size >= maxPages || chars + page.text.length > maxChars)) {
-                    chars -= pages.remove(pages.keys.first())!!.text.length
+                while (pages.size >= maxPages || chars + page.text.length > maxChars) {
+                    val victim = pages.keys.firstOrNull { it !in retained } ?: return@synchronized
+                    chars -= pages.remove(victim)!!.text.length
                 }
                 pages[key] = page
                 chars += page.text.length

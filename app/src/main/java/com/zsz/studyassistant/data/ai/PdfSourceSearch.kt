@@ -79,6 +79,7 @@ internal object PdfSourceSearch {
                     val pages = originalPages(document, count)
                     check()
                     session?.rememberPageCount(document.sha256, count)
+                    val retained = session?.retainedPages(document.sha256, pages).orEmpty()
                     var stripper: PDFTextStripper? = null
                     for ((pageOffset, page) in pages.withIndex()) {
                         check()
@@ -109,7 +110,7 @@ internal object PdfSourceSearch {
                             extractor.writeText(pdf, writer)
                             normalize(out.toString()).also {
                                 check()
-                                session?.rememberPage(document.sha256, page, PdfSourceSession.Page(it, out.length))
+                                session?.rememberPage(document.sha256, page, PdfSourceSession.Page(it, out.length), retained)
                             }
                         }
                         if (normalized.contains(needle)) {

@@ -4,6 +4,26 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PdfSourceSearchTest {
+    @Test fun longScanReuses128PagesInsteadOfEvictingEveryUpcomingHit() {
+        val session = PdfSourceSession()
+        val pages = (0..128).toList()
+        fun scan(): Int {
+            val retained = session.retainedPages("a", pages)
+            var extracted = 0
+            for (page in pages) if (session.page("a", page) == null) {
+                extracted++
+                session.rememberPage("a", page, PdfSourceSession.Page("page$page", 8), retained)
+            }
+            return extracted
+        }
+        assertEquals(129, scan())
+        assertEquals(1, scan())
+        assertEquals(1, scan())
+        // Protection is request-scoped: another document may use the bounded capacity.
+        repeat(128) { session.rememberPage("b", it, PdfSourceSession.Page("other", 5)) }
+        assertTrue(pages.all { session.page("a", it) == null })
+    }
+
     private val document = ConversationDocument("a".repeat(64), "fixture.pdf", 100, listOf(4, 0, 2))
 
     @Test fun sessionEvictsLeastRecentlyUsedPagesWithinCharacterAndPageLimits() {

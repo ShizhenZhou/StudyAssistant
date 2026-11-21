@@ -29,7 +29,7 @@ internal class ConversationGeneration(
         fun started()
         suspend fun prepared(messages: List<DeepSeekMessage>)
         fun body(text: String, thinking: String?, checkpoint: Boolean)
-        fun reasoning(text: String)
+        fun reasoning(text: String, checkpoint: Boolean)
         fun toolProgress(key: String)
         suspend fun completed(body: String, thinking: String?)
         suspend fun interrupted(error: Exception, partial: String, thinking: String?,
@@ -83,7 +83,11 @@ internal class ConversationGeneration(
                             if (now >= nextThinkEmit) {
                                 nextThinkEmit = now + 120
                                 val snapshot = thinking.toString()
-                                withContext(Dispatchers.Main) { if (current()) events.reasoning(snapshot) }
+                                // Share the body stream's budget: reasoning-only responses must also
+                                // survive process death, without doubling checkpoint writes.
+                                val checkpoint = now >= nextDraftWrite
+                                if (checkpoint) nextDraftWrite = now + 1000
+                                withContext(Dispatchers.Main) { if (current()) events.reasoning(snapshot, checkpoint) }
                             }
                         })
                 }

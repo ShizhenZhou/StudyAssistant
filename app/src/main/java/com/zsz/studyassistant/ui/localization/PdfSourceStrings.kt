@@ -1,6 +1,9 @@
 package com.zsz.studyassistant.ui
 
 internal val PDF_SOURCE_ZH = mapOf(
+    "pdfSource.highlightHint" to "橙黄色标出匹配原文；双指缩放，放大后可拖动。",
+    "pdfSource.noHighlight" to "此页无法精确标出原文位置，可双指放大查看。",
+    "pdfSource.resetZoom" to "恢复整页显示",
     "pdfSource.find" to "查找 PDF 原文",
     "pdfSource.close" to "关闭",
     "pdfSource.cancel" to "取消查找",
@@ -17,6 +20,9 @@ internal val PDF_SOURCE_ZH = mapOf(
     "pdfSource.results" to "返回匹配列表"
 )
 internal val PDF_SOURCE_EN = mapOf(
+    "pdfSource.highlightHint" to "Matching text is highlighted in amber. Pinch to zoom and drag to pan.",
+    "pdfSource.noHighlight" to "The exact text position cannot be highlighted on this page. Pinch to zoom in.",
+    "pdfSource.resetZoom" to "Fit page",
     "pdfSource.find" to "Find text in PDF",
     "pdfSource.close" to "Close",
     "pdfSource.cancel" to "Cancel search",
@@ -33,6 +39,9 @@ internal val PDF_SOURCE_EN = mapOf(
     "pdfSource.results" to "Back to matches"
 )
 internal val PDF_SOURCE_JA = mapOf(
+    "pdfSource.highlightHint" to "一致する原文を橙黄色で表示します。ピンチで拡大し、ドラッグで移動できます。",
+    "pdfSource.noHighlight" to "このページでは原文の位置を正確に強調できません。ピンチで拡大して確認できます。",
+    "pdfSource.resetZoom" to "ページ全体を表示",
     "pdfSource.find" to "PDF 原文を検索",
     "pdfSource.close" to "閉じる",
     "pdfSource.cancel" to "検索をキャンセル",
@@ -49,6 +58,9 @@ internal val PDF_SOURCE_JA = mapOf(
     "pdfSource.results" to "一致一覧に戻る"
 )
 internal val PDF_SOURCE_KO = mapOf(
+    "pdfSource.highlightHint" to "일치하는 원문이 주황빛 노란색으로 표시됩니다. 두 손가락으로 확대하고 드래그하여 이동하세요.",
+    "pdfSource.noHighlight" to "이 페이지에서는 원문 위치를 정확히 강조할 수 없습니다. 두 손가락으로 확대해 확인하세요.",
+    "pdfSource.resetZoom" to "페이지 전체 보기",
     "pdfSource.find" to "PDF 원문 찾기",
     "pdfSource.close" to "닫기",
     "pdfSource.cancel" to "검색 취소",

@@ -1720,7 +1720,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     activeDraft = activeDraft?.copy(raw = text, thinking = thinkingText)
                     if (checkpoint) checkpointDraft(refresh = false)
                 }
-                override fun reasoning(text: String) { thinkingText = text }
+                override fun reasoning(text: String, checkpoint: Boolean) {
+                    thinkingText = text
+                    activeDraft = activeDraft?.copy(thinking = text)
+                    if (checkpoint) checkpointDraft(refresh = false)
+                }
                 override fun toolProgress(key: String) { toolProgress = key }
                 override suspend fun completed(body: String, thinking: String?) {
                     thinkingText = thinking ?: thinkingText
