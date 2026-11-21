@@ -13,19 +13,26 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.8_Compat（versionCode 145、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.9_Compat（versionCode 146、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.8_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.8_Compat)
+- **Android 9–15** · [互換版 v0.7.5.9_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
 
+
+### v0.7.5.9_Compat
+
+- 💬 解答が中断した場合、上部のボタン、吹き出し、通信エラーの案内から再開できます。再開箇所の空白、改行、コードのインデントも保持されます。
+- 📊 類題の生成や追加質問が中断しても、サーバーから受信済みの利用量が集計されます。
+- ⬇️ 複数の差分を続けてダウンロードする際に、合計サイズと現在のパッケージの番号・サイズを表示します。次のパッケージに移っても進捗が引き継がれます。
+- 📌 `versionCode` **146**.
 
 ### v0.7.5.8_Compat
 

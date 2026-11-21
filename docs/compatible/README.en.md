@@ -13,19 +13,26 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.8_Compat (versionCode 145, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.9_Compat (versionCode 146, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.8_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.8_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.9_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
 
+
+### v0.7.5.9_Compat
+
+- 💬 Resume interrupted answers from the toolbar, answer bubble, or network notice. Spaces, line breaks, and code indentation are preserved where the answer resumes.
+- 📊 Usage reported by the server is now counted even if a similar-question request or follow-up is interrupted.
+- ⬇️ Chained delta downloads show the total size and the current package’s number and size. Progress carries over to the next package.
+- 📌 `versionCode` **146**.
 
 ### v0.7.5.8_Compat
 

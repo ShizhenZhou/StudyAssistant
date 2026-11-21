@@ -13,19 +13,26 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.8_Compat(versionCode 145, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.9_Compat(versionCode 146, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.8_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.8_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.9_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 버전 기록
 
+
+### v0.7.5.9_Compat
+
+- 💬 답변이 중단되면 상단 버튼, 답변 말풍선 또는 네트워크 알림에서 이어 쓸 수 있습니다. 이어지는 부분의 공백, 줄바꿈과 코드 들여쓰기도 유지됩니다.
+- 📊 유사 문제 생성이나 추가 질문이 중단되어도 서버에서 이미 받은 사용량을 집계합니다.
+- ⬇️ 여러 차등 패키지를 연속으로 내려받을 때 전체 크기와 현재 패키지의 순번 및 크기를 표시합니다. 다음 패키지로 넘어가도 누적 진행률이 유지됩니다.
+- 📌 `versionCode` **146**.
 
 ### v0.7.5.8_Compat
 

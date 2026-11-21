@@ -1,3 +1,8 @@
+v0.7.5.9
+· 💬 Resume interrupted answers from the toolbar, answer bubble, or network notice. Spaces, line breaks, and code indentation are preserved where the answer resumes.
+· 📊 Usage reported by the server is now counted even if a similar-question request or follow-up is interrupted.
+· ⬇️ Chained delta downloads show the total size and the current package’s number and size. Progress carries over to the next package.
+
 v0.7.5.8
 · 💬 Resuming an answer after several interruptions sends the partial answer only once. Restoring an older draft also removes duplicate continuation instructions.
 · 💾 Completing a reply updates its history entry once, even after multiple interruptions.

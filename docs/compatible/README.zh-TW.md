@@ -13,19 +13,26 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.8_Compat（versionCode 145，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.9_Compat（versionCode 146，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.8_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.8_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.5.9_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本記錄
 
+
+### v0.7.5.9_Compat
+
+- 💬 解題中斷後，可從頂欄、氣泡或網路提示繼續生成，並保留續寫處的空格、換行和程式碼縮排。
+- 📊 同類題出題或追問中斷時，也會計入伺服器已回傳的用量。
+- ⬇️ 鏈式差分下載會顯示總大小、目前套件的順序與大小，切換到下一個套件時會保留累計進度。
+- 📌 `versionCode` **146**.
 
 ### v0.7.5.8_Compat
 
