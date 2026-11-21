@@ -261,7 +261,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     val updatePrompt by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsStateWithLifecycle()
-                    val requiredUpdate = updatePrompt?.mandatory == true
+                    val updateKey = updatePrompt?.let(com.zsz.studyassistant.data.UpdatePromptStore::identity)
+                    var deferredThisVisit by remember(updateKey) { mutableStateOf(false) }
+                    val requiredUpdate = updatePrompt?.mandatory == true && !deferredThisVisit
                     var requiredBackToast by remember { mutableStateOf<android.widget.Toast?>(null) }
                     fun showRequiredBackHint() {
                         requiredBackToast?.cancel()
@@ -447,7 +449,7 @@ class MainActivity : ComponentActivity() {
                                     predictivePopExitTransition = { _ -> com.zsz.studyassistant.ui.pagePredictiveExitTransition(initialState.destination.route, targetState.destination.route) }
                                 ) {
                                     // ⚠️ 路由常量与"谁能进谁、返回去哪"全部集中在 ui/AppNav.kt（页面树），这里只做绑定
-                                    composable(AppNav.HOME) { HomeScreen(nav, viewModel, homeScroll) }
+                                    composable(AppNav.HOME) { HomeScreen(nav, viewModel, homeScroll, requiredUpdate = requiredUpdate) }
                                     composable(AppNav.CAMERA) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CameraScreen(nav, viewModel) } }
                                     composable(AppNav.CROP) { com.zsz.studyassistant.ui.CaptureRecoveryGate(viewModel) { CropScreen(nav, viewModel) } }
                                     composable(AppNav.ATTACHMENT_CROP) { CropScreen(nav, viewModel, attachment = true) }
@@ -539,6 +541,7 @@ class MainActivity : ComponentActivity() {
                             androidx.compose.material3.CircularProgressIndicator()
                         }
                     } else com.zsz.studyassistant.ui.StableUpdatePrompt(updatePrompt, current == AppNav.REQUIRED_UPDATE,
+                        deferredThisVisit = deferredThisVisit, setDeferredThisVisit = { deferredThisVisit = it },
                         whenHidden = {
                             com.zsz.studyassistant.ui.CrashReminder(
                                 enabled = !requiredUpdate && !viewModel.showUpgradePrompt,

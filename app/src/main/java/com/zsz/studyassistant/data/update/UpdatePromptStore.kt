@@ -35,6 +35,18 @@ object UpdatePromptStore {
     fun identity(release: UpdateChecker.ReleaseInfo) =
         "${release.tagName}:${release.assetSha256 ?: release.assetName}:${release.mandatory}"
 
+    // Remember the warning acknowledgement, never the decision to defer this visit.
+    private const val ACKNOWLEDGED = "acknowledged_required_update"
+    private fun acknowledgementKey(context: Context, release: UpdateChecker.ReleaseInfo) =
+        "${UpdateChecker.installedLastUpdateTime(context)}:${identity(release)}"
+
+    fun canDefer(context: Context, release: UpdateChecker.ReleaseInfo): Boolean =
+        release.mandatory && prefs(context).getString(ACKNOWLEDGED, null) == acknowledgementKey(context, release)
+
+    fun acknowledgeWarning(context: Context, release: UpdateChecker.ReleaseInfo) {
+        if (release.mandatory) prefs(context).edit().putString(ACKNOWLEDGED, acknowledgementKey(context, release)).apply()
+    }
+
     private fun eligible(context: Context, release: UpdateChecker.ReleaseInfo) =
         release.channel == UpdateChecker.Channel.STABLE && UpdateChecker.compatibilityError(release) == null &&
             UpdateChecker.hasUpdate(context, release)

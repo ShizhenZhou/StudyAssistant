@@ -20,7 +20,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,14 +59,13 @@ private fun HomeButtonLabel(label: String, fontSize: TextUnit, shiftHalfCharLeft
 }
 
 @Composable
-fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compose.foundation.ScrollState = rememberScrollState(), preview: Boolean = false) {
+fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compose.foundation.ScrollState = rememberScrollState(),
+               preview: Boolean = false, requiredUpdate: Boolean = false) {
     val context = LocalContext.current
     val s = LocalStrings.current
     var keyOk by remember { mutableStateOf(vm.hasApiKey()) }
     var showDialog by remember { mutableStateOf(false) }
     var keyPromptSettled by remember { mutableStateOf(keyOk) }
-    val updateRelease by com.zsz.studyassistant.data.UpdatePromptStore.release.collectAsState()
-    val requiredUpdate = updateRelease?.mandatory == true
     // 首次打开且未配 Key → 自动弹填 Key 对话框
     if (!preview) {
         LaunchedEffect(keyOk) { if (!keyOk) showDialog = true }
