@@ -1,7 +1,8 @@
 package com.zsz.studyassistant.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -74,7 +75,8 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
         BackupSetupPrompt(vm, ready = keyOk && !showDialog && promptNoticeDone && !requiredUpdate)
     }
 
-    Box(Modifier.fillMaxSize().rootPageBackground().statusBarsPadding()) {
+    BoxWithConstraints(Modifier.fillMaxSize().rootPageBackground().statusBarsPadding()) {
+        val viewportHeight = constraints.maxHeight
         Column(
             modifier = Modifier
                 .readablePage(560.dp)
@@ -82,77 +84,83 @@ fun HomeScreen(nav: NavHostController, vm: MainViewModel, scroll: androidx.compo
                 .verticalScroll(scroll)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
-            Text("Study Assistant", fontSize = 32.sp, style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(8.dp))
-            // 副标题：小一号 + 强制单行（英文 "Photo search · AI solutions · Mistake notebook" 较长）
-            Text(
-                s["home.subtitle"],
-                style = MaterialTheme.typography.bodySmall,
-                fontSize = 12.sp,
-                maxLines = 1,
-                softWrap = false,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-            )
-            Spacer(Modifier.height(32.dp))
-            // ★ 2026-10-13（用户要求）：五个入口的排布改为
-            //   「📷 拍照搜题」独占一行 → 「✏️ 图文提问」独占一行 → 「📚 错题本 / 📖 复习」各半宽一行
-            //   → 「🕘 搜题记录」独占一行。
-            //   原因：2×2 网格时半宽格子放不下「📷 拍照搜题」，被压成「📷 拍照…」——用户明确不要「…」，
-            //   并要求这两个主入口**各占一行**。最外层已有 verticalScroll 兜底，4 行在小屏/大字号下也不会被裁。
+            Column(Modifier.fillMaxWidth().layout { measurable, limits ->
+                val actions = measurable.measure(limits.copy(minHeight = 0))
+                val top = ((viewportHeight - 48.dp.roundToPx() - actions.height) / 2).coerceAtLeast(0)
+                layout(actions.width, top + actions.height) { actions.placeRelative(0, top) }
+            }, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Study Assistant", fontSize = 32.sp, style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(8.dp))
+                // 副标题：小一号 + 强制单行（英文 "Photo search · AI solutions · Mistake notebook" 较长）
+                Text(
+                    s["home.subtitle"],
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                )
+                Spacer(Modifier.height(32.dp))
+                // ★ 2026-10-13（用户要求）：五个入口的排布改为
+                //   「📷 拍照搜题」独占一行 → 「✏️ 图文提问」独占一行 → 「📚 错题本 / 📖 复习」各半宽一行
+                //   → 「🕘 搜题记录」独占一行。
+                //   原因：2×2 网格时半宽格子放不下「📷 拍照搜题」，被压成「📷 拍照…」——用户明确不要「…」，
+                //   并要求这两个主入口**各占一行**。最外层已有 verticalScroll 兜底，4 行在小屏/大字号下也不会被裁。
+                val gap = 12.dp
+                Button(shape = smoothPill(),
+                    onClick = { nav.navigate(AppNav.CAMERA) },
+                    modifier = Modifier.fillMaxWidth().height(64.dp)
+                ) {
+                    HomeButtonLabel(s["home.camera"], 20.sp, shiftHalfCharLeft = true)
+                }
+                Spacer(Modifier.height(gap))
+                // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
+                Button(shape = smoothPill(),
+                    onClick = { vm.startAskSession(); AppNav.openSolve(nav, AppNav.Origin.HOME) },
+                    modifier = Modifier.fillMaxWidth().height(64.dp)
+                ) {
+                    HomeButtonLabel(s["home.ask"], 20.sp, shiftHalfCharLeft = true)
+                }
+                Spacer(Modifier.height(gap))
+                // 错题本 / 复习：名字短，半宽放得下；仍留 maxLines=2 兜底 —— **任何情况都不出「…」**
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    AppOutlinedButton(shape = smoothPill(),
+                        onClick = { nav.navigate(AppNav.NOTEBOOK) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.weight(1f).height(64.dp)
+                    ) {
+                        HomeButtonLabel(s["home.notebook"], 19.sp)
+                    }
+                    AppOutlinedButton(shape = smoothPill(),
+                        onClick = { nav.navigate(AppNav.REVIEW) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.weight(1f).height(64.dp)
+                    ) {
+                        HomeButtonLabel(s["home.review"], 19.sp)
+                    }
+                }
+                Spacer(Modifier.height(gap))
+                // 第 5 个入口：🕘 搜题记录（独占一行、撑满宽度）
+                AppOutlinedButton(shape = smoothPill(),
+                    onClick = { nav.navigate(AppNav.HISTORY) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                ) {
+                    HomeButtonLabel(s["home.history"], 20.sp, shiftHalfCharLeft = true)
+                }
+            }
             if (vm.draftSummaries.isNotEmpty() || vm.draftIssue) {
                 val feedback = LocalAppFeedback.current
                 TextButton(onClick = {
                     feedback.draftOrigin=AppNav.Origin.HOME
                     feedback.draftRecoveryRequested=true
                 }) { Text(s["draft.title"]) }
-            }
-            val gap = 12.dp
-            Button(shape = smoothPill(),
-                onClick = { nav.navigate(AppNav.CAMERA) },
-                modifier = Modifier.fillMaxWidth().height(64.dp)
-            ) {
-                HomeButtonLabel(s["home.camera"], 20.sp, shiftHalfCharLeft = true)
-            }
-            Spacer(Modifier.height(gap))
-            // 图文提问：文字/图文直接解答（原在拍照搜题页右上角，现挪到主页）
-            Button(shape = smoothPill(),
-                onClick = { vm.startAskSession(); AppNav.openSolve(nav, AppNav.Origin.HOME) },
-                modifier = Modifier.fillMaxWidth().height(64.dp)
-            ) {
-                HomeButtonLabel(s["home.ask"], 20.sp, shiftHalfCharLeft = true)
-            }
-            Spacer(Modifier.height(gap))
-            // 错题本 / 复习：名字短，半宽放得下；仍留 maxLines=2 兜底 —— **任何情况都不出「…」**
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                AppOutlinedButton(shape = smoothPill(),
-                    onClick = { nav.navigate(AppNav.NOTEBOOK) },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier.weight(1f).height(64.dp)
-                ) {
-                    HomeButtonLabel(s["home.notebook"], 19.sp)
-                }
-                AppOutlinedButton(shape = smoothPill(),
-                    onClick = { nav.navigate(AppNav.REVIEW) },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier.weight(1f).height(64.dp)
-                ) {
-                    HomeButtonLabel(s["home.review"], 19.sp)
-                }
-            }
-            Spacer(Modifier.height(gap))
-            // 第 5 个入口：🕘 搜题记录（独占一行、撑满宽度）
-            AppOutlinedButton(shape = smoothPill(),
-                onClick = { nav.navigate(AppNav.HISTORY) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-            ) {
-                HomeButtonLabel(s["home.history"], 20.sp, shiftHalfCharLeft = true)
             }
         }
     }

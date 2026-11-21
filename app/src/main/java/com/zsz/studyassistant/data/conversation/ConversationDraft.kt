@@ -3,6 +3,9 @@ package com.zsz.studyassistant.data
 import android.content.Context
 import com.zsz.studyassistant.ChatItem
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -35,6 +38,8 @@ object ConversationDraftCodec {
     }
     fun encode(value: ConversationDraft): String { validate(value); return json.encodeToString(value) }
     fun decode(text: String): ConversationDraft = json.decodeFromString<ConversationDraft>(text).also(::validate)
+    internal fun decodeForFile(text: String, id: QuestionId) =
+        decode(text).also { check(it.id == id) { "Draft ID mismatch" } }
     private fun validate(value: ConversationDraft) {
         require(value.version==1 && QuestionIdentity.valid(value.id) && QuestionIdentity.time(value.id)==value.createdAt)
         require(UUID.fromString(value.generation).toString()==value.generation)
@@ -46,57 +51,138 @@ object ConversationDraftCodec {
     }
 }
 /** Private, noBackup, per-problem drafts. Reservations are made before scheduling asynchronous writes. */
-internal class ConversationDraftStore(context: Context) {
+internal class ConversationDraftStore(private val directory: File) {
+    constructor(context: Context) : this(File(context.noBackupFilesDir, "conversation-drafts-v1"))
+
     companion object {
+        private const val MAX_BYTES = 32 * 1024 * 1024
         private val maintenanceLock = Any()
+        // The UI takes this lock only to register a generation. Disk IO stays on workers.
+        private val ownerLock = Any()
+        private val writers = mutableMapOf<QuestionId, String>()
+        private val revisions = mutableMapOf<QuestionId, Long>()
         internal fun <T> withMaintenanceLock(block: () -> T): T = synchronized(maintenanceLock) { block() }
     }
-    private val directory=File(context.noBackupFilesDir,"conversation-drafts-v1")
-    private val lock=maintenanceLock
-    private val writers=mutableMapOf<QuestionId,String>()
-    private val revisions=mutableMapOf<QuestionId,Long>()
-    private fun file(id: QuestionId): PrivateJsonFile {
-        require(QuestionIdentity.valid(id)); return PrivateJsonFile(File(directory,"$id.json"),32*1024*1024)
+    private val lock = maintenanceLock
+    private fun path(id: QuestionId): File {
+        require(QuestionIdentity.valid(id))
+        return File(directory, "$id.json")
     }
-    fun reserve(id: QuestionId, generation: String) = synchronized(lock) { writers[id]=generation; revisions.remove(id) }
-    fun write(value: ConversationDraft, baseline: SavePayload?): ConversationDraft = synchronized(lock) {
-        if(writers[value.id]!=value.generation || value.revision < (revisions[value.id] ?: -1)) return@synchronized value
-        val prepared=if(value.baseline==null && baseline!=null) value.copy(baseline=PendingSaveCodec.fingerprint(baseline)) else value
-        file(value.id).write(ConversationDraftCodec.encode(prepared)); revisions[value.id]=value.revision; prepared
+    private fun deleteFiles(primary: File) {
+        for (suffix in listOf(".new", ".bak", "")) Files.deleteIfExists(File(primary.path + suffix).toPath())
     }
-    fun read(id: QuestionId): ConversationDraft? = synchronized(lock) { file(id).read()?.let(ConversationDraftCodec::decode) }
-    fun clear(id: QuestionId, generation: String) = synchronized(lock) {
-        val current = writers[id] ?: read(id)?.generation
-        if(current != generation) return@synchronized
-        file(id).clear(); writers[id]="closed-$generation"; revisions.remove(id)
+
+    fun reserve(id: QuestionId, generation: String) = synchronized(ownerLock) {
+        writers[id] = generation
+        revisions.remove(id)
+        Unit
     }
+
+    fun write(value: ConversationDraft, baseline: SavePayload?): ConversationDraft {
+        fun current() = writers[value.id] == value.generation && value.revision >= (revisions[value.id] ?: -1)
+        if (!synchronized(ownerLock) { current() }) return value
+        val prepared = if (value.baseline == null && baseline != null)
+            value.copy(baseline = PendingSaveCodec.fingerprint(baseline)) else value
+        val text = ConversationDraftCodec.encode(prepared)
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        require(bytes.size <= MAX_BYTES)
+        synchronized(lock) {
+            if (!synchronized(ownerLock) { current() }) return value
+            val target = path(value.id)
+            check(directory.isDirectory || directory.mkdirs())
+            val backup = File(directory, "${target.name}.bak")
+            val staged = File(directory, "${target.name}.new")
+            try {
+                staged.outputStream().use { it.write(bytes); it.fd.sync() }
+                synchronized(ownerLock) {
+                    if (!current()) return value
+                    Files.move(staged.toPath(), target.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                    revisions[value.id] = value.revision
+                }
+                check(target.length() == bytes.size.toLong() && target.readText() == text) { "Local draft verification failed" }
+                // Until publication succeeds, a legacy backup remains available to the reader.
+                Files.deleteIfExists(backup.toPath())
+            } finally { if (staged.exists()) staged.delete() }
+        }
+        return prepared
+    }
+
+    private fun readCopy(id: QuestionId): Pair<ConversationDraft, Long>? {
+        val primary = path(id)
+        val backup = File(primary.path + ".bak")
+        var failure: Exception? = null
+        // Legacy AtomicFile treated .bak as the last committed copy. Check its identity
+        // before using it; leave both files untouched if either is damaged.
+        for (copy in listOf(backup, primary)) {
+            if (!copy.exists()) continue
+            try {
+                val bytes = copy.length()
+                require(bytes in 1..MAX_BYTES.toLong())
+                return ConversationDraftCodec.decodeForFile(copy.readText(), id) to bytes
+            } catch (e: Exception) { failure = e }
+        }
+        failure?.let { throw it }
+        return null
+    }
+
+    fun read(id: QuestionId): ConversationDraft? = synchronized(lock) { readCopy(id)?.first }
+
+    fun clear(id: QuestionId, generation: String): Unit = synchronized(lock) {
+        val registered = synchronized(ownerLock) { writers[id] }
+        val current = registered ?: read(id)?.generation
+        if (current != generation) return@synchronized
+        synchronized(ownerLock) {
+            if (writers[id] != registered) return
+            writers.remove(id)
+            revisions.remove(id)
+        }
+        deleteFiles(path(id))
+    }
+
     fun invalidate(ids: Collection<QuestionId>) = synchronized(lock) {
-        ids.forEach { writers[it]="deleted"; file(it).clear() }
+        synchronized(ownerLock) { ids.forEach { writers.remove(it); revisions.remove(it) } }
+        ids.forEach { deleteFiles(path(it)) }
     }
-    /** Explicit erase only. Tombstones reject writes already queued by a stopped request. */
+
     fun clearAll() = synchronized(lock) {
-        writers.keys.toList().forEach { writers[it]="deleted" }
-        revisions.clear()
+        synchronized(ownerLock) { writers.clear(); revisions.clear() }
         val files=if(directory.exists()) checkNotNull(directory.listFiles()).toList() else emptyList()
         val names=files.filter { it.name.endsWith(".json") || it.name.endsWith(".json.bak") || it.name.endsWith(".json.new") }
             .map { it.name.removeSuffix(".bak").removeSuffix(".new") }.distinct()
-        names.forEach { PrivateJsonFile(File(directory,it),32*1024*1024).clear() }
+        names.forEach { deleteFiles(File(directory,it)) }
     }
-    fun summaries(): Pair<List<DraftSummary>,Int> = synchronized(lock) {
-        if(!directory.exists()) return@synchronized emptyList<DraftSummary>() to 0
-        val entries=mutableListOf<DraftSummary>(); var bad=0
-        val names=checkNotNull(directory.listFiles()).filter { it.name.endsWith(".json") || it.name.endsWith(".json.bak") }
-            .map { it.name.removeSuffix(".bak").removeSuffix(".json") }.distinct()
-        for(id in names) try {
-            val value=read(id) ?: error("Missing draft")
-            entries+=DraftSummary(id,value.question.take(100),value.createdAt)
-        } catch (_: Exception) { bad++ }
-        entries.sortedByDescending { it.createdAt } to bad
+    private fun draftIds(): List<String> {
+        if (!directory.exists()) return emptyList()
+        return checkNotNull(directory.listFiles()).asSequence().map { it.name }
+            .filter { it.endsWith(".json") || it.endsWith(".json.bak") }
+            .map { it.removeSuffix(".bak").removeSuffix(".json") }.distinct().sorted().toList()
     }
-    fun exportable(): List<ConversationDraft> = synchronized(lock) {
-        val files=directory.listFiles()?.filter { it.name.endsWith(".json") }.orEmpty()
-        check(files.sumOf { it.length() }<=32L*1024*1024)
-        files.mapNotNull { runCatching { read(it.name.removeSuffix(".json")) }.getOrNull() }
+
+    private fun <T> scan(transform: (String) -> T): Pair<List<T>, Int> = synchronized(lock) {
+        val entries = mutableListOf<T>()
+        var unreadable = 0
+        for (id in draftIds()) {
+            try { entries += transform(id) } catch (_: Exception) { unreadable++ }
+        }
+        entries to unreadable
+    }
+
+    fun summaries(): Pair<List<DraftSummary>, Int> {
+        val (entries, unreadable) = scan { id ->
+            val draft = checkNotNull(read(id))
+            DraftSummary(id, draft.question.take(100), draft.createdAt)
+        }
+        return entries.sortedByDescending { it.createdAt } to unreadable
+    }
+
+    fun exportable(): Pair<List<ConversationDraft>, Int> {
+        var remaining = MAX_BYTES.toLong()
+        return scan { id ->
+            val (draft, bytes) = checkNotNull(readCopy(id))
+            require(bytes <= remaining)
+            remaining -= bytes
+            draft
+        }
     }
 }
 

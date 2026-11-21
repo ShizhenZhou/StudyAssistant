@@ -744,16 +744,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             solveSessionWriteMutex.withLock {
                 try {
-                    val entries = persistence.exportEntries()
-                    val drafts = conversationDrafts.exportable()
+                    val (entries, skippedEntries) = persistence.exportEntries()
+                    val (drafts, skippedDrafts) = conversationDrafts.exportable()
                     withContext(Dispatchers.IO) {
                         val resolver = getApplication<Application>().contentResolver
                         checkNotNull(resolver.openOutputStream(uri, "wt")).bufferedWriter(Charsets.UTF_8).use {
                             it.write(com.zsz.studyassistant.data.PendingSaveCodec.export(entries, drafts))
                         }
                     }
-                    saveFeedbackIsError = false
-                    saveFeedback = com.zsz.studyassistant.ui.stringsFor(uiLang)["save.exportDone"]
+                    val skipped = skippedEntries + skippedDrafts
+                    val strings = com.zsz.studyassistant.ui.stringsFor(uiLang)
+                    saveFeedbackIsError = skipped > 0
+                    saveFeedback = if (skipped == 0) strings["save.exportDone"] else strings.format(
+                        "save.exportPartial", "saved" to (entries.size + drafts.size).toString(), "skipped" to skipped.toString())
                 } catch (e: CancellationException) { throw e }
                 catch (_: Exception) {
                     saveFeedbackIsError = true

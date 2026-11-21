@@ -55,6 +55,7 @@ internal object PdfSourceSearch {
         PDFBoxResourceLoader.init(store.context)
         require(store.selectionDirectory.isDirectory || store.selectionDirectory.mkdirs())
         val scratch = File(store.selectionDirectory, "source-${UUID.randomUUID()}")
+        val retained = session?.retainedPages(pdfs) ?: mutableMapOf()
         require(scratch.mkdir())
         var total = 0
         val matches = mutableListOf<PdfSourceMatch>()
@@ -79,13 +80,14 @@ internal object PdfSourceSearch {
                     val pages = originalPages(document, count)
                     check()
                     session?.rememberPageCount(document.sha256, count)
-                    val retained = session?.retainedPages(document.sha256, pages).orEmpty()
                     var stripper: PDFTextStripper? = null
                     for ((pageOffset, page) in pages.withIndex()) {
                         check()
                         onProgress(PdfSourceProgress(document.name, documentIndex + 1, pdfs.size,
                             pageOffset, pages.size, page + 1))
                         val cached = session?.page(document.sha256, page)
+                        val key = document.sha256 to page
+                        if (retained[key] == documentIndex) retained.remove(key)
                         val normalized = if (cached != null) {
                             total += cached.extractedChars
                             if (total > MAX_TOTAL_CHARS) throw DocumentProblem("pdfSource.tooLarge")
@@ -110,7 +112,7 @@ internal object PdfSourceSearch {
                             extractor.writeText(pdf, writer)
                             normalize(out.toString()).also {
                                 check()
-                                session?.rememberPage(document.sha256, page, PdfSourceSession.Page(it, out.length), retained)
+                                session?.rememberPage(document.sha256, page, PdfSourceSession.Page(it, out.length), retained.keys)
                             }
                         }
                         if (normalized.contains(needle)) {

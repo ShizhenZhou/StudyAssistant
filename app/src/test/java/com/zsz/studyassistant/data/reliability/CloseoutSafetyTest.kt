@@ -76,10 +76,44 @@ class CloseoutSafetyTest {
     }
     @Test fun draftRoundtripPreservesRequestAndPartialWithoutPromotingItToAnswer() {
         val value=ConversationDraft(QuestionIdentity.create(10000),10000,UUID.randomUUID().toString(),"fixture","followup","text","q",false,true,false,true,null,emptyList(),listOf(ChatItem(0,"assistant","old")),emptyList(),raw="partial")
-        val restored=ConversationDraftCodec.decode(ConversationDraftCodec.encode(value))
+        val encoded = ConversationDraftCodec.encode(value)
+        val restored = ConversationDraftCodec.decodeForFile(encoded, value.id)
+        assertThrows(IllegalStateException::class.java) {
+            ConversationDraftCodec.decodeForFile(encoded, QuestionIdentity.create(10001))
+        }
         assertEquals(value,restored);assertFalse(restored.complete);assertNull(restored.completedChats)
         try { ConversationDraftCodec.encode(value.copy(notebookId=QuestionIdentity.create(10000)));fail() } catch (_:IllegalArgumentException) { }
     }
+    @Test fun recoveryExportIncludesBackupOnlyAndCountsUnreadableDrafts() {
+        val directory = java.nio.file.Files.createTempDirectory("draft-recovery").toFile()
+        val store = ConversationDraftStore(directory)
+        fun draft() = ConversationDraft(QuestionIdentity.create(10000), 10000, UUID.randomUUID().toString(),
+            "fixture", "initial", "text", "q", false, true, false, true, null, emptyList(), emptyList(), emptyList())
+        val saved = draft()
+        val misplaced = draft()
+        try {
+            val primary = java.io.File(directory, "${saved.id}.json")
+            java.io.File(directory, "${saved.id}.json.bak").writeText(ConversationDraftCodec.encode(saved))
+            java.io.File(directory, "${misplaced.id}.json").writeText(ConversationDraftCodec.encode(saved))
+            assertEquals(listOf(saved) to 1, store.exportable())
+            assertEquals(listOf(saved.id), store.summaries().first.map { it.id })
+            store.reserve(saved.id, saved.generation)
+            val updated = saved.copy(raw = "new", revision = 2)
+            store.write(updated, null)
+            store.write(saved.copy(raw = "late", revision = 1), null)
+            assertEquals(updated, store.read(saved.id))
+            assertTrue(primary.isFile)
+            java.io.File(directory, "${saved.id}.json.bak").writeText("damaged")
+            assertEquals(listOf(updated) to 1, store.exportable())
+            store.invalidate(listOf(saved.id))
+            store.write(updated, null)
+            assertNull(store.read(saved.id))
+        } finally {
+            store.clearAll()
+            directory.delete()
+        }
+    }
+
     @Test fun chunkedConversationPreservesUnicodeAndNulls() = runBlocking {
         val text="汉字🔬".repeat(40000)
         assertEquals(text,readChunkedText(text.length) { start,size -> text.substring(start-1,minOf(text.length,start-1+size)) })

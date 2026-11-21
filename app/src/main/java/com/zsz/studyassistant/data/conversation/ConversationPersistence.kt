@@ -213,18 +213,22 @@ internal class ConversationPersistence(
         } catch (e: CancellationException) { throw e }
         catch (_: Exception) { saveJournalIssue=true; false }
     }
-    suspend fun exportEntries(): List<PendingSave> {
-        val entries = withContext(Dispatchers.IO) { pendingSaveStore.scan().entries }.toMutableList()
+    suspend fun exportEntries(): PendingSaveScan {
+        val scan = withContext(Dispatchers.IO) { pendingSaveStore.scan() }
+        val entries = scan.entries.associateBy { it.target to it.payload.id }.toMutableMap()
+        var skipped = scan.unreadable
+        suspend fun include(target: SaveTarget, id: QuestionId, prepare: suspend () -> SavePayload) {
+            try {
+                entries[target to id] = PendingSave(target, prepare(), null)
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { skipped++ }
+        }
         historyWriteQueue.failedTickets().forEach { ticket ->
-            entries.removeAll { it.target == SaveTarget.HISTORY && it.payload.id == ticket.id }
-            entries += PendingSave(SaveTarget.HISTORY,
-                withContext(Dispatchers.Default) { SavePayload.history(ticket.row()) }, null)
+            include(SaveTarget.HISTORY, ticket.id) { withContext(Dispatchers.Default) { SavePayload.history(ticket.row()) } }
         }
         pendingNotebookContent.values.toList().forEach { snapshot ->
-            val payload = snapshot.value()
-            entries.removeAll { it.target == SaveTarget.NOTEBOOK && it.payload.id == payload.id }
-            entries += PendingSave(SaveTarget.NOTEBOOK, payload, null)
+            include(SaveTarget.NOTEBOOK, snapshot.id) { snapshot.value() }
         }
-        return entries
+        return PendingSaveScan(entries.values.toList(), skipped)
     }
 }

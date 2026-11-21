@@ -40,7 +40,7 @@ internal class ConversationDraftPersistence(
     }
     suspend fun invalidate(ids: Collection<QuestionId>) = withContext(NonCancellable + Dispatchers.IO) { store.invalidate(ids) }
     suspend fun clearAll() = withContext(NonCancellable + Dispatchers.IO) { store.clearAll() }
-    suspend fun exportable(): List<ConversationDraft> {
+    suspend fun exportable(): Pair<List<ConversationDraft>, Int> {
         queue.awaitIdle()
         return withContext(Dispatchers.IO) { store.exportable() }
     }

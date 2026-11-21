@@ -8,11 +8,11 @@ class PdfSourceSearchTest {
         val session = PdfSourceSession()
         val pages = (0..128).toList()
         fun scan(): Int {
-            val retained = session.retainedPages("a", pages)
+            val retained = session.retainedPages(listOf(document.copy(sha256 = "a", pages = null)))
             var extracted = 0
             for (page in pages) if (session.page("a", page) == null) {
                 extracted++
-                session.rememberPage("a", page, PdfSourceSession.Page("page$page", 8), retained)
+                session.rememberPage("a", page, PdfSourceSession.Page("page$page", 8), retained.keys)
             }
             return extracted
         }
@@ -22,6 +22,19 @@ class PdfSourceSearchTest {
         // Protection is request-scoped: another document may use the bounded capacity.
         repeat(128) { session.rememberPage("b", it, PdfSourceSession.Page("other", 5)) }
         assertTrue(pages.all { session.page("a", it) == null })
+    }
+
+    @Test fun firstDocumentCannotEvictSecondDocumentsUpcomingHits() {
+        val session = PdfSourceSession(maxPages = 2)
+        val a = document.copy(pages = null)
+        val b = a.copy(sha256 = "b".repeat(64))
+        val page = PdfSourceSession.Page("cached", 6)
+        repeat(2) { session.rememberPage(b.sha256, it, page) }
+        val retained = session.retainedPages(listOf(a, b, b.copy(pages = listOf(0))))
+        assertEquals(2, retained[b.sha256 to 0])
+        assertEquals(1, retained[b.sha256 to 1])
+        repeat(2) { session.rememberPage(a.sha256, it, page, retained.keys) }
+        repeat(2) { assertEquals(page, session.page(b.sha256, it)) }
     }
 
     private val document = ConversationDocument("a".repeat(64), "fixture.pdf", 100, listOf(4, 0, 2))
