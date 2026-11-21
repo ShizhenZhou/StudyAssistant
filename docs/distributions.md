@@ -39,7 +39,7 @@ Android Studio 在 Build Variants 中选择 modernDebug 或 compatDebug。不再
 
 每次手动 CI 仅构建所选变体，不跑应用或设备测试。发布工具核对请求身份、对应 profile、APK 版本/系统范围及 distribution.json。相同提交和版本的两个发布状态相互独立；状态查询有歧义时使用 status --version <版本> --run <runId>。
 
-主线沿用 v… 标签和 Latest，兼容版沿用 compat_v… 标签且不设 Latest；更新范围与差分基准继续隔离。独立发布只更新对应 profile 和版本记录，不要求同时提升另一发行线版本。
+GitHub Release 标题统一使用 `v<完整版本号>`，例如 `v0.7.5.8_Compat`。主线沿用 v… 标签和 Latest，兼容版沿用 compat_v… 标签且不设 Latest；更新范围与差分基准继续隔离。独立发布只更新对应 profile 和版本记录，不要求同时提升另一发行线版本。
 
 五语言 README 为统一入口；兼容版说明与汇总在 docs/compatible/。历史 Compatible 构建和标签保留，只读校验允许旧分支身份；新发布不再接受该分支。无需在两分支间持续合并。
 

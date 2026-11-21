@@ -934,7 +934,7 @@ class Release:
             if self.github.api("commits/" + tag)["sha"] != manifest["commit"]: raise ReleaseError("Tag push not confirmed.")
         if not found:
             self.state["draftAttempted"] = True; self.save()
-            release = self.github.api("releases", {"tag_name":tag,"target_commitish":manifest["commit"],"name":tag,"body":body,"draft":True,"prerelease":channel == "beta"})
+            release = self.github.api("releases", {"tag_name":tag,"target_commitish":manifest["commit"],"name":f"v{version}","body":body,"draft":True,"prerelease":channel == "beta"})
             self.state["releaseId"] = release["id"]; self.save()
         else: release = found[0]
         assets = release["assets"]
