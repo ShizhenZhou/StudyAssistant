@@ -38,7 +38,7 @@ internal class BackupStagedMerge(
             return statement.executeInsert()
         }
     }
-    /** No row cursor contains text or images. The only assembled field is a bounded definition name. */
+    /** Read one bounded definition name without putting the whole value in a cursor row. */
     private fun definitionName(table:String,row:Long):String {
         val length=source.rawQuery("SELECT length(CAST(name AS BLOB)) FROM $table WHERE __row=?",arrayOf(row.toString())).use { it.moveToFirst(); it.getLong(0) }
         BackupTree.fieldSize(length)
@@ -71,17 +71,17 @@ internal class BackupStagedMerge(
             val length=source.rawQuery("SELECT length(CAST(${column.name} AS BLOB)) FROM $tableName WHERE __row=?",arrayOf(sourceRow.toString())).use { if(!it.moveToFirst()) BackupTree.invalid(); if(it.isNull(0)) null else it.getLong(0) }
             if(length==null) { target.execSQL("UPDATE $tableName SET ${column.name}=NULL WHERE rowid=?",arrayOf(targetRow)); continue }
             BackupTree.fieldSize(length)
-            target.execSQL("UPDATE $tableName SET ${column.name}=? WHERE rowid=?",arrayOf(ByteArray(0),targetRow))
-            var offset=0L
-            while(offset<length) {
+            val field = ByteArray(length.toInt())
+            var offset = 0
+            while (offset < field.size) {
                 check()
                 val bytes=source.rawQuery("SELECT substr(CAST(${column.name} AS BLOB),?,?) FROM $tableName WHERE __row=?",arrayOf((offset+1).toString(),minOf(BackupTree.CHUNK.toLong(),length-offset).toString(),sourceRow.toString())).use { if(!it.moveToFirst()) BackupTree.invalid(); it.getBlob(0) }
-                if(bytes.isEmpty()) BackupTree.invalid()
-                // Keep unfinished UTF-8 text as BLOB until the final cast below.
-                target.execSQL("UPDATE $tableName SET ${column.name}=CAST(CAST(${column.name} AS BLOB)||? AS BLOB) WHERE rowid=?",arrayOf(bytes,targetRow))
-                offset+=bytes.size
+                if (bytes.isEmpty() || bytes.size > field.size - offset) BackupTree.invalid()
+                bytes.copyInto(field, offset)
+                offset += bytes.size
             }
-            target.execSQL("UPDATE $tableName SET ${column.name}=CAST(${column.name} AS ${column.type}) WHERE rowid=?",arrayOf(targetRow))
+            check()
+            target.execSQL("UPDATE $tableName SET ${column.name}=CAST(? AS ${column.type}) WHERE rowid=?",arrayOf(field,targetRow))
         }
     }
     fun merge():ImportResult {

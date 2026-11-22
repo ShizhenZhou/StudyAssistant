@@ -371,7 +371,7 @@ internal object BackupTree {
             }
         }
     }
-    /** Reconstruct native SQLite on disk before a single main-db write; fields use 64KiB updates. */
+    /** Reconstruct native SQLite on disk before a single main-db write. */
     fun restore(tree:File,target:File,check:()->Unit,documentDirectory:File?=null,progress:(Long)->Unit):BackupStats {
         val counts=counts(tree); validateLayout(tree,counts,check); if(target.exists()) invalid(); space(tree,0); var completed=0L
         SQLiteDatabase.openOrCreateDatabase(target,null).use { stage ->
@@ -408,7 +408,9 @@ internal object BackupTree {
                                 } else if(column.name=="conversationJson" || column.name=="imagesJson") {
                                     val materialized=imagesJson(readString(input,length),tree,true,column.name=="conversationJson",check,
                                         restoredDocument=restoreDocument).toByteArray(Charsets.UTF_8)
-                                    putField(stage,table,column,rowid,materialized.inputStream(),materialized.size,check)
+                                    fieldSize(materialized.size.toLong())
+                                    check()
+                                    stage.execSQL("UPDATE ${table.name} SET ${column.name}=CAST(? AS TEXT) WHERE rowid=?",arrayOf(materialized,rowid))
                                 } else putField(stage,table,column,rowid,input,length,check)
                             }
                             if(input.read()!=-1) invalid()
@@ -437,29 +439,28 @@ internal object BackupTree {
             stage.execSQL("UPDATE ${table.name} SET ${column.name}=? WHERE rowid=?",arrayOf(number,rowid))
             return
         }
-        val decoder=if(column.type=="TEXT") Charsets.UTF_8.newDecoder() else null
-        val pending=java.nio.ByteBuffer.allocate(CHUNK+4)
-        val characters=java.nio.CharBuffer.allocate(CHUNK+4)
-        fun validateBytes(bytes:ByteArray,size:Int,last:Boolean) {
-            if(decoder==null) return
-            pending.put(bytes,0,size); pending.flip()
-            while(true) {
-                characters.clear(); val result=decoder.decode(pending,characters,last)
-                if(result.isError) invalid()
-                if(!result.isOverflow) break
-            }
-            pending.compact()
-            if(last && pending.position()!=0) invalid()
+        fieldSize(length.toLong())
+        val bytes = ByteArray(length)
+        var offset = 0
+        while (offset < length) {
+            check()
+            val count = input.read(bytes, offset, minOf(CHUNK, length - offset))
+            if (count <= 0) invalid()
+            offset += count
         }
-        stage.execSQL("UPDATE ${table.name} SET ${column.name}=? WHERE rowid=?",arrayOf(ByteArray(0),rowid))
-        var remaining=length; val buffer=ByteArray(CHUNK)
-        while(remaining>0) {
-            check(); val n=input.read(buffer,0,minOf(buffer.size,remaining)); if(n<=0) invalid()
-            validateBytes(buffer,n,remaining==n)
-            stage.execSQL("UPDATE ${table.name} SET ${column.name}=CAST(${column.name} AS BLOB)||? WHERE rowid=?",arrayOf(buffer.copyOf(n),rowid)); remaining-=n
+        if (column.type == "TEXT") {
+            val decoder = Charsets.UTF_8.newDecoder()
+            val source = java.nio.ByteBuffer.wrap(bytes)
+            val chars = java.nio.CharBuffer.allocate(minOf(CHUNK, length).coerceAtLeast(2))
+            do {
+                check()
+                chars.clear()
+                val decoded = decoder.decode(source, chars, true)
+                if (decoded.isError) invalid()
+            } while (decoded.isOverflow)
         }
-        // Concatenation's affinity is TEXT; restore exact BLOB or declared scalar type explicitly.
-        stage.execSQL("UPDATE ${table.name} SET ${column.name}=CAST(${column.name} AS ${column.type}) WHERE rowid=?",arrayOf(rowid))
+        check()
+        stage.execSQL("UPDATE ${table.name} SET ${column.name}=CAST(? AS ${column.type}) WHERE rowid=?",arrayOf(bytes,rowid))
     }
     fun validate(stage:SQLiteDatabase,check:()->Unit) {
         fun rejectIf(sql:String) { check(); stage.rawQuery(sql,null).use { if(it.moveToFirst()) invalid() } }
