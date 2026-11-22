@@ -16,7 +16,7 @@
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.5.9_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
+- **Android 9–15** · [下载兼容版 v0.7.5.10_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
 - [兼容版说明与更新记录](docs/compatible/README.md)
 
 本文是两发行线共用入口；下方技术参数及历史记录以主线为准。兼容版的系统范围和独立更新汇总见上方说明。
@@ -62,6 +62,15 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM ·
 
 ## 版本记录
 
+
+### v0.7.5.10
+
+- 💾 加快大备份恢复，减少长文本和图片的重复写入。
+- 📄 导出 PDF 或 PNG 保存失败后可重选位置，已生成的文件可继续保存。
+- 🖼️ 同类题追问支持点开附图、左右滑动查看；多选删除时保留题目和参考答案。
+- 📎 优化文件导入和 PDF 原文查找，同一文件的重叠选页只检索一次。
+- 🔧 返回解题记录时保留滚动位置，修复更新检查失败后的重试，并按实际提交的请求统计流式调用次数。
+- 📌 `versionCode` **147**.
 
 ### v0.7.5.9
 

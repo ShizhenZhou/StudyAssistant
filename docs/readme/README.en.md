@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.9_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.10_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -62,6 +62,15 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+
+### v0.7.5.10
+
+- 💾 Large backups restore faster by writing each long text or image field once.
+- 📄 If saving an exported PDF or PNG fails, choose another destination and save the files already generated.
+- 🖼️ Open and swipe through images in similar-question follow-ups. Multi-select deletion preserves the exercise and its reference answer.
+- 📎 File imports avoid a redundant copy. PDF source search scans overlapping page selections only once per file.
+- 🔧 Solve history keeps your scroll position. Retrying a failed update check checks again, and streaming usage counts requests actually submitted.
+- 📌 `versionCode` **147**.
 
 ### v0.7.5.9
 

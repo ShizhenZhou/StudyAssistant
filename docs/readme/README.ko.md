@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.9_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
+- **Android 9–15** · [호환 버전 v0.7.5.10_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -62,6 +62,15 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## 버전 기록
 
+
+### v0.7.5.10
+
+- 💾 긴 텍스트와 이미지를 반복해서 쓰는 작업을 줄여 대용량 백업 복원이 빨라졌습니다.
+- 📄 내보낸 PDF 또는 PNG 저장에 실패하면 다른 위치를 선택해 이미 생성된 파일을 저장할 수 있습니다.
+- 🖼️ 유사 문제의 추가 질문에 첨부한 이미지를 눌러 열고 좌우로 넘겨 볼 수 있습니다. 여러 항목을 삭제해도 문제와 참고 답안은 유지됩니다.
+- 📎 파일을 가져올 때 중복 복사를 줄였습니다. PDF 원문 검색 시 같은 파일에서 겹치는 페이지는 한 번만 검색합니다.
+- 🔧 풀이 기록으로 돌아오면 스크롤 위치가 유지됩니다. 업데이트 확인 실패 후 재시도 동작을 수정했으며, 스트리밍 호출 횟수는 실제로 제출한 요청을 기준으로 집계합니다.
+- 📌 `versionCode` **147**.
 
 ### v0.7.5.9
 

@@ -1,3 +1,10 @@
+v0.7.5.10
+· 💾 Large backups restore faster by writing each long text or image field once.
+· 📄 If saving an exported PDF or PNG fails, choose another destination and save the files already generated.
+· 🖼️ Open and swipe through images in similar-question follow-ups. Multi-select deletion preserves the exercise and its reference answer.
+· 📎 File imports avoid a redundant copy. PDF source search scans overlapping page selections only once per file.
+· 🔧 Solve history keeps your scroll position. Retrying a failed update check checks again, and streaming usage counts requests actually submitted.
+
 v0.7.5.9
 · 💬 Resume interrupted answers from the toolbar, answer bubble, or network notice. Spaces, line breaks, and code indentation are preserved where the answer resumes.
 · 📊 Usage reported by the server is now counted even if a similar-question request or follow-up is interrupted.

@@ -13,19 +13,28 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.9_Compat（versionCode 146、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.10_Compat（versionCode 147、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.9_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
+- **Android 9–15** · [互換版 v0.7.5.10_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
 
+
+### v0.7.5.10_Compat
+
+- 💾 長いテキストや画像の繰り返し書き込みを減らし、大きなバックアップの復元を高速化しました。
+- 📄 PDF・PNG の保存に失敗しても、保存先を選び直して生成済みのファイルを保存できます。
+- 🖼️ 類題の追加質問に添付した画像をタップし、左右にスワイプして閲覧できます。複数選択で削除しても問題と参考解答は残ります。
+- 📎 ファイル取り込み時の重複コピーを省き、PDF 原文検索では同じファイルの重複ページを一度だけ検索します。
+- 🔧 解答履歴に戻るとスクロール位置を復元します。更新確認に失敗した際の再試行を修正し、ストリーミングの利用回数は実際に送信したリクエストを集計します。
+- 📌 `versionCode` **147**.
 
 ### v0.7.5.9_Compat
 

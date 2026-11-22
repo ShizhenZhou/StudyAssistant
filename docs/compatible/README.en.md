@@ -13,19 +13,28 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.9_Compat (versionCode 146, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.10_Compat (versionCode 147, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.9_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.5.10_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
 
+
+### v0.7.5.10_Compat
+
+- 💾 Large backups restore faster by writing each long text or image field once.
+- 📄 If saving an exported PDF or PNG fails, choose another destination and save the files already generated.
+- 🖼️ Open and swipe through images in similar-question follow-ups. Multi-select deletion preserves the exercise and its reference answer.
+- 📎 File imports avoid a redundant copy. PDF source search scans overlapping page selections only once per file.
+- 🔧 Solve history keeps your scroll position. Retrying a failed update check checks again, and streaming usage counts requests actually submitted.
+- 📌 `versionCode` **147**.
 
 ### v0.7.5.9_Compat
 

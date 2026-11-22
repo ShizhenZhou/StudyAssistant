@@ -13,19 +13,28 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.9_Compat（versionCode 146，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.10_Compat（versionCode 147，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.9_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.5.10_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本記錄
 
+
+### v0.7.5.10_Compat
+
+- 💾 加快大型備份還原，減少長文字與圖片的重複寫入。
+- 📄 匯出 PDF 或 PNG 儲存失敗時可重新選擇位置，繼續儲存已產生的檔案。
+- 🖼️ 類題追問可點開附圖並左右滑動瀏覽；多選刪除時保留題目與參考答案。
+- 📎 改善檔案匯入與 PDF 原文查找，同一檔案的重疊選頁只搜尋一次。
+- 🔧 返回解題記錄時保留捲動位置，修正檢查更新失敗後的重試，並按實際送出的請求統計串流呼叫次數。
+- 📌 `versionCode` **147**.
 
 ### v0.7.5.9_Compat
 

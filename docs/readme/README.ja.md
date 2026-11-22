@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.9_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.9_Compat)
+- **Android 9–15** · [互換版 v0.7.5.10_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -62,6 +62,15 @@ AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compil
 
 ## バージョン履歴
 
+
+### v0.7.5.10
+
+- 💾 長いテキストや画像の繰り返し書き込みを減らし、大きなバックアップの復元を高速化しました。
+- 📄 PDF・PNG の保存に失敗しても、保存先を選び直して生成済みのファイルを保存できます。
+- 🖼️ 類題の追加質問に添付した画像をタップし、左右にスワイプして閲覧できます。複数選択で削除しても問題と参考解答は残ります。
+- 📎 ファイル取り込み時の重複コピーを省き、PDF 原文検索では同じファイルの重複ページを一度だけ検索します。
+- 🔧 解答履歴に戻るとスクロール位置を復元します。更新確認に失敗した際の再試行を修正し、ストリーミングの利用回数は実際に送信したリクエストを集計します。
+- 📌 `versionCode` **147**.
 
 ### v0.7.5.9
 
