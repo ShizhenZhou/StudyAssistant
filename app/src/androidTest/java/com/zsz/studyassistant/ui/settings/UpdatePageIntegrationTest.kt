@@ -119,6 +119,12 @@ class UpdatePageIntegrationTest {
                     while (store.snapshot()?.phase != com.zsz.studyassistant.data.UpdateDownloads.Phase.FAILED)
                         kotlinx.coroutines.delay(50)
                 }
+                waitFor(s["update.redownload"])
+                // An app notification or another page can change the session while this page is quiet.
+                store.cancel(ready.token)
+                waitFor(s["update.downloadStable"])
+                repository().start(release)
+                waitFor(s["update.cancelDownload"])
             }
         } finally { releaseQuery.countDown(); backend.queryRelease=null; store.cancel() }
     }

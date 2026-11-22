@@ -11,6 +11,8 @@ class UpdateCompatibilityTest {
         val config = UpdateTransport.Config(baseUrl = "https://mirror.example.com/proxy")
         assertEquals(listOf(canonical, "https://mirror.example.com/proxy/$canonical"), UpdateTransport.urls(canonical, config))
         assertEquals(listOf(canonical), UpdateTransport.urls(canonical, config.copy(enabled = false)))
+        assertEquals(listOf("https://mirror.example.com/proxy/$canonical", canonical), updateDownloadUrls(canonical, config, true))
+        assertEquals(listOf(canonical), updateDownloadUrls(canonical, config.copy(enabled = false), true))
         assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases?per_page=100&page=2"))
         assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases/assets/42"))
     }

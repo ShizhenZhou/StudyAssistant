@@ -15,12 +15,18 @@ import androidx.work.workDataOf
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.json.JSONObject
 
 /** Owns durable bytes; the executing worker owns progress, without a waiting foreground service. */
@@ -57,9 +63,11 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
             if (current.phase == UpdateDownloads.TransferPhase.SUCCESS) return current.id
             // Replacing the generation invalidates every old callback before WorkManager stops it.
             current.copy(generation = UUID.randomUUID().toString(), phase = UpdateDownloads.TransferPhase.QUEUED,
-                error = null).also(::write)
+                error = null).also {
+                write(it)
+                active.remove(current.id)?.call?.cancel()
+            }
         }
-        active[next.id]?.call?.cancel()
         schedule(next)
         return next.id
     }
@@ -161,11 +169,14 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
         legacy.remove(record.legacyId)
     }
 
-    internal fun run(id: Long, generation: String, attempt: Int, stopped: () -> Boolean): Boolean {
-        val record = synchronized(lock) { read(id)?.takeIf { it.generation == generation } } ?: return false
+    internal fun run(id: Long, generation: String, attempt: Int, preferMirror: Boolean, stopped: () -> Boolean): Boolean {
         val execution = Execution(generation)
-        // WorkManager normally serializes unique work. This also fences a replaced worker still unwinding IO.
-        if (active.putIfAbsent(id, execution) != null) return true
+        val record = synchronized(lock) {
+            val current = read(id)?.takeIf { it.generation == generation } ?: return false
+            if (active[id]?.generation == generation) return true
+            active.put(id, execution)?.call?.cancel()
+            current
+        }
         val deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(7)
         fun check() {
             if (stopped() || synchronized(lock) { read(id)?.generation != generation }) throw Stopped()
@@ -174,7 +185,7 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
         fun guard(action: () -> Unit) = synchronized(lock) { check(); action() }
         try {
             check()
-            retireLegacy(record)
+            guard { retireLegacy(record) }
             transition(record, UpdateDownloads.TransferPhase.RUNNING)
             val file = partial(id)
             if (file.length() > record.size) throw UpdateRangeTransfer.Rejected("update.verifyFailed")
@@ -182,11 +193,12 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
             destination.parentFile?.mkdirs()
             UpdateStorage.requireDownloadSpace(file, destination, record.size,
                 Environment.isExternalStorageEmulated(destination))
-            val urls = UpdateTransport.urls(record.url, UpdateTransport.load(context))
+            val urls = updateDownloadUrls(record.url, UpdateTransport.load(context), preferMirror)
             var lastError: Exception? = null
             for (url in urls) {
                 check()
                 if (file.length() == record.size) break
+                val quickFallback = url == record.url && url != urls.last()
                 try {
                     while (file.length() < record.size) {
                         check()
@@ -195,12 +207,13 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
                         val request = Request.Builder().url(url).header("User-Agent", "StudyAssistant-Update")
                             .header("Accept-Encoding", "identity")
                             .apply { if (offset > 0) header("Range", "bytes=$offset-") }.build()
-                        val call = client.newCall(request)
+                        val call = (if (quickFallback) officialWithMirror else client).newCall(request)
                         call.timeout().timeout((deadline - System.nanoTime()).coerceAtLeast(1), TimeUnit.NANOSECONDS)
                         execution.call = call
                         check()
                         execution.usingMirror = url != record.url
-                        call.execute().use { response ->
+                        val response = if (quickFallback) call.awaitUpdateFirstByte(5000, offset, record.size) else call.execute()
+                        response.use {
                             val body = response.body ?: throw IOException("Empty update response")
                             UpdateRangeTransfer.append(response.code, response.header("Content-Range"), body.contentLength(),
                                 response.header("Content-Encoding"), body.byteStream(), file, record.size, ::guard, ::check)
@@ -332,11 +345,51 @@ internal class ResumableUpdateBackend(context: Context, private val legacy: Upda
         private val active = ConcurrentHashMap<Long, Execution>()
         private val client = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
             .callTimeout(7, TimeUnit.MINUTES).retryOnConnectionFailure(false).followSslRedirects(false).build()
+        private val officialWithMirror = client.newBuilder().readTimeout(8, TimeUnit.SECONDS).build()
         private fun normalizedSha(value: String?) = value?.removePrefix("sha256:")?.lowercase()
             ?.takeIf { Regex("[0-9a-f]{64}").matches(it) }
         private fun workName(id: Long) = "update-transfer-$id"
         internal fun stop(id: Long, generation: String) {
             active[id]?.takeIf { it.generation == generation }?.call?.cancel()
+        }
+    }
+}
+
+internal fun updateDownloadUrls(canonical: String, config: UpdateTransport.Config, preferMirror: Boolean): List<String> {
+    val urls = UpdateTransport.urls(canonical, config)
+    return if (preferMirror) urls.asReversed() else urls
+}
+
+/** A blocked platform DNS lookup can outlive cancellation; only the OkHttp thread waits for it.
+ * Once one validated body byte is buffered, the reader owns the response with its normal idle timeout. */
+internal fun Call.awaitUpdateFirstByte(timeoutMillis: Long, offset: Long, size: Long): Response {
+    val ready = CompletableFuture<Response>()
+    enqueue(object : Callback {
+        override fun onFailure(call: Call, e: IOException) { ready.completeExceptionally(e) }
+        override fun onResponse(call: Call, response: Response) {
+            try {
+                val body = response.body
+                UpdateRangeTransfer.responseLength(response.code, response.header("Content-Range"), body.contentLength(),
+                    response.header("Content-Encoding"), offset, size)
+                if (!body.source().request(1)) throw IOException("Empty update response")
+                if (!ready.complete(response)) response.close()
+            } catch (error: Exception) {
+                response.close()
+                ready.completeExceptionally(error)
+            }
+        }
+    })
+    var handedOff = false
+    try {
+        return ready.get(timeoutMillis, TimeUnit.MILLISECONDS).also { handedOff = true }
+    } catch (_: TimeoutException) {
+        throw SocketTimeoutException("Update first byte timed out")
+    } catch (error: ExecutionException) {
+        throw error.cause ?: error
+    } finally {
+        if (!handedOff) {
+            cancel()
+            if (!ready.cancel(false)) ready.whenComplete { response, _ -> response?.close() }
         }
     }
 }
@@ -348,7 +401,7 @@ class ResumableUpdateWorker(context: Context, parameters: WorkerParameters) : Co
         val generation = inputData.getString("generation") ?: return Result.success()
         if (id < ResumableUpdateBackend.ID_BASE) return Result.success()
         val backend = ResumableUpdateBackend(applicationContext, UpdateDownloads.SystemBackend(applicationContext))
-        if (!UpdateDownloads(applicationContext, backend).authorizeTransfer(id)) return Result.success()
+        val preferMirror = UpdateDownloads(applicationContext, backend).authorizedMirrorPreference(id) ?: return Result.success()
         return coroutineScope {
             val cancellation = launch(start = CoroutineStart.UNDISPATCHED) {
                 try { awaitCancellation() }
@@ -357,7 +410,7 @@ class ResumableUpdateWorker(context: Context, parameters: WorkerParameters) : Co
             try {
                 UpdateTransferNotification.run(this@ResumableUpdateWorker, id) {
                     withContext(Dispatchers.IO) {
-                        if (backend.run(id, generation, runAttemptCount) { isStopped }) Result.retry() else Result.success()
+                        if (backend.run(id, generation, runAttemptCount, preferMirror) { isStopped }) Result.retry() else Result.success()
                     }
                 }
             } finally { cancellation.cancel() }

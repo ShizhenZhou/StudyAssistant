@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +25,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -58,9 +61,12 @@ import com.zsz.studyassistant.data.UpdateDownloads
 import com.zsz.studyassistant.data.UpdateDownloadMonitor
 import com.zsz.studyassistant.data.UpdateDownloadNotifications
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** 红点 / 链接配色：不跟主题走 —— 红点要显眼，仓库链接按要求用**蓝色** */
 internal val BADGE_RED = Color(0xFFE53935)
@@ -147,6 +153,7 @@ internal fun formatCheckTime(ms: Long): String {
 }
 
 /** ⬆️ 应用更新：当前版本 + 检查更新按钮 + 灰字提示 + 下载/校验/安装 + 更新历史 */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     fetchReleases: (suspend () -> UpdateChecker.AvailableReleases?)? = null) {
@@ -173,9 +180,17 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     var message by remember { mutableStateOf<String?>(null) }
     var recoveryError by remember { mutableStateOf<String?>(null) }
     var recovering by remember { mutableStateOf(false) }
-    var permNeeded by remember { mutableStateOf(!canInstallApk(context)) }
-    var notificationsAllowed by remember { mutableStateOf(UpdateDownloadNotifications.canPost(context)) }
+    var switchingMirror by remember { mutableStateOf(false) }
+    var mirrorSwitchFailed by remember { mutableStateOf(false) }
+    var permNeeded by remember { mutableStateOf(false) }
+    var notificationsAllowed by remember { mutableStateOf(true) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        permNeeded = !canInstallApk(context)
+        notificationsAllowed = UpdateDownloadNotifications.canPost(context)
+    }
     var displayedTaskToken by remember { mutableStateOf<String?>(null) }
+    // Preserve an explicit check result or installer launch error when the old record is still on disk.
+    var ignoredTaskToken by remember { mutableStateOf<String?>(null) }
     var verifiedSha by remember { mutableStateOf<Boolean?>(null) }
     // 「跳过此版本」记在本地（UpdateChecker 里持久化）；跳过只影响**提示**，不影响手动下载
     var skipRevision by remember { mutableIntStateOf(0) }
@@ -186,8 +201,10 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     }
 
     fun showDownload(task: UpdateDownloads.Snapshot) {
+        if (task.token != displayedTaskToken || !task.canSwitchToMirror) mirrorSwitchFailed = false
         if (task.token != displayedTaskToken || task.phase != UpdateDownloads.Phase.WAITING) recoveryError = null
         if (task.phase == UpdateDownloads.Phase.WAITING && task.errorKey != null) recoveryError = task.errorKey
+        ignoredTaskToken = null
         displayedTaskToken = task.token
         latest = task.release
         progress = task.progress
@@ -210,53 +227,60 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
             operationGeneration++
             downloadActionJob?.cancel()
             latest = promptRelease; offers = listOf(promptRelease)
-            displayedTaskToken = null; observingDownload = true; phase = Phase.RESTORING
+            ignoredTaskToken = null; displayedTaskToken = null; observingDownload = true; phase = Phase.RESTORING
             message = null; progress = -1; verifiedSha = null
         }
-        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (kotlinx.coroutines.currentCoroutineContext().isActive) {
-                notificationsAllowed = UpdateDownloadNotifications.canPost(context)
-                if (observingDownload) {
-                    val generation = operationGeneration
+    }
+    LaunchedEffect(downloads, lifecycleOwner, s["update.background"], promptRelease, observingDownload, operationGeneration) {
+        if (!observingDownload) return@LaunchedEffect
+        val generation = operationGeneration
+        fun stillObserving() = observingDownload && generation == operationGeneration
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val changes = Channel<Unit>(Channel.CONFLATED)
+            val unsubscribe = downloads.onSessionChange { changes.trySend(Unit) }
+            var eligibleToken: String? = null
+            try {
+                while (stillObserving()) {
                     val task = downloads.snapshot()
-                    if (observingDownload && generation == operationGeneration) {
-                        if (task == null) {
-                            if (phase == Phase.RESTORING || displayedTaskToken != null) {
-                                phase = if (latest != null) Phase.FOUND else Phase.IDLE
-                                displayedTaskToken = null
-                                progress = -1
-                                verifiedSha = null
-                                message = latest?.let(::compatibilityMessage)
-                            }
-                        } else if (promptRelease?.mandatory == true &&
-                            task.release.assetSha256 != promptRelease.assetSha256) {
-                            // A pre-existing optional/older task must not hide the required target.
-                            downloads.cancel(task.token)
-                            latest = promptRelease; offers = listOf(promptRelease)
-                            displayedTaskToken = null; phase = Phase.FOUND
-                        } else {
-                            // Upgrading can turn a legacy installed task into FAILED because its
-                            // record predates compatibility metadata. Retire obsolete tasks in any phase.
-                            val alreadyInstalled = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                !UpdateChecker.hasUpdate(context, task.release)
-                            }
-                            if (observingDownload && generation == operationGeneration) {
-                                if (alreadyInstalled) {
-                                    downloads.cancel(task.token)
-                                    if (observingDownload && generation == operationGeneration) {
-                                        // A stale downloaded package says nothing about the latest release online.
-                                        latest = null; phase = Phase.IDLE
-                                    }
-                                } else {
-                                    showDownload(task)
-                                    UpdateDownloadMonitor.ensureForRestored(context, task)
-                                }
-                            }
+                    if (!stillObserving()) break
+                    if (task == null) {
+                        if (phase == Phase.RESTORING || displayedTaskToken != null) {
+                            phase = if (latest != null) Phase.FOUND else Phase.IDLE
+                            displayedTaskToken = null
+                            progress = -1
+                            verifiedSha = null
+                            message = latest?.let(::compatibilityMessage)
                         }
-                        permNeeded = !canInstallApk(context)
+                    } else if (promptRelease?.mandatory == true && task.release.assetSha256 != promptRelease.assetSha256) {
+                        downloads.cancel(task.token)
+                        if (!stillObserving()) break
+                        latest = promptRelease; offers = listOf(promptRelease)
+                        displayedTaskToken = null; phase = Phase.FOUND
+                    } else if (task.token != ignoredTaskToken ||
+                        (task.token == displayedTaskToken && task.phase != UpdateDownloads.Phase.READY)) {
+                        // The installed build and this token's release identity stay fixed while the page is open.
+                        val eligible = task.token == eligibleToken || kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            UpdateChecker.hasUpdate(context, task.release)
+                        }
+                        if (!stillObserving()) break
+                        if (eligible) {
+                            eligibleToken = task.token
+                            showDownload(task)
+                            UpdateDownloadMonitor.ensureForRestored(context, task)
+                        } else {
+                            downloads.cancel(task.token)
+                            if (!stillObserving()) break
+                            displayedTaskToken = null; latest = null; phase = Phase.IDLE
+                        }
                     }
+                    // Progress can change without touching the session record. Stable states wake only on a write.
+                    if (phase == Phase.DOWNLOADING || phase == Phase.WAITING) {
+                        withTimeoutOrNull(1000L) { changes.receive() }
+                    } else changes.receive()
                 }
-                kotlinx.coroutines.delay(1000)
+            } finally {
+                unsubscribe()
+                changes.close()
             }
         }
     }
@@ -270,7 +294,11 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
             try {
                 val task = downloads.forInstall()
                 if (generation != operationGeneration) return@launch
-                if (task == null) { phase = Phase.FAILED; message = s["update.downloadMissing"]; return@launch }
+                if (task == null) {
+                    displayedTaskToken = null; phase = Phase.FAILED; message = s["update.downloadMissing"]
+                    observingDownload = true
+                    return@launch
+                }
                 showDownload(task)
                 observingDownload = true
                 val file = task.file ?: return@launch
@@ -283,13 +311,21 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                 })
             } catch (error: kotlinx.coroutines.CancellationException) { throw error }
-            catch (_: Exception) { if (generation == operationGeneration) { observingDownload = false; phase = Phase.READY; message = s["update.installFailed"] } }
+            catch (_: Exception) {
+                if (generation == operationGeneration) {
+                    ignoredTaskToken = displayedTaskToken
+                    phase = Phase.READY; message = s["update.installFailed"]; observingDownload = true
+                }
+            }
         }
     }
 
     fun startCheck() {
         val generation = ++operationGeneration
         val promptCycle = com.zsz.studyassistant.data.UpdatePromptStore.manualCheckCycle()
+        // Checking again intentionally replaces the old result, even when its APK is still on disk.
+        displayedTaskToken?.let { ignoredTaskToken = it }
+        displayedTaskToken = null
         observingDownload = false
         phase = Phase.CHECKING
         message = null
@@ -301,6 +337,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
             if (releases == null) {
                 phase = Phase.CHECK_FAILED
                 message = s["update.netError"]
+                observingDownload = true
                 return@launch
             }
             com.zsz.studyassistant.data.UpdatePromptStore.accept(context, releases, manualCheckCycle = promptCycle)
@@ -330,6 +367,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                 UpdateBadgeState.set(null)
                 phase = Phase.UP_TO_DATE
             }
+            observingDownload = true
         }
     }
 
@@ -340,6 +378,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
         latest = rel
         compatibilityMessage(rel)?.let { message = it; phase = Phase.FAILED; return }
         val generation = ++operationGeneration
+        mirrorSwitchFailed = false
         phase = Phase.DOWNLOADING; progress = 0; message = null; usingMirror = false; downloadTask = null
         observingDownload = false
         val notification = UpdateDownloadMonitor.request(context)
@@ -352,20 +391,52 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                 if (generation == operationGeneration) { showDownload(task); observingDownload = true }
             }
             catch (error: kotlinx.coroutines.CancellationException) { throw error }
-            catch (_: Exception) { if (generation == operationGeneration) { phase = Phase.FAILED; message = s["update.downloadUnavailable"] } }
+            catch (_: Exception) {
+                if (generation == operationGeneration) {
+                    displayedTaskToken = null
+                    phase = Phase.FAILED; message = s["update.downloadUnavailable"]; observingDownload = true
+                }
+            }
         }
     }
     fun cancelDownload() {
         val generation = ++operationGeneration
+        val token = downloadTask?.token
         downloadActionJob?.cancel()
         observingDownload = false
         scope.launch {
             try {
-                downloads.cancel()
-                if (generation == operationGeneration) { phase = Phase.FOUND; progress = -1; message = null }
+                downloads.cancel(token)
+                if (generation == operationGeneration) {
+                    displayedTaskToken = null; phase = Phase.FOUND; progress = -1; message = null
+                }
             }
             catch (error: kotlinx.coroutines.CancellationException) { throw error }
             catch (_: Exception) { if (generation == operationGeneration) { phase = Phase.FAILED; message = s["update.downloadUnavailable"] } }
+            finally { if (generation == operationGeneration) observingDownload = true }
+        }
+    }
+
+    fun switchToMirror() {
+        val task = downloadTask ?: return
+        if (!task.canSwitchToMirror || switchingMirror || recovering || !observingDownload) return
+        val generation = ++operationGeneration
+        switchingMirror = true
+        mirrorSwitchFailed = false
+        observingDownload = false
+        scope.launch {
+            try {
+                val updated = downloads.switchToMirror(task.token)
+                if (generation == operationGeneration && updated != null) {
+                    showDownload(updated)
+                    mirrorSwitchFailed = updated.canSwitchToMirror
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+              catch (_: Exception) { if (generation == operationGeneration) mirrorSwitchFailed = true }
+            finally {
+                switchingMirror = false
+                if (generation == operationGeneration) observingDownload = true
+            }
         }
     }
 
@@ -544,16 +615,29 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                     if (phase == Phase.WAITING) {
                         recoveryError?.let { Text(s[it], style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        Button(onClick = { resumeDownload() }, enabled = !recovering, shape = smoothPill()) {
+                        Button(onClick = { resumeDownload() }, enabled = !recovering && !switchingMirror, shape = smoothPill()) {
                             Text(s[if (recovering) "update.resuming" else "update.resume"])
                         }
                         if (recoveryError == "update.resumeUnsupported" || recoveryError == "update.resumeUnavailable") {
-                            androidx.compose.material3.TextButton(onClick = { resumeDownload(restart = true) }, enabled = !recovering) {
+                            TextButton(onClick = { resumeDownload(restart = true) }, enabled = !recovering && !switchingMirror) {
                                 Text(s["update.restartCurrent"])
                             }
                         }
                     }
-                    androidx.compose.material3.TextButton(onClick = { cancelDownload() }, enabled = !recovering) { Text(s["update.cancelDownload"]) }
+                    val language = LocalUiLang.current
+                    val transportStrings = remember(language) { updateTransportStrings(language) }
+                    if (mirrorSwitchFailed) Text(transportStrings["switchFailed"], style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { cancelDownload() }, enabled = !recovering && !switchingMirror) {
+                            Text(s["update.cancelDownload"])
+                        }
+                        if (downloadTask?.canSwitchToMirror == true) {
+                            TextButton(onClick = { switchToMirror() }, enabled = !recovering && !switchingMirror) {
+                                Text(transportStrings[if (switchingMirror) "switching" else "switch"])
+                            }
+                        }
+                    }
                 }
                 Phase.VERIFYING -> Text(s["update.verifying"], style = MaterialTheme.typography.bodyMedium)
                 Phase.READY -> {

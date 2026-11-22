@@ -2,6 +2,7 @@ package com.zsz.studyassistant.data
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Environment
 import com.zsz.studyassistant.ui.UiLangStore
@@ -43,11 +44,11 @@ internal class UpdateDownloads(
     data class Snapshot(val token: String, val release: UpdateChecker.ReleaseInfo, val phase: Phase,
         val progress: Int = -1, val file: File? = null, val errorKey: String? = null, val appNotification: Boolean = false,
         val resumable: Boolean = false, val usingMirror: Boolean = false, val currentPackageSize: Long = 0,
-        val chain: UpdateDeltaPlan? = null, val packageNumber: Int = 1)
+        val chain: UpdateDeltaPlan? = null, val packageNumber: Int = 1, val canSwitchToMirror: Boolean = false)
     private data class Record(val token: String, val release: UpdateChecker.ReleaseInfo,
         val id: Long = -1, val ready: Boolean = false, val error: String? = null, val appNotification: Boolean = false,
         val delta: UpdateDeltaInfo? = null, val transferToken: String = token, val enqueuePending: Boolean = false,
-        val steps: List<UpdateDeltaStep> = emptyList(), val stepIndex: Int = 0)
+        val steps: List<UpdateDeltaStep> = emptyList(), val stepIndex: Int = 0, val preferMirror: Boolean = false)
     companion object {
         private val digestCache = InstalledApkDigestCache()
         private val mutex = Mutex()
@@ -57,6 +58,16 @@ internal class UpdateDownloads(
         private const val MIME_PREFIX = "application/vnd.studyassistant.update-"
     }
     private suspend fun <T> locked(block: () -> T): T = withContext(Dispatchers.IO) { mutex.withLock { block() } }
+
+    /** Includes changes made by a worker, a notification action or another page. */
+    fun onSessionChange(notify: () -> Unit): () -> Unit {
+        val preferences = prefs
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key == "session") notify()
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        return { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     /** The request handoff itself also survives a page disappearing immediately after the tap. */
     fun enqueue(release: UpdateChecker.ReleaseInfo, notification: UpdateDownloadMonitor.Request? = null,
@@ -156,6 +167,7 @@ internal class UpdateDownloads(
         try { write(record) }
         catch (error: Exception) { backend.remove(id); throw error }
         return status(record, Phase.DOWNLOADING, receivedBytes = 0)
+            .copy(canSwitchToMirror = canSwitchToMirror(record, 0))
     }
 
     suspend fun snapshot(): Snapshot? = locked {
@@ -219,6 +231,33 @@ internal class UpdateDownloads(
         }
     }
 
+    private fun canSwitchToMirror(record: Record, received: Long): Boolean {
+        if (record.preferMirror || record.id < ResumableUpdateBackend.ID_BASE) return false
+        val release = transferRelease(record)
+        return received in 0 until release.assetSize && (received == 0L || release.assetSha256 != null) &&
+            UpdateTransport.load(context).enabled
+    }
+
+    suspend fun switchToMirror(expectedToken: String): Snapshot? = locked {
+        val record = readCompatible()?.takeIf { it.token == expectedToken } ?: return@locked null
+        checkTransfer(record)
+        if (record.ready || record.error != null || record.id < ResumableUpdateBackend.ID_BASE)
+            return@locked snapshotLocked(record)
+        val transfer = backend.query(record.id) ?: return@locked snapshotLocked(record)
+        if (!owns(transfer, record) || transfer.status !in setOf(TransferPhase.QUEUED, TransferPhase.RUNNING, TransferPhase.WAITING) ||
+            transfer.usingMirror || transfer.errorKey == UpdateStorage.ERROR_KEY || !canSwitchToMirror(record, transfer.bytes))
+            return@locked snapshotLocked(record)
+
+        // The worker reads this preference under the same session mutex before opening a connection.
+        // Reusing the transfer id keeps its partial file and previously verified delta steps.
+        val selected = record.copy(preferMirror = true)
+        val id = backend.resume(transferRelease(record), partial(record), record.id, record.appNotification)
+            ?: return@locked snapshotLocked(record)
+        val next = selected.copy(id = id)
+        write(next)
+        snapshotLocked(next)
+    }
+
     suspend fun forInstall(): Snapshot? = locked {
         val record = readCompatible() ?: return@locked null
         UpdateChecker.compatibilityError(record.release)?.let { return@locked fail(record, it) }
@@ -276,9 +315,11 @@ internal class UpdateDownloads(
         return when (transfer.status) {
             TransferPhase.QUEUED, TransferPhase.RUNNING -> status(record, Phase.DOWNLOADING,
                 receivedBytes = transfer.bytes, reportedTotal = transfer.total)
-                .copy(usingMirror = transfer.status == TransferPhase.RUNNING && transfer.usingMirror)
+                .copy(usingMirror = transfer.status == TransferPhase.RUNNING && transfer.usingMirror,
+                    canSwitchToMirror = !transfer.usingMirror && canSwitchToMirror(record, transfer.bytes))
             TransferPhase.WAITING -> status(record, Phase.WAITING, receivedBytes = transfer.bytes,
                 reportedTotal = transfer.total, errorKey = transfer.errorKey)
+                .copy(canSwitchToMirror = transfer.errorKey != UpdateStorage.ERROR_KEY && canSwitchToMirror(record, transfer.bytes))
             TransferPhase.FAILED -> fail(record, transfer.errorKey ?: "update.downloadInterrupted")
             TransferPhase.SUCCESS -> complete(record)
         }
@@ -478,16 +519,16 @@ internal class UpdateDownloads(
     }
 
     /** Fence persistent workers after an app/channel change, before they open a connection. */
-    internal suspend fun authorizeTransfer(id: Long): Boolean = locked {
+    internal suspend fun authorizedMirrorPreference(id: Long): Boolean? = locked {
         val record = readCompatible()
-        val transfer = backend.query(id) ?: return@locked false
+        val transfer = backend.query(id) ?: return@locked null
         // A migrated DownloadManager row may still be the persisted root after process death.
         val matchesId = record != null && (record.id == id || record.enqueuePending ||
             (record.id >= 0 && backend.query(record.id)?.id == id))
-        if (record != null && matchesId && owns(transfer, record)) true
+        if (record != null && matchesId && owns(transfer, record)) record.preferMirror
         else {
             backend.remove(id)
-            false
+            null
         }
     }
 
@@ -531,7 +572,8 @@ internal class UpdateDownloads(
             obj.optString("error").takeIf { it in setOf("update.verifyFailed", "update.downloadMissing", "update.downloadInterrupted",
                 UpdateStorage.ERROR_KEY,
                 "update.incompatible", "update.distributionIncompatible", "update.compatibilityUnknown") }, obj.optBoolean("appNotification", false),
-            delta, transferToken, obj.optBoolean("enqueuePending", false), steps, stepIndex)
+            delta, transferToken, obj.optBoolean("enqueuePending", false), steps, stepIndex,
+            preferMirror = obj.optBoolean("preferMirror", false))
     }.getOrNull()
     private fun write(record: Record) {
         val rel = record.release
@@ -543,6 +585,7 @@ internal class UpdateDownloads(
             .put("distribution", rel.distribution).put("maxSdk", rel.maxSdk)
             .put("channel", if (rel.channel == UpdateChecker.Channel.BETA) "beta" else "stable")
             .put("mandatory", rel.mandatory).put("transferToken", record.transferToken).put("enqueuePending", record.enqueuePending)
+            .put("preferMirror", record.preferMirror)
         record.delta?.let { obj.put("delta", writeDelta(it)) }
         if (record.steps.isNotEmpty()) obj.put("steps", org.json.JSONArray().apply {
             record.steps.forEach { step -> put(JSONObject().put("delta", writeDelta(step.delta))
