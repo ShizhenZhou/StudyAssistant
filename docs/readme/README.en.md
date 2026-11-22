@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.10_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.6_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -31,7 +31,7 @@ This entry is shared by both distributions. The technical details and history be
 - 🌐 Optional web search, link reading and answer sources.
 - 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.
 - 🧠 Choose fast or thinking mode, set AI output language, and toggle instructions by subject; export and import instructions separately.
-- 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.
+- 📚 Organize notebook entries with categories, tags and batch actions. Resume a practice session or repeat the questions you found difficult.
 - 🕘 Find solutions and grading by keyword and date, then continue the conversation; keeps the latest 200 entries within 30 days.
 - 🏷 Organize tags with AI suggestions, merge previews and undo.
 - 📖 Spaced review, daily reminders and learning statistics.
@@ -40,7 +40,7 @@ This entry is shared by both distributions. The technical details and history be
 - 💾 Keep input drafts, retry failed saves, recover interrupted conversations and undo deletions.
 - ⬆️ Check stable and optional beta updates, view update prompts, use delta and background downloads, and verify before installation.
 - 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.
-- 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords.
+- 🔎 Tap a notebook search excerpt to jump to the match in the question or answer.
 
 ## Data and privacy
 
@@ -62,6 +62,15 @@ AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSd
 
 ## Version history
 
+
+### v0.7.6
+
+- 🔎 Tap a notebook search excerpt to jump to and highlight its source. Move between matches when there is more than one.
+- 📚 Resume focused practice after leaving, or repeat difficult questions with the option to include skipped ones.
+- 📖 Daily review targets and progress persist throughout the day. Start today's pending reviews from Statistics.
+- 💬 Save a similar exercise once its question is complete. Resume its original answer after an interruption and search the saved conversation.
+- ⬇️ Image reference cache cleanup is scoped to the request. Update downloads switch to the mirror sooner when stalled and can be switched manually with resumable progress.
+- 📌 `versionCode` **148**.
 
 ### v0.7.5.10
 

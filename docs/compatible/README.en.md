@@ -13,19 +13,28 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.5.10_Compat (versionCode 147, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.6_Compat (versionCode 148, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.5.10_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.6_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
 
+
+### v0.7.6_Compat
+
+- 🔎 Tap a notebook search excerpt to jump to and highlight its source. Move between matches when there is more than one.
+- 📚 Resume focused practice after leaving, or repeat difficult questions with the option to include skipped ones.
+- 📖 Daily review targets and progress persist throughout the day. Start today's pending reviews from Statistics.
+- 💬 Save a similar exercise once its question is complete. Resume its original answer after an interruption and search the saved conversation.
+- ⬇️ Image reference cache cleanup is scoped to the request. Update downloads switch to the mirror sooner when stalled and can be switched manually with resumable progress.
+- 📌 `versionCode` **148**.
 
 ### v0.7.5.10_Compat
 

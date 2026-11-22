@@ -13,19 +13,28 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.5.10_Compat(versionCode 147, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.6_Compat(versionCode 148, 같은 메인 버전과 동일)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.5.10_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
+- **Android 9–15** · [호환 버전 v0.7.6_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 버전 기록
 
+
+### v0.7.6_Compat
+
+- 🔎 오답 노트의 검색 결과에서 원문으로 이동해 일치 부분을 강조하고 여러 결과를 순서대로 볼 수 있습니다.
+- 📚 집중 연습을 중간부터 이어 할 수 있습니다. 어려웠던 문제만 다시 풀고 건너뛴 문제도 선택해 포함할 수 있습니다.
+- 📖 하루 동안 복습 계획과 완료 상태를 유지하며 통계 화면에서 오늘 남은 복습을 바로 시작할 수 있습니다.
+- 💬 유사 문제는 문제 문장이 완성되면 바로 저장할 수 있습니다. 중단된 답변을 이어서 생성하고 저장된 대화를 검색할 수 있습니다.
+- ⬇️ 이미지 참조 캐시는 요청 단위로 정리합니다. 업데이트 다운로드가 멈추면 미러로 더 빠르게 전환하며, 수동 전환과 이어받기도 지원합니다.
+- 📌 `versionCode` **148**.
 
 ### v0.7.5.10_Compat
 

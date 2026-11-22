@@ -1,3 +1,10 @@
+v0.7.6
+· 🔎 Tap a notebook search excerpt to jump to and highlight its source. Move between matches when there is more than one.
+· 📚 Resume focused practice after leaving, or repeat difficult questions with the option to include skipped ones.
+· 📖 Daily review targets and progress persist throughout the day. Start today's pending reviews from Statistics.
+· 💬 Save a similar exercise once its question is complete. Resume its original answer after an interruption and search the saved conversation.
+· ⬇️ Image reference cache cleanup is scoped to the request. Update downloads switch to the mirror sooner when stalled and can be switched manually with resumable progress.
+
 v0.7.5.10
 · 💾 Large backups restore faster by writing each long text or image field once.
 · 📄 If saving an exported PDF or PNG fails, choose another destination and save the files already generated.

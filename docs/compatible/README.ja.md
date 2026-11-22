@@ -13,19 +13,28 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.5.10_Compat（versionCode 147、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.6_Compat（versionCode 148、同じメイン版と共通）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.5.10_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
+- **Android 9–15** · [互換版 v0.7.6_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
 
+
+### v0.7.6_Compat
+
+- 🔎 ノートの検索結果から原文へ移動して強調表示し、一致箇所が複数ある場合は順に切り替えられます。
+- 📚 集中練習を途中から再開できます。苦手な問題だけを解き直し、スキップした問題を含めることもできます。
+- 📖 日ごとの復習予定と進捗を保持し、統計画面から今日の残りの復習を開始できます。
+- 💬 類似問題は問題文が完成した時点で保存でき、中断後も同じ問題の解答を再開できます。保存した会話も検索できます。
+- ⬇️ 画像参照キャッシュの整理をリクエスト単位に限定しました。更新ダウンロードが止まった際にミラーへ早く切り替わり、手動での切り替えと再開にも対応します。
+- 📌 `versionCode` **148**.
 
 ### v0.7.5.10_Compat
 

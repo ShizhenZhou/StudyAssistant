@@ -13,19 +13,28 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.5.10_Compat（versionCode 147，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.6_Compat（versionCode 148，與主線同版本一致）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.5.10_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.5.10_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.6_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本記錄
 
+
+### v0.7.6_Compat
+
+- 🔎 點選錯題本搜尋結果中的片段可跳到原文並醒目顯示，多處命中可逐一切換。
+- 📚 專項練習支援中途退出後接續，可只重練不熟悉的題目，並選擇是否包含跳過的題。
+- 📖 正式複習按自然日保留計畫和完成進度，統計頁可直接開始今天待複習的題目。
+- 💬 同類題題幹成形後即可儲存。中斷後保留原題續寫，儲存後的搜尋正文與對話一致。
+- ⬇️ 圖片引用快取按本次請求清理。更新頁減少閒置重新整理，下載停滯時更快切換到鏡像站，也可手動切換並續傳。
+- 📌 `versionCode` **148**.
 
 ### v0.7.5.10_Compat
 
