@@ -137,34 +137,47 @@ internal suspend fun saveConversationExport(context: Context, result: Conversati
         copy(result.files.single(), destination)
         return@withContext
     }
-    run {
-        val treeId = DocumentsContract.getTreeDocumentId(destination)
-        val children = DocumentsContract.buildChildDocumentsUriUsingTree(destination, treeId)
-        val existingIds = mutableSetOf<String>(); val names = mutableSetOf<String>()
+    val treeId = DocumentsContract.getTreeDocumentId(destination)
+    fun childrenOf(parentId: String): MutableMap<String, String> {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(destination, parentId)
+        val entries = mutableMapOf<String, String>()
         checkNotNull(resolver.query(children, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)).use { cursor ->
-            while (cursor.moveToNext()) { existingIds.add(cursor.getString(0)); names.add(cursor.getString(1)) }
+            while (cursor.moveToNext()) { entries[cursor.getString(0)] = cursor.getString(1) }
         }
-        var name = result.name; var suffix = 2
-        while (name in names) name = "${result.name}_${suffix++}"
-        val folder = restoredFolder ?: checkNotNull(DocumentsContract.createDocument(resolver,
-            DocumentsContract.buildDocumentUriUsingTree(destination, treeId), DocumentsContract.Document.MIME_TYPE_DIR, name))
-        if (restoredFolder == null) check(DocumentsContract.getDocumentId(folder) !in existingIds)
-        else check(folder.authority == destination.authority && DocumentsContract.getTreeDocumentId(folder) == treeId)
-        try {
-            if (restoredFolder == null) onFolderCreated?.invoke(folder)
-            result.files.forEach { file ->
-                ensureActive()
-                val uri = restoredFiles[file.name] ?: checkNotNull(DocumentsContract.createDocument(resolver, folder, "image/png", file.name))
-                if (file.name !in restoredFiles) onFileCreated?.invoke(file.name, uri)
-                copy(file, uri)
-            }
-        } catch (error: Exception) {
-            // A ViewModel can be cleared while its durable export checkpoint remains recoverable.
-            if (error is CancellationException && onFolderCreated != null) throw error
-            // This folder was newly created by this operation. Existing exports are never removed.
-            runCatching { DocumentsContract.deleteDocument(resolver, folder) }
-            throw error
+        return entries
+    }
+    fun documentId(uri: Uri): String {
+        check(uri.authority == destination.authority && DocumentsContract.getTreeDocumentId(uri) == treeId)
+        return DocumentsContract.getDocumentId(uri)
+    }
+    val existing = childrenOf(treeId)
+    var name = result.name
+    var suffix = 2
+    while (name in existing.values) name = "${result.name}_${suffix++}"
+    val folder = restoredFolder ?: checkNotNull(DocumentsContract.createDocument(resolver,
+        DocumentsContract.buildDocumentUriUsingTree(destination, treeId), DocumentsContract.Document.MIME_TYPE_DIR, name))
+    val folderId = documentId(folder)
+    check(folderId != treeId && (folderId in existing) == (restoredFolder != null))
+    if (restoredFolder == null) onFolderCreated?.invoke(folder)
+    val pages = childrenOf(folderId)
+    for (file in result.files) {
+        ensureActive()
+        val restored = restoredFiles[file.name]
+        val uri = if (restored != null) {
+            check(pages[documentId(restored)] == file.name)
+            restored
+        } else {
+            // A process death between creation and journaling can leave an unowned name here.
+            check(file.name !in pages.values)
+            val created = checkNotNull(DocumentsContract.createDocument(resolver, folder, "image/png", file.name))
+            val id = documentId(created)
+            check(id != folderId && id != treeId && id !in existing && id !in pages)
+            pages[id] = file.name
+            onFileCreated?.invoke(file.name, created)
+            created
         }
+        // Keep partial external pages on failure: a shared folder can also contain user files.
+        copy(file, uri)
     }
 }

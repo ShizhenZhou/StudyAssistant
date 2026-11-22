@@ -382,7 +382,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val sessionState = SolveSessionState()
     private val requestLifecycle = SolveRequestLifecycle()
     private val generation = com.zsz.studyassistant.data.ConversationGeneration(
-        app, viewModelScope, requestLifecycle, { documentStore }, { recordUsage(app, it) }
+        app, viewModelScope, requestLifecycle, { documentStore }, { usage, calls -> recordUsage(app, usage, calls) }
     )
     var imageBytes by sessionState::imageBytes
     var chatItems by sessionState::chatItems
@@ -1807,8 +1807,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     /** 每次接口调用后：写入统计并刷新界面状态 */
-    private fun recordUsage(app: Application, usage: com.zsz.studyassistant.data.DeepSeekUsage?) {
-        com.zsz.studyassistant.data.UsageStats.add(app, usage)
+    private fun recordUsage(app: Application, usage: com.zsz.studyassistant.data.DeepSeekUsage?, calls: Int) {
+        com.zsz.studyassistant.data.UsageStats.add(app, usage, calls)
         refreshUsage()
     }
 
@@ -2959,7 +2959,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var similarMessages by mutableStateOf<List<ChatItem>>(emptyList())
         private set
-    /** 同类题的答案是否已显示（原在页面上；挪到 VM 以便多选删除时统一处理） */
+    /** 同类题的参考答案是否已展开。 */
     var similarRevealed by mutableStateOf(false)
         private set
 
@@ -2986,25 +2986,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         { question, lang, think, owner, delta -> StudyAssistant.generateSimilarQuestionStream(question, lang, owner, delta,
             customPrompt = promptForSubject(question.categoryId), thinkingEnabled = think) }
 
-    /**
-     * 删除同类题会话中的消息。索引按界面渲染顺序：
-     *   0            = AI 出的题目（删它 = 整段会话失去上下文 → 清空，等价于重新出题）
-     *   1..n         = 追问往返（对应 similarMessages[0..n-1]）
-     *   末位（答案已显示时）= 答案（删它 = 收起答案，可再点「查看答案」）
-     */
+    /** 只有追问往返可以删除，其显示索引从题目之后的 1 开始。 */
     fun deleteSimilarItems(indices: List<Int>) {
-        if (indices.isEmpty()) return
-        val hasAnswer = similarRevealed && similarAnswer != null
-        val total = 1 + similarMessages.size + (if (hasAnswer) 1 else 0)
-        if (indices.contains(0)) {
-            abortSimilar()
-            similarQuestion = null
-            similarAnswer = null
-            similarMessages = emptyList()
-            similarRevealed = false
-            return
-        }
-        if (hasAnswer && indices.contains(total - 1)) similarRevealed = false
+        if (similarBusy || indices.isEmpty()) return
         val kill = indices.filter { it in 1..similarMessages.size }.map { it - 1 }.toSet()
         if (kill.isNotEmpty()) {
             similarMessages = similarMessages.filterIndexed { i, _ -> i !in kill }
@@ -3114,6 +3098,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             similarAnswer = Regex("解答[:：]([\\s\\S]+)").find(partial)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() }
             similarStreamingText = null
         } else {
+            if (similarStreamingText == null) return // 附图仍在准备，尚未提交追问。
             // 追问阶段被中止：把已生成片段保留成正式消息，避免白等
             if (!partial.isNullOrBlank()) {
                 similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", partial)
@@ -3133,45 +3118,76 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         { model, messages, owner, onDelta -> StudyAssistant.chatStream(model, messages, documentStore = documentStore, owner = owner, onDelta = onDelta,
             task = "followup", thinkingEnabled = thinkingEnabled) }
 
-    fun sendSimilar(text: String, images: List<ByteArray> = emptyList()): Boolean {
+    fun sendSimilar(
+        text: String,
+        images: List<ByteArray> = emptyList(),
+        onAccepted: () -> Unit = {},
+        onFailure: (String) -> Unit = {}
+    ): Boolean {
+        if (similarBusy) return false
         val qTitle = similarQuestion ?: return false
         val txt = text.trim()
         if (txt.isEmpty() && images.isEmpty()) return false
-        val prompt = customPromptText(currentReviewQuestion?.categoryId) ?: return false
-        abortSimilar()
-        similarMessages = similarMessages + ChatItem(
-            similarMessages.size.toLong(),
-            "user",
-            txt.ifBlank { "[图片]" },
-            images.map { Base64.encodeToString(it, Base64.NO_WRAP) }
-        )
+        val prompt = customPromptText(currentReviewQuestion?.categoryId) ?: run {
+            error?.let(onFailure)
+            return false
+        }
+        val encodingError = com.zsz.studyassistant.ui.stringsFor(uiLang)["inputDraft.imageEncodingFailed"]
+        // The caller still owns its mutable bytes while the dispatcher prepares the request.
+        val sources = try { images.map { it.copyOf() } } catch (_: OutOfMemoryError) {
+            onFailure(encodingError)
+            return false
+        }
+        val previous = similarMessages.map { it.copy(images = it.images?.toList()) }
+        val answer = similarAnswer
+        val system = StudyAssistant.systemMessage(aiLang, prompt)
         val mySeq = ++similarSeq
         similarStreamOwner?.cancel()
         similarJob?.cancel()
         val owner = com.zsz.studyassistant.data.StreamOwner()
         similarStreamOwner = owner
         similarBusy = true
-        similarStreamingText = ""
-        val history = similarMessages.map { it.copy(images = it.images?.toList()) }
-        val baseCount = history.size
-        val msgs = buildList {
-            add(StudyAssistant.systemMessage(aiLang, prompt))
-            add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
-            similarAnswer?.takeIf { it.isNotBlank() }?.let { add(DeepSeekMessage("assistant", JsonPrimitive(it))) }
-            addAll(chatMessages(history))
-        }
-        val model = if (history.any { !it.images.isNullOrEmpty() }) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
+        val baseCount = previous.size + 1
         val request = similarChatRequest
         val progress = SimilarProgress(initial = false)
         similarProgress = progress
         similarJob = viewModelScope.launch {
             val app = getApplication<Application>()
-            com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
             val sb = progress.raw
             var lastEmit = 0L
             var answerCompleted = false
             try {
+                val (history, msgs) = try {
+                    withContext(Dispatchers.Default) {
+                        val encoded = sources.map { bytes ->
+                            ensureActive()
+                            Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        }
+                        val history = previous + ChatItem(previous.size.toLong(), "user", txt.ifBlank { "[图片]" }, encoded)
+                        val messages = buildList {
+                            add(system)
+                            add(DeepSeekMessage("user", JsonPrimitive("题目：$qTitle")))
+                            answer?.takeIf { it.isNotBlank() }?.let { add(DeepSeekMessage("assistant", JsonPrimitive(it))) }
+                            addAll(chatMessages(history))
+                        }
+                        history to messages
+                    }
+                } catch (_: OutOfMemoryError) {
+                    if (mySeq == similarSeq) onFailure(encodingError)
+                    return@launch
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (mySeq == similarSeq) onFailure(friendlyError(e, encodingError))
+                    return@launch
+                }
+                if (mySeq != similarSeq) return@launch
+                similarMessages = history
+                similarStreamingText = ""
+                onAccepted()
+                com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
                 val reply = withContext(Dispatchers.IO) {
+                    val model = if (history.any { !it.images.isNullOrEmpty() }) StudyAssistant.MODEL_VISION else StudyAssistant.MODEL_TEXT
                     request(model, msgs, owner) { delta ->
                         sb.append(delta)
                         val now = System.currentTimeMillis()
@@ -3217,7 +3233,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         val current = sequence == similarSeq
         try {
-            if (completed || owner.usage != null) recordUsage(app, owner.usage)
+            if (owner.submittedCalls > 0) recordUsage(app, owner.usage, owner.submittedCalls)
         } finally {
             if (current) { similarBusy = false; similarProgress = null }
             com.zsz.studyassistant.data.AnswerForegroundService.stop(app, owner.id, completed = completed && current)
@@ -3225,7 +3241,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- 同类题：存错题本（逻辑与解题页一致：分类 + 标签，可取消保存）----
-    private var similarIdentity = QuestionIdentity.create()
+    internal var similarIdentity = QuestionIdentity.create()
+        private set
     private var similarCreatedAt = System.currentTimeMillis()
     var similarSavedQuestionId by mutableStateOf<QuestionId?>(null)
         private set

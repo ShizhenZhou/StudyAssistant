@@ -5,8 +5,11 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.File
 import java.io.IOException
-import java.security.MessageDigest
+import java.io.InputStream
 import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.security.MessageDigest
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -60,26 +63,15 @@ class DocumentStore(context: Context) {
         val name = displayName?.substringAfterLast('/')?.substringAfterLast('\\')?.filter { it.code >= 32 }
             ?.takeIf { it.length in 1..200 } ?: throw DocumentProblem("document.invalid")
         if (name.substringAfterLast('.', "").lowercase() !in DOCUMENT_EXTENSIONS) throw DocumentProblem("document.invalid")
-        ensureDirectory()
-        val temp = File.createTempFile("import-", ".tmp", directory)
+        val temp = createTemp("import-")
         try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            var size = 0L
-            resolver.openInputStream(uri)?.use { input -> temp.outputStream().use { output ->
-                val buffer = ByteArray(65536)
-                while (true) {
-                    context.ensureActive()
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    size += count
-                    if (size > MAX_BYTES) throw DocumentProblem("document.tooLarge")
-                    digest.update(buffer, 0, count); output.write(buffer, 0, count)
-                }
-                output.fd.sync()
-            } } ?: throw DocumentProblem("document.readFailed")
+            val (size, sha) = resolver.openInputStream(uri)?.use { input ->
+                copyAndHash(input, temp, MAX_BYTES, "document.tooLarge") { context.ensureActive() }
+            } ?: throw DocumentProblem("document.readFailed")
             if (size == 0L) throw DocumentProblem("document.invalid")
-            val document = ConversationDocument(digest.digest().hex(), name, size)
-            install(temp, document) { context.ensureActive() }
+            val document = ConversationDocument(sha, name, size)
+            validateDocument(document)
+            publishVerifiedTemp(temp, document) { context.ensureActive() }
             return document
         } finally { temp.delete() }
     }
@@ -100,42 +92,66 @@ class DocumentStore(context: Context) {
     }
 
     /** Also used by backup import, before any DB merge; never deletes or overwrites existing originals. */
-    fun install(source: File, document: ConversationDocument, check: () -> Unit = {}): File = withOriginalsLock {
-        validateDocument(document); ensureDirectory()
-        val target = File(directory, document.sha256)
-        if (target.exists()) {
-            if (Files.isSymbolicLink(target.toPath()) || target.length() != document.size || hash(target, check) != document.sha256)
-                throw DocumentProblem("document.damaged")
-            if (!target.setLastModified(System.currentTimeMillis())) throw DocumentProblem("document.readFailed")
-            return@withOriginalsLock target
-        }
-        val temp = File.createTempFile("install-", ".tmp", directory)
+    fun install(source: File, document: ConversationDocument, check: () -> Unit = {}): File {
+        validateDocument(document)
+        if (!Files.isRegularFile(source.toPath(), NOFOLLOW_LINKS) || source.length() != document.size)
+            throw DocumentProblem("document.damaged")
+        val temp = createTemp("install-")
         try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            var copied = 0L
-            source.inputStream().use { input -> temp.outputStream().use { output ->
-                val buffer = ByteArray(65536)
-                while (true) {
-                    check()
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    copied += count
-                    if (copied > document.size) throw DocumentProblem("document.damaged")
-                    digest.update(buffer, 0, count); output.write(buffer, 0, count)
-                }
-                output.fd.sync()
-            } }
-            if (copied != document.size || digest.digest().hex() != document.sha256) throw DocumentProblem("document.damaged")
-            check()
-            if (!temp.renameTo(target)) {
-                if (!target.isFile || hash(target, check) != document.sha256) throw IOException("Cannot install document")
+            // An existing original needs no second full-size staging file, even on a nearly full disk.
+            val existing = withOriginalsLock { verifiedExistingOriginal(File(directory, document.sha256), document, check) }
+            if (existing != null) {
+                if (hash(source, check) != document.sha256) throw DocumentProblem("document.damaged")
+                return existing
             }
-            target
+            val (size, sha) = source.inputStream().use { input ->
+                copyAndHash(input, temp, document.size, "document.damaged", check)
+            }
+            if (size != document.size || sha != document.sha256) throw DocumentProblem("document.damaged")
+            return publishVerifiedTemp(temp, document, check)
         } finally { temp.delete() }
     }
 
-    private fun ensureDirectory() {
+    private fun copyAndHash(input: InputStream, temp: File, limit: Long, tooLarge: String,
+        check: () -> Unit): Pair<Long, String> {
+        val digest = MessageDigest.getInstance("SHA-256")
+        var size = 0L
+        temp.outputStream().use { output ->
+            val buffer = ByteArray(65536)
+            while (true) {
+                check()
+                val count = input.read(buffer)
+                if (count < 0) break
+                size += count
+                if (size > limit) throw DocumentProblem(tooLarge)
+                output.write(buffer, 0, count)
+                digest.update(buffer, 0, count)
+            }
+            output.fd.sync()
+        }
+        return size to digest.digest().hex()
+    }
+
+    private fun publishVerifiedTemp(temp: File, document: ConversationDocument, check: () -> Unit): File = withOriginalsLock {
+        check()
+        val target = File(directory, document.sha256)
+        if (verifiedExistingOriginal(target, document, check) == null)
+            Files.move(temp.toPath(), target.toPath(), ATOMIC_MOVE)
+        target
+    }
+
+    private fun verifiedExistingOriginal(target: File, document: ConversationDocument, check: () -> Unit): File? {
+        if (!Files.exists(target.toPath(), NOFOLLOW_LINKS)) return null
+        if (!Files.isRegularFile(target.toPath(), NOFOLLOW_LINKS) || target.length() != document.size || hash(target, check) != document.sha256)
+            throw DocumentProblem("document.damaged")
+        if (!target.setLastModified(System.currentTimeMillis())) throw DocumentProblem("document.readFailed")
+        return target
+    }
+
+    private fun createTemp(prefix: String): File = withOriginalsLock {
         if (Files.isSymbolicLink(directory.toPath()) || (!directory.isDirectory && !directory.mkdirs())) throw IOException("Cannot create document storage")
+        recoverInterruptedWrites(directory)
+        File.createTempFile(prefix, ".tmp", directory)
     }
 
     internal val selectionDirectory = File(context.cacheDir, "document-selections")
@@ -143,6 +159,22 @@ class DocumentStore(context: Context) {
     companion object {
         private val originalsLock = Any()
         internal fun <T> withOriginalsLock(block: () -> T): T = synchronized(originalsLock) { block() }
+        private val recoveredDirectories = mutableSetOf<File>()
+        private val tempName = Regex("""(?:import|install)-[0-9]+\.tmp""")
+
+        // This single-process store recovers once, under the same lock as the first temp creation.
+        internal fun recoverInterruptedWrites(directory: File): Unit = withOriginalsLock {
+            if (!Files.isDirectory(directory.toPath(), NOFOLLOW_LINKS)) return@withOriginalsLock
+            val originalDirectory = directory.canonicalFile
+            if (originalDirectory in recoveredDirectories) return@withOriginalsLock
+            Files.newDirectoryStream(originalDirectory.toPath()).use { paths ->
+                for (path in paths) {
+                    if (tempName.matches(path.fileName.toString()) && Files.isRegularFile(path, NOFOLLOW_LINKS))
+                        Files.delete(path)
+                }
+            }
+            recoveredDirectories.add(originalDirectory)
+        }
         const val MAX_BYTES = 100L * 1024 * 1024
         fun validateDocument(document: ConversationDocument) = com.zsz.studyassistant.data.validateDocument(document)
         fun hash(file: File, check: () -> Unit = {}): String {

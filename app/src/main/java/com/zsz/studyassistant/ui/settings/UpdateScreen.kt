@@ -125,7 +125,7 @@ suspend fun silentUpdateCheck(context: Context) {
 }
 
 /** 页面阶段 */
-private enum class Phase { RESTORING, IDLE, CHECKING, UP_TO_DATE, FOUND, DOWNLOADING, WAITING, VERIFYING, READY, FAILED }
+private enum class Phase { RESTORING, IDLE, CHECKING, CHECK_FAILED, UP_TO_DATE, FOUND, DOWNLOADING, WAITING, VERIFYING, READY, FAILED }
 
 private fun formatUpdateSize(bytes: Long): String = when {
     bytes >= 1024 * 1024 -> String.format("%.1f MB", bytes / 1024.0 / 1024.0)
@@ -205,8 +205,8 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     // Observing the task belongs to the page; the actual transfer belongs to Android.
     LaunchedEffect(downloads, lifecycleOwner, s["update.background"], promptRelease) {
         if (promptRelease != null && (latest?.assetSha256 != promptRelease.assetSha256 ||
-                (phase in setOf(Phase.RESTORING, Phase.IDLE, Phase.UP_TO_DATE, Phase.FOUND, Phase.FAILED) && latest != promptRelease)) &&
-            (promptRelease.mandatory || phase in setOf(Phase.RESTORING, Phase.IDLE, Phase.UP_TO_DATE, Phase.FOUND, Phase.FAILED))) {
+                (phase in setOf(Phase.RESTORING, Phase.IDLE, Phase.UP_TO_DATE, Phase.FOUND, Phase.CHECK_FAILED, Phase.FAILED) && latest != promptRelease)) &&
+            (promptRelease.mandatory || phase in setOf(Phase.RESTORING, Phase.IDLE, Phase.UP_TO_DATE, Phase.FOUND, Phase.CHECK_FAILED, Phase.FAILED))) {
             operationGeneration++
             downloadActionJob?.cancel()
             latest = promptRelease; offers = listOf(promptRelease)
@@ -299,7 +299,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
             val releases = if (fetchReleases != null) fetchReleases() else UpdateChecker.fetchAvailable(context)
             if (generation != operationGeneration) return@launch
             if (releases == null) {
-                phase = Phase.FAILED
+                phase = Phase.CHECK_FAILED
                 message = s["update.netError"]
                 return@launch
             }
@@ -425,7 +425,7 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
     // ── 状态 / 下载 / 安装 ──
     Card(shape = smoothShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
-            if (phase != Phase.FOUND && latest?.channel == UpdateChecker.Channel.BETA) {
+            if (phase != Phase.FOUND && phase != Phase.CHECK_FAILED && latest?.channel == UpdateChecker.Channel.BETA) {
                 Text(s["update.channel.beta"], fontWeight = FontWeight.SemiBold)
                 Text(s["update.betaWarning"], style = MaterialTheme.typography.bodySmall, color = BADGE_RED)
             }
@@ -572,11 +572,11 @@ internal fun UpdatePage(taskStore: UpdateDownloads? = null,
                         Text(s["update.install"])
                     }
                 }
-                Phase.FAILED -> {
+                Phase.CHECK_FAILED, Phase.FAILED -> {
                     Text(message ?: s["update.netError"], style = MaterialTheme.typography.bodyMedium, color = BADGE_RED)
                     Spacer(Modifier.height(12.dp))
-                    // 检查就失败（latest 还是空）→ 重试「检查」；下载/校验失败 → 重新「下载」
-                    if (latest == null || latest?.let { UpdateChecker.compatibilityError(it) != null } == true) {
+                    // 上次的版本仍可能在缓存中。重试操作由此次失败的阶段决定。
+                    if (phase == Phase.CHECK_FAILED || latest == null || latest?.let { UpdateChecker.compatibilityError(it) != null } == true) {
                         Button(onClick = { startCheck() }, shape = smoothPill(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                             Text(s["update.retry"])
                         }

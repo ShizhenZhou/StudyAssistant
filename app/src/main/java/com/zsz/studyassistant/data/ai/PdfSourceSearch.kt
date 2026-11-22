@@ -52,17 +52,19 @@ internal object PdfSourceSearch {
         val pdfs = documents.filter { it.name.endsWith(".pdf", ignoreCase = true) }
             .distinctBy { it.requestKey }
         if (pdfs.size > 20) throw DocumentProblem("document.tooMany")
+        val originals = pdfs.groupBy { it.sha256 }.values
         PDFBoxResourceLoader.init(store.context)
         require(store.selectionDirectory.isDirectory || store.selectionDirectory.mkdirs())
         val scratch = File(store.selectionDirectory, "source-${UUID.randomUUID()}")
-        val retained = session?.retainedPages(pdfs) ?: mutableMapOf()
+        val retained = session?.retainedPages(pdfs) ?: mutableSetOf()
         require(scratch.mkdir())
         var total = 0
         val matches = mutableListOf<PdfSourceMatch>()
         try {
-            for ((documentIndex, document) in pdfs.withIndex()) {
+            for ((documentIndex, selections) in originals.withIndex()) {
                 check()
-                onProgress(PdfSourceProgress(document.name, documentIndex + 1, pdfs.size))
+                val document = selections.first()
+                onProgress(PdfSourceProgress(document.name, documentIndex + 1, originals.size))
                 // Always hash the complete original, even if every selected page is cached.
                 val file = store.verifiedFile(document, check)
                 var opened: PDDocument? = null
@@ -77,17 +79,21 @@ internal object PdfSourceSearch {
                 }
                 try {
                     val count = session?.pageCount(document.sha256) ?: open().numberOfPages
-                    val pages = originalPages(document, count)
+                    val pages = sortedMapOf<Int, ConversationDocument>()
+                    for (selection in selections) {
+                        if (selection.size != document.size) throw DocumentProblem("document.damaged")
+                        for (page in originalPages(selection, count)) pages.putIfAbsent(page, selection)
+                    }
                     check()
                     session?.rememberPageCount(document.sha256, count)
                     var stripper: PDFTextStripper? = null
-                    for ((pageOffset, page) in pages.withIndex()) {
+                    for ((pageOffset, entry) in pages.entries.withIndex()) {
+                        val (page, selection) = entry
                         check()
-                        onProgress(PdfSourceProgress(document.name, documentIndex + 1, pdfs.size,
+                        onProgress(PdfSourceProgress(selection.name, documentIndex + 1, originals.size,
                             pageOffset, pages.size, page + 1))
                         val cached = session?.page(document.sha256, page)
-                        val key = document.sha256 to page
-                        if (retained[key] == documentIndex) retained.remove(key)
+                        retained.remove(document.sha256 to page)
                         val normalized = if (cached != null) {
                             total += cached.extractedChars
                             if (total > MAX_TOTAL_CHARS) throw DocumentProblem("pdfSource.tooLarge")
@@ -112,20 +118,20 @@ internal object PdfSourceSearch {
                             extractor.writeText(pdf, writer)
                             normalize(out.toString()).also {
                                 check()
-                                session?.rememberPage(document.sha256, page, PdfSourceSession.Page(it, out.length), retained.keys)
+                                session?.rememberPage(document.sha256, page, PdfSourceSession.Page(it, out.length), retained)
                             }
                         }
                         if (normalized.contains(needle)) {
-                            matches += PdfSourceMatch(document, page)
+                            matches += PdfSourceMatch(selection, page)
                             if (matches.size > 100) throw DocumentProblem("pdfSource.tooManyMatches")
                         }
                         check()
-                        onProgress(PdfSourceProgress(document.name, documentIndex + 1, pdfs.size,
+                        onProgress(PdfSourceProgress(selection.name, documentIndex + 1, originals.size,
                             pageOffset + 1, pages.size, page + 1))
                     }
                 } finally { opened?.close() }
             }
-            return matches.distinctBy { it.document.sha256 to it.pageIndex }
+            return matches
         } finally { scratch.deleteRecursively() }
     }
 }

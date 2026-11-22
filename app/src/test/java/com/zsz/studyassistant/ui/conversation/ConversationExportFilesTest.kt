@@ -24,9 +24,9 @@ class ConversationExportFilesTest {
         assertTrue(unknown.isFile)
         assertTrue(uuidFile.isFile)
         assertFalse(orphan.exists())
-        // Missing/corrupt journal has no active task; repeat cleanup is safe.
-        ConversationExportFiles.cleanupInactive(root, null)
-        ConversationExportFiles.cleanupInactive(root, null)
+        // Explicit discard removes private task folders and is safe to repeat.
+        ConversationExportFiles.discardUnrestored(root)
+        ConversationExportFiles.discardUnrestored(root)
         assertFalse(active.exists())
         assertTrue(unknown.isFile)
     }

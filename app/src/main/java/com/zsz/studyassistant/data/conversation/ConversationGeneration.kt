@@ -12,7 +12,7 @@ internal class ConversationGeneration(
     private val scope: CoroutineScope,
     private val lifecycle: SolveRequestLifecycle,
     private val documentStore: () -> DocumentStore,
-    private val recordUsage: (DeepSeekUsage?) -> Unit
+    private val recordUsage: (DeepSeekUsage?, Int) -> Unit
 ) {
     data class Request(
         val model: String,
@@ -106,7 +106,7 @@ internal class ConversationGeneration(
                 if (e is CancellationException) throw e
             } finally {
                 try {
-                    recordUsage(owner.usage)
+                    if (owner.submittedCalls > 0) recordUsage(owner.usage, owner.submittedCalls)
                 } finally {
                     if (current()) {
                         events.finished(keepPartial)

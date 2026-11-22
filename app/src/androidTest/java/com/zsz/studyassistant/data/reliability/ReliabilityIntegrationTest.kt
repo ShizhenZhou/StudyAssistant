@@ -226,6 +226,9 @@ class ReliabilityIntegrationTest {
         }
         try {
             val originals = File(storageContext.filesDir, "ai-documents").apply { mkdirs() }
+            val importTemp = File.createTempFile("import-", ".tmp", originals)
+            val installTemp = File.createTempFile("install-", ".tmp", originals)
+            val unknown = File(originals, "import-other.tmp").apply { writeText("keep") }
             val hash = "a".repeat(64)
             val original = File(originals, hash).apply { writeText("synthetic original") }
             val old = System.currentTimeMillis() - 9L * 24 * 60 * 60 * 1000
@@ -241,6 +244,12 @@ class ReliabilityIntegrationTest {
             val result = DocumentStorageMaintenance.inspect(storageContext, db, emptySet(), clean = true)
             assertEquals(0, result.removedCount)
             assertTrue(original.isFile)
+            assertFalse(importTemp.exists())
+            assertFalse(installTemp.exists())
+            assertTrue(unknown.isFile)
+            val currentTemp = File.createTempFile("import-", ".tmp", originals)
+            DocumentStore.recoverInterruptedWrites(originals)
+            assertTrue(currentTemp.exists())
             for (invalid in listOf("not-json", """[{"documents":null}]""",
                 """[{"documents":[{"sha256":"$hash","sha256":"$hash"}]}]""")) {
                 db.getSupportWrapper().execSQL("UPDATE questions SET conversationJson=? WHERE id=?", arrayOf(invalid, id))

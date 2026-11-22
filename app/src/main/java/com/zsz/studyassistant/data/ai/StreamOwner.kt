@@ -9,6 +9,10 @@ class StreamOwner {
     private var cancelled = false
     private var cancelAction: (() -> Unit)? = null
     @Volatile var usage: DeepSeekUsage? = null
+    @Volatile var submittedCalls: Int = 0
+        private set
+    // Attempts for one owner are sequential, including the inline-image fallback.
+    internal fun recordSubmission() { submittedCalls++ }
     @Volatile var conversationTitle: String? = null
     @Volatile var responseContext: AiResponseContext? = null
     /** Only a terminal length response with complete tool metadata can be replayed safely. */

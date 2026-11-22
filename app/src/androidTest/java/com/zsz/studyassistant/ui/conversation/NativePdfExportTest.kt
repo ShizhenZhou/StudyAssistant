@@ -117,12 +117,20 @@ class NativePdfExportTest {
                     // A fresh owner models process-local state loss without force-stopping the test runner.
                     recovered = androidx.lifecycle.ViewModelProvider(restoredStore,
                         androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(activity.application))[ConversationExportViewModel::class.java]
-                    assertEquals(session, recovered?.session)
                 }
+                awaitMain("restored checkpoint") { recovered?.session == session }
                 assertArrayEquals("Activity disposal must retain prepared output", preparedBytes, output.readBytes())
                 val snapshot = kotlinx.serialization.json.Json.decodeFromString<List<ChatMsg>>(
                     File(root, "${session.id}/messages.json").readText())
                 assertEquals("The complete frozen selection must remain recoverable", selected, snapshot)
+                instrumentation.runOnMainSync {
+                    checkNotNull(recovered).destination(android.net.Uri.parse("content://${context.packageName}.missing-fixture/export"))
+                }
+                awaitMain("destination failure retains output") { recovered?.session?.phase == ExportPhase.CHOOSE_AGAIN }
+                assertArrayEquals(preparedBytes, output.readBytes())
+                instrumentation.runOnMainSync { checkNotNull(recovered).chooseDestinationAgain() }
+                awaitMain("ready for replacement destination") { recovered?.session?.phase == ExportPhase.READY }
+                runBlocking(Dispatchers.Main) { assertTrue(checkNotNull(recovered).picking()) }
                 val uri = checkNotNull(context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                     ContentValues().apply {
                         put(MediaStore.Downloads.DISPLAY_NAME, "recovered-${session.id}.pdf")
@@ -142,6 +150,7 @@ class NativePdfExportTest {
                     assertTrue(text.contains("RECOVERQUESTION"))
                     assertTrue(text.contains("RECOVERANSWER"))
                 }
+                awaitMain("completed task cleanup") { !File(root, session.id).exists() }
                 assertFalse("Completion clears only its recovery journal", File(root, "active.json").exists())
             }
         } finally {

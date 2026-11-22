@@ -12,11 +12,15 @@ import java.util.UUID
 /** Only private UUID task folders are owned here. Never traverse a symbolic link. Call on IO. */
 internal object ConversationExportFiles {
     fun cleanupInactive(root: File, activeId: String?) {
-        if (!Files.isDirectory(root.toPath(), NOFOLLOW_LINKS)) return
-        root.listFiles()?.forEach { file ->
-            if (file.name != activeId && isTaskId(file.name) && Files.isDirectory(file.toPath(), NOFOLLOW_LINKS))
-                runCatching { deleteTask(root, file.name) }
-        }
+        taskFolders(root).filter { it.name != activeId }.forEach { runCatching { deleteTask(root, it.name) } }
+    }
+
+    fun discardUnrestored(root: File) = taskFolders(root).forEach { deleteTask(root, it.name) }
+
+    private fun taskFolders(root: File): List<File> {
+        if (Files.notExists(root.toPath(), NOFOLLOW_LINKS)) return emptyList()
+        check(Files.isDirectory(root.toPath(), NOFOLLOW_LINKS))
+        return checkNotNull(root.listFiles()).filter { isTaskId(it.name) && Files.isDirectory(it.toPath(), NOFOLLOW_LINKS) }
     }
 
     fun isTaskId(id: String): Boolean = runCatching { UUID.fromString(id).toString() == id }.getOrDefault(false)

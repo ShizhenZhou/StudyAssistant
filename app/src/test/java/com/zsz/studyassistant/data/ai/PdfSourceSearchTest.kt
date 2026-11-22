@@ -12,7 +12,7 @@ class PdfSourceSearchTest {
             var extracted = 0
             for (page in pages) if (session.page("a", page) == null) {
                 extracted++
-                session.rememberPage("a", page, PdfSourceSession.Page("page$page", 8), retained.keys)
+                session.rememberPage("a", page, PdfSourceSession.Page("page$page", 8), retained)
             }
             return extracted
         }
@@ -31,9 +31,8 @@ class PdfSourceSearchTest {
         val page = PdfSourceSession.Page("cached", 6)
         repeat(2) { session.rememberPage(b.sha256, it, page) }
         val retained = session.retainedPages(listOf(a, b, b.copy(pages = listOf(0))))
-        assertEquals(2, retained[b.sha256 to 0])
-        assertEquals(1, retained[b.sha256 to 1])
-        repeat(2) { session.rememberPage(a.sha256, it, page, retained.keys) }
+        assertEquals(setOf(b.sha256 to 0, b.sha256 to 1), retained)
+        repeat(2) { session.rememberPage(a.sha256, it, page, retained) }
         repeat(2) { assertEquals(page, session.page(b.sha256, it)) }
     }
 

@@ -56,16 +56,18 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     androidx.compose.runtime.DisposableEffect(vm) { onDispose { vm.abortSimilar() } }
     val context = androidx.compose.ui.platform.LocalContext.current
     val s = LocalStrings.current
-    var input by remember { mutableStateOf("") }
+    val sessionId = vm.similarIdentity
+    var input by remember(sessionId) { mutableStateOf("") }
     // 多选（长按进入）：与原消息界面就地操作
-    var showSaveDialog by remember { mutableStateOf(false) }
+    var showSaveDialog by remember(sessionId) { mutableStateOf(false) }
     // 思考区展开/折叠的全局记忆（与解题页共用同一份偏好，跨题目一致）
     var thinkPref by remember {
         mutableStateOf(com.zsz.studyassistant.data.CapturePrefs.thinkExpandPref(context))
     }
     // 追问附图（与解题页一致，最多 3 张）
-    var selectedImages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
-    var pickingImages by remember { mutableStateOf(false) }
+    var selectedImages by remember(sessionId) { mutableStateOf<List<ByteArray>>(emptyList()) }
+    var pickingImages by remember(sessionId) { mutableStateOf(false) }
+    var pickerSession by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val imageScope = rememberCoroutineScope()
     val feedback = LocalAppFeedback.current
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -74,14 +76,15 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(3)
     ) { uris ->
-        if (uris.isNotEmpty() && !pickingImages) {
-            val question = vm.similarQuestion
+        val owner = pickerSession
+        pickerSession = null
+        if (owner == sessionId && owner == vm.similarIdentity && uris.isNotEmpty() && !pickingImages) {
             val remaining = (3 - selectedImages.size).coerceAtLeast(0)
             pickingImages = true
             imageScope.launch {
                 try {
                     val picked = withContext(Dispatchers.IO) { urisToCompressedBytes(context, uris.take(remaining)) }
-                    if (question == vm.similarQuestion) {
+                    if (owner == vm.similarIdentity) {
                         if (picked == null) feedback.show(s["camera.errRead"])
                         else selectedImages = (selectedImages + picked).take(3)
                     }
@@ -101,10 +104,16 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
     val question = vm.similarQuestion
     val answer = vm.similarAnswer
     val revealed = vm.similarRevealed
+    val followups = vm.similarMessages
+    val followupBubbles = remember(followups) {
+        followups.map { item ->
+            ChatMsg(if (item.role == "assistant") "assistant" else "user", item.content, images = item.images.orEmpty())
+        }
+    }
     // ⚠️ remember 的键必须包含「出题被中止」与「忙碌」状态，否则中止后不会重算 → 蓝色「继续生成」永远不出现
     val messages = remember(
         question, answer, s,
-        vm.similarMessages,
+        followupBubbles,
         revealed,
         vm.similarStreamingText,
         vm.similarBusy,
@@ -123,7 +132,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                 }
                 add(ChatMsg("assistant", content))
             }
-            for (m in vm.similarMessages) add(ChatMsg(if (m.role == "assistant") "assistant" else "user", m.content))
+            addAll(followupBubbles)
             // 追问中：把流式回复作为最后一条实时气泡；首字未到时显示「思考中…」
             if (vm.similarQuestion != null && vm.similarStreamingText != null) {
                 val live = vm.similarStreamingText!!
@@ -133,13 +142,14 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         }
     }
 
-    var editMode by remember(question, vm.similarMessages, revealed, vm.similarBusy) { mutableStateOf(false) }
-    var selectedIndices by remember(question, vm.similarMessages, revealed, vm.similarBusy) { mutableStateOf<Set<Int>>(emptySet()) }
-    var showDeleteConfirm by remember(question, vm.similarMessages, revealed, vm.similarBusy) { mutableStateOf(false) }
-    // 多选时禁止删除：AI 出的题目（第一条 assistant 消息）
-    val lockedIndices = remember(messages) {
+    var editMode by remember(sessionId, followups, revealed, vm.similarBusy) { mutableStateOf(false) }
+    var selectedIndices by remember(sessionId, followups, revealed, vm.similarBusy) { mutableStateOf<Set<Int>>(emptySet()) }
+    var showDeleteConfirm by remember(sessionId, followups, revealed, vm.similarBusy) { mutableStateOf(false) }
+    // 只允许选择追问往返；题目和已展开的参考答案均为固定气泡。
+    val lockedIndices = remember(messages, revealed, answer) {
         buildSet {
             messages.indexOfFirst { it.role == "assistant" }.takeIf { it >= 0 }?.let { add(it) }
+            if (revealed && answer != null) add(messages.lastIndex)
         }
     }
 
@@ -312,12 +322,19 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                     onValueChange = { input = it },
                     images = selectedImages,
                     onRemoveImage = { selectedImages = selectedImages - it },
-                    onPickImages = { imagePicker.launch(imagePickRequest(maxItems = 3)) },
+                    onPickImages = {
+                        pickerSession = sessionId
+                        imagePicker.launch(imagePickRequest(maxItems = 3))
+                    },
                     onSend = {
-                        if (vm.sendSimilar(input, selectedImages)) {
-                            input = ""
-                            selectedImages = emptyList()
-                        } else vm.error?.let { feedback.show(it) }
+                        val text = input
+                        val images = selectedImages
+                        if (sessionId == vm.similarIdentity) {
+                            vm.sendSimilar(text, images, onAccepted = {
+                                if (input == text) input = ""
+                                selectedImages = selectedImages.filterNot { it in images }
+                            }, onFailure = { feedback.show(it) })
+                        }
                     },
                     busy = vm.similarBusy || pickingImages,
                     hint = s["similar.hint"],
@@ -359,7 +376,9 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                 text = { Text(s.format("solve.deleteMessages.text", "n" to "${selectedIndices.size}")) },
                 confirmButton = {
                     TextButton(onClick = {
-                        vm.deleteSimilarItems(selectedIndices.filter { it !in lockedIndices }.sorted())
+                        if (sessionId == vm.similarIdentity && followups === vm.similarMessages) {
+                            vm.deleteSimilarItems(selectedIndices.filter { it !in lockedIndices }.sorted())
+                        }
                         showDeleteConfirm = false
                         editMode = false
                         selectedIndices = emptySet()

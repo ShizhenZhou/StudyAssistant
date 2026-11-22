@@ -17,13 +17,13 @@ internal class PdfSourceSession(
     fun pageCount(sha256: String): Int? = synchronized(lock) { counts[sha256] }
     fun page(sha256: String, index: Int): Page? = synchronized(lock) { pages[sha256 to index] }
 
-    /** Last document using each already-cached page. A scan retains keys, never a second text copy. */
-    fun retainedPages(documents: List<ConversationDocument>): MutableMap<Pair<String, Int>, Int> = synchronized(lock) {
-        val retained = mutableMapOf<Pair<String, Int>, Int>()
-        documents.forEachIndexed { index, document ->
+    /** Protect upcoming hits until their original page has been searched. */
+    fun retainedPages(documents: List<ConversationDocument>): MutableSet<Pair<String, Int>> = synchronized(lock) {
+        val retained = mutableSetOf<Pair<String, Int>>()
+        for (document in documents) {
             val selection = document.pages?.toHashSet()
             for (key in pages.keys) {
-                if (key.first == document.sha256 && (selection == null || key.second in selection)) retained[key] = index
+                if (key.first == document.sha256 && (selection == null || key.second in selection)) retained.add(key)
             }
         }
         retained

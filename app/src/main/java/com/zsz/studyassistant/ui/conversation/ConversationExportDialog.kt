@@ -32,7 +32,9 @@ internal fun ConversationExportDialog(messages: List<ChatMsg>, onDismiss: () -> 
     var started by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { export.begin(messages).join(); started = true }
     ConversationExportDialog(export, onFeedback)
-    LaunchedEffect(started, export.session) { if (started && export.session == null) onDismiss() }
+    LaunchedEffect(started, export.session, export.showRestoreError, export.destinationPromptHidden) {
+        if (started && ((export.session == null && !export.showRestoreError) || export.destinationPromptHidden)) onDismiss()
+    }
 }
 
 /** Always mounted by SolveScreen, so SAF callbacks remain registered through every export phase. */
@@ -44,13 +46,24 @@ internal fun ConversationExportDialog(export: ConversationExportViewModel, onFee
     LaunchedEffect(export.feedback) {
         export.feedback?.let { onFeedback(s[it]); export.consumeFeedback() }
     }
+    if (export.showRestoreError) {
+        AlertDialog(onDismissRequest = export::keepUnrestored, title = { Text(s["export.title"]) },
+            text = { Text(s["export.restoreFailed"]) },
+            confirmButton = { TextButton(onClick = export::retryRestore) { Text(s["update.retry"]) } },
+            dismissButton = {
+                TextButton(onClick = export::keepUnrestored) { Text(s["export.keep"]) }
+                TextButton(onClick = export::discardUnrestored) { Text(s["export.discard"]) }
+            })
+        return
+    }
     val state = export.session ?: return
+    if (export.destinationPromptHidden) return
     LaunchedEffect(state.id, state.phase) {
         if (state.phase == ExportPhase.READY && export.picking()) {
             try {
                 if (state.format == ConversationExportFormat.PDF) pdfPicker.launch("${state.name}.pdf")
                 else pngPicker.launch(null)
-            } catch (_: Exception) { export.fail(state.id) }
+            } catch (_: Exception) { export.pickerFailed(state.id) }
         }
     }
     val messages = export.messages
@@ -80,12 +93,15 @@ internal fun ConversationExportDialog(export: ConversationExportViewModel, onFee
         }, confirmButton = {
             Button(onClick = export::render) { Text(s["export.action"]) }
         }, dismissButton = { TextButton(onClick = export::cancel) { Text(s["common.cancel"]) } })
-    } else if (state.phase == ExportPhase.PICKER) {
+    } else if (state.phase == ExportPhase.PICKER || state.phase == ExportPhase.CHOOSE_AGAIN) {
         // Also offers a way forward after a cold launch where Android no longer owns a pending picker.
-        AlertDialog(onDismissRequest = export::cancel, title = { Text(s["export.title"]) },
-            text = { Text(state.name) },
-            confirmButton = { TextButton(onClick = export::chooseDestinationAgain) { Text(s["export.action"]) } },
-            dismissButton = { TextButton(onClick = export::cancel) { Text(s["common.cancel"]) } })
+        AlertDialog(onDismissRequest = export::keepRendered, title = { Text(s["export.title"]) },
+            text = { Column {
+                Text(state.name)
+                if (state.phase == ExportPhase.CHOOSE_AGAIN) Text(s["export.destinationFailed"])
+            } },
+            confirmButton = { TextButton(onClick = export::chooseDestinationAgain) { Text(s["export.chooseDestination"]) } },
+            dismissButton = { TextButton(onClick = export::cancel) { Text(s["export.discard"]) } })
     }
 }
 

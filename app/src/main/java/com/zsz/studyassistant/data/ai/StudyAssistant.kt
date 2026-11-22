@@ -410,6 +410,7 @@ object StudyAssistant {
         owner.attach { call.cancel() }
         return try { kotlinx.coroutines.suspendCancellableCoroutine<ResponseBody> { continuation ->
             continuation.invokeOnCancellation { owner.cancel() }
+            if (!continuation.isActive) return@suspendCancellableCoroutine
             call.enqueue(object : retrofit2.Callback<ResponseBody> {
                 override fun onResponse(call: retrofit2.Call<ResponseBody>, response: retrofit2.Response<ResponseBody>) {
                     val received = response.body()
@@ -424,6 +425,7 @@ object StudyAssistant {
                     if (continuation.isActive) continuation.resumeWith(Result.failure(error))
                 }
             })
+            owner.recordSubmission()
         } } catch (error: Throwable) {
             // Header/connection failures happen before the body-reading finally block below.
             owner.finish()

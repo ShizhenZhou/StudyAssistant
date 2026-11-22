@@ -26,12 +26,12 @@ object UsageStats {
         )
     }
 
-    /** 记一次调用（usage 为空时只累加次数） */
+    /** 累计已提交的请求次数，以及服务端实际返回的用量。 */
     @Synchronized
-    fun add(c: Context, usage: DeepSeekUsage?) {
+    fun add(c: Context, usage: DeepSeekUsage?, calls: Int = 1) {
         val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         p.edit()
-            .putInt(K_CALLS, p.getInt(K_CALLS, 0) + 1)
+            .putInt(K_CALLS, p.getInt(K_CALLS, 0) + calls)
             .putInt(K_PROMPT, p.getInt(K_PROMPT, 0) + (usage?.promptTokens ?: 0))
             .putInt(K_COMPLETION, p.getInt(K_COMPLETION, 0) + (usage?.completionTokens ?: 0))
             .putInt("usage_cache", p.getInt("usage_cache", 0) + (usage?.cacheHitTokens ?: 0).coerceAtLeast(0))

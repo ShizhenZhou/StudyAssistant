@@ -99,6 +99,9 @@ class BackupRepositoryIntegrationTest {
         val original=File(store.directory,document.sha256)
         try {
             assertFalse(original.exists()); store.install(fixture,document)
+            val corruptStage = File(work, "corrupt-stage.pdf").apply { writeBytes(damaged) }
+            assertThrows(DocumentProblem::class.java) { store.install(corruptStage, document) }
+            assertArrayEquals(bytes, original.readBytes())
             val at=1700000000501L; val id=QuestionIdentity.create(at)
             val conversation=Json.encodeToString(listOf(ChatItem(1,"question","synthetic document",documents=listOf(document))))
             source.questionDao().insert(Question(id,"source intact","answer",at,conversationJson=conversation))

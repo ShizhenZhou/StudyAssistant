@@ -123,7 +123,16 @@ fun SolveHistoryScreen(nav: NavHostController, vm: MainViewModel) {
 
     val groups = remember(sessions, day) { groupSolveSessionsByDay(sessions, day) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    androidx.compose.runtime.LaunchedEffect(query, period) { exitSelection(); listState.scrollToItem(0) }
+    var appliedQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(query) }
+    var appliedPeriod by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(period) }
+    androidx.compose.runtime.LaunchedEffect(query, period) {
+        if (query != appliedQuery || period != appliedPeriod) {
+            exitSelection()
+            listState.requestScrollToItem(0)
+            appliedQuery = query
+            appliedPeriod = period
+        }
+    }
 
     // A refreshed list must never apply a batch action to rows no longer on screen.
     val selectedIds = remember(sessions, requestedIds) {

@@ -47,6 +47,7 @@ internal object DocumentStorageMaintenance {
                 val checkActive = { coroutine.ensureActive() }
                 require(activeHashes.size <= LIMIT && activeHashes.all(hashPattern::matches))
                 val originals = File(context.filesDir, "ai-documents")
+                if (clean) DocumentStore.recoverInterruptedWrites(originals)
                 val drafts = File(context.noBackupFilesDir, "conversation-drafts-v1")
                 val pending = File(context.noBackupFilesDir, "pending-saves-v1")
                 val registry = PrivateJsonFile(File(context.noBackupFilesDir, "ai-document-maintenance-v1/state.json"), 2 * 1024 * 1024)

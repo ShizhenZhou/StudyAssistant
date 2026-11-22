@@ -22,9 +22,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
 
 @Serializable
-internal enum class ExportPhase { SNAPSHOT, OPTIONS, RENDERING, STORING, READY, PICKER, SAVING }
+internal enum class ExportPhase { SNAPSHOT, OPTIONS, RENDERING, STORING, READY, PICKER, SAVING, CHOOSE_AGAIN }
 
 @Serializable
 internal data class ConversationExportSession(
@@ -47,6 +49,7 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
     private val root = File(app.noBackupFilesDir, "conversation-export")
     private val journal = AtomicFile(File(root, "active.json"))
     private val json = Json { ignoreUnknownKeys = true }
+    private val journalJson = Json(json) { encodeDefaults = true }
     var session by mutableStateOf<ConversationExportSession?>(null)
         private set
     var messages by mutableStateOf<List<ChatMsg>?>(null)
@@ -64,7 +67,13 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
     @Volatile private var journalOwner: String? = null
     private var cleanup: Job? = null
     private var restoreFailed = false
-    private val initialization = viewModelScope.launch {
+    var showRestoreError by mutableStateOf(false)
+        private set
+    var destinationPromptHidden by mutableStateOf(false)
+        private set
+    private var initialization = viewModelScope.launch { restoreSession() }
+
+    private suspend fun restoreSession() {
         try {
             lastCleanup?.join()
             session = withContext(Dispatchers.IO) {
@@ -77,20 +86,55 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
                 }
             }
             journalOwner = session?.id
+            restoreFailed = false
+            showRestoreError = false
             session?.let { value ->
                 if (value.phase == ExportPhase.SAVING) save()
                 else if (value.phase == ExportPhase.RENDERING) loadMessages(value)
             }
         } catch (error: CancellationException) { throw error }
-        catch (_: Exception) { restoreFailed = true; feedback = "export.failed" }
+        catch (_: Exception) {
+            restoreFailed = true
+            showRestoreError = true
+            feedback = "export.restoreFailed"
+        }
     }
 
     fun consumeFeedback() { feedback = null }
 
+    fun keepUnrestored() { showRestoreError = false }
+
+    fun keepRendered() { destinationPromptHidden = true }
+
+    fun retryRestore() {
+        if (restoreFailed && !initialization.isActive) initialization = viewModelScope.launch { restoreSession() }
+    }
+
+    fun discardUnrestored() {
+        if (!restoreFailed || initialization.isActive) return
+        initialization = viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    journalMutex.withLock {
+                        ConversationExportFiles.discardUnrestored(root)
+                        journal.delete()
+                        check(journalFilesAbsent())
+                    }
+                }
+                restoreFailed = false
+                showRestoreError = false
+                feedback = "export.discarded"
+            } catch (error: CancellationException) { throw error }
+            catch (_: Exception) { feedback = "export.discardFailed" }
+        }
+    }
+
     fun begin(selected: List<ChatMsg>): Job = viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
         initialization.join()
         cleanup?.join()
-        if (restoreFailed || session != null || selected.isEmpty()) return@launch
+        if (restoreFailed) { showRestoreError = true; return@launch }
+        destinationPromptHidden = false
+        if (session != null || selected.isEmpty()) return@launch
         val value = ConversationExportSession()
         val frozen = selected.map { it.copy(images = it.images.toList(), sources = it.sources.toList(), documents = it.documents.toList()) }
         session = value
@@ -186,16 +230,20 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
         if (value.phase != ExportPhase.READY) return false
         return try { update(value.copy(phase = ExportPhase.PICKER)); true }
         catch (error: CancellationException) { throw error }
-        catch (_: Exception) { fail(value.id); false }
+        catch (_: Exception) { destinationFailed(value.id); false }
     }
 
     fun chooseDestinationAgain() {
         val value = session ?: return
-        if (value.phase != ExportPhase.PICKER || operation?.isActive == true) return
+        if (value.phase !in setOf(ExportPhase.PICKER, ExportPhase.CHOOSE_AGAIN) || operation?.isActive == true) return
         operation = viewModelScope.launch {
-            try { update(value.copy(phase = ExportPhase.READY)) }
+            try {
+                withContext(Dispatchers.IO) { releaseOwnedGrant(value) }
+                update(value.copy(phase = ExportPhase.READY, destination = null, ownedGrantFlags = 0,
+                    pngFolder = null, pngFiles = emptyMap()))
+            }
             catch (error: CancellationException) { throw error }
-            catch (_: Exception) { fail(value.id) }
+            catch (_: Exception) { destinationFailed(value.id) }
         }
     }
 
@@ -209,7 +257,7 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
             // Preserve a quick SAF result instead of discarding it during that brief overlap.
             operation?.join()
             if (session?.id != value.id || session?.phase != ExportPhase.PICKER) return@launch
-            if (uri == null) { cancel(); return@launch }
+            if (uri == null) return@launch
             // Disable repeat callbacks/cancel while the owned grant and checkpoint are being committed.
             session = value.copy(phase = ExportPhase.SAVING)
             operation = currentCoroutineContext().job
@@ -235,7 +283,7 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
                 currentCoroutineContext().ensureActive()
                 save()
             } catch (error: CancellationException) { throw error }
-            catch (_: Exception) { fail(value.id) }
+            catch (_: Exception) { destinationFailed(value.id) }
             finally {
                 if (!checkpointed && acquiredFlags != 0) withContext(NonCancellable + Dispatchers.IO) {
                     runCatching { getApplication<Application>().contentResolver.releasePersistableUriPermission(uri, acquiredFlags) }
@@ -251,7 +299,10 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
                 val output = File(directory(value), "output")
                 val files = value.files.map { File(output, it) }
                 // Validate every source before opening (and truncating) the SAF PDF destination.
-                withContext(Dispatchers.IO) { check(files.isNotEmpty() && files.all { it.isFile && it.length() > 0 }) }
+                if (!withContext(Dispatchers.IO) { files.isNotEmpty() && files.all { it.isFile && it.length() > 0 } }) {
+                    fail(value.id)
+                    return@launch
+                }
                 val result = ConversationExportResult(output, files, value.name, value.format)
                 saveConversationExport(getApplication(), result, Uri.parse(checkNotNull(value.destination)),
                     restoredFolder = value.pngFolder?.let(Uri::parse),
@@ -261,7 +312,22 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
                 feedback = "export.success"
                 finish()
             } catch (error: CancellationException) { throw error }
-            catch (_: Exception) { fail(value.id) }
+            catch (_: Exception) { destinationFailed(value.id) }
+        }
+    }
+
+    fun pickerFailed(id: String) {
+        viewModelScope.launch { destinationFailed(id) }
+    }
+
+    private suspend fun destinationFailed(id: String) {
+        val value = session?.takeIf { it.id == id } ?: return
+        val retry = value.copy(phase = ExportPhase.CHOOSE_AGAIN)
+        try { update(retry) }
+        catch (error: CancellationException) { throw error }
+        catch (_: Exception) {
+            checkCurrent(value)
+            session = retry
         }
     }
 
@@ -300,13 +366,23 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
             journalMutex.withLock {
                 // New begin() waits for this cleanup, so an old task cannot delete a new journal.
                 journal.delete()
-                if (value.destination != null && value.ownedGrantFlags != 0) runCatching {
-                    getApplication<Application>().contentResolver.releasePersistableUriPermission(Uri.parse(value.destination), value.ownedGrantFlags)
-                }
+                runCatching { releaseOwnedGrant(value) }
                 runCatching { ConversationExportFiles.deleteTask(root, value.id) }
             }
         }
         lastCleanup = cleanup
+    }
+
+    private fun releaseOwnedGrant(value: ConversationExportSession) {
+        val destination = value.destination ?: return
+        if (value.ownedGrantFlags == 0) return
+        val uri = Uri.parse(destination)
+        val resolver = getApplication<Application>().contentResolver
+        val existing = resolver.persistedUriPermissions.firstOrNull { it.uri == uri } ?: return
+        val currentFlags = (if (existing.isReadPermission) Intent.FLAG_GRANT_READ_URI_PERMISSION else 0) or
+            (if (existing.isWritePermission) Intent.FLAG_GRANT_WRITE_URI_PERMISSION else 0)
+        val owned = currentFlags and value.ownedGrantFlags
+        if (owned != 0) resolver.releasePersistableUriPermission(uri, owned)
     }
 
     private suspend fun update(value: ConversationExportSession) {
@@ -330,7 +406,7 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
                 check(root.isDirectory || root.mkdirs())
                 val stream = journal.startWrite()
                 try {
-                    stream.write(json.encodeToString(value).toByteArray(Charsets.UTF_8))
+                    stream.write(journalJson.encodeToString(value).toByteArray(Charsets.UTF_8))
                     journal.finishWrite(stream)
                 } catch (error: Exception) { journal.failWrite(stream); throw error }
             }
@@ -339,26 +415,46 @@ internal class ConversationExportViewModel(app: Application) : AndroidViewModel(
 
     private fun directory(value: ConversationExportSession): File = File(root, value.id)
 
+    private fun journalFilesAbsent() = listOf("active.json", "active.json.bak", "active.json.new").all {
+        java.nio.file.Files.notExists(File(root, it).toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+    }
+
     private fun restore(): ConversationExportSession? {
         val bytes = try {
             journal.openRead().use { it.readAtMost(1024 * 1024 + 1) }
         } catch (error: java.io.FileNotFoundException) {
-            if (!java.nio.file.Files.notExists(journal.baseFile.toPath()) ||
-                !java.nio.file.Files.notExists(File(root, "active.json.bak").toPath())) throw error
+            if (!journalFilesAbsent()) throw error
             return null
         }
-        return runCatching {
-            check(bytes.size <= 1024 * 1024)
-            val value = json.decodeFromString<ConversationExportSession>(bytes.toString(Charsets.UTF_8))
-            check(ConversationExportFiles.isTaskId(value.id))
-            check(value.files.all { File(it).name == it && it != "." && it != ".." })
-            // Snapshot is committed atomically before OPTIONS; an interrupted initial write is disposable.
-            if (value.phase == ExportPhase.SNAPSHOT && !File(directory(value), "messages.json").isFile) return null
-            when (value.phase) {
-                ExportPhase.STORING -> value.copy(phase = ExportPhase.RENDERING)
-                ExportPhase.SNAPSHOT -> value.copy(phase = ExportPhase.OPTIONS)
-                else -> value
-            }
-        }.getOrNull()
+        check(bytes.size <= 1024 * 1024)
+        val record = json.parseToJsonElement(bytes.toString(Charsets.UTF_8)).jsonObject
+        check("id" in record)
+        val value = json.decodeFromJsonElement<ConversationExportSession>(record)
+        check(ConversationExportFiles.isTaskId(value.id))
+        check(value.fallback.matches(Regex("StudyAssistant-[0-9]{8}-[0-9]{6}")))
+        check(value.files.all { it.isNotBlank() && File(it).name == it && it != "." && it != ".." })
+        check(value.files.distinct().size == value.files.size)
+        check(value.pngFiles.keys.all { it in value.files })
+        check(value.pngFiles.values.distinct().size == value.pngFiles.size)
+        check(value.pngFiles.isEmpty() || value.pngFolder != null)
+        check(value.pngFolder == null || (value.format == ConversationExportFormat.PNG && value.destination != null))
+        check(value.destination == null || Uri.parse(value.destination).scheme == "content")
+        check(value.ownedGrantFlags in 0..(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION))
+        check(value.destination != null || value.ownedGrantFlags == 0)
+        check(value.phase != ExportPhase.SAVING || value.destination != null)
+        if (value.phase in setOf(ExportPhase.READY, ExportPhase.PICKER, ExportPhase.SAVING, ExportPhase.CHOOSE_AGAIN)) {
+            check(value.files.isNotEmpty())
+            check(value.format != ConversationExportFormat.PDF || value.files.size == 1)
+            val output = File(directory(value), "output")
+            check(value.files.all { name -> File(output, name).let { it.isFile && it.length() > 0 } })
+        } else {
+            check(value.files.isEmpty() && value.destination == null)
+        }
+        check(File(directory(value), "messages.json").isFile)
+        return when (value.phase) {
+            ExportPhase.STORING -> value.copy(phase = ExportPhase.RENDERING)
+            ExportPhase.SNAPSHOT -> value.copy(phase = ExportPhase.OPTIONS)
+            else -> value
+        }
     }
 }
