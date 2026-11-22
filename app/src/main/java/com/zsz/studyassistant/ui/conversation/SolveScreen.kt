@@ -122,7 +122,8 @@ fun SolveScreen(
     vm: MainViewModel,
     // ★ 2026-10-18：解题页的**来路**（页面树里 solve 的父节点）—— 由 AppNav 传进来，
     //   返回箭头按它决定去处，不再靠 `isPhotoSession` 猜（那样会把"从搜题记录打开的照片题"送回拍照界面）。
-    entryOrigin: AppNav.Origin = AppNav.Origin.HOME
+    entryOrigin: AppNav.Origin = AppNav.Origin.HOME,
+    notebookMatch: AppNav.NotebookMatch? = null
 ) {
     val context = LocalContext.current
     // 当前模式 + 该模式的界面配置（唯一的分支来源；放在函数最前面，供 LaunchedEffect 等使用）
@@ -133,6 +134,7 @@ fun SolveScreen(
         else -> SessionMode.SOLVE
     }
     val cfg = sessionConfig(sessionMode)
+    val dailyPlan = if (sessionMode == SessionMode.REVIEW) vm.dailyReviewPlan.collectAsStateWithLifecycle().value else null
     val s = LocalStrings.current
     val feedback = LocalAppFeedback.current
     val draft = vm.solveInputDraft
@@ -245,7 +247,7 @@ fun SolveScreen(
     //   就会**永远停在 true** → 页面永久显示「下一题」空白（用户实测的 bug）。
     //   现在 ① delay 用 try/finally 复位；② 掉出复习模式时显式复位；③ 渲染处还要求处于复习模式。
     var switching by remember { mutableStateOf(false) }
-    LaunchedEffect(sessionMode == SessionMode.REVIEW, vm.reviewDone) {
+    LaunchedEffect(sessionMode == SessionMode.REVIEW, vm.savedQuestionId) {
         if (sessionMode == SessionMode.REVIEW) {
             answerRevealed = false      // 切换题目时自动把答案折叠回去
             resetScrollTick++           // 新题从顶部开始
@@ -260,12 +262,6 @@ fun SolveScreen(
     // 离开复习模式（三按钮分支）时，清屏标志必须一并复位，否则残留在普通页面上
     LaunchedEffect(sessionMode) {
         if (sessionMode != SessionMode.REVIEW) switching = false
-    }
-
-    // 复习：题目切换（reviewDone 变化或换了题）→ 页面回到顶端
-    // 只在复习模式生效：否则「存错题本」等操作改了 savedQuestionId 也会误触发回顶
-    LaunchedEffect(sessionMode == SessionMode.REVIEW, vm.reviewDone, vm.savedQuestionId) {
-        if (sessionMode == SessionMode.REVIEW) resetScrollTick++
     }
 
     // 对话消息：题目/我的提问统一作为浅绿色用户气泡（附图来自 questionImages），与后续问答一致
@@ -356,6 +352,15 @@ fun SolveScreen(
     }
     val visibleKeys = remember(mappedMessages) { mappedMessages.map { it.messageKey } }
     var editMode by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf(false) }
+    val entryMatch = notebookMatch?.takeIf { entryOrigin == AppNav.Origin.NOTEBOOK && it.questionId == vm.savedQuestionId }
+    var searchFinished by androidx.compose.runtime.saveable.rememberSaveable(entryMatch) { mutableStateOf(false) }
+    LaunchedEffect(vm.busy, editMode) {
+        if (vm.busy || editMode) searchFinished = true
+    }
+    val activeMatch = entryMatch?.takeUnless { searchFinished || vm.busy || editMode }
+    var requestedMatch by androidx.compose.runtime.saveable.rememberSaveable(activeMatch) { mutableIntStateOf(-1) }
+    var matchIndex by remember(activeMatch) { mutableIntStateOf(0) }
+    var matchCount by remember(activeMatch) { mutableIntStateOf(0) }
     var selectedIndices by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf<Set<Int>>(emptySet()) }
     fun isSelectableIndexOf(idx: Int): Boolean =
         sourceIndices.getOrNull(idx)?.let { !vm.chatItems[it].answerPending } == true || (virtualTailIndex >= 0 && idx == virtualTailIndex)
@@ -491,12 +496,11 @@ fun SolveScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     } else if (sessionMode == SessionMode.REVIEW) {
-                        // 复习：标题显示「复习 当前/总数」（总数 = 打开复习时今日剩余的错题数）
                         Text(
-                            s.format(
+                            if (dailyPlan == null) s["review.title"] else s.format(
                                 "review.titleProgress",
-                                "i" to "${vm.reviewDone + 1}",
-                                "n" to "${vm.reviewTotal}"
+                                "i" to "${dailyPlan.completed}",
+                                "n" to "${dailyPlan.planned.size}"
                             ),
                             fontSize = SOLVE_TITLE,
                             maxLines = 1,
@@ -924,9 +928,32 @@ fun SolveScreen(
                 if (sessionMode == SessionMode.REVIEW) TextButton(onClick = { bookmarksOpen = true }) {
                     Text("☆ " + s["bookmark.title"])
                 }
+                if (activeMatch != null && matchCount > 1) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { requestedMatch = (matchIndex + matchCount - 1) % matchCount }) {
+                            Text(s["search.hit.previous"])
+                        }
+                        Text("${matchIndex + 1} / $matchCount", style = MaterialTheme.typography.labelMedium)
+                        TextButton(onClick = { requestedMatch = (matchIndex + 1) % matchCount }) {
+                            Text(s["search.hit.next"])
+                        }
+                    }
+                }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     ConversationWebView(
                         messages = messages,
+                        notebookMatch = activeMatch,
+                        notebookMatchText = activeMatch?.let { vm.notebookMatchText(it.questionId, it.answer) },
+                        notebookMatchIndex = requestedMatch,
+                        onNotebookMatch = { index, count ->
+                            matchIndex = index
+                            matchCount = count
+                            if (count == 0) {
+                                searchFinished = true
+                                feedback.show(s["search.hit.missing"])
+                            }
+                        },
                         scrollTopSignal = scrollTopTick,
                         onContinue = { if (vm.initialAnswerPending) vm.generateMissingInitialAnswer() else vm.continueGeneration() },
                         bookmarkJump = bookmarkJump,
@@ -1050,7 +1077,7 @@ fun SolveScreen(
             val onReviewFinished: () -> Unit = {
                 vm.exitReviewMode()
                 AppNav.switchTab(nav, AppNav.HOME)
-                feedback.show(s["solve.reviewDone"])
+                feedback.show(s["review.roundDone"])
             }
 
             // B6 重做：批改完成 → 显示"已按批改结果更新掌握度"，并可继续下一题
@@ -1072,11 +1099,10 @@ fun SolveScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // 进度条（替代原来的「第 x/n 题」文字）：已完成比例 = 当前题号 / 总数
-                    val total = vm.reviewTotal.coerceAtLeast(1)
-                    val cur = (vm.reviewDone + 1).coerceIn(0, total)
+                    val total = dailyPlan?.planned?.size ?: 0
+                    val cur = dailyPlan?.completed ?: 0
                     LinearProgressIndicator(
-                        progress = { cur.toFloat() / total.toFloat() },
+                        progress = { cur.toFloat() / total.coerceAtLeast(1) },
                         modifier = Modifier.weight(1f).height(8.dp),
                         strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant

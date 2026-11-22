@@ -80,16 +80,18 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 /** 复习：今天 / 本周（截止周日）两个选项卡，按 科目→知识点 分组，两列瀑布流 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
+fun ReviewScreen(nav: NavHostController, vm: MainViewModel, entry: androidx.navigation.NavBackStackEntry) {
     val s = LocalStrings.current
+    val dailyPlan by vm.dailyReviewPlan.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) } // 0=今天 1=本周
     var filterCat by rememberSaveable { mutableStateOf<Long?>(null) }
     var onlyWeak by rememberSaveable { mutableStateOf(false) }
     var catMenu by remember { mutableStateOf(false) }
-    val dueAll = androidx.compose.runtime.key(tab, onlyWeak) {
+    val dueRows = androidx.compose.runtime.key(tab, onlyWeak) {
         remember(vm, tab, onlyWeak) { vm.dueQuestions(tab == 1, onlyWeak) }
-            .collectAsStateWithLifecycle(emptyList()).value
+            .collectAsStateWithLifecycle(initialValue = null).value
     }
+    val dueAll = dueRows.orEmpty()
     val questions = remember(dueAll, filterCat) {
         if (filterCat == null) dueAll else dueAll.filter { it.categoryId == filterCat }
     }
@@ -126,8 +128,17 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
         m.map { it.key to it.value.toList() }
     }
 
-    // 扁平化顺序（跨分组），用于「第 i/n 题」进度：n = 本轮要复习的总数
+    // 保留各组在当前筛选下的切题顺序。
     val flat = remember(groups) { groups.flatMap { it.second } }
+    LaunchedEffect(entry, dueRows) {
+        if (dueRows == null || nav.currentBackStackEntry !== entry) return@LaunchedEffect
+        if (entry.savedStateHandle.remove<Boolean>(AppNav.START_DUE_REVIEW) != true) return@LaunchedEffect
+        val first = flat.firstOrNull() ?: return@LaunchedEffect
+        vm.startReviewSession(flat, 0)
+        vm.loadForReview(first) {
+            if (nav.currentBackStackEntry === entry) AppNav.openSolve(nav, AppNav.Origin.REVIEW)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -189,7 +200,18 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(s["review.tab.today"]) })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(s["review.tab.week"]) })
             }
-            if (questions.isEmpty()) {
+            dailyPlan?.let { plan ->
+                Text(
+                    s.format("review.dailyProgress", "i" to "${plan.completed}", "n" to "${plan.planned.size}"),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+            if (dueRows == null) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                }
+            } else if (questions.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         when {
@@ -219,7 +241,6 @@ fun ReviewScreen(nav: NavHostController, vm: MainViewModel) {
                         }
                         items(g.second, key = { it.id }) { q ->
                             ReviewCard(q, modifier = Modifier.animateItem(fadeInSpec = null, placementSpec = tween(180), fadeOutSpec = tween(140)), onClick = {
-                                // 记录本轮复习进度（第 i/n 题，n = 今日/本周待复习总数）
                                 vm.startReviewSession(flat, flat.indexOf(q))
                                 vm.loadForReview(q) { AppNav.openSolve(nav, AppNav.Origin.REVIEW) }
                             })

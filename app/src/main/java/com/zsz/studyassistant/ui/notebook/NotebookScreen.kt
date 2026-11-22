@@ -113,7 +113,6 @@ private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 @Composable
 fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
     val s = LocalStrings.current
-    val practice = androidx.lifecycle.viewmodel.compose.viewModel<NotebookPracticeQueue>()
     val haptics = LocalHapticFeedback.current
     val questions by vm.notebook.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -385,14 +384,15 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         }
                     }
-                    TextButton(
-                        enabled = filtered.isNotEmpty() && !searching && !searchFailed,
-                        onClick = {
+                    NotebookPracticeEntry(
+                        store = vm.notebookPractice,
+                        canStart = filtered.isNotEmpty() && !searching && !searchFailed,
+                        ids = { filtered.map { it.id } },
+                        open = {
                             keyboard?.hide()
-                            practice.ids = filtered.map { it.id }
                             nav.navigate(AppNav.NOTEBOOK_PRACTICE) { launchSingleTop = true }
                         }
-                    ) { Text(s["practice.title"]) }
+                    )
                     Text(
                         s.format("notebook.listCount", "n" to "${filtered.size}"),
                         modifier = Modifier.weight(1f),
@@ -438,6 +438,10 @@ fun NotebookScreen(nav: NavHostController, vm: MainViewModel) {
                             tags = (qTagIds[q.id] ?: emptyList()).mapNotNull { tagById[it] },
                             selectionMode = selectionMode,
                             selected = selectedIds.contains(q.id),
+                            onSnippetClick = { answer ->
+                                val target = AppNav.NotebookMatch(q.id, keyword, answer)
+                                vm.openNotebookQuestion(q.id) { AppNav.openNotebookMatch(nav, target) }
+                            },
                             onClick = {
                                 if (selectionMode) {
                                     requestedIds = if (selectedIds.contains(q.id)) selectedIds - q.id else selectedIds + q.id
@@ -503,6 +507,7 @@ private fun NotebookItem(
     tags: List<Tag>,
     selectionMode: Boolean,
     selected: Boolean,
+    onSnippetClick: (Boolean) -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -521,23 +526,28 @@ private fun NotebookItem(
             Column(Modifier.padding(8.dp)) {
                 QuestionCardPreview(q, s["notebook.imageDesc"])
                 snippet?.let { hit ->
-                    Text(s[if (hit.answer) "search.hit.answer" else "search.hit.question"],
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 6.dp))
-                    val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
-                    val highlightText = MaterialTheme.colorScheme.onTertiaryContainer
-                    val annotated = remember(hit, highlightColor, highlightText) {
-                        androidx.compose.ui.text.buildAnnotatedString {
-                            append(hit.text)
-                            hit.highlights.forEach { range -> addStyle(
-                                androidx.compose.ui.text.SpanStyle(background = highlightColor, color = highlightText,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                                range.first, range.last + 1)
+                    val hitAction = if (selectionMode) Modifier else Modifier.combinedClickable(
+                        onClickLabel = s["search.hit.open"], onClick = { onSnippetClick(hit.answer) }, onLongClick = onLongClick
+                    )
+                    Column(Modifier.fillMaxWidth().then(hitAction)) {
+                        Text(s[if (hit.answer) "search.hit.answer" else "search.hit.question"],
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 6.dp))
+                        val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
+                        val highlightText = MaterialTheme.colorScheme.onTertiaryContainer
+                        val annotated = remember(hit, highlightColor, highlightText) {
+                            androidx.compose.ui.text.buildAnnotatedString {
+                                append(hit.text)
+                                hit.highlights.forEach { range -> addStyle(
+                                    androidx.compose.ui.text.SpanStyle(background = highlightColor, color = highlightText,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                    range.first, range.last + 1)
+                                }
                             }
                         }
+                        Text(annotated, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall)
                     }
-                    Text(annotated, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall)
                 }
                 Text(
                     TIME_FMT.format(Date(q.createdAt)),

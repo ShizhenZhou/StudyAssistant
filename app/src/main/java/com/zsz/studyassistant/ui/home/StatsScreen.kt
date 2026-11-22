@@ -4,6 +4,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Switch
 import androidx.compose.ui.draw.scale
@@ -47,7 +49,8 @@ import com.zsz.studyassistant.MainViewModel
  * 今日 / 本周已复习、连续天数、待复习、掌握度分布、科目分布、近 7 天新增。
  */
 @Composable
-fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollState = rememberScrollState()) {
+fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollState = rememberScrollState(),
+                onStartDueReview: (() -> Unit)? = null) {
     val s = LocalStrings.current
     val st by vm.stats.collectAsStateWithLifecycle()
 
@@ -70,7 +73,12 @@ fun StatsScreen(vm: MainViewModel, scroll: androidx.compose.foundation.ScrollSta
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard(s["stats.streak"], "${st.streakDays}", "🔥", Modifier.weight(1f))
-            StatCard(s["stats.due"], "${st.dueNow}", "⏰", Modifier.weight(1f))
+            val due = st.dueNow
+            val startReview = if (due != null && due > 0) onStartDueReview else null
+            val dueText = when (due) { null -> "—"; 0 -> s["stats.todayComplete"]; else -> due.toString() }
+            StatCard(s["stats.due"], dueText,
+                "⏰", Modifier.weight(1f), onClick = startReview,
+                valueStyle = if (due == 0) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineMedium)
         }
 
         Text(s["stats.estimateNotice"], style=MaterialTheme.typography.bodySmall, modifier=Modifier.padding(top=8.dp))
@@ -269,12 +277,19 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun StatCard(label: String, value: String, emoji: String, modifier: Modifier = Modifier) {
+private fun StatCard(label: String, value: String, emoji: String, modifier: Modifier = Modifier,
+                     onClick: (() -> Unit)? = null, valueStyle: TextStyle = MaterialTheme.typography.headlineMedium) {
     Card(shape = smoothShape(14.dp), modifier = modifier) {
-        Column(Modifier.padding(14.dp)) {
-            Text("$emoji  $label", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        val action = if (onClick == null) Modifier else Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+        Column(Modifier.fillMaxWidth().then(action).padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("$emoji  $label", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline)
+                if (onClick != null) Text("›", Modifier.clearAndSetSemantics {},
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+            Text(value, style = valueStyle, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

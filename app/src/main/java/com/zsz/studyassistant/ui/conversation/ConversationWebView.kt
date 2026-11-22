@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,6 +83,10 @@ fun ConversationWebView(
     onFindPdfText: ((QuoteSelection) -> Unit)? = null,
     bookmarkJump: com.zsz.studyassistant.ConversationBookmark? = null,
     bookmarkJumpSignal: Int = 0,
+    notebookMatch: AppNav.NotebookMatch? = null,
+    notebookMatchText: String? = null,
+    notebookMatchIndex: Int = -1,
+    onNotebookMatch: (index: Int, count: Int) -> Unit = { _, _ -> },
     /** 是否处于多选态：气泡右上角显示选择圆圈，选中的显示红框 */
     selectionMode: Boolean = false,
     /** 多选态下已选中的消息下标 */
@@ -118,6 +123,9 @@ fun ConversationWebView(
     val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
     val currentOnQuote by rememberUpdatedState(onQuoteText)
     val currentOnBookmark by rememberUpdatedState(onBookmarkText)
+    val currentMatch by rememberUpdatedState(notebookMatch)
+    val currentMatchIndex by rememberUpdatedState(notebookMatchIndex)
+    val currentOnMatch by rememberUpdatedState(onNotebookMatch)
     val currentOnFindPdf by rememberUpdatedState(onFindPdfText)
     val currentOnQuoteReturn by rememberUpdatedState(onQuoteReturnAvailable)
     val currentOnToggleSelect by rememberUpdatedState(onToggleSelect)
@@ -207,6 +215,29 @@ fun ConversationWebView(
                 .put("messageKey", a.messageKey).put("scope", a.scope).put("start", a.start)
                 .put("end", a.end).put("sourceHash", a.sourceHash).put("visualMath", a.visualMath))
             webRef?.evaluateJavascript("window.dshJumpBookmark && window.dshJumpBookmark($payload);", null)
+        }
+    }
+
+    val notebookRequest = remember(notebookMatch, notebookMatchText, messages) {
+        notebookMatch?.let { notebookSearchRequest(messages, it, notebookMatchText) }
+    }
+    DisposableEffect(webRef, notebookMatch) {
+        val view = webRef
+        onDispose {
+            if (view != null && view === webRef && notebookMatch != null) {
+                view.evaluateJavascript("window.dshEndNotebookSearch && dshEndNotebookSearch()", null)
+            }
+        }
+    }
+    // onPageFinished queues the initial render first. Reapply the exact hit when the WebView is recreated.
+    LaunchedEffect(loaded, webRef, notebookRequest, notebookMatchIndex) {
+        val view = webRef ?: return@LaunchedEffect
+        if (!loaded || notebookMatch == null) return@LaunchedEffect
+        view.evaluateJavascript("dshNotebookMatch($notebookRequest, $notebookMatchIndex)") { raw ->
+            if (webRef === view && currentMatch == notebookMatch && currentMatchIndex == notebookMatchIndex) {
+                val result = runCatching { JSONArray(raw) }.getOrNull() ?: return@evaluateJavascript
+                currentOnMatch(result.getInt(0), result.getInt(1))
+            }
         }
     }
 
@@ -415,6 +446,36 @@ fun ConversationWebView(
 
         imageGallery?.let { ImageGalleryDialog(it) { imageGallery = null } }
     }
+}
+
+private fun notebookSearchRequest(messages: List<ChatMsg>, target: AppNav.NotebookMatch, saved: String?): String {
+    val hit = saved?.indexOf(target.query, ignoreCase = true) ?: -1
+    if (saved == null || hit < 0) return "null"
+    val role = if (target.answer) "assistant" else "user"
+    val candidates = messages.indices.filter { messages[it].role == role }
+    val priority = if (target.answer) candidates.reversed() else candidates
+    var source = priority.firstOrNull { messages[it].content.contains(saved) }
+    // A similar-exercise answer can index several consecutive replies (including follow-up questions).
+    // Locate the first stored occurrence in the original message sequence.
+    if (source == null && target.answer) {
+        var cursor = 0
+        for (index in messages.indices.dropWhile { messages[it].role != "assistant" }) {
+            val body = messages[index].content
+            if (body.isEmpty()) continue
+            val start = saved.indexOf(body, cursor)
+            if (start < 0) continue
+            if (hit >= start && hit + target.query.length <= start + body.length) {
+                source = index
+                break
+            }
+            cursor = start + body.length
+            if (cursor > hit) break
+        }
+    }
+    // Older photo conversations may only contain the recognized question in the notebook row.
+    return JSONObject().put("query", target.query).put("preferred", source ?: priority.firstOrNull() ?: 0)
+        .put("supplemental", saved.takeIf { source == null })
+        .toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 }
 
 /** Keep immutable prefix messages on the JS side; no repeated Base64 serialization while streaming. */

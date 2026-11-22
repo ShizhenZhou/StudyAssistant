@@ -50,7 +50,7 @@ class CloseoutSafetyTest {
             assertEquals(alive.size, stats.totalQuestions)
             assertEquals(1, stats.todayReviewed)
             assertEquals(1, stats.weekReviewed)
-            assertEquals(1, stats.dueNow)
+            assertEquals(0, stats.dueNow)
             assertEquals(1, stats.mastery.last().second)
             assertEquals(listOf("未分类" to alive.size), stats.subjects)
         }
@@ -59,6 +59,25 @@ class CloseoutSafetyTest {
         val a=QuestionIdentity.create(1000); val b=QuestionIdentity.create(2000); val c=QuestionIdentity.create(3000)
         assertEquals(listOf(b,c,a),ReviewPlanning.ordered(listOf(a,b,c),1))
         assertEquals(listOf(a),ReviewPlanning.ordered(listOf(a,a),50))
+    }
+    @Test fun dailyReviewKeepsItsDenominatorAndCountsCommittedRatingsOnce() {
+        val day = CalendarDay(LocalDate.of(2026, 11, 22), ZoneId.of("Asia/Shanghai"))
+        val due = DailyReviewRow("due", false, day.start, null)
+        val later = DailyReviewRow("later", false, day.after(1), null)
+        val added = DailyReviewRow("added", false, day.start, null)
+        val previousCompleted = DailyReviewRow("completed", false, day.after(1), day.start)
+        val initial = DailyReviewPlan(day.date.toString()).reconcile(listOf(due, later, previousCompleted), day)
+        assertEquals(setOf("due", "completed"), initial.planned)
+        assertEquals(1, initial.completed)
+        val rated = due.copy(nextReviewAt = day.after(2), lastReviewedAt = day.start)
+        val subsequent = initial.reconcile(listOf(rated, later.copy(lastReviewedAt = day.start), added), day)
+        assertEquals(setOf("due", "completed", "added"), subsequent.planned)
+        assertEquals(2, subsequent.completed)
+        assertEquals(subsequent, subsequent.reconcile(listOf(rated, added), day))
+        val nextDay = CalendarDay(day.date.plusDays(1), day.zone)
+        val tomorrow = DailyReviewPlan(nextDay.date.toString()).reconcile(listOf(rated, later, added), nextDay)
+        assertEquals(setOf("later", "added"), tomorrow.planned)
+        assertEquals(0, tomorrow.completed)
     }
     @Test fun streamCancellationBelongsToOneRequest() {
         var first=0;var second=0
@@ -116,7 +135,10 @@ class CloseoutSafetyTest {
 
     @Test fun chunkedConversationPreservesUnicodeAndNulls() = runBlocking {
         val text="汉字🔬".repeat(40000)
-        assertEquals(text,readChunkedText(text.length) { start,size -> text.substring(start-1,minOf(text.length,start-1+size)) })
+        assertEquals(text, readChunkedText(text.codePointCount(0, text.length)) { start, size ->
+            val first = text.offsetByCodePoints(0, start - 1)
+            text.substring(first, text.offsetByCodePoints(first, size))
+        })
         assertNull(readChunkedText(null) { _,_->error("must not read") })
         assertEquals("",readChunkedText(0) { _,_->error("must not read") })
     }

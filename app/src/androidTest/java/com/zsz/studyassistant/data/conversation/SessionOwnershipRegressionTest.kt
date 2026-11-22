@@ -136,6 +136,7 @@ class SessionOwnershipRegressionTest {
     @Test fun pendingCandidateBlocksAutomaticAdvanceAndRetryDoesNotRepeatReview() = runBlocking {
         val first = question("first", 10000); val next = question("next", 20000)
         val dao = db.questionDao(); dao.insert(first); dao.insert(next)
+        listOf(first, next).forEach { dao.insertReview(Review(it.id)) }
         val value = SavePayload.notebook(next).copy(answer = "unsaved replacement")
         db.getSupportWrapper().execSQL("CREATE TRIGGER fixture_fail_answer BEFORE UPDATE OF answer ON questions BEGIN SELECT RAISE(ABORT, 'synthetic IO failure'); END")
         val failed = runCatching { PendingSaveRepository(db, pending).saveNotebook(value) }

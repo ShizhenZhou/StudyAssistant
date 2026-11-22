@@ -52,6 +52,7 @@ object AppNav {
     const val NOTEBOOK_TAGS = "notebookTags"
     const val NOTEBOOK_TAG_RESULT = "notebook_tag_ids"
     const val REVIEW = "review"
+    internal const val START_DUE_REVIEW = "start_due_review"
     const val SIMILAR = "similar"
     const val STATS = "stats"
     const val SETTINGS = "settings"
@@ -138,6 +139,14 @@ object AppNav {
         }
     }
 
+    data class NotebookMatch(val questionId: String, val query: String, val answer: Boolean) : java.io.Serializable
+    const val NOTEBOOK_MATCH = "notebook_match"
+
+    fun openNotebookMatch(nav: NavHostController, match: NotebookMatch) {
+        openSolve(nav, Origin.NOTEBOOK)
+        nav.currentBackStackEntry?.savedStateHandle?.set(NOTEBOOK_MATCH, match)
+    }
+
     /**
      * 解题页左上角「←」：按**来路**决定去处。
      * 原来是 `if (reviewMode || notebookMode || gradeMode || !isPhotoSession) popBackStack() else 回拍题页` ——
@@ -158,6 +167,12 @@ object AppNav {
     fun openReview(nav: NavHostController) {
         switchTab(nav, HOME)
         nav.navigate(REVIEW) { launchSingleTop = true }
+    }
+
+    fun startDueReviewFromStats(nav: NavHostController) {
+        if (nav.currentDestination?.route != STATS) return
+        nav.navigate(REVIEW) { launchSingleTop = true }
+        nav.currentBackStackEntry?.savedStateHandle?.set(START_DUE_REVIEW, true)
     }
 
     /** 底部页签始终重建目标主页，丢弃已离开页签的子页状态；配置重建仍由各页保存状态。 */

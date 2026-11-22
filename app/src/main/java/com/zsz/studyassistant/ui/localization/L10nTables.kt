@@ -11,6 +11,10 @@ private val V688_ZH = mapOf(
     "share.readFailed" to "无法读取分享图片，或单张超过 32 MB。请从相册重新分享；本次没有导入任何图片。",
     "search.hit.question" to "题干匹配",
     "search.hit.answer" to "答案匹配",
+    "search.hit.open" to "跳到命中位置",
+    "search.hit.previous" to "上一处",
+    "search.hit.next" to "下一处",
+    "search.hit.missing" to "当前内容中找不到该匹配",
 )
 
 private val V688_EN = mapOf(
@@ -24,6 +28,10 @@ private val V688_EN = mapOf(
     "share.readFailed" to "An image could not be read or exceeds 32 MB. Share again from your gallery; no images were imported.",
     "search.hit.question" to "Question match",
     "search.hit.answer" to "Answer match",
+    "search.hit.open" to "Jump to match",
+    "search.hit.previous" to "Previous",
+    "search.hit.next" to "Next",
+    "search.hit.missing" to "This match could not be found in the current content",
 )
 
 private val V688_JA = mapOf(
@@ -37,6 +45,10 @@ private val V688_JA = mapOf(
     "share.readFailed" to "画像を読み取れないか、1枚が32 MBを超えています。アルバムから再共有してください。今回は何も取り込んでいません。",
     "search.hit.question" to "問題文の一致",
     "search.hit.answer" to "解答の一致",
+    "search.hit.open" to "一致箇所へ移動",
+    "search.hit.previous" to "前の一致",
+    "search.hit.next" to "次の一致",
+    "search.hit.missing" to "現在の内容には一致箇所がありません",
 )
 
 private val V688_KO = mapOf(
@@ -50,6 +62,10 @@ private val V688_KO = mapOf(
     "share.readFailed" to "이미지를 읽을 수 없거나 한 장이 32 MB를 초과합니다. 갤러리에서 다시 공유하세요. 이번에는 아무 이미지도 가져오지 않았습니다.",
     "search.hit.question" to "문제 일치",
     "search.hit.answer" to "답변 일치",
+    "search.hit.open" to "일치 위치로 이동",
+    "search.hit.previous" to "이전 일치",
+    "search.hit.next" to "다음 일치",
+    "search.hit.missing" to "현재 내용에서 일치하는 부분을 찾을 수 없습니다",
 )
 
 
@@ -516,7 +532,14 @@ private val B0_ZH = mapOf(
     "practice.title" to "专项练习",
     "practice.summary" to "本轮小结",
     "practice.temporary" to "本轮自评只用于练习小结，不影响复习计划。",
-    "practice.results" to "共 {total} 题\n熟悉 {easy} · 模糊 {vague} · 忘记 {forgot}\n未评价 {left}",
+    "practice.results" to "共 {total} 题\n熟悉 {easy} · 模糊 {vague} · 忘记 {forgot}\n已跳过 {skipped} · 未练 {left}",
+    "practice.saved" to "上次练习已完成或跳过 {done}/{total} 题。开始新一轮将替换上次进度。",
+    "practice.continue" to "继续练习",
+    "practice.new" to "从当前筛选新开一轮",
+    "practice.includeSkipped" to "也练习已跳过的题目",
+    "practice.repeat" to "再练薄弱题（{count} 题）",
+    "practice.readFailed" to "无法读取上次练习进度，请重试。",
+    "practice.saveFailed" to "练习进度保存失败，请重试刚才的操作。",
     "practice.return" to "返回错题本",
     "practice.unavailable" to "无法读取这道题。",
     "practice.skip" to "跳过",
@@ -552,7 +575,8 @@ private val B0_ZH = mapOf(
     "stats.today" to "今日复习",
     "stats.week" to "近 7 天",
     "stats.streak" to "连续天数",
-    "stats.due" to "待复习",
+    "stats.due" to "今日剩余待复习",
+    "stats.todayComplete" to "今日已完成",
     "stats.mastery" to "掌握度分布",
     "stats.last7" to "近 7 天新增错题",
     "stats.subjects" to "科目分布",
@@ -646,7 +670,14 @@ private val B0_EN = mapOf(
     "practice.title" to "Focused practice",
     "practice.summary" to "Practice summary",
     "practice.temporary" to "Your ratings count only for this session. Your review schedule stays the same.",
-    "practice.results" to "{total} questions\nEasy {easy} · Unsure {vague} · Forgot {forgot}\nUnrated {left}",
+    "practice.results" to "{total} questions\nEasy {easy} · Unsure {vague} · Forgot {forgot}\nSkipped {skipped} · Unseen {left}",
+    "practice.saved" to "Rated or skipped {done} of {total} questions last time. Starting a new round replaces that progress.",
+    "practice.continue" to "Continue practice",
+    "practice.new" to "Start from current filters",
+    "practice.includeSkipped" to "Include skipped questions",
+    "practice.repeat" to "Retry weak questions ({count})",
+    "practice.readFailed" to "Couldn’t read your saved practice. Try again.",
+    "practice.saveFailed" to "Couldn’t save your practice progress. Please try that action again.",
     "practice.return" to "Back to notebook",
     "practice.unavailable" to "This question could not be loaded.",
     "practice.skip" to "Skip",
@@ -682,7 +713,8 @@ private val B0_EN = mapOf(
     "stats.today" to "Reviewed today",
     "stats.week" to "Last 7 days",
     "stats.streak" to "Day streak",
-    "stats.due" to "Due now",
+    "stats.due" to "Reviews left today",
+    "stats.todayComplete" to "Done for today",
     "stats.mastery" to "Mastery",
     "stats.last7" to "Added in last 7 days",
     "stats.subjects" to "Subjects",
@@ -775,7 +807,14 @@ private val B0_JA = mapOf(
     "practice.title" to "集中練習",
     "practice.summary" to "今回の練習結果",
     "practice.temporary" to "自己評価は今回の練習結果にだけ反映されます。復習予定は変わりません。",
-    "practice.results" to "全 {total} 問\nわかる {easy} · あいまい {vague} · 忘れた {forgot}\n未評価 {left}",
+    "practice.results" to "全 {total} 問\nわかる {easy} · あいまい {vague} · 忘れた {forgot}\nスキップ {skipped} · 未着手 {left}",
+    "practice.saved" to "前回は {total} 問中 {done} 問を評価またはスキップしました。新しく始めると前回の進捗を置き換えます。",
+    "practice.continue" to "練習を続ける",
+    "practice.new" to "現在の絞り込みで新しく始める",
+    "practice.includeSkipped" to "スキップした問題も含める",
+    "practice.repeat" to "苦手な問題を解き直す（{count} 問）",
+    "practice.readFailed" to "前回の進捗を読み込めません。もう一度お試しください。",
+    "practice.saveFailed" to "練習の進捗を保存できませんでした。もう一度同じ操作をしてください。",
     "practice.return" to "間違いノートに戻る",
     "practice.unavailable" to "この問題を読み込めませんでした。",
     "practice.skip" to "スキップ",
@@ -811,7 +850,8 @@ private val B0_JA = mapOf(
     "stats.today" to "今日の復習",
     "stats.week" to "直近 7 日",
     "stats.streak" to "連続日数",
-    "stats.due" to "復習待ち",
+    "stats.due" to "今日の残りの復習",
+    "stats.todayComplete" to "今日は完了",
     "stats.mastery" to "習得度",
     "stats.last7" to "直近 7 日の追加",
     "stats.subjects" to "科目別",
@@ -904,7 +944,14 @@ private val B0_KO = mapOf(
     "practice.title" to "집중 연습",
     "practice.summary" to "이번 연습 결과",
     "practice.temporary" to "자기 평가는 이번 연습 결과에만 반영되며 복습 일정은 그대로 유지됩니다.",
-    "practice.results" to "전체 {total}문제\n익숙함 {easy} · 가물가물 {vague} · 잊어버림 {forgot}\n미평가 {left}",
+    "practice.results" to "전체 {total}문제\n익숙함 {easy} · 가물가물 {vague} · 잊어버림 {forgot}\n건너뜀 {skipped} · 미시작 {left}",
+    "practice.saved" to "지난 연습에서 {total}문제 중 {done}문제를 평가하거나 건너뛰었습니다. 새로 시작하면 기존 진행 상황을 대체합니다.",
+    "practice.continue" to "이어서 연습",
+    "practice.new" to "현재 필터로 새로 시작",
+    "practice.includeSkipped" to "건너뛴 문제도 포함",
+    "practice.repeat" to "취약한 문제 다시 풀기 ({count}문제)",
+    "practice.readFailed" to "지난 연습 진행 상황을 읽을 수 없습니다. 다시 시도해 주세요.",
+    "practice.saveFailed" to "연습 진행 상황을 저장할 수 없습니다. 같은 작업을 다시 시도해 주세요.",
     "practice.return" to "오답 노트로 돌아가기",
     "practice.unavailable" to "문제를 불러올 수 없습니다.",
     "practice.skip" to "건너뛰기",
@@ -940,7 +987,8 @@ private val B0_KO = mapOf(
     "stats.today" to "오늘 복습",
     "stats.week" to "최근 7일",
     "stats.streak" to "연속 일수",
-    "stats.due" to "복습 대기",
+    "stats.due" to "오늘 남은 복습",
+    "stats.todayComplete" to "오늘 복습 완료",
     "stats.mastery" to "숙달도",
     "stats.last7" to "최근 7일 추가",
     "stats.subjects" to "과목별",
@@ -2837,6 +2885,8 @@ private val B9_ZH = mapOf(
     "think.unfold" to "展开思考区",
     "conversation.viewImages" to "查看图片",
     "review.titleProgress" to "复习 {i}/{n}",
+    "review.dailyProgress" to "今日已复习 {i} / 计划 {n} 题",
+    "review.roundDone" to "本轮复习已结束",
     "review.nextQuestion" to "下一题"
 )
 
@@ -2858,6 +2908,8 @@ private val B9_EN = mapOf(
     "think.unfold" to "Expand thinking",
     "conversation.viewImages" to "View images",
     "review.titleProgress" to "Review {i}/{n}",
+    "review.dailyProgress" to "{i} of {n} planned reviews done today",
+    "review.roundDone" to "Review session complete",
     "review.nextQuestion" to "Next"
 )
 
@@ -2879,6 +2931,8 @@ private val B9_JA = mapOf(
     "think.unfold" to "思考を展開する",
     "conversation.viewImages" to "画像を見る",
     "review.titleProgress" to "復習 {i}/{n}",
+    "review.dailyProgress" to "今日の復習 {i} / 予定 {n} 問",
+    "review.roundDone" to "今回の復習が終了しました",
     "review.nextQuestion" to "次の問題"
 )
 
@@ -2900,6 +2954,8 @@ private val B9_KO = mapOf(
     "think.unfold" to "사고 과정 펼치기",
     "conversation.viewImages" to "이미지 보기",
     "review.titleProgress" to "복습 {i}/{n}",
+    "review.dailyProgress" to "오늘 복습 {i} / 계획 {n}문제",
+    "review.roundDone" to "이번 복습을 마쳤습니다",
     "review.nextQuestion" to "다음 문제"
 )
 
@@ -2918,7 +2974,7 @@ private val B10_ZH = mapOf(
         "· 🤖 流式解答、附图追问与同类题练习。选文引用后可用常用追问、查看原文并返回，支持公式、表格和 SVG 图形放大，同批图片可左右切换。可收藏重点，并在 PDF 附件中查找选文原页。\n" +
         "· 📤 选中或全部问答可导出为文字型 PDF 或分张 PNG。\n" +
         "· 🧠 快速与思考模式，可设置 AI 输出语言、按科目启停自定义要求；要求可单独导入导出。\n" +
-        "· 📚 错题本支持分类、标签、批量管理和按筛选结果专项练习。\n" +
+        "· 📚 错题本支持分类、标签和批量管理。专项练习可中途续练，也可只重练薄弱题。\n" +
         "· 🕘 按关键词和时间查找解题与批改记录、继续追问，保留 30 天内最近 200 条。\n" +
         "· 🏷 标签整理支持 AI 建议、预览确认和合并撤销。\n" +
         "· 📖 间隔复习、每日提醒与学习统计。\n" +
@@ -2927,7 +2983,7 @@ private val B10_ZH = mapOf(
         "· 💾 输入草稿自动保留，保存失败可重试，中断对话可恢复，删除操作支持撤销。\n" +
         "· ⬆️ 应用内检查正式版和可选测试版，支持更新提示、差分与后台下载、安装前校验。\n" +
         "· 📥 从其他应用分享 1～2 张图片，选择解题或批改并按顺序框选。\n" +
-        "· 🔎 错题本搜索显示题干或答案的命中片段，并高亮关键词。"
+        "· 🔎 点按错题本搜索结果中的片段，可跳到题干或解答中的对应位置。"
         ),
     "about.privacy" to "🔒 数据与隐私",
     "about.privacy.body" to (
@@ -2998,7 +3054,7 @@ private val B10_EN = mapOf(
         "· 🤖 Stream answers, ask with images and practise similar questions. Quote text to use follow-up prompts, jump to its source and return. Supports formulas, tables, enlarged SVG diagrams and swiping through images from the same batch. Bookmark key passages and find selected text in original PDF pages.\n" +
         "· 📤 Export selected messages or all Q&A as a text PDF or paged PNG images.\n" +
         "· 🧠 Choose fast or thinking mode, set AI output language, and toggle instructions by subject; export and import instructions separately.\n" +
-        "· 📚 Organize notebook entries with categories, tags and batch actions, or practise a filtered set.\n" +
+        "· 📚 Organize notebook entries with categories, tags and batch actions. Resume a practice session or repeat the questions you found difficult.\n" +
         "· 🕘 Find solutions and grading by keyword and date, then continue the conversation; keeps the latest 200 entries within 30 days.\n" +
         "· 🏷 Organize tags with AI suggestions, merge previews and undo.\n" +
         "· 📖 Spaced review, daily reminders and learning statistics.\n" +
@@ -3007,7 +3063,7 @@ private val B10_EN = mapOf(
         "· 💾 Keep input drafts, retry failed saves, recover interrupted conversations and undo deletions.\n" +
         "· ⬆️ Check stable and optional beta updates, view update prompts, use delta and background downloads, and verify before installation.\n" +
         "· 📥 Share 1–2 images from other apps, choose solving or grading, then crop in order.\n" +
-        "· 🔎 Notebook search shows matching question or answer excerpts with highlighted keywords."
+        "· 🔎 Tap a notebook search excerpt to jump to the match in the question or answer."
         ),
     "about.privacy" to "🔒 Data & privacy",
     "about.privacy.body" to (
@@ -3078,7 +3134,7 @@ private val B10_JA = mapOf(
         "· 🤖 逐次解答、画像付き質問、類似問題の練習。引用した箇所には定型の質問を使え、引用元と質問の位置を往復できます。数式・表・SVG 図の拡大と、同じ組の画像のスワイプ表示に対応。 要点の保存や、選択文の PDF 原文ページ検索にも対応。\n" +
         "· 📤 選択した問答または全問答をテキスト PDF または分割 PNG に出力。\n" +
         "· 🧠 高速・思考モード、AI 出力言語、科目別カスタム指示に対応。指示は個別に書き出し・読み込みできます。\n" +
-        "· 📚 間違いノートでは分類・タグ・一括操作のほか、絞り込んだ問題で演習できます。\n" +
+        "· 📚 間違いノートは分類・タグ・一括操作に対応。演習を途中から再開したり、苦手な問題だけを解き直したりできます。\n" +
         "· 🕘 キーワードと期間で解答・添削履歴を探して追加質問。30日以内の最新200件を保存。\n" +
         "· 🏷 AIの提案、統合前の確認、取り消しに対応したタグ整理。\n" +
         "· 📖 間隔を空けた復習、毎日の通知と学習統計。\n" +
@@ -3087,7 +3143,7 @@ private val B10_JA = mapOf(
         "· 💾 入力下書きの保存、保存失敗の再試行、中断した会話の復元、削除の取り消し。\n" +
         "· ⬆️ 正式版と任意のテスト版の更新確認、更新ダイアログ、差分・バックグラウンドダウンロードとインストール前の検証。\n" +
         "· 📥 他のアプリから画像を1～2枚共有し、解答または添削を選んで順番に切り取り。\n" +
-        "· 🔎 ノート検索で問題文・解答の一致箇所とキーワードの強調を表示。"
+        "· 🔎 ノートの検索結果で抜粋をタップすると、問題文や解答の該当箇所に移動できます。"
         ),
     "about.privacy" to "🔒 データとプライバシー",
     "about.privacy.body" to (
@@ -3158,7 +3214,7 @@ private val B10_KO = mapOf(
         "· 🤖 스트리밍 답변, 이미지 질문과 유사 문제 연습. 인용한 글에 후속 질문 예시를 쓰거나 인용문과 원문 사이를 이동할 수 있으며 수식, 표, SVG 그림 확대와 같은 묶음 이미지의 좌우 넘기기를 지원합니다. 핵심 내용을 저장하고 PDF 원문에서 선택한 구절을 찾을 수 있습니다.\n" +
         "· 📤 선택한 문답 또는 전체 문답을 텍스트 PDF나 분할 PNG로 내보냅니다.\n" +
         "· 🧠 빠른 모드와 생각 모드, AI 출력 언어 및 과목별 지시 설정. 지시는 별도로 내보내고 가져올 수 있습니다.\n" +
-        "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리하고 필터로 고른 문제를 연습할 수 있습니다.\n" +
+        "· 📚 오답 노트를 분류·태그·일괄 작업으로 관리할 수 있습니다. 연습을 이어 하거나 어려웠던 문제만 다시 풀 수 있습니다.\n" +
         "· 🕘 키워드와 기간으로 풀이·채점 기록을 찾고 질문을 이어갑니다. 30일 이내 최근 200건을 보관합니다.\n" +
         "· 🏷 AI 제안, 병합 미리보기와 실행 취소를 지원하는 태그 정리.\n" +
         "· 📖 간격 복습, 매일 알림과 학습 통계.\n" +
@@ -3167,7 +3223,7 @@ private val B10_KO = mapOf(
         "· 💾 입력 초안 보관, 저장 실패 재시도, 중단된 대화 복구와 삭제 실행 취소.\n" +
         "· ⬆️ 정식판과 선택적 테스트판 업데이트 확인, 업데이트 안내, 차등·백그라운드 다운로드와 설치 전 검증.\n" +
         "· 📥 다른 앱에서 이미지 1~2장을 공유하고 풀이 또는 채점을 선택한 뒤 순서대로 자릅니다.\n" +
-        "· 🔎 오답노트 검색에서 문제·답변의 일치 구절과 강조된 키워드를 표시합니다."
+        "· 🔎 오답 노트 검색 결과에서 발췌문을 누르면 문제나 답변의 해당 부분으로 이동합니다."
         ),
     "about.privacy" to "🔒 데이터와 개인정보",
     "about.privacy.body" to (

@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.catch
@@ -125,13 +126,19 @@ internal fun messageIndicesForKeys(items: List<ChatItem>, keys: List<String?>): 
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+    internal val notebookPractice by lazy { com.zsz.studyassistant.data.NotebookPracticeStore.get(app) }
     private val documentStore by lazy { com.zsz.studyassistant.data.DocumentStore(getApplication()) }
     val sharedImages = com.zsz.studyassistant.data.SharedImageInbox(app, viewModelScope)
 
     init { KeyManager.init(app) }
     private val calendarDay = MutableStateFlow(com.zsz.studyassistant.data.CalendarDay.now())
     val currentDay: StateFlow<com.zsz.studyassistant.data.CalendarDay> get() = calendarDay
-    fun refreshClock() { calendarDay.value = com.zsz.studyassistant.data.CalendarDay.now() }
+    fun refreshClock() {
+        val day = com.zsz.studyassistant.data.CalendarDay.now()
+        if (day == calendarDay.value) return
+        calendarDay.value = day
+        if (reviewMode) viewModelScope.launch { refreshReviewPlan() }
+    }
     // Draft text stays in memory across Activity recreation, never in a Binder saved-state Bundle.
     val customPromptEditor by lazy { com.zsz.studyassistant.ui.SubjectPromptEditor(app, viewModelScope) }
 
@@ -279,6 +286,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun commitDeletion(batch: com.zsz.studyassistant.data.DeleteBatch) {
         invalidateSimilarSaves(batch.questions)
         solveSessionWriteMutex.withLock {
+            // Capture any new IDs before their last notebook/review rows disappear.
+            if (batch.questions.isNotEmpty()) {
+                try {
+                    dailyReviewStore.refresh(dao, onlyIfStarted = true)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // A local progress snapshot must not prevent the confirmed deletion.
+                }
+            }
             AppDatabase.get(getApplication()).withWriteTransaction {
                 if(batch.categories.isNotEmpty()) {
                     dao.clearCategoryForCategories(batch.categories.toList())
@@ -394,7 +411,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var savedToNotebook by mutableStateOf(false)
         private set
-    var savedQuestionId: QuestionId? = null
+    var savedQuestionId by mutableStateOf<QuestionId?>(null)
         private set
     var isFromNotebook by mutableStateOf(false)
         private set
@@ -531,6 +548,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
     private var activeDraft: com.zsz.studyassistant.data.ConversationDraft? = null
     private var currentNotebookBaseline: com.zsz.studyassistant.data.SavePayload? = null
+    internal fun notebookMatchText(id: QuestionId, answer: Boolean): String? =
+        currentNotebookBaseline?.takeIf { it.id == id }?.let { if (answer) it.answer else it.text }
     private var draftRevision = 0L
     var draftSummaries by mutableStateOf<List<com.zsz.studyassistant.data.DraftSummary>>(emptyList())
         private set
@@ -2241,7 +2260,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 com.zsz.studyassistant.data.BackupJobs.exclusive(getApplication()) {
                 solveSessionWriteMutex.withLock {
                     requireNoPendingSaves()
-                    com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
+                    dailyReviewStore.clear {
+                        com.zsz.studyassistant.data.BackupManager.clearAll(AppDatabase.get(getApplication()))
+                    }
+                    notebookPractice.clear()
                     conversationDrafts.clearAll()
                     inputDraftObserver?.cancel(); inputDraftRestore?.cancel()
                     inputDrafts.clearAll()
@@ -2705,23 +2727,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- 复习（艾宾浩斯）----
 
+    private val dailyReviewStore = com.zsz.studyassistant.data.DailyReviewStore(app)
+    internal val dailyReviewPlan: StateFlow<com.zsz.studyassistant.data.DailyReviewPlan?> = dailyReviewStore.state
+    private suspend fun refreshReviewPlan(): com.zsz.studyassistant.data.DailyReviewPlan? = try {
+        dailyReviewStore.refresh(dao)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        error = com.zsz.studyassistant.ui.stringsFor(uiLang)["review.loadFailed"]
+        null
+    }
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun dueQuestions(week: Boolean, onlyWeak: Boolean): Flow<List<QuestionPreview>> =
         kotlinx.coroutines.flow.combine(calendarDay.flatMapLatest { day ->
             dao.dueQuestions(if (week) day.weekEnd else day.end, onlyWeak)
-        }, deletionState) { rows, deletes -> rows.filterNot { it.id in deletes.questionIds } }
+                .distinctUntilChanged().onEach { refreshReviewPlan() }
+        }, deletionState, dailyReviewPlan) { rows, deletes, plan ->
+            rows.filterNot { it.id in deletes.questionIds || it.id in plan?.rated.orEmpty() }
+        }
 
     var reviewBusy by mutableStateOf(false)
         private set
     private var reviewEpoch = 0L
     private val committedReviewIds = mutableSetOf<QuestionId>()
     private suspend fun commitReview(questionId: QuestionId, level: Int) {
-        AppDatabase.get(getApplication()).withWriteTransaction {
-            val question = dao.questionLightOnce(questionId) ?: error("Question no longer exists")
-            check(!question.deleted && questionId !in deletionState.value.questionIds)
-            val before = dao.reviewFor(questionId) ?: Review(questionId).also { dao.insertReview(it) }
-            val (step, days) = com.zsz.studyassistant.data.ReviewPlanning.schedule(level, before.intervalStep)
-            dao.updateReview(questionId, step, com.zsz.studyassistant.data.CalendarDay.now().after(days), System.currentTimeMillis())
+        dailyReviewStore.rate(dao, questionId) { day, alreadyRated ->
+            AppDatabase.get(getApplication()).withWriteTransaction {
+                val question = dao.questionPreviewOnce(questionId) ?: error("Question no longer exists")
+                check(!question.deleted && questionId !in deletionState.value.questionIds)
+                val before = dao.reviewFor(questionId) ?: Review(questionId).also { dao.insertReview(it) }
+                if (!alreadyRated && before.lastReviewedAt !in day.start..day.end) {
+                    val (step, days) = com.zsz.studyassistant.data.ReviewPlanning.schedule(level, before.intervalStep)
+                    dao.updateReview(questionId, step, day.after(days), System.currentTimeMillis().coerceIn(day.start, day.end))
+                }
+            }
         }
     }
 
@@ -2730,22 +2770,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     private var reviewQueue: List<QuestionPreview> = emptyList()
     private var currentReviewQuestion: Question? = null
+    val reviewDone: Int get() = dailyReviewPlan.value?.completed ?: 0
 
-    /** 本轮复习进度：第 reviewDone+1 / reviewTotal 题（进入复习时由列表确定总数） */
-    var reviewTotal by mutableStateOf(0)
-        private set
-    var reviewDone by mutableStateOf(0)
-        private set
-
-    /** 从复习列表进入时调用：记录本轮总数与起始位置，用于「第 i/n 题」显示 */
+    /** 点击的题和当前筛选只决定本轮切题顺序。 */
     fun startReviewSession(candidates: List<QuestionPreview>, index: Int) {
         reviewEpoch++
         committedReviewIds.clear()
         val ids = com.zsz.studyassistant.data.ReviewPlanning.ordered(candidates.map { it.id }, index)
         val byId = candidates.associateBy { it.id }
         reviewQueue = ids.mapNotNull { byId[it] }
-        reviewTotal = reviewQueue.size
-        reviewDone = 0
         reviewBusy = false
     }
 
@@ -2808,12 +2841,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val binding = sessionRecordBinding
         fun ownsSession() = openRequests.isCurrent(request) && epoch == reviewEpoch && seq == callSeq && binding === sessionRecordBinding
         if (!ownsSession()) return
-        val wasQueued=reviewQueue.any { it.id==answered }
         val remaining = reviewQueue.filter { it.id != answered }
         reviewQueue = remaining
-        if(wasQueued) reviewDone = (reviewDone + 1).coerceAtMost(reviewTotal)
         for (candidate in remaining) {
             if (!ownsSession()) return
+            if (candidate.id in dailyReviewPlan.value?.rated.orEmpty()) continue
             if (!canOpenSavedQuestion(candidate.id, ::ownsSession)) return
             if (!ownsSession()) return
             val full = dao.heavyOnce(candidate.id)
@@ -2824,7 +2856,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
             reviewQueue = reviewQueue.filter { it.id != candidate.id }
-            reviewTotal = (reviewTotal - 1).coerceAtLeast(reviewDone)
         }
         redoMessage = null
         error=null
@@ -2852,8 +2883,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         reviewBusy = false
         reviewQueue = emptyList()
         reviewMode = false
-        reviewTotal = 0
-        reviewDone = 0
+        currentReviewQuestion = null
     }
 
     // ---------------------------------------------------------------------
@@ -3670,7 +3700,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Read a single practice card without opening a solve session or recording a review. */
     internal suspend fun readPracticeQuestion(id: QuestionId): List<com.zsz.studyassistant.ui.ChatMsg>? {
-        val row = dao.heavyOnce(id)?.takeUnless { it.deleted || id in deletionState.value.questionIds } ?: return null
+        // The undo window may still restore this item. Prune only after a committed deletion.
+        deletionState.first { id !in it.questionIds }
+        val row = dao.heavyOnce(id)?.takeUnless { it.deleted } ?: return null
         val grade = dao.sessionLightOnce(id)?.source == "grade"
         val loaded = conversationLoader.readConversation(row.text, row.answer, row.conversationJson, row.imageBytes, grade, id,
             decodeImages = false)

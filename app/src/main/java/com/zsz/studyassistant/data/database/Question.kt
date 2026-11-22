@@ -153,6 +153,10 @@ interface QuestionDao {
     @Query("SELECT COUNT(*) FROM questions q INNER JOIN review r ON q.id=r.questionId WHERE q.deleted=0 AND r.nextReviewAt<=:until")
     suspend fun dueCount(until: Long): Int
 
+    @Query("""SELECT q.id, q.deleted, r.nextReviewAt, r.lastReviewedAt
+        FROM questions q LEFT JOIN review r ON r.questionId = q.id""")
+    suspend fun dailyReviewRows(): List<DailyReviewRow>
+
     // ---- 复习调度 ----
     /** 到期错题（nextReviewAt <= until），按下次复习时间升序 */
     // ★ 只取轻字段：不要 SELECT q.*（含 imageBytes 大 BLOB 与会话 JSON），

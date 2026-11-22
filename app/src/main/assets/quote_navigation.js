@@ -5,13 +5,17 @@
   function boundary(node, after){
     return [node.parentNode, Array.prototype.indexOf.call(node.parentNode.childNodes, node) + (after ? 1 : 0)];
   }
-  function textMap(root, visualMath){
+  function textMap(root, visualMath, includePoints){
     var text = '', points = [];
+    function keepPoint(offset){
+      return includePoints !== false && (!includePoints || offset===includePoints.start || offset===includePoints.end-1);
+    }
     function add(value, point){
       for(var i=0;i<value.length;i++){
         var c = /\s/.test(value[i]) ? ' ' : value[i];
         if(c === ' ' && (!text.length || text[text.length-1] === ' ')) continue;
-        text += c; points.push(point(i));
+        text += c;
+        if(keepPoint(text.length-1)) points.push(point(i));
       }
     }
     function walk(node){
@@ -35,7 +39,7 @@
       if(block) add(' ', function(){ return {a:[node,node.childNodes.length],b:[node,node.childNodes.length]}; });
     }
     walk(root);
-    if(text.endsWith(' ')){ text=text.slice(0,-1); points.pop(); }
+    if(text.endsWith(' ')){ text=text.slice(0,-1); if(keepPoint(text.length)) points.pop(); }
     return {text:text, points:points};
   }
   function compare(a,b){
@@ -208,6 +212,9 @@
     var range=target.range || mappedRange(textMap(scope),target.start,target.end);
     if(!range){ unavailable(); return; }
     setReturn(originPoint);
+    highlightRange(scope,bubble,range);
+  }
+  function highlightRange(scope,bubble,range){
     var layer=document.createElement('div'); layer.className='quote-jump-highlight'; layer.setAttribute('aria-hidden','true');
     bubble.appendChild(layer); highlight={layer:layer,scope:scope,bubble:bubble,range:range};
     var startY=window.scrollY, began=performance.now();
@@ -224,6 +231,70 @@
   window.dshJumpBookmark=function(bookmark){
     if(!bookmark || !bookmark.anchor || selectionMode){unavailable();return;}
     jump(-1, bookmark);
+  };
+
+  // Index the rendered bodies in reading order. Search LaTeX as an atomic source so that
+  // highlighting never inserts markup into KaTeX, Markdown, or selectable message text.
+  var notebookIndex=null, notebookField=null;
+  function indexMatches(request){
+    var groups=[], count=0, preferred=-1;
+    var needle=normalized(request.query);
+    var literal=new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'giu');
+    function addScope(idx,scope){
+      var text=textMap(scope,false,false).text, offsets=[], hit;
+      while((hit=literal.exec(text))!==null) offsets.push(hit.index);
+      if(!offsets.length) return;
+      if(idx===request.preferred) preferred=count;
+      groups.push({idx:idx,scope:scope,offsets:offsets,first:count});
+      count+=offsets.length;
+    }
+    if(notebookField) notebookField.remove();
+    notebookField=null;
+    messageSources.forEach(function(message,idx){
+      var bubble=bubbleAt(idx), body=bubble && bubble.querySelector('.message-text');
+      if(body) addScope(idx,body);
+      if(bubble && idx===request.preferred){
+        // A saved OCR field can be absent from an image-only bubble. Markdown syntax may also
+        // disappear in rendering. Show that source locally while the notebook jump is active.
+        var source=request.supplemental || (preferred<0 ? message.content : '');
+        if(source){
+          notebookField=document.createElement('div');
+          notebookField.className='notebook-search-field';
+          notebookField.textContent=source;
+          bubble.appendChild(notebookField);
+          addScope(idx,notebookField);
+        }
+      }
+    });
+    return {sources:messageSources,query:request.query,groups:groups,count:count,preferred:preferred,length:needle.length};
+  }
+  window.dshEndNotebookSearch=function(){
+    if(notebookField) notebookField.remove();
+    if(notebookIndex && highlight && highlight.notebook) clear();
+    notebookField=null; notebookIndex=null;
+  };
+  window.dshNotebookMatch=function(request,requested){
+    if(!request || !normalized(request.query)) return [0,0];
+    if(!notebookIndex || notebookIndex.sources!==messageSources || notebookIndex.query!==request.query)
+      notebookIndex=indexMatches(request);
+    var index=notebookIndex;
+    if(index.preferred<0) return [0,0];
+    var n=requested<0 ? index.preferred : Math.min(requested,index.count-1);
+    var group=index.groups.find(function(g){return n>=g.first && n<g.first+g.offsets.length;});
+    var start=group.offsets[n-group.first], scope=group.scope, bubble=bubbleAt(group.idx);
+    var map=textMap(scope,false,{start:start,end:start+index.length});
+    var range=mappedRange(map,0,map.points.length);
+    if(!range || !scope.isConnected || !bubble) return [0,0];
+    clear(); window.dshNoFollow(); setReturn(null);
+    // Bring a matching cell into view even if its column is outside the horizontal viewport.
+    var scroller=elementOf(range.startContainer).closest('.table-scroll,pre,.katex-display');
+    if(scroller){
+      var cell=range.getBoundingClientRect(), viewport=scroller.getBoundingClientRect();
+      if(cell.left<viewport.left || cell.right>viewport.right) scroller.scrollLeft+=cell.left-viewport.left-12;
+    }
+    highlightRange(scope,bubble,range);
+    highlight.notebook=true;
+    return [n,index.count];
   };
   // A short tap is navigation; selection, dragging, and message multi-select keep their existing behavior.
   var tap=null, scrollTouch=null, suppressClickUntil=0;

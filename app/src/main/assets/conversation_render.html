@@ -43,6 +43,7 @@
   .quoted-text::before{content:"\201C";left:6px;top:2px;}
   .quoted-text::after{content:"\201D";right:6px;bottom:-6px;}
   .quote-jump-highlight{position:absolute;pointer-events:none;user-select:none;background:rgba(255,183,55,.34);border-radius:4px;z-index:2;}
+  .notebook-search-field{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px;}
   body.dark .quote-jump-highlight{background:rgba(255,177,48,.32);}
   @keyframes quote-blink{0%,100%{opacity:1;}50%{opacity:.12;}}
   .quote-jump-highlight.blink-twice{animation:quote-blink 420ms ease-in-out 2;}
@@ -630,7 +631,7 @@ function reconcileMessageNode(current, next){
     if(current.getAttribute(attr.name)!==attr.value) current.setAttribute(attr.name,attr.value);
   });
   // Quote highlighting is a transient overlay owned by quote_navigation.js, outside rendered content.
-  var oldChildren=Array.from(current.childNodes).filter(function(n){return !(n.nodeType===1 && n.classList.contains('quote-jump-highlight'));});
+  var oldChildren=Array.from(current.childNodes).filter(function(n){return !(n.nodeType===1 && n.matches('.quote-jump-highlight,.notebook-search-field'));});
   var newChildren=Array.from(next.childNodes);
   for(var n=0;n<newChildren.length;n++){
     if(n<oldChildren.length) reconcileMessageNode(oldChildren[n],newChildren[n]);

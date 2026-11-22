@@ -6,7 +6,7 @@ data class StatsSnapshot(
     val todayReviewed: Int = 0,
     val weekReviewed: Int = 0,
     val streakDays: Int = 0,
-    val dueNow: Int = 0,
+    val dueNow: Int? = null,
     val mastery: List<Pair<String, Int>> = emptyList(),   // 未开始 / 复习中 / 已掌握
     val subjects: List<Pair<String, Int>> = emptyList(),  // 科目（分类）→ 题数
     val last7Days: List<Int> = emptyList(),               // 近 7 天新增（最早 → 今天）
@@ -29,7 +29,7 @@ object StudyStatistics {
             reviewedAt.add(review.lastReviewedAt)
             if (review.lastReviewedAt in today..end) todayReviewed++
             if (review.lastReviewedAt in week..end) weekReviewed++
-            if (review.nextReviewAt <= end) due++
+            if (review.nextReviewAt <= end && review.lastReviewedAt !in today..end) due++
         }
         val names = categories.associate { it.id to it.name }
         val subjects = linkedMapOf<String, Int>()

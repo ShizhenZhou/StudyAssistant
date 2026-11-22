@@ -459,7 +459,8 @@ class MainActivity : ComponentActivity() {
                                         SolveScreen(
                                             nav,
                                             viewModel,
-                                            AppNav.Origin.of(entry.arguments?.getString("origin"))
+                                            AppNav.Origin.of(entry.arguments?.getString("origin")),
+                                            notebookMatch = entry.savedStateHandle[AppNav.NOTEBOOK_MATCH]
                                         )
                                     }
                                     composable(AppNav.HISTORY) { SolveHistoryScreen(nav, viewModel) }
@@ -473,9 +474,11 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                     composable(AppNav.NOTEBOOK_PRACTICE) { com.zsz.studyassistant.ui.NotebookPracticeScreen(nav, viewModel) }
-                                    composable(AppNav.REVIEW) { ReviewScreen(nav, viewModel) }
+                                    composable(AppNav.REVIEW) { entry -> ReviewScreen(nav, viewModel, entry) }
                                     composable(AppNav.SIMILAR) { SimilarScreen(nav, viewModel) }
-                                    composable(AppNav.STATS) { StatsScreen(viewModel, statsScroll) }
+                                    composable(AppNav.STATS) {
+                                        StatsScreen(viewModel, statsScroll) { AppNav.startDueReviewFromStats(nav) }
+                                    }
                                     composable(AppNav.SETTINGS) {
                                         SettingsTab(viewModel, settingsRootRequest, settingsScroll) { settingsAtRoot = it }
                                     }
