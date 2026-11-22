@@ -1572,6 +1572,7 @@ private val B3_ZH = mapOf(
     "similar.showAnswer" to "👁 查看答案",
     "similar.generating" to "同类题生成中……",
     "similar.hint" to "继续追问…",
+    "similar.newQuestion" to "重新出题",
     "similar.answerPrefix" to "💡 答案\n\n{body}"
 )
 
@@ -1589,6 +1590,7 @@ private val B3_EN = mapOf(
     "similar.showAnswer" to "👁 Show answer",
     "similar.generating" to "Generating a similar problem…",
     "similar.hint" to "Ask more…",
+    "similar.newQuestion" to "New question",
     "similar.answerPrefix" to "💡 Answer\n\n{body}"
 )
 
@@ -1606,6 +1608,7 @@ private val B3_JA = mapOf(
     "similar.showAnswer" to "👁 解答を見る",
     "similar.generating" to "類似問題を生成中……",
     "similar.hint" to "追加で質問…",
+    "similar.newQuestion" to "出題し直す",
     "similar.answerPrefix" to "💡 解答\n\n{body}"
 )
 
@@ -1623,6 +1626,7 @@ private val B3_KO = mapOf(
     "similar.showAnswer" to "👁 정답 보기",
     "similar.generating" to "유사 문제 생성 중……",
     "similar.hint" to "추가 질문…",
+    "similar.newQuestion" to "새 문제 생성",
     "similar.answerPrefix" to "💡 정답\n\n{body}"
 )
 

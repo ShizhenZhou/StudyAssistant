@@ -5,6 +5,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SaveSnapshotTest {
+    @Test fun similarQuestionIndexAndConversationUseTheSameFrozenFollowups() = runBlocking {
+        val followups = mutableListOf(
+            com.zsz.studyassistant.ChatItem(0, "user", "first"),
+            com.zsz.studyassistant.ChatItem(1, "assistant", "second")
+        )
+        val json = kotlinx.serialization.json.Json
+        fun capture() = similarNotebookSnapshot("id", 1L, "question", "reference", followups, json)
+        val before = capture()
+        followups.removeAt(0)
+        val after = capture().value()
+        assertEquals("reference\n\n我：first\n\nAI：second", before.value().answer)
+        assertEquals("reference\n\nAI：second", after.answer)
+        val messages = json.decodeFromString<List<com.zsz.studyassistant.ChatItem>>(after.conversationJson!!)
+        assertEquals(listOf("question", "reference", "second"), messages.map { it.content })
+        assertEquals(listOf(0L, 1L, 2L), messages.map { it.id })
+    }
+
     @Test fun preparationIsDeferredOffCallerThreadAndReused() = runBlocking {
         val caller = Thread.currentThread()
         var preparations = 0

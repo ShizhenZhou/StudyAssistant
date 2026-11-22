@@ -335,14 +335,14 @@ object StudyAssistant {
             title = if (requestTitle) ConversationTitleOption(true) else null
         )
         val body = try {
-            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared), "Bearer $accountKey"), owner)
+            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared.messages), "Bearer $accountKey"), owner)
         } catch (e: AiRequestException) {
             if (!e.fileReferenceRejected) throw e
             currentCoroutineContext().ensureActive()
-            AiImageUploads.cache.invalidate(accountKey)
             // Retry images inline first, retaining parsed documents and avoiding a paid re-upload.
             try {
-                if (prepared == original) throw e
+                val references = prepared.references ?: throw e
+                AiImageUploads.cache.invalidate(references)
                 awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(original), "Bearer $accountKey"), owner)
             } catch (fallback: AiRequestException) {
                 if (fallback.fileReferenceRejected && messages.any { it.localDocuments.isNotEmpty() }) {
@@ -684,24 +684,15 @@ object StudyAssistant {
     /** 出题提示词（流式/非流式共用） */
     private fun similarPrompt(question: Question): String =
         "请根据下面这道题，出一道同知识点、同类题型、难度相近的“近似题”，并自行给出完整、正确的解答（务必确保题目可解）。" +
-            "原题：${question.text}\n\n请先输出一行“题目：<新题>”，再输出“解答：<完整步骤与结论>”。数学公式用 LaTeX。"
+            "原题：${question.text}\n\n请用“题目：”开头写出新题，再另起一行用“解答：”开头写完整步骤与结论。" +
+            "这两个分段标记保留原样。数学公式用 LaTeX。"
 
     /** 解析出题结果（流式/非流式共用） */
     internal fun parseSimilar(out: String): SimilarResult {
-        val q = similarQuestionPortion(out).trim()
-        val a = Regex("解答[:：]([\\s\\S]+)").find(out)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() } ?: out
-        return SimilarResult(q, a)
-    }
-
-    /**
-     * 只取「题目：」之后、「解答：」之前的正文。
-     * 流式出题时用它决定界面显示什么——**答案部分绝不显示**（仍由页面点「查看答案」再展开）。
-     */
-    fun similarQuestionPortion(acc: String): String {
-        val i = listOf(acc.indexOf("解答："), acc.indexOf("解答:")).filter { it >= 0 }.minOrNull() ?: acc.length
-        val head = acc.substring(0, i)
-        val qi = listOf(head.indexOf("题目："), head.indexOf("题目:")).filter { it >= 0 }.minOrNull()
-        return (if (qi != null) head.substring(qi + 3) else head).trim()
+        val output = SimilarExerciseOutput.parse(out)
+        val question = output.readyQuestion ?: throw StreamIncompleteException("err.streamInvalid")
+        val answer = output.answer?.trim()?.takeIf { it.isNotEmpty() } ?: throw StreamIncompleteException("err.streamInvalid")
+        return SimilarResult(question, answer)
     }
 
     /** 根据错题出一道同知识点、同类题型、难度相近的近似题，并自备完整解答（确保可解） */
@@ -722,7 +713,7 @@ object StudyAssistant {
 //     }
 
     /**
-     * 流式出题：整体文本边生成边回调（调用方用 [similarQuestionPortion] 只显示题目部分，答案不外显）。
+     * 流式出题：整体文本边生成边回调，调用方按题目、解答两段展示。
      */
     suspend fun generateSimilarQuestionStream(
         question: Question,

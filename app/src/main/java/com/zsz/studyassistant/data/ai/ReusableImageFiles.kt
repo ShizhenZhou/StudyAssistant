@@ -22,20 +22,30 @@ internal class ReusableImageFiles(
     private val writeState: (File, String) -> Unit = { path, text -> PrivateJsonFile(path, 128 * 1024).write(text) },
     private val upload: suspend (ByteArray, String, String) -> DeepSeekFile
 ) {
-    @Serializable private data class Entry(val file: DeepSeekFile? = null, val retryAfter: Long = 0)
+    data class References(val scope: String, val path: File?, val files: Map<String, DeepSeekFile>)
+    data class Prepared(val messages: List<DeepSeekMessage>, val references: References? = null)
+
+    @Serializable private data class Entry(val file: DeepSeekFile? = null, val retryAfter: Long = 0) {
+        val persistent get() = file != null || retryAfter > 0
+    }
     @Serializable private data class State(val version: Int = 1, val scope: String, val entries: Map<String, Entry>)
     private val mutex = Mutex()
     private val entries = LinkedHashMap<String, Entry>(32, .75f, true)
     private var account: String? = null
     private var storage: File? = null
     private var loaded = false
+    private var dirty = false
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun persist() {
+    private fun persistChanges() {
+        if (!dirty) return
         val path = storage ?: return
         val scope = account ?: return
         // Failure merely disables reuse after restart; original image requests remain valid.
-        runCatching { writeState(path, json.encodeToString(State(scope = scope, entries = entries))) }
+        runCatching {
+            val state = State(scope = scope, entries = entries.filterValues { it.persistent })
+            writeState(path, json.encodeToString(state))
+        }.onSuccess { dirty = false }
     }
 
     private fun restore(scope: String) {
@@ -52,58 +62,100 @@ internal class ReusableImageFiles(
         }
     }
 
-    suspend fun prepare(messages: List<DeepSeekMessage>, accountKey: String, path: File? = null): List<DeepSeekMessage> = mutex.withLock {
-        // Never retain credentials, or reuse a file from a previous account.
-        val scope = digest(accountKey)
-        if (scope != account || storage != path) { entries.clear(); account = scope; storage = path; loaded = false }
-        restore(scope)
-        try { messages.map { message ->
-            val parts = message.content as? JsonArray ?: return@map message
-            message.copy(content = JsonArray(parts.map parts@{ part ->
-                currentCoroutineContext().ensureActive()
-                val obj = part as? JsonObject ?: return@parts part
-                if (obj["type"]?.jsonPrimitive?.contentOrNull != "image_url") return@parts part
-                val image = obj["image_url"] as? JsonObject ?: return@parts part
-                // The file content block has no detail option; retain explicit low-resolution semantics.
-                if (image["detail"] == JsonPrimitive("low")) return@parts part
-                val url = image["url"]?.jsonPrimitive?.contentOrNull ?: return@parts part
-                val marker = ";base64,"
-                val split = url.indexOf(marker)
-                if (!url.startsWith("data:image/") || split < 0) return@parts part
-                val key = digest(url)
-                val old = entries[key]
-                val now = clock()
-                if (old == null) {
-                    if (entries.size >= 32) entries.remove(entries.keys.first())
-                    entries[key] = Entry() // First use stays inline: no extra network round trip.
-                } else if (old.file?.expiresAt?.let { it > now + 300 } == true) {
-                    return@parts reference(old.file.id)
-                } else if (old.retryAfter <= now) {
-                    // A failed/uncertain upload is not retried immediately (it may already exist remotely).
-                    entries[key] = Entry(retryAfter = now + 300)
-                    persist()
-                    try {
-                        val bytes = Base64.getDecoder().decode(url.substring(split + marker.length))
-                        val file = upload(bytes, url.substring(5, split), accountKey)
-                        currentCoroutineContext().ensureActive()
-                        if (file.id.startsWith("file-") && file.expiresAt?.let { it > now + 300 } == true) {
-                            entries[key] = Entry(file)
-                            return@parts reference(file.id)
-                        }
-                    } catch (e: CancellationException) { throw e }
-                    catch (_: Exception) { currentCoroutineContext().ensureActive() }
-                }
-                while (entries.size > 32) entries.remove(entries.keys.first())
-                part
-            }))
-        } } finally { persist() }
+    private fun inlineImageUrl(part: JsonElement): String? {
+        val obj = part as? JsonObject ?: return null
+        if (obj["type"] != JsonPrimitive("image_url")) return null
+        val image = obj["image_url"] as? JsonObject ?: return null
+        // The file content block cannot express explicit low-resolution detail.
+        if (image["detail"] == JsonPrimitive("low")) return null
+        val url = (image["url"] as? JsonPrimitive)?.contentOrNull ?: return null
+        return url.takeIf { it.startsWith("data:image/") && it.contains(";base64,") }
     }
 
-    suspend fun invalidate(accountKey: String) = mutex.withLock {
-        if (account == digest(accountKey)) { entries.clear(); persist() }
+    suspend fun prepare(messages: List<DeepSeekMessage>, accountKey: String, path: File? = null): Prepared {
+        currentCoroutineContext().ensureActive()
+        if (messages.none { (it.content as? JsonArray)?.any { part -> inlineImageUrl(part) != null } == true })
+            return Prepared(messages)
+
+        return mutex.withLock {
+            val scope = aiAccountScope(accountKey)
+            if (scope != account || storage != path) {
+                entries.clear()
+                account = scope
+                storage = path
+                loaded = false
+                dirty = false
+            }
+            restore(scope)
+            val used = mutableMapOf<String, DeepSeekFile>()
+            try {
+                val prepared = messages.map { message ->
+                    val parts = message.content as? JsonArray ?: return@map message
+                    var replaced: MutableList<JsonElement>? = null
+                    parts.forEachIndexed { index, part ->
+                        currentCoroutineContext().ensureActive()
+                        val url = inlineImageUrl(part) ?: return@forEachIndexed
+                        val key = digest(url)
+                        val file = resolve(key, url, accountKey) ?: return@forEachIndexed
+                        used[key] = file
+                        val updated = replaced ?: parts.toMutableList().also { replaced = it }
+                        updated[index] = reference(file.id)
+                    }
+                    replaced?.let { message.copy(content = JsonArray(it)) } ?: message
+                }
+                if (used.isEmpty()) Prepared(messages) else Prepared(prepared, References(scope, path, used))
+            } finally { persistChanges() }
+        }
+    }
+
+    private suspend fun resolve(key: String, url: String, accountKey: String): DeepSeekFile? {
+        val old = entries[key]
+        if (old == null) {
+            if (entries.size >= 32) {
+                val evicted = entries.remove(entries.keys.first())
+                if (evicted?.persistent == true) dirty = true
+            }
+            entries[key] = Entry() // The first use is inline. Its marker lives only in this process.
+            return null
+        }
+        val now = clock()
+        old.file?.takeIf { (it.expiresAt ?: 0) > now + 300 }?.let { return it }
+        if (old.retryAfter > now) return null
+
+        // An interrupted upload may already exist remotely, even across process restarts.
+        entries[key] = Entry(retryAfter = now + 300)
+        dirty = true
+        persistChanges()
+        try {
+            val marker = ";base64,"
+            val split = url.indexOf(marker)
+            val bytes = Base64.getDecoder().decode(url.substring(split + marker.length))
+            val file = upload(bytes, url.substring(5, split), accountKey)
+            currentCoroutineContext().ensureActive()
+            if (validAiFileId(file.id) && (file.expiresAt ?: 0) > now + 300) {
+                entries[key] = Entry(file)
+                dirty = true
+                return file
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { currentCoroutineContext().ensureActive() }
+        return null
+    }
+
+    suspend fun invalidate(references: References) = mutex.withLock {
+        if (account != references.scope || storage != references.path) return@withLock
+        val changed = entries.entries.removeAll { (key, entry) ->
+            entry.file != null && entry.file == references.files[key]
+        }
+        if (changed) {
+            dirty = true
+            persistChanges()
+        }
     }
     suspend fun clear(path: File) = mutex.withLock {
-        entries.clear(); loaded = false
+        entries.clear()
+        loaded = false
+        dirty = false
         runCatching { PrivateJsonFile(path, 128 * 1024).clear() }
     }
     private fun reference(id: String) = buildJsonObject {

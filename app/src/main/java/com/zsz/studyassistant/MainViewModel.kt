@@ -24,6 +24,8 @@ import com.zsz.studyassistant.data.gradingInput
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.SaveSnapshot
+import com.zsz.studyassistant.data.SimilarExerciseGeneration
+import com.zsz.studyassistant.data.SimilarExerciseOutput
 import com.zsz.studyassistant.data.QuestionPreview
 import com.zsz.studyassistant.data.SolveSessionPreview
 import com.zsz.studyassistant.data.toPreview
@@ -2972,19 +2974,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var similarStreamingText by mutableStateOf<String?>(null)
         private set
 
-    /** 同类题出题被中止（还没出题成功）→ 界面显示蓝色「继续生成」 */
+    val similarCanSave: Boolean get() = !similarQuestion.isNullOrBlank()
+
+    /** 尚未获得完整参考答案，可按题干是否成型恢复或重新出题。 */
     var similarInterrupted by mutableStateOf(false)
+        private set
+    var similarInterruptionMessage by mutableStateOf<String?>(null)
         private set
 
     /** 同类题的出题/追问任务（用于「⏸ 中止生成」） */
     private var similarJob: Job? = null
     private var similarStreamOwner: com.zsz.studyassistant.data.StreamOwner? = null
     private var similarSeq = 0L
-    private class SimilarProgress(val initial: Boolean, val raw: StringBuffer = StringBuffer())
+    private var similarSourceCategoryId: Long? = null
+    private class SimilarProgress(val exercise: SimilarExerciseGeneration? = null, val raw: StringBuffer = StringBuffer())
     private var similarProgress: SimilarProgress? = null
     internal var similarQuestionRequest: suspend (Question, AiLang, Boolean, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> StudyAssistant.SimilarResult =
         { question, lang, think, owner, delta -> StudyAssistant.generateSimilarQuestionStream(question, lang, owner, delta,
             customPrompt = promptForSubject(question.categoryId), thinkingEnabled = think) }
+    internal var similarAnswerRequest: suspend (List<DeepSeekMessage>, Boolean, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> String =
+        { messages, think, owner, delta -> StudyAssistant.chatStream(StudyAssistant.MODEL_TEXT, messages,
+            onDelta = delta, owner = owner, thinkingEnabled = think) }
 
     /** 只有追问往返可以删除，其显示索引从题目之后的 1 开始。 */
     fun deleteSimilarItems(indices: List<Int>) {
@@ -2997,83 +3007,78 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startSimilar() {
-        val q = currentReviewQuestion ?: return
-        abortSimilar()
+        if (similarBusy) return
+        val source = currentReviewQuestion ?: return
         similarCreatedAt = System.currentTimeMillis()
         similarIdentity = QuestionIdentity.create(similarCreatedAt)
+        similarSourceCategoryId = source.categoryId
+        similarQuestion = null
+        similarAnswer = null
+        similarMessages = emptyList()
+        similarSavedQuestionId = null
+        similarRevealed = false
+        val request = similarQuestionRequest
+        val lang = aiLang
+        val think = thinkingEnabled
+        generateSimilarExercise(SimilarExerciseGeneration()) { owner, delta -> request(source, lang, think, owner, delta) }
+    }
+
+    private fun showSimilarOutput(output: SimilarExerciseOutput) {
+        similarQuestion = output.readyQuestion
+        similarAnswer = output.answer?.takeIf { it.isNotBlank() }
+        similarStreamingText = if (similarQuestion == null) output.questionText.takeIf { it.isNotBlank() } else null
+    }
+
+    private fun generateSimilarExercise(exercise: SimilarExerciseGeneration,
+        request: suspend (com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> StudyAssistant.SimilarResult
+    ) {
         val mySeq = ++similarSeq
-        similarStreamOwner?.cancel()
-        similarJob?.cancel()
         val owner = com.zsz.studyassistant.data.StreamOwner()
         similarStreamOwner = owner
-        val progress = SimilarProgress(initial = true)
+        val progress = SimilarProgress(exercise)
         similarProgress = progress
-        val request = similarQuestionRequest
-        val requestThinking = thinkingEnabled
+        similarBusy = true
+        similarInterrupted = false
+        similarInterruptionMessage = null
+        similarStreamingText = null
         similarJob = viewModelScope.launch {
-            similarBusy = true
-            similarQuestion = null; similarAnswer = null; similarMessages = emptyList(); similarRevealed = false
-            similarStreamingText = null
-            similarInterrupted = false
-            similarSavedQuestionId = null
-            val app = getApplication<Application>()
-            com.zsz.studyassistant.data.AnswerForegroundService.start(app, owner.id)
-            val sb = progress.raw
-            var lastEmit = 0L
             var answerCompleted = false
             try {
-                // 流式出题：界面只显示「题目」部分，答案随流到达但不外显（点「查看答案」才展开）
-                val r = withContext(Dispatchers.IO) {
-                    request(q, aiLang, requestThinking, owner) { delta ->
-                        sb.append(delta)
-                        val now = System.currentTimeMillis()
-                        if (now - lastEmit >= 180) {
-                            lastEmit = now
-                            val acc = sb.toString()
-                            val shown = StudyAssistant.similarQuestionPortion(acc)
-                            // 一旦出现「解答：」→ 题目已成型：立即提交为正式题目，
-                            // 此后界面进入「等答案」状态（「查看答案」按钮可见但不可用）
-                            val answerStarted = acc.contains("解答：") || acc.contains("解答:")
+                com.zsz.studyassistant.data.AnswerForegroundService.start(getApplication(), owner.id)
+                val result = withContext(Dispatchers.IO) {
+                    var nextEmit = 0L
+                    var questionReady = exercise.question != null
+                    request(owner) { delta ->
+                        progress.raw.append(delta)
+                        val now = SystemClock.elapsedRealtime()
+                        // Publish the first complete question even if its delimiter crosses a throttled chunk.
+                        val headingPossible = !questionReady && (':' in delta || '：' in delta)
+                        if (now >= nextEmit || headingPossible) {
+                            nextEmit = now + 180
+                            val output = exercise.output(progress.raw.toString())
+                            questionReady = output.readyQuestion != null
                             withContext(Dispatchers.Main) {
-                                if (mySeq != similarSeq) return@withContext   // 已被中止/重开
-                                if (answerStarted) {
-                                    if (shown.isNotBlank()) similarQuestion = shown
-                                    similarStreamingText = null
-                                } else {
-                                    similarStreamingText = shown
-                                }
+                                if (mySeq == similarSeq) showSimilarOutput(output)
                             }
                         }
                     }
                 }
                 if (mySeq == similarSeq) {
                     thinkingDone = true
-                    similarQuestion = r.question
-                    similarAnswer = r.answer
+                    similarQuestion = result.question
+                    similarAnswer = result.answer
                     similarStreamingText = null
                     persistSimilarConversation()
                     answerCompleted = true
                 }
             } catch (e: Exception) {
                 if (mySeq == similarSeq) {
-                    val partial = StudyAssistant.similarQuestionPortion(sb.toString())
-                    val aborted = e is CancellationException
-                    when {
-                        partial.isNotBlank() -> similarQuestion = partial          // 中断也保留已生成的题目
-                        aborted -> similarQuestion = null                           // 中止且零输出：回到「思考中…」
-                        else -> similarQuestion = com.zsz.studyassistant.ui.stringsFor(uiLang).format("err.similarFailed", "msg" to friendlyError(e, ""))
-                    }
+                    showSimilarOutput(exercise.output(progress.raw.toString()))
                     similarInterrupted = true
-                    val receivedAnswer = Regex("解答[:：]([\\s\\S]+)")
-                        .find(sb.toString())?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() }
-                    if (e is com.zsz.studyassistant.data.StreamIncompleteException) {
-                        val notice = friendlyError(e, "")
-                        similarAnswer = receivedAnswer?.let { it + "\n\n" + notice }
-                        similarMessages = similarMessages + ChatItem(similarMessages.size.toLong(), "assistant", notice)
-                    } else similarAnswer = receivedAnswer
-                    similarStreamingText = null
+                    if (e !is CancellationException) similarInterruptionMessage = friendlyError(e, "")
                     persistSimilarConversation()
                 }
+                if (e is CancellationException) throw e
             } finally {
                 finishSimilarRequest(mySeq, owner, answerCompleted && currentCoroutineContext().isActive)
             }
@@ -3091,12 +3096,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         similarJob?.cancel()
         similarJob = null
         similarBusy = false
-        if (progress.initial) {
-            // Having parsed a question does not mean the initial answer has finished.
+        val exercise = progress.exercise
+        if (exercise != null) {
+            showSimilarOutput(exercise.output(partial))
             similarInterrupted = true
-            similarQuestion = StudyAssistant.similarQuestionPortion(partial).takeIf { it.isNotBlank() }
-            similarAnswer = Regex("解答[:：]([\\s\\S]+)").find(partial)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() }
-            similarStreamingText = null
         } else {
             if (similarStreamingText == null) return // 附图仍在准备，尚未提交追问。
             // 追问阶段被中止：把已生成片段保留成正式消息，避免白等
@@ -3108,10 +3111,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         persistSimilarConversation()
     }
 
-    /** 同类题出题被中止后的「继续生成」：重新出题 */
     fun continueSimilar() {
-        similarInterrupted = false
-        startSimilar()
+        if (similarBusy || !similarInterrupted) return
+        val question = similarQuestion ?: return startSimilar()
+        val prefix = similarAnswer.orEmpty()
+        val exercise = SimilarExerciseGeneration(question, prefix)
+        val request = similarAnswerRequest
+        val lang = aiLang
+        val category = similarSourceCategoryId
+        val think = thinkingEnabled
+        generateSimilarExercise(exercise) { owner, delta ->
+            val messages = exercise.continuationMessages(StudyAssistant.systemMessage(lang, promptForSubject(category)))
+            val suffix = request(messages, think, owner, delta)
+            if (suffix.isBlank()) throw com.zsz.studyassistant.data.StreamIncompleteException("err.streamInvalid")
+            StudyAssistant.SimilarResult(question, prefix + suffix)
+        }
     }
 
     internal var similarChatRequest: suspend (String, List<DeepSeekMessage>, com.zsz.studyassistant.data.StreamOwner, suspend (String) -> Unit) -> String =
@@ -3128,7 +3142,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val qTitle = similarQuestion ?: return false
         val txt = text.trim()
         if (txt.isEmpty() && images.isEmpty()) return false
-        val prompt = customPromptText(currentReviewQuestion?.categoryId) ?: run {
+        val prompt = customPromptText(similarSourceCategoryId) ?: run {
             error?.let(onFailure)
             return false
         }
@@ -3149,7 +3163,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         similarBusy = true
         val baseCount = previous.size + 1
         val request = similarChatRequest
-        val progress = SimilarProgress(initial = false)
+        val progress = SimilarProgress()
         similarProgress = progress
         similarJob = viewModelScope.launch {
             val app = getApplication<Application>()
@@ -3259,19 +3273,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ids.forEach { id -> similarSaveRequests[id]?.let { it.invalidated = true; it.latest = null } }
     }
 
-    private fun similarChats() = listOf(ChatItem(0,"question",similarQuestion.orEmpty()), ChatItem(1,"assistant",similarAnswer.orEmpty())) + similarMessages.mapIndexed { i,m -> m.copy(id=(i+2).toLong()) }
+    private fun captureSimilarNotebookSnapshot(): SaveSnapshot<com.zsz.studyassistant.data.SavePayload>? {
+        val question = similarQuestion?.takeIf { similarCanSave } ?: return null
+        return com.zsz.studyassistant.data.similarNotebookSnapshot(
+            similarIdentity, similarCreatedAt, question, similarAnswer.orEmpty(), similarMessages, json
+        )
+    }
     private fun persistSimilarConversation() {
         val id = similarIdentity
         val request = similarSaveRequests[id]
         if (similarSavedQuestionId != id && request == null) return
         if(id in deletionState.value.questionIds) return
-        val chats=similarChats()
-        val created = similarCreatedAt
-        val text = similarQuestion.orEmpty()
-        val answer = similarAnswer.orEmpty()
-        val payload = SaveSnapshot(id) {
-            com.zsz.studyassistant.data.SavePayload(id, created, text, answer, json.encodeToString(chats))
-        }
+        val payload = captureSimilarNotebookSnapshot() ?: return
         if (request != null) {
             if (request.invalidated) return
             if (id in deletedNotebookIds) {
@@ -3285,36 +3298,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         name: String?, categoryId: Long?, tagNames: List<String> = emptyList(), tagIds: List<Long> = emptyList()
     ) {
         if (dataBusy) return
-        val title = similarQuestion ?: return
         val id = similarIdentity
         if (id in deletionState.value.questionIds || id in similarSaveRequests) return
-        val created = similarCreatedAt
         val seq = similarSeq
-        val chats = similarChats()
+        val snapshot = captureSimilarNotebookSnapshot() ?: return
         val selectedTagIds = tagIds.toList()
         val selectedTagNames = tagNames.toList()
-        val originalAnswer = similarAnswer.orEmpty()
-        val followups = similarMessages.toList()
         val request = SimilarSaveRequest()
         similarSaveRequests[id] = request
         viewModelScope.launch {
             try {
-                val (conversationJson, answerText) = withContext(Dispatchers.Default) {
-                    json.encodeToString(chats) to buildString {
-                        append(originalAnswer)
-                        for (m in followups) {
-                            if (isNotEmpty()) append("\n\n")
-                            append(if (m.role == "assistant") "AI：" else "我：")
-                            append(m.content)
-                        }
-                    }
-                }
+                val payload = snapshot.value()
                 val saved = notebookWriteMutex.withLock {
                     if (request.invalidated || id in deletionState.value.questionIds) return@withLock false
                     AppDatabase.get(getApplication()).withWriteTransaction {
                         if (!dao.questionExists(id)) {
                             val cid = if (!name.isNullOrBlank()) dao.insertCategory(Category(name=name.trim())) else categoryId
-                            dao.insertQuestionWithId(Question(id,title,answerText,created,categoryId=cid,conversationJson=conversationJson))
+                            dao.insertQuestionWithId(Question(id, payload.text, payload.answer, payload.createdAt,
+                                categoryId = cid, conversationJson = payload.conversationJson))
                             val finalIds = selectedTagIds.distinct().toMutableList()
                             for (tn in selectedTagNames.take(5)) {
                                 val n = tn.trim()
@@ -3327,7 +3328,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         } else {
                             // Re-saving the same identity advances only its frozen content snapshot.
                             // Existing notebook classification, tags and review scheduling remain authoritative.
-                            dao.updateAnswerContent(id, title, answerText, conversationJson)
+                            dao.updateAnswerContent(id, payload.text, payload.answer, payload.conversationJson)
                         }
                     }
                     if (request.invalidated || id in deletionState.value.questionIds) return@withLock false

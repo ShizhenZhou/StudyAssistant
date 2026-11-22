@@ -110,23 +110,27 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
             ChatMsg(if (item.role == "assistant") "assistant" else "user", item.content, images = item.images.orEmpty())
         }
     }
-    // ⚠️ remember 的键必须包含「出题被中止」与「忙碌」状态，否则中止后不会重算 → 蓝色「继续生成」永远不出现
     val messages = remember(
         question, answer, s,
         followupBubbles,
         revealed,
         vm.similarStreamingText,
         vm.similarBusy,
-        vm.similarInterrupted
+        vm.similarInterrupted, vm.similarInterruptionMessage
     ) {
         buildList {
             // 出题中/被中止：流式文本就是题目本身（只含题目部分，答案不外显）；出题完成后用正式题目
             val qText = vm.similarQuestion ?: vm.similarStreamingText
-            val qBase = qText ?: if (vm.similarBusy || vm.similarInterrupted) s["solve.thinking"] else null
+            val qBase = qText ?: when {
+                vm.similarInterrupted -> ""
+                vm.similarBusy -> s["solve.thinking"]
+                else -> null
+            }
             if (qBase != null) {
-                // 出题被中止：气泡末尾补蓝色「继续生成」（点它 = 重新出题），否则用户无从继续
-                val content = if (vm.similarInterrupted) {
-                    qBase + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]"
+                val content = if (vm.similarInterrupted && !vm.similarBusy) {
+                    val action = if (vm.similarCanSave) s["solve.continue"] else s["similar.newQuestion"]
+                    listOfNotNull(qBase.takeIf { it.isNotBlank() }, vm.similarInterruptionMessage, "[[CONTINUE|$action]]")
+                        .joinToString("\n\n")
                 } else {
                     qBase
                 }
@@ -190,8 +194,8 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             }
                         } else if (questionShown || vm.similarInterrupted) {
                             // 出题完成、或被中止 → 都可「重新生成」（清空会话重出一题）
-                            TextButton(onClick = { vm.startSimilar() }, contentPadding = smallPad) {
-                                Text(s["solve.regen"], fontSize = BTN_LABEL, maxLines = 1, softWrap = false)
+                            TextButton(onClick = { if (sessionId == vm.similarIdentity) vm.startSimilar() }, contentPadding = smallPad) {
+                                Text(s["similar.newQuestion"], fontSize = BTN_LABEL, maxLines = 1, softWrap = false)
                             }
                         }
                         // 存错题本（逻辑同解题页：选分类/标签后保存；已存再点 = 取消保存）
@@ -200,7 +204,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                             onClick = {
                                 if (saved) vm.unsaveSimilarFromNotebook() else showSaveDialog = true
                             },
-                            enabled = questionShown,
+                            enabled = vm.similarCanSave,
                             contentPadding = smallPad
                         ) {
                             val label = if (saved) s["solve.savedToNotebook"] else s["solve.saveToNotebook"]
@@ -228,8 +232,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                         noFollowSignal = noFollowTick,
                         onAtTopChange = { atTop = it },
                         onScrollableChange = { scrollable = it },
-                        // 气泡里的蓝色「继续生成」（出题被中止时）→ 重新出题
-                        onContinue = { vm.continueSimilar() },
+                        onContinue = { if (sessionId == vm.similarIdentity) vm.continueSimilar() },
                         // 长按气泡 → 进入多选并选中该条（多选态下长按无效：只允许单次点击选择）
                         onLongPressMessage = { idx ->
                             if (!editMode && !vm.similarBusy && idx in messages.indices) {
@@ -316,7 +319,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                 }
             }
             // 底部：输入栏（与解题页同一组件：附图 + 公式键盘 + 图库 + 发送）
-            if (vm.similarQuestion != null || vm.similarStreamingText != null) {
+            if (vm.similarCanSave) {
                 ConversationInputBar(
                     value = input,
                     onValueChange = { input = it },
@@ -346,7 +349,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
         }
 
         // 存错题本：选分类/标签（与解题页同一对话框，保存的是这道同类题）
-        if (showSaveDialog) {
+        if (showSaveDialog && vm.similarCanSave) {
             // B9 查重：同类题也可能与已存的题重复（打开对话框时先查一次）
             var dupOf by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(vm.similarQuestion) {
@@ -362,7 +365,7 @@ fun SimilarScreen(nav: NavHostController, vm: MainViewModel) {
                 suggestedTagNames = emptyList(),
                 duplicateOf = dupOf,
                 onConfirm = { name, cid, tagNames, tagIds ->
-                    vm.saveSimilarToNotebook(name, cid, tagNames, tagIds)
+                    if (sessionId == vm.similarIdentity) vm.saveSimilarToNotebook(name, cid, tagNames, tagIds)
                     showSaveDialog = false
                 },
                 onDismiss = { showSaveDialog = false }

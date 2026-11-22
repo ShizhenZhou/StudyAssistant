@@ -2,7 +2,11 @@ package com.zsz.studyassistant.data
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 class StreamCompletionTest {
     @Test fun cancellingPreparationRetainsRequestWithoutSendingIt() = kotlinx.coroutines.runBlocking {
@@ -35,18 +39,18 @@ class StreamCompletionTest {
         val parts = kotlinx.serialization.json.Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
         val original = listOf(DeepSeekMessage("user", parts))
         val first = cache()
-        assertEquals(original, first.prepare(original, "account-a", path))
-        val uploaded = first.prepare(original, "account-a", path)
+        assertEquals(original, first.prepare(original, "account-a", path).messages)
+        val uploaded = first.prepare(original, "account-a", path).messages
         assertNotEquals(original, uploaded)
-        assertEquals(uploaded, cache().prepare(original, "account-a", path))
+        assertEquals(uploaded, cache().prepare(original, "account-a", path).messages)
         assertEquals(1, uploads)
         assertFalse(stored!!.contains("account-a"))
         assertFalse(stored!!.contains("AQID"))
         now += 86400
-        assertEquals(original, cache().prepare(original, "account-a", path))
-        assertEquals(original, cache().prepare(original, "account-b", path))
+        assertEquals(original, cache().prepare(original, "account-a", path).messages)
+        assertEquals(original, cache().prepare(original, "account-b", path).messages)
         stored = "damaged"
-        assertEquals(original, cache().prepare(original, "account-a", path))
+        assertEquals(original, cache().prepare(original, "account-a", path).messages)
         assertEquals(1, uploads)
     }
 
@@ -106,6 +110,20 @@ class StreamCompletionTest {
         assertEquals(question, result.question)
         assertEquals("逐项计算。", result.answer)
         assertEquals(question, StudyAssistant.parseSimilar("$question\n解答:结果").question)
+        val draft = "题目：请评价这份解答：\n(1) 电流 I"
+        assertNull(SimilarExerciseOutput.parse(draft).readyQuestion)
+        assertThrows(StreamIncompleteException::class.java) { StudyAssistant.parseSimilar(draft) }
+        assertEquals(question, SimilarExerciseOutput.parse("题目：$question\n解答：").readyQuestion)
+    }
+
+    @Test fun repeatedSimilarAnswerContinuationKeepsOnlyTheCurrentAnswerPrefix() {
+        val first = SimilarExerciseGeneration("fixture question", "first ").output("second ")
+        val resumed = SimilarExerciseGeneration(first.readyQuestion, first.answer.orEmpty())
+        val messages = resumed.continuationMessages(DeepSeekMessage("system", kotlinx.serialization.json.JsonPrimitive("system")))
+        assertEquals(listOf("system", "user", "assistant", "user"), messages.map { it.role })
+        assertTrue(messages[1].content.toString().contains("fixture question"))
+        assertEquals(kotlinx.serialization.json.JsonPrimitive("first second "), messages[2].content)
+        assertEquals(SimilarExerciseOutput("fixture question", "first second third"), resumed.output("third"))
     }
 
     @org.junit.Test fun boundedReaderPreservesUtf8AndRejectsOversizedLines() {
@@ -159,25 +177,97 @@ class StreamCompletionTest {
         }
         val parts = kotlinx.serialization.json.Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
         val original = listOf(DeepSeekMessage("user", parts))
-        assertEquals(original, cache.prepare(original, "account-a"))
-        val reused = cache.prepare(original, "account-a")
+        assertEquals(original, cache.prepare(original, "account-a").messages)
+        val reused = cache.prepare(original, "account-a").messages
         assertNotEquals(original, reused); assertEquals(1, uploads)
-        assertEquals(reused, cache.prepare(original, "account-a")); assertEquals(1, uploads)
+        assertEquals(reused, cache.prepare(original, "account-a").messages); assertEquals(1, uploads)
         now += 86400
-        assertNotEquals(reused, cache.prepare(original, "account-a")); assertEquals(2, uploads)
-        assertEquals(original, cache.prepare(original, "account-b"))
-        cache.invalidate("account-b")
-        assertEquals(original, cache.prepare(original, "account-b"))
+        assertNotEquals(reused, cache.prepare(original, "account-a").messages); assertEquals(2, uploads)
+        assertEquals(original, cache.prepare(original, "account-b").messages)
     }
+
+    @Test fun ineligibleMessagesBypassAnActiveImageUploadAndCacheIo() = kotlinx.coroutines.runBlocking {
+        val release = CompletableDeferred<Unit>()
+        var uploads = 0
+        var reads = 0
+        var writes = 0
+        val path = java.io.File("synthetic-image-reference-cache")
+        val cache = ReusableImageFiles(clock = { 1000L }, readState = { reads++; null },
+            writeState = { _, _ -> writes++ }) { _, _, _ ->
+            uploads++
+            release.await()
+            DeepSeekFile("file-shared", 90000L)
+        }
+        val image = imageMessages("AQID")
+        val other = listOf(DeepSeekMessage("user", Json.parseToJsonElement("""[
+            {"type":"text","text":"fixture"},
+            {"type":"file","file_id":"file-document"},
+            {"type":"image_url","image_url":{"url":"https://example.com/image"}},
+            {"type":"image_url","image_url":{"detail":"low","url":"data:image/jpeg;base64,AQID"}}
+        ]""")))
+        cache.prepare(image, "a", path)
+        val pending = async(start = CoroutineStart.UNDISPATCHED) { cache.prepare(image, "a", path) }
+        val sameImage = async(start = CoroutineStart.UNDISPATCHED) { cache.prepare(image, "a", path) }
+        val bypass = async(start = CoroutineStart.UNDISPATCHED) { cache.prepare(other, "b", path) }
+        try {
+            assertTrue(bypass.isCompleted)
+            assertSame(other, bypass.await().messages)
+            assertNull(bypass.await().references)
+            assertEquals(1, reads)
+            assertEquals(1, writes) // The uncertain-upload cooldown is on disk before upload returns.
+        } finally { release.complete(Unit) }
+        assertEquals(pending.await().messages, sameImage.await().messages)
+        assertEquals(1, uploads)
+        assertEquals(2, writes)
+    }
+
+    @Test fun rejectedReferencesMatchOnlyTheSentImageAccountAndRevision() = kotlinx.coroutines.runBlocking {
+        var now = 1000L
+        var writes = 0
+        val path = java.io.File("synthetic-image-reference-cache")
+        val cache = ReusableImageFiles(clock = { now }, readState = { null }, writeState = { _, _ -> writes++ }) { bytes, _, _ ->
+            DeepSeekFile("file-${bytes.first()}", now + 1000)
+        }
+        val first = imageMessages("AQID")
+        val second = imageMessages("BAUG")
+        cache.prepare(first + second, "a", path)
+        val sent = cache.prepare(first, "a", path)
+        val other = cache.prepare(second, "a", path)
+        cache.invalidate(checkNotNull(sent.references))
+        assertSame(first, cache.prepare(first, "a", path).messages)
+        assertEquals(other.messages, cache.prepare(second, "a", path).messages)
+        now += 900
+        val renewed = cache.prepare(second, "a", path)
+        val beforeStaleFailure = writes
+        cache.invalidate(checkNotNull(other.references))
+        assertEquals(renewed.messages, cache.prepare(second, "a", path).messages)
+        assertEquals(beforeStaleFailure, writes)
+        cache.prepare(second, "b", path)
+        val switched = cache.prepare(second, "b", path)
+        val beforeOtherAccountFailure = writes
+        cache.invalidate(checkNotNull(renewed.references))
+        assertEquals(switched.messages, cache.prepare(second, "b", path).messages)
+        assertEquals(beforeOtherAccountFailure, writes)
+    }
+
+    private fun imageMessages(base64: String) = listOf(DeepSeekMessage("user",
+        Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,$base64"}}]""")))
 
     @Test fun failedUploadFallsBackButCancellationPropagates() = kotlinx.coroutines.runBlocking {
         val parts = kotlinx.serialization.json.Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
         val original = listOf(DeepSeekMessage("user", parts))
         var calls = 0
-        val failed = ReusableImageFiles { _, _, _ -> calls++; throw java.io.IOException() }
-        failed.prepare(original, "a")
-        assertEquals(original, failed.prepare(original, "a"))
-        assertEquals(original, failed.prepare(original, "a")); assertEquals(1, calls)
+        var stored: String? = null
+        var writes = 0
+        val path = java.io.File("synthetic-image-reference-cache")
+        fun failingCache() = ReusableImageFiles(clock = { 1000L }, readState = { stored },
+            writeState = { _, text -> stored = text; writes++ }) { _, _, _ -> calls++; throw java.io.IOException() }
+        val failed = failingCache()
+        failed.prepare(original, "a", path)
+        assertEquals(original, failed.prepare(original, "a", path).messages)
+        assertEquals(original, failingCache().prepare(original, "a", path).messages)
+        assertEquals(1, calls)
+        assertEquals(1, writes)
         val cancelled = ReusableImageFiles { _, _, _ -> throw kotlinx.coroutines.CancellationException() }
         cancelled.prepare(original, "a")
         try { cancelled.prepare(original, "a"); fail("Cancellation swallowed") }
