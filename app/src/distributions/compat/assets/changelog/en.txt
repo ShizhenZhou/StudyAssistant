@@ -1,4 +1,6 @@
 v0.7.6_Compat
+· ⬇️ This rebuild keeps the original version and tag. Existing users can install it through the in-app updater to receive future releases with short compatibility tags.
+· 📖 Review cards show a preview of saved OCR question text. Open a question to read the full text and formulas alongside the original images.
 · 🔎 Tap a notebook search excerpt to jump to and highlight its source. Move between matches when there is more than one.
 · 📚 Resume focused practice after leaving, or repeat difficult questions with the option to include skipped ones.
 · 📖 Daily review targets and progress persist throughout the day. Start today's pending reviews from Statistics.

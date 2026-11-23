@@ -58,10 +58,17 @@ PDF 所選頁面及 Word/PPT 整份檔案在發送提問時上傳至 DeepSeek �
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（備份與定期更新檢查）· AlarmManager · Android Keystore。
 
-構建使用 AGP **9.5.1**、Gradle wrapper **9.8.2** 和 JDK **25** · KSP **2.3.12**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
+構建使用 AGP **9.5.1**、Gradle wrapper **9.9.2** 和 JDK **25** · KSP **2.3.14**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 
 ## 版本記錄
 
+
+### v0.7.6.1
+
+- 📖 複習卡片顯示已儲存的 OCR 題幹摘要。開啟題目可同時查看完整題幹、公式和原圖。
+- ⬇️ 更新檢查識別相容版的新舊標籤，並分別篩選主線與相容版的正式版和測試版。
+- 🛠️ Gradle Wrapper 更新到 9.9.2，KSP 更新到 2.3.14。
+- 📌 `versionCode` **149**.
 
 ### v0.7.6
 

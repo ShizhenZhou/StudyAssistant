@@ -29,7 +29,7 @@ import com.zsz.studyassistant.data.QuestionPreview
 
 /** Save only layout metadata, never image bytes, in the navigation entry's UI state. */
 @Composable
-internal fun QuestionCardPreview(q: QuestionPreview, description: String) {
+internal fun QuestionCardPreview(q: QuestionPreview, description: String, showImageQuestionText: Boolean = false) {
     val bitmaps = questionCardBitmaps(q, 400)
     var rememberedRatios by rememberSaveable(q.id) { mutableStateOf(floatArrayOf(1.6f)) }
     val ratios = bitmaps?.map { it.width.toFloat() / it.height.coerceAtLeast(1) }?.toFloatArray()
@@ -38,19 +38,19 @@ internal fun QuestionCardPreview(q: QuestionPreview, description: String) {
         if (bitmaps != null) rememberedRatios = ratios
     }
     val alpha by animateFloatAsState(if (bitmaps == null) 0f else 1f, tween(140), label = "thumbnail")
-    if (ratios.isEmpty()) {
+    if (ratios.isEmpty() || (showImageQuestionText && q.text.isNotBlank() && q.text.trim() != "（图片题）")) {
         Text(TextPretty.oneLine(q.text, 110), maxLines = 2,
+            modifier = Modifier.padding(bottom = if (ratios.isEmpty()) 0.dp else 4.dp),
             overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-    } else {
-        ratios.forEachIndexed { index, ratio ->
-            Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)
-                .aspectRatio(ratio).clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
-                bitmaps?.getOrNull(index)?.let { bitmap ->
-                    Image(bitmap.asImageBitmap(), description,
-                        modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha },
-                        contentScale = ContentScale.Fit)
-                }
+    }
+    ratios.forEachIndexed { index, ratio ->
+        Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)
+            .aspectRatio(ratio).clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+            bitmaps?.getOrNull(index)?.let { bitmap ->
+                Image(bitmap.asImageBitmap(), description,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha },
+                    contentScale = ContentScale.Fit)
             }
         }
     }

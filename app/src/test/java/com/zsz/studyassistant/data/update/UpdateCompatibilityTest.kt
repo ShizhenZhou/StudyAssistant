@@ -71,6 +71,28 @@ class UpdateCompatibilityTest {
         assertEquals("update.distributionIncompatible", UpdateChecker.compatibilityError(compat, 36, "compat"))
         assertEquals("update.distributionIncompatible", UpdateChecker.compatibilityError(compat, 28, "main"))
         assertNull(UpdateChecker.withManifest(candidate, text.replace("\"schema\":2", "\"schema\":1")))
+        for (tag in listOf("compat_v0.6.8_Compat", "v0.6.8_Compat", "v0.6.8_beta2_Compat")) {
+            val version = tag.removePrefix("compat_").removePrefix("v")
+            val beta = "_beta" in version
+            val name = "SA-$version-20261122010000.apk"
+            val earlierName = "SA-$version-20261121010000.apk"
+            val base = "${UpdateChecker.RELEASES_URL}/download/$tag"
+            val url = "$base/$name"
+            val root = Json.parseToJsonElement("""{"tag_name":"$tag","prerelease":$beta,"assets":[
+                {"name":"$earlierName","size":7,"browser_download_url":"$base/$earlierName"},
+                {"name":"$name","size":7,"browser_download_url":"$url"}]}""").jsonObject
+            val parsed = UpdateChecker.parseRelease(root)!!.first
+            assertEquals("compat", parsed.distribution)
+            assertEquals(tag, parsed.tagName)
+            assertEquals(url, parsed.assetUrl)
+            val resolved = UpdateChecker.withManifest(parsed, text.replace("fixture.apk", name))!!
+            assertEquals(if (beta) UpdateChecker.Channel.BETA else UpdateChecker.Channel.STABLE, resolved.channel)
+            assertNull(UpdateChecker.compatibilityError(resolved, 35, "compat"))
+            assertNotNull(UpdateChecker.compatibilityError(resolved, 36, "main"))
+            assertNull(UpdateChecker.withManifest(parsed, manifest().replace("fixture.apk", name)))
+            assertFalse(UpdateChecker.isReleaseAssetUrl(url, "v0.6.8"))
+        }
+        assertNull(UpdateChecker.withManifest(release, text))
         val main = release.copy(minSdk = 36, versionCode = 999, mandatory = true)
         val optional = compat.copy(mandatory = false)
         assertEquals(optional, UpdateChecker.stableUpdate(listOf(main, optional), 28, "compat") { true })

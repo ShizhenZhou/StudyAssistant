@@ -58,10 +58,17 @@ zsz が DeepSeek と GPT の支援で開発。
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（バックアップと定期更新確認）· AlarmManager · Android Keystore。
 
-AGP **9.5.1**、Gradle wrapper **9.8.2**、JDK **25** · KSP **2.3.12**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
+AGP **9.5.1**、Gradle wrapper **9.9.2**、JDK **25** · KSP **2.3.14**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
 
+
+### v0.7.6.1
+
+- 📖 復習カードに保存済みの OCR 問題文の概要を表示します。問題を開くと、全文・数式・元画像を一緒に確認できます。
+- ⬇️ 更新確認で互換版の新旧タグに対応し、配布版ごとに正式版とベータ版を判定します。
+- 🛠️ Gradle Wrapper を 9.9.2、KSP を 2.3.14 に更新しました。
+- 📌 `versionCode` **149**.
 
 ### v0.7.6
 

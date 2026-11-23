@@ -18,11 +18,14 @@ from release_common import (COMPAT_BRANCH, apk_identity, apk_payload, extract_ca
 
 
 class DeliveryTest(unittest.TestCase):
-    def source_profile(self, root, distribution, version):
+    def source_profile(self, root, distribution, version, tag_prefix=None):
         directory = root / "config/distributions"
         directory.mkdir(parents=True, exist_ok=True)
         profile = (Path(__file__).resolve().parents[2] / f"config/distributions/{distribution}.properties").read_text(encoding="utf-8")
         profile = "\n".join("versionName=" + version if line.startswith("versionName=") else line for line in profile.splitlines()) + "\n"
+        if distribution == "compat":
+            prefix = tag_prefix or "compat_v"
+            profile = "\n".join("tagPrefix=" + prefix if line.startswith("tagPrefix=") else line for line in profile.splitlines()) + "\n"
         if distribution == "compat" and not version.endswith("_Compat"):
             profile = profile.replace("apkPrefix=SA\n", "apkPrefix=SACompat\n")
         (directory / f"{distribution}.properties").write_text(profile, encoding="utf-8")
@@ -86,6 +89,10 @@ class DeliveryTest(unittest.TestCase):
         self.assertEqual("0.7.5.3", release.numeric_version("0.7.5.3_Compat"))
         self.assertEqual("0.7.6", release.numeric_version("0.7.6_beta2_Compat"))
         self.assertEqual("compat_v0.7.5.3_Compat", release_tag("0.7.5.3_Compat", "compat"))
+        archived = dict(version="0.7.5.3_Compat", distribution="compat")
+        self.assertEqual("compat_v0.7.5.3_Compat", release.state_tag(archived))
+        self.assertEqual("v0.7.5.3_Compat", release.state_tag(dict(archived, releaseTag="v0.7.5.3_Compat")))
+        with self.assertRaises(release.ReleaseError): release.state_tag(dict(archived, releaseTag="v0.7.5.3"))
         with self.assertRaises(ValueError): release_tag("0.7.5.3_Compat", "main")
         self.assertEqual("true", release.make_latest(dict(channel="stable")))
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,9 +114,14 @@ class DeliveryTest(unittest.TestCase):
             self.source_profile(root, "compat", "0.7.4.1")
             self.source_profile(root, "main", "0.7.4.2")
             calls = []
+            existing_tags = set()
             class GitHub:
                 def api(self, path, value=None, **kwargs):
                     calls.append((path, value))
+                    if path.startswith("git/ref/tags/") and path.removeprefix("git/ref/tags/") in existing_tags:
+                        return {"ref": path.removeprefix("git/")}
+                    if path.startswith("releases/tags/") and path.removeprefix("releases/tags/") in existing_tags:
+                        return {"tag_name": path.removeprefix("releases/tags/"), "draft": False, "prerelease": False}
                     return {"workflow_runs": []} if "runs?" in path else None
             r = release.Release(root, GitHub())
             def fake_git(*args, **kwargs):
@@ -139,6 +151,27 @@ class DeliveryTest(unittest.TestCase):
                 r.start("0.7.4.1_Compat", distribution="compat")
             self.assertEqual("stable", r.state["channel"])
             self.assertIn(("git/ref/tags/compat_v0.7.4.1_Compat", None), calls)
+
+            version = "0.7.7_Compat"
+            self.source_profile(root, "compat", version, tag_prefix="v")
+            with patch.object(r, "git", side_effect=fake_git), patch.object(r, "remote", return_value="a"*40):
+                r.start(version, distribution="compat")
+            self.assertEqual("v" + version, r.state["releaseTag"])
+            self.assertIn(("git/ref/tags/compat_v" + version, None), calls)
+            self.assertIn(("git/ref/tags/v" + version, None), calls)
+
+            version = "0.7.6_Compat"
+            existing_tags.add("compat_v" + version)
+            self.source_profile(root, "compat", version, tag_prefix="v")
+            with patch.object(r, "git", side_effect=fake_git), patch.object(r, "remote", return_value="a"*40):
+                with self.assertRaisesRegex(release.ReleaseError, "Tag exists"):
+                    r.start(version, distribution="compat")
+                existing_tags.add("v" + version)
+                with self.assertRaisesRegex(release.ReleaseError, "unambiguous"):
+                    r.start(version, replacement=True, distribution="compat")
+                existing_tags.remove("v" + version)
+                r.start(version, replacement=True, distribution="compat")
+            self.assertEqual("compat_v" + version, r.state["releaseTag"])
 
     def test_beta_candidate_and_signed_apk_keep_number_but_update_manifest_uses_numeric_version(self):
         base = "0.6.9.9"

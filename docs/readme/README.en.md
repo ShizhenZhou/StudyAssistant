@@ -58,10 +58,17 @@ Selected PDF pages and whole Word/PowerPoint files upload to DeepSeek for parsin
 
 Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3** (DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
 
-AGP **9.5.1**, Gradle wrapper **9.8.2**, JDK **25** · KSP **2.3.12**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
+AGP **9.5.1**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
 
+
+### v0.7.6.1
+
+- 📖 Review cards show a preview of saved OCR question text. Open a question to read the full text and formulas alongside the original images.
+- ⬇️ Update checks recognize both compatibility tag formats and keep stable and beta candidates on their own distribution.
+- 🛠️ Updated Gradle Wrapper to 9.9.2 and KSP to 2.3.14.
+- 📌 `versionCode` **149**.
 
 ### v0.7.6
 

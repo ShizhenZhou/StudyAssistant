@@ -21,7 +21,7 @@ import apk_delta
 import apk_archive_delta
 from distribution_config import source_distribution
 from release_common import (VERSION, COMPAT_BRANCH, apk_identity, apk_payload, apk_distribution,
-                            distribution_identity, release_branch_allowed, release_tag, version_from_tag, extract_candidate, numeric_version, sha256, validate_manifest)
+                            distribution_identity, release_branch_allowed, release_tags, version_from_tag, extract_candidate, numeric_version, sha256, validate_manifest)
 from verification import (make_plan, validate_ci_evidence,
                           validate_promotion, pre_main_gate)
 
@@ -245,9 +245,16 @@ def update_notes(text):
     if not body: raise ReleaseError("Release notes are empty.")
     return body
 
+def state_tag(state):
+    tags = release_tags(state["version"], state.get("distribution", "main"))
+    tag = state.get("releaseTag", tags[0])  # Older state always used the original spelling.
+    if tag not in tags:
+        raise ReleaseError("Saved tag does not match the release version and distribution")
+    return tag
+
 def recoverable_draft(release, state, body):
     return bool(state.get("draftAttempted") and release.get("draft") and
-        release.get("tag_name") == release_tag(state["version"], state.get("distribution", "main")) and release.get("target_commitish") == state["commit"] and
+        release.get("tag_name") == state_tag(state) and release.get("target_commitish") == state["commit"] and
         release.get("body") == body and not release.get("assets"))
 
 def local_artifact(root, relative):
@@ -358,7 +365,7 @@ class Release:
             current = self.github.api(f"releases/{release['id']}")
             if (current.get("id") != state["releaseId"] or current.get("draft") or
                 bool(current.get("prerelease")) != (self.state.get("channel", "stable") == "beta") or
-                current.get("tag_name") != release_tag(self.state["version"], self.state.get("distribution", "main"))):
+                current.get("tag_name") != state_tag(self.state)):
                 raise ReleaseError("Replacement release identity changed")
             assets = current["assets"]
             names = [a["name"] for a in assets]
@@ -379,7 +386,7 @@ class Release:
             if len(data) != path.stat().st_size or hashlib.sha256(data).hexdigest() != sha256(path):
                 raise ReleaseError("Replacement public download mismatch")
         def upload(path):
-            self.github.call("release", "upload", release_tag(self.state["version"], self.state.get("distribution", "main")), str(path), "--repo", REPO)
+            self.github.call("release", "upload", state_tag(self.state), str(path), "--repo", REPO)
         apk = next(path for name,path in files.items() if name.endswith(".apk"))
         if apk.name in old and (old[apk.name]["digest"] != "sha256:"+sha256(apk)):
             raise ReleaseError("Replacement APK name collides with the original")
@@ -513,7 +520,7 @@ class Release:
         with tempfile.TemporaryDirectory(dir=folder) as tmp:
             manifest, _ = extract_candidate(artifact("release-candidate"), Path(tmp) / "candidate")
             if (manifest["schema"] not in (2, 3) or manifest["commit"] != commit or
-                published["tag_name"] != release_tag(manifest["version"], manifest.get("distribution", "main")) or
+                published["tag_name"] not in release_tags(manifest["version"], manifest.get("distribution", "main")) or
                 metadata["version"] != numeric_version(manifest["version"]) or
                 any(metadata.get(k) != manifest.get(k) for k in ("versionCode", "minSdk")) or
                 distribution_identity(metadata) != distribution_identity(manifest) or
@@ -610,18 +617,21 @@ class Release:
         if self.state.get("replacementRequested") and not replacement:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
         if self.state.get("dispatchAttempted"): return self.status()
-        tag = self.github.api("git/ref/tags/" + release_tag(version, distribution), missing=True)
-        if tag and not replacement: raise ReleaseError("Tag exists; replacement must be explicitly requested.")
+        tags = release_tags(version, distribution)
+        existing = [tag for tag in tags if self.github.api("git/ref/tags/" + tag, missing=True)]
+        if existing and not replacement: raise ReleaseError("Tag exists; replacement must be explicitly requested.")
+        tag = profile["tagPrefix"] + version
         if replacement:
-            if not tag: raise ReleaseError("Replacement requires an existing immutable tag")
-            previous = self.github.api("releases/tags/" + release_tag(version, distribution), missing=True)
+            if len(existing) != 1: raise ReleaseError("Replacement requires one unambiguous existing tag")
+            tag = existing[0]
+            previous = self.github.api("releases/tags/" + tag, missing=True)
             if not previous or previous.get("draft") or bool(previous.get("prerelease")) != (channel == "beta"):
                 raise ReleaseError("Replacement requires an existing public release in the same channel")
             self.state["replacementRequested"] = True
         message = self.git("log", "-1", "--format=%s").stdout.decode("utf-8").strip()
         if not re.match(r"^(feat|fix|build|ci|docs|test|refactor|chore|perf|revert)(?:\([^)]+\))?!?: .+", message):
             raise ReleaseError("Use a Conventional Commit title for the reviewed main commit.")
-        self.state.update(channel=channel, dispatchBranch=branch, dispatchAttempted=True,
+        self.state.update(channel=channel, releaseTag=tag, dispatchBranch=branch, dispatchAttempted=True,
                           requestedAt=datetime.now(timezone.utc).isoformat())
         self.save()  # Never blindly dispatch again after an ambiguous network response.
         description = run_description(version, message) + (" [compat]" if distribution == "compat" else "")
@@ -771,7 +781,7 @@ class Release:
                 if old.get("runId") == run_id and old.get("manifest") == manifest:
                     self.state.update({k:v for k,v in old.items() if k not in ("buildIdentity",)})
                 else:
-                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","distribution","mandatory","deltaBase","deltaBases","legacyDeltaBaseCodes","dispatchBranch","fullVerification") if k in old})
+                    self.state.update({k:old[k] for k in ("verificationBase","verificationBaselineReleaseId","replacementRequested","channel","distribution","releaseTag","mandatory","deltaBase","deltaBases","legacyDeltaBaseCodes","dispatchBranch","fullVerification") if k in old})
         if manifest["schema"] == 3:
             branch = run.get("head_branch")
             if "_beta" in manifest["version"] and self.state.get("channel") != "beta":
@@ -799,7 +809,7 @@ class Release:
             if base:
                 release_id = self.state.get("verificationBaselineReleaseId")
                 previous = self.github.api(f"releases/{release_id}") if release_id else self.github.api("releases/latest", missing=True)
-                if (replacement or self.state.get('replacement')) and previous and previous.get('tag_name')==release_tag(manifest['version'], manifest.get('distribution', 'main')):
+                if (replacement or self.state.get('replacement')) and previous and previous.get('tag_name')==state_tag(self.state):
                     approved_base=self.replacement_baseline(previous,base)
                 else:
                     approved_base = self.published_baseline(previous) if previous else None
@@ -862,7 +872,7 @@ class Release:
         self.verify(run_id,replacement=True) if replacement else self.verify(run_id)
         manifest = self.state["manifest"]
         version = manifest["version"]
-        tag = release_tag(version, self.state.get("distribution", "main"))
+        tag = state_tag(self.state)
         signed = local_artifact(self.root, self.state["signedPath"])
         body = update_notes((Path(notes) if notes else self.root / f".local-notes/releases/RELEASE-{tag}.md").read_text(encoding="utf-8"))
         import importlib.util
@@ -895,8 +905,19 @@ class Release:
         notes_sha = hashlib.sha256(body.encode()).hexdigest()
         if self.state.get("notesSha256", notes_sha) != notes_sha: raise ReleaseError("Release notes changed; inspect the saved draft before proceeding.")
         self.state["notesSha256"] = notes_sha; self.save()
-        releases = self.github.api("releases?per_page=100")
-        found = [r for r in releases if r["tag_name"] == tag]
+        for alternate in release_tags(version, self.state.get("distribution", "main")):
+            if alternate != tag and self.github.api("git/ref/tags/" + alternate, missing=True):
+                raise ReleaseError("The other spelling of this compatibility tag already exists")
+        if self.state.get("releaseId"):
+            bound = self.github.api(f"releases/{self.state['releaseId']}")
+            if bound["tag_name"] != tag: raise ReleaseError("Saved release now has a different tag")
+            found = [bound]
+        elif replacement:
+            bound = self.github.api("releases/tags/" + tag, missing=True)
+            found = [bound] if bound else []
+        else:
+            releases = self.github.api("releases?per_page=100")
+            found = [r for r in releases if r["tag_name"] == tag]
         if len(found)>1: raise ReleaseError("Multiple releases use the requested tag")
         if (self.state.get("replacement") or self.state.get("replacementRequested")) and not replacement:
             raise ReleaseError("Resume this explicit replacement with replace --run")

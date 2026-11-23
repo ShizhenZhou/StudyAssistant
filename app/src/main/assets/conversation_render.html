@@ -655,12 +655,10 @@ function bubbleHtml(m, idx){
       var src=local?b64:('data:image/jpeg;base64,'+b64);
       imgs+='<img class="msgimg" style="cursor:zoom-in" data-image-index="'+j+'" data-image="'+(local?esc(b64):'')+'" src="'+esc(src)+'" onclick="imgTap(event,this,'+idx+')">';
     }
-    // ★ 默认折叠原图：题目以「文字 + 公式」为主（提高易读性），点开才看原始拍摄的图片。
-    //   AI 回复里的附图（如追问带图）保持原样直接显示。
-    // 只有当气泡正文存在时才折叠（拍题/图文提问：文字为主）；
-    // 正文为空说明该气泡只以图为准（复习模式）→ 直接显示图片，避免什么都看不到。
+    // 有正文的普通提问默认折叠图片。复习题干、AI 回复和纯图片气泡直接显示原图。
     var hasText = !!(m.content && m.content.length);
-    imgHtml = (m.role === 'assistant' || !hasText) ? imgs : ('<details class="origimg"><summary>📷 ' + esc(TL().viewImages) + '</summary>' + imgs + '</details>');
+    imgHtml = (m.showImagesInline || m.role === 'assistant' || !hasText) ? imgs :
+      ('<details class="origimg"><summary>📷 ' + esc(TL().viewImages) + '</summary>' + imgs + '</details>');
   }
   // 末尾的「继续生成」标记：[[CONTINUE|文案]] → 蓝色可点一行（生成中断时由原生追加）
   var text = m.content || '';

@@ -286,25 +286,27 @@ fun SolveScreen(
             items = listOf(com.zsz.studyassistant.ChatItem(-1L, "question", "", vm.questionImages)) + items
         }
         items.map { c ->
-            val imgs = if (c.role == "question") {
+            val isQuestion = c.role == "question"
+            val imgs = if (isQuestion) {
                 // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
                 vm.questionImages.ifEmpty { c.images ?: emptyList() }
             } else {
                 c.images ?: emptyList()
             }
-            // 拍题/图文提问：以「文字+公式」为主，原图在气泡里默认折叠（提高易读性）
-            // 复习：仍只显示原图（复习就是要看原题自测），不显示转写文字、也不折叠
-            val hideAiText = sessionMode == SessionMode.REVIEW && imgs.isNotEmpty()
+            // 复习题干同时显示已保存的转写和原图，其他带图消息沿用复习时的显示规则。
+            val review = sessionMode == SessionMode.REVIEW
+            val hideImageMessageText = review && imgs.isNotEmpty() && (!isQuestion || c.content.trim() == "（图片题）")
             ChatMsg(
                 role = if (c.role == "assistant") "assistant" else "user",
                 content = if (c.answerPending) s["solve.answerPending"] + "\n\n[[CONTINUE|" + s["solve.continueGen"] + "]]"
-                    else if (hideAiText) "" else c.quote?.question ?: c.content,
-                sources = if (hideAiText) emptyList() else c.aiContext?.sources().orEmpty(),
+                    else if (hideImageMessageText) "" else c.quote?.question ?: c.content,
+                sources = if (hideImageMessageText) emptyList() else c.aiContext?.sources().orEmpty(),
                 sourcesLabel = s["ai.web.sources"],
-                quotedText = if (hideAiText) null else c.quote?.text,
+                quotedText = if (hideImageMessageText) null else c.quote?.text,
                 messageKey = c.messageKey,
-                quoteAnchor = if (hideAiText) null else c.quote?.anchor,
+                quoteAnchor = if (hideImageMessageText) null else c.quote?.anchor,
                 images = imgs,
+                showImagesInline = review && isQuestion,
                 documents = c.documents,
                 thinking = if (vm.thinkingEnabled) c.thinking else null,
                 // 思考块显示在对应气泡顶端；**快速模式（未开启思考）不渲染**

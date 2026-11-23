@@ -273,7 +273,7 @@ private fun ReviewFilterButton(
     )
 }
 
-/** 复习卡片（两列瀑布流）：图片按比例或文字 + 学科标签 + 下次时间 */
+/** 复习卡片展示题干预览和原图。 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ReviewCard(q: QuestionPreview, modifier: Modifier = Modifier, onClick: () -> Unit) {
@@ -287,7 +287,7 @@ private fun ReviewCard(q: QuestionPreview, modifier: Modifier = Modifier, onClic
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(Modifier.padding(8.dp)) {
-            QuestionCardPreview(q, s["review.imageDesc"])
+            QuestionCardPreview(q, s["review.imageDesc"], showImageQuestionText = true)
             Text(
                 TIME_FMT.format(Date(q.createdAt)),
                 modifier = Modifier.padding(top = 6.dp),

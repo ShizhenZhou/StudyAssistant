@@ -102,6 +102,11 @@ object UpdateChecker {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    private val shortCompatTag = Regex("""v[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?_Compat""")
+
+    private fun tagDistribution(tag: String): String =
+        if (tag.startsWith("compat_") || shortCompatTag.matches(tag)) "compat" else "main"
+
     /** Only immutable, already published legacy versions have an implicit platform requirement. */
     internal fun legacyMinSdk(version: String): Int? =
         if (Regex("0\\.\\d+\\.\\d+(?:\\.\\d+)?").matches(version) &&
@@ -132,7 +137,7 @@ object UpdateChecker {
         fun value(key: String) = root[key]!!.jsonPrimitive.content
         val distribution = root["distribution"]?.jsonPrimitive?.content ?: "main"
         require(distribution in setOf("main", "compat"))
-        require(release.tagName.startsWith("compat_") == (distribution == "compat"))
+        require(tagDistribution(release.tagName) == distribution)
         // Schema 2 also protects existing main clients, which ignore distribution and
         // otherwise compare the globally increasing versionCode before versionName.
         require(value("schema") == (if (distribution == "compat") "2" else "1") && value("version") == release.version)
@@ -478,9 +483,14 @@ object UpdateChecker {
         val version = normalizeVersion(tag)
         val assets = root["assets"]!!.jsonArray.mapNotNull { it as? JsonObject }
         val apks = assets.filter { it["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk") == true }
-        val apkPrefix = if (tag.startsWith("compat_")) "SACompat-" else "StudyAssistant-"
-        val asset = apks.filter { it["name"]!!.jsonPrimitive.content.startsWith(apkPrefix) }
-            .maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, tag.trim().removePrefix("compat_").removePrefix("v").removePrefix("V")) }
+        val distribution = tagDistribution(tag)
+        val apkPrefix = if (distribution == "compat") "SACompat-" else "StudyAssistant-"
+        val fullVersion = tag.trim().removePrefix("compat_").removePrefix("v").removePrefix("V")
+        val asset = apks.filter {
+            val name = it["name"]!!.jsonPrimitive.content
+            name.startsWith(apkPrefix) || (distribution == "compat" && fullVersion.endsWith("_Compat") &&
+                (name.startsWith("SA-$fullVersion-") || name.startsWith("SA-ENF-$fullVersion-")))
+        }.maxByOrNull { BuildIdentity.assetTime(it["name"]!!.jsonPrimitive.content, fullVersion) }
             ?: apks.firstOrNull() ?: return null
         val name = asset["name"]!!.jsonPrimitive.content
         val url = asset["browser_download_url"]!!.jsonPrimitive.content
@@ -494,7 +504,7 @@ object UpdateChecker {
             asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
             parseIsoMillis(asset["updated_at"]?.jsonPrimitive?.contentOrNull).takeIf { it > 0 }
                 ?: parseIsoMillis(asset["created_at"]?.jsonPrimitive?.contentOrNull), channel = channel,
-            distribution = if (tag.startsWith("compat_")) "compat" else "main") to assets
+            distribution = distribution) to assets
     }.getOrNull()
 
     private fun releaseDocument(url: String, session: FetchSession): JsonElement? {

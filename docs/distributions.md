@@ -39,10 +39,20 @@ Android Studio 在 Build Variants 中选择 modernDebug 或 compatDebug。不再
 
 每次手动 CI 仅构建所选变体，不跑应用或设备测试。发布工具核对请求身份、对应 profile、APK 版本/系统范围及 distribution.json。相同提交和版本的两个发布状态相互独立；状态查询有歧义时使用 status --version <版本> --run <runId>。
 
-GitHub Release 标题统一使用 `v<完整版本号>`，例如 `v0.7.5.8_Compat`。主线沿用 v… 标签和 Latest，兼容版沿用 compat_v… 标签且不设 Latest；更新范围与差分基准继续隔离。独立发布只更新对应 profile 和版本记录，不要求同时提升另一发行线版本。
+GitHub Release 标题统一使用 `v<完整版本号>`，例如 `v0.7.5.8_Compat`。主线正式版使用 GitHub Latest。兼容版以独立标签发布，更新范围与差分基准继续隔离。独立发布只更新对应 profile 和版本记录，不要求同时提升另一发行线版本。
 
 五语言 README 为统一入口；兼容版说明与汇总在 docs/compatible/。历史 Compatible 构建和标签保留，只读校验允许旧分支身份；新发布不再接受该分支。无需在两分支间持续合并。
 
-兼容版新构建版本号使用 _Compat 后缀，例如 0.7.5.2_Compat；Beta 为 0.7.6_beta1_Compat。已有发布和历史记录不改名。版本比较去掉发行后缀，但 APK 身份与安装校验使用完整版本。标签继续使用 compat_v 前缀以保持旧客户端发行隔离。
+兼容版的 `versionName` 使用 `_Compat` 后缀，例如 `0.7.6_Compat`。编号测试版使用 `_beta1_Compat` 等后缀。版本比较以数值基础版本为准，APK 身份与安装校验使用完整版本。
+
+v0.7.6 发布时，兼容客户端按 `compat_` 前缀识别发行线。它的公开标签保留为 `compat_v0.7.6_Compat`。更早没有 `_Compat` 后缀的标签保留 `compat_v` 前缀，以区分同号主线版。
 
 后续带 _Compat 的版本统一使用 SA 前缀，例如 SA-0.7.5.4_Compat-20261119120000.apk；强制版使用 SA-ENF-0.7.5.4_Compat-20261119120000.apk。差分文件跟随目标 APK 文件名生成。已发布的 SACompat 附件及已冻结发布状态不改名。
+
+### 兼容版 Git 标签过渡
+
+自 v0.7.5.3 至 v0.7.5.10 的八个兼容版 Release 已迁到 `v<版本>_Compat` 标签。提交、Release ID 和附件保持原身份，新下载地址使用短标签。已分享的旧直链和保存了旧地址的下载任务需要改从对应 Release 重新下载。
+
+新兼容版本使用 `config/distributions/compat.properties` 的 `tagPrefix=v`，正式版为 `v<版本>_Compat`，Beta 如 `v<版本>_beta1_Compat`。更新器同时读取短标签和历史前缀，按清单的发行身份、系统范围和附件身份决定是否可安装。主线 Latest 与 v0.7.6 兼容版下载入口各自独立。
+
+v0.7.6 兼容版在原标签上提供同版本的较新签名构建。原版客户端可从应用内发现这个构建，安装后即可检查后续短标签更新。直接分享 APK 时使用原 Release 页面，替换后的附件使用新的构建时间文件名。

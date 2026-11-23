@@ -35,6 +35,12 @@ def release_tag(version, distribution="main"):
     # Old clients normalize tags at the first underscore: compat becomes version 0.
     return ("compat_v" if distribution == "compat" else "v") + version
 
+def release_tags(version, distribution):
+    historical = release_tag(version, distribution)
+    if distribution == "compat" and version.endswith("_Compat"):
+        return (historical, "v" + version)
+    return (historical,)
+
 def version_from_tag(tag):
     version = tag.removeprefix("compat_").removeprefix("v")
     numeric_version(version)

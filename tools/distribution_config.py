@@ -1,6 +1,7 @@
 """Read explicit distribution profiles shared with Gradle product flavors."""
 from pathlib import Path
 import re
+from release_common import release_tags
 
 
 def properties(path):
@@ -31,9 +32,11 @@ def source_distribution(root, selected="main"):
         raise ValueError("Invalid distribution version")
     if name == "main" and profile["versionName"].endswith("_Compat"):
         raise ValueError("Main profile must not carry Compat suffix")
-    identity = (profile["minSdk"], profile["maxSdk"], profile["apkPrefix"], profile["tagPrefix"], profile["androidLabel"])
+    if profile["tagPrefix"] + profile["versionName"] not in release_tags(profile["versionName"], name):
+        raise ValueError("Invalid distribution tag prefix")
+    identity = (profile["minSdk"], profile["maxSdk"], profile["apkPrefix"], profile["androidLabel"])
     compat_prefix = "SA" if profile["versionName"].endswith("_Compat") else "SACompat"
-    if identity != ((36, 0, "SA", "v", "16+") if name == "main" else (28, 35, compat_prefix, "compat_v", "9–15")):
+    if identity != ((36, 0, "SA", "16+") if name == "main" else (28, 35, compat_prefix, "9–15")):
         raise ValueError("Invalid distribution identity")
     return profile
 

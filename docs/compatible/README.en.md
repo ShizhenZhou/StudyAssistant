@@ -13,7 +13,7 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.6_Compat (versionCode 148, matching the same main release). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.6_Compat (versionCode 148). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
@@ -29,6 +29,8 @@ Developed by zsz with assistance from DeepSeek and GPT.
 
 ### v0.7.6_Compat
 
+- ⬇️ This rebuild keeps the original version and tag. Existing users can install it through the in-app updater to receive future releases with short compatibility tags.
+- 📖 Review cards show a preview of saved OCR question text. Open a question to read the full text and formulas alongside the original images.
 - 🔎 Tap a notebook search excerpt to jump to and highlight its source. Move between matches when there is more than one.
 - 📚 Resume focused practice after leaving, or repeat difficult questions with the option to include skipped ones.
 - 📖 Daily review targets and progress persist throughout the day. Start today's pending reviews from Statistics.

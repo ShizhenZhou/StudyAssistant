@@ -1,3 +1,8 @@
+v0.7.6.1
+· 📖 Review cards show a preview of saved OCR question text. Open a question to read the full text and formulas alongside the original images.
+· ⬇️ Update checks recognize both compatibility tag formats and keep stable and beta candidates on their own distribution.
+· 🛠️ Updated Gradle Wrapper to 9.9.2 and KSP to 2.3.14.
+
 v0.7.6
 · 🔎 Tap a notebook search excerpt to jump to and highlight its source. Move between matches when there is more than one.
 · 📚 Resume focused practice after leaving, or repeat difficult questions with the option to include skipped ones.

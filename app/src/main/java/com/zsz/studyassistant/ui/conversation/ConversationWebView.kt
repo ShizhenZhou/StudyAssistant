@@ -32,7 +32,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 @kotlinx.serialization.Serializable
 data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null, val messageKey: String? = null, val quoteAnchor: com.zsz.studyassistant.QuoteAnchor? = null,
     val sources: List<com.zsz.studyassistant.data.AiSource> = emptyList(), val sourcesLabel: String = "",
-    val documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList()) {
+    val documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
+    val showImagesInline: Boolean = false) {
     internal fun sourceText(scope: String): String? = when (scope) {
         "body" -> content
         "thinking" -> thinking
@@ -543,6 +544,7 @@ private class ResetOnFocusWebView(context: android.content.Context) : Conversati
 internal fun buildMessagesJson(messages: List<ChatMsg>, revisions: List<String>? = null): String = JSONArray().apply {
     messages.forEachIndexed { index, m ->
         put(JSONObject().put("role", m.role).put("content", m.content).put("images", JSONArray(m.images))
+            .put("showImagesInline", m.showImagesInline)
             .put("renderRevision", revisions?.get(index))
             .put("thinking", m.thinking ?: JSONObject.NULL).put("thinkingOpen", m.thinkingOpen)
             .put("thinkingDone", m.thinkingDone).put("quotedText", m.quotedText ?: JSONObject.NULL)
