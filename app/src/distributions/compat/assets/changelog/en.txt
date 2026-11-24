@@ -1,3 +1,9 @@
+v0.7.6.2_Compat
+· 📖 Daily review and focused practice show saved OCR text for older graded questions. With two photos, the answer photo appears after reveal.
+· ⭐ Question bookmarks moved to the review toolbar. Thumbnails use read-only queries, with chunked reads for older records.
+· 🛠️ Updated the Android build tools, Compose, Lifecycle, CameraX and PDF dependencies.
+· ⬇️ When the GitHub Releases API is rate-limited or unreachable, the compatibility edition can find the full APK through the official update manifest. Hash and signature checks still apply.
+
 v0.7.6_Compat
 · ⬇️ This rebuild keeps the original version and tag. Existing users can install it through the in-app updater to receive future releases with short compatibility tags.
 · 📖 Review cards show a preview of saved OCR question text. Open a question to read the full text and formulas alongside the original images.

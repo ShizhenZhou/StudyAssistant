@@ -68,6 +68,7 @@ jobs:
             compat) flavor=compat; task=assembleCompatRelease ;;
             *) exit 1 ;;
           esac
+          sdkmanager 'platforms;android-37.1'
           ./gradlew "$task" --console=plain
           echo "path=app/build/outputs/apk/$flavor/release/app-$flavor-release-unsigned.apk" >> "$GITHUB_OUTPUT"
       - name: Record APK identity and hashes

@@ -13,19 +13,26 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.6_Compat（versionCode 148）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.6.2_Compat（versionCode 150）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.6_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [互換版 v0.7.6.2_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
 
+
+### v0.7.6.2_Compat
+
+- 📖 毎日の復習と集中練習で、過去の採点記録に保存した OCR の問題文を表示します。2 枚撮影した場合、解答画像は解答を開いた後に表示します。
+- ⭐ 問題の要点を復習詳細画面のツールバーに移動しました。サムネイルは読み取り専用のクエリを使い、古い記録は分割して読み込みます。
+- 🛠️ Android ビルドツール、Compose、Lifecycle、CameraX、PDF 関連の依存関係を更新しました。
+- ⬇️ GitHub Releases API のレート制限や接続障害時に、公式の更新マニフェストから完全版 APK を確認できます。ハッシュと署名の検証は引き続き行います。
 
 ### v0.7.6_Compat
 

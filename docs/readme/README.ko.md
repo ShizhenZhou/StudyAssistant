@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.6_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [호환 버전 v0.7.6.2_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -56,12 +56,18 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
 ## 기술 구성
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**(DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**(백업 및 정기 업데이트 확인) · AlarmManager · Android Keystore.
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.11.01**) · MVVM · Room **3.0.3**(DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1**(SSE) · kotlinx.serialization **1.13.0** · CameraX **1.7.0** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.1** · WorkManager **2.12.0**(백업 및 정기 업데이트 확인) · AlarmManager · Android Keystore.
 
-AGP **9.5.1**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSdk / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
+AGP **9.5.2**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSdk **37.1** / targetSdk **37**, minSdk **36**(Android **16+**), build-tools **36.0.0**. Bak v4는 ZIP / DEFLATE를 사용하며 v3 JSON을 가져올 수 있습니다. [DATA_SCHEMA.md](../DATA_SCHEMA.md)를 참고하세요.
 
 ## 버전 기록
 
+
+### v0.7.6.2
+
+- 📖 일일 복습과 집중 연습에서 이전 채점 기록의 OCR 문제를 표시합니다. 사진 두 장으로 채점한 풀이 사진은 정답을 공개한 후에 표시합니다.
+- ⭐ 복습 상세 화면의 상단 바에 문제 핵심 내용을 배치했습니다. 썸네일은 읽기 전용 쿼리를 사용하며 이전 기록은 나누어 읽습니다.
+- 🛠️ Android 빌드 도구와 Compose, Lifecycle, CameraX, PDF 관련 종속성을 업데이트했습니다.
 
 ### v0.7.6.1
 

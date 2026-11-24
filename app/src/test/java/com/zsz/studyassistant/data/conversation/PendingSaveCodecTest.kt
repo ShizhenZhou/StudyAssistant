@@ -78,6 +78,37 @@ class PendingSaveCodecTest {
         }
         assertNull(gradingInput(false, "legacy", listOf(old, follow), listOf("photo", "second question photo")))
     }
+    @Test fun savedReviewSeparatesLegacyAnswerFromQuestion() {
+        val legacy = com.zsz.studyassistant.ChatItem(0, "question", "題目 + 我的作答",
+            listOf("question-photo", "answer-photo"), ocrCorrections = listOf("Solve x^2=4", "x=2"))
+        assertEquals(GradingInput("Solve x^2=4", listOf("question-photo"), "answer-photo"),
+            reviewGradingInput(false, legacy.content, listOf(legacy), legacy.images.orEmpty()))
+        assertEquals(GradingInput("", listOf("question-photo"), "answer-photo"),
+            reviewGradingInput(false, legacy.content, listOf(legacy.copy(ocrCorrections = listOf(null, "x=2"))),
+                legacy.images.orEmpty()))
+
+        val redo = legacy.copy(content = "Conditions\nMy answer", images = listOf("answer-photo"),
+            ocrCorrections = emptyList())
+        assertEquals(GradingInput("Conditions", emptyList(), "answer-photo"),
+            reviewGradingInput(false, "Conditions", listOf(redo), redo.images.orEmpty()))
+
+        val separated = legacy.copy(content = "Conditions", images = listOf("first", "second"), gradePart = "question")
+        val answer = com.zsz.studyassistant.ChatItem(1, "user", "My answer", listOf("answer-photo"), gradePart = "answer")
+        assertEquals(GradingInput("Conditions", listOf("first", "second"), "answer-photo"),
+            reviewGradingInput(false, "Conditions", listOf(separated, answer), separated.images.orEmpty()))
+        assertNull(reviewGradingInput(false, "Conditions", listOf(separated.copy(gradePart = null)),
+            separated.images.orEmpty()))
+    }
+    @Test fun savedSinglePhotoReviewUsesOcrWithoutSolveHistory() {
+        val saved = com.zsz.studyassistant.ChatItem(0, "question", "题目", listOf("question-photo"),
+            ocrCorrections = listOf("Solve x² = 4"))
+        assertEquals(GradingInput("Solve x² = 4", listOf("question-photo"), null),
+            reviewGradingInput(false, saved.content, listOf(saved), saved.images.orEmpty()))
+        assertNull(reviewGradingInput(false, saved.content, listOf(saved.copy(ocrCorrections = emptyList())),
+            saved.images.orEmpty()))
+        val ordinary = saved.copy(content = "Question", images = listOf("first", "second"))
+        assertNull(reviewGradingInput(false, ordinary.content, listOf(ordinary), ordinary.images.orEmpty()))
+    }
     @Test fun originalNotebookSuggestionsSurviveReopening() {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         val original = NotebookSuggestions("物理", listOf("电场", "电势"))

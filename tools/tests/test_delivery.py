@@ -1,7 +1,10 @@
 """Small offline regression for the current delivery contract. Never dispatched by CI."""
+import hashlib
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -35,19 +38,85 @@ class DeliveryTest(unittest.TestCase):
         github = release.GitHub()
         url = "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.7.1/fixture.apk"
         failed = SimpleNamespace(returncode=22, stdout=b"")
-        ok = SimpleNamespace(returncode=0, stdout=b"verified by caller")
+        ok = SimpleNamespace(returncode=0, stdout=b"expected bytes")
+        wrong_sha = SimpleNamespace(returncode=0, stdout=b"unwanted bytes")
+        wrong_size = SimpleNamespace(returncode=0, stdout=b"{}")
+        asset = dict(id=123, name="fixture.apk", size=len(ok.stdout),
+                     digest="sha256:" + hashlib.sha256(ok.stdout).hexdigest())
+        for primary in (failed, wrong_sha, wrong_size, release.subprocess.TimeoutExpired("curl", 130)):
+            with self.subTest(primary=primary), \
+                 patch.object(release.shutil, "which", return_value="curl.exe"), \
+                 patch.object(github, "api", return_value=dict(asset, browser_download_url=url)), \
+                 patch.object(release, "command", side_effect=[primary, ok]) as command:
+                self.assertEqual(ok.stdout, github.download_release_asset(asset))
+                self.assertEqual(2, command.call_count)
+                self.assertEqual(url, command.call_args.args[0][-1])
+                for attempt in command.call_args_list:
+                    args = attempt.args[0]
+                    self.assertEqual(str(asset["size"] + 1), args[args.index("--max-filesize") + 1])
+
         with patch.object(release.shutil, "which", return_value="curl.exe"), \
-             patch.object(github, "api", return_value={"browser_download_url": url}), \
-             patch.object(release, "command", side_effect=[failed, ok]) as command:
-            self.assertEqual(ok.stdout, github.download("repos/ShizhenZhou/StudyAssistant/releases/assets/123?download=1", binary=True))
-            self.assertEqual(2, command.call_count)
-            self.assertEqual(url, command.call_args.args[0][-1])
-        with patch.object(release.shutil, "which", return_value="curl.exe"), \
-             patch.object(github, "api", return_value={"browser_download_url": "https://example.com/private"}), \
-             patch.object(release, "command", return_value=failed) as command:
-            with self.assertRaises(release.ReleaseError):
-                github.download("repos/ShizhenZhou/StudyAssistant/releases/assets/123?download=1", binary=True)
+             patch.object(github, "api") as api, \
+             patch.object(release, "command", return_value=ok) as command:
+            self.assertEqual(ok.stdout, github.download_release_asset(asset))
             self.assertEqual(1, command.call_count)
+            api.assert_not_called()
+
+        for alternate in (dict(asset, browser_download_url="https://example.com/private"),
+                          dict(asset, browser_download_url=url.replace("fixture.apk", "other.apk")),
+                          dict(asset, id=124, browser_download_url=url),
+                          dict(asset, digest="sha256:" + "f" * 64, browser_download_url=url)):
+            with self.subTest(alternate=alternate), \
+                 patch.object(release.shutil, "which", return_value="curl.exe"), \
+                 patch.object(github, "api", return_value=alternate), \
+                 patch.object(release, "command", return_value=failed) as command:
+                with self.assertRaises(release.ReleaseError):
+                    github.download_release_asset(asset)
+                self.assertEqual(1, command.call_count)
+
+        with patch.object(release.shutil, "which", return_value="curl.exe"), \
+             patch.object(github, "api") as api, \
+             patch.object(release, "command", side_effect=[wrong_size, wrong_sha]) as command:
+            with self.assertRaises(release.ReleaseError):
+                github.download_release_asset(dict(asset, browser_download_url=url))
+            self.assertEqual(2, command.call_count)
+            api.assert_not_called()
+
+        with patch.object(release.shutil, "which", return_value=None), \
+             patch.object(github, "call", return_value=wrong_size.stdout) as call, \
+             patch.object(release, "build_opener") as opener:
+            response = opener.return_value.open.return_value.__enter__.return_value
+            response.read.return_value = ok.stdout
+            self.assertEqual(ok.stdout, github.download_release_asset(dict(asset, browser_download_url=url)))
+            call.assert_called_once_with("api", "repos/ShizhenZhou/StudyAssistant/releases/assets/123?download=1",
+                                         "-H", "Accept: application/octet-stream")
+            opener.return_value.open.assert_called_once_with(url, timeout=120)
+            response.read.assert_called_once_with(asset["size"] + 1)
+
+    def test_only_provenance_reuses_verified_download_cache(self):
+        data = b"expected bytes"
+        identity = dict(id=123, name="fixture.apk", digest="sha256:" + hashlib.sha256(data).hexdigest())
+        asset = dict(identity, size=len(data))
+        artifact = dict(identity, size_in_bytes=len(data), archive_download_url="https://api.github.com/artifact")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            github = release.GitHub(root)
+            coordinator = release.Release(root, github)
+            path = root / asset["name"]
+            path.write_bytes(data)
+            with patch.object(github, "download_release_asset", return_value=data) as public, \
+                 patch.object(github, "download", return_value=data) as authenticated:
+                self.assertEqual(data, coordinator.verified_download(asset, "release-asset"))
+                self.assertEqual(data, coordinator.verified_download(asset, "release-asset"))
+                public.assert_called_once_with(asset)
+                self.assertEqual(data, coordinator.verified_download(artifact, "action-artifact"))
+                self.assertEqual(data, coordinator.verified_download(artifact, "action-artifact"))
+                authenticated.assert_called_once_with(artifact["archive_download_url"])
+                self.assertEqual(data, coordinator.download_uploaded_asset(asset, path))
+                self.assertEqual(2, public.call_count)
+                path.write_bytes(b"modified bytes")
+                with self.assertRaises(release.ReleaseError):
+                    coordinator.download_uploaded_asset(asset, path)
 
     def manifest(self):
         return dict(schema=3, package="com.zsz.studyassistant", version="0.6.8.7", versionCode=88,
@@ -285,9 +354,12 @@ class DeliveryTest(unittest.TestCase):
             folder = Path(tmp)
             files = {name: folder / name for name in ("target.apk", "update-manifest.json", "target-from-1.gdiff.gz")}
             for name, path in files.items(): path.write_bytes(name.encode())
-            assets = [dict(name=name, size=path.stat().st_size, digest="sha256:" + sha256(path)) for name, path in files.items()]
+            assets = [dict(id=asset_id, name=name, size=path.stat().st_size, digest="sha256:" + sha256(path))
+                      for asset_id, (name, path) in enumerate(files.items(), 1)]
             release.validate_release_assets(assets, files, complete=True)
             with self.assertRaises(release.ReleaseError): release.validate_release_assets(assets[:-1], files, complete=True)
+            with self.assertRaises(release.ReleaseError):
+                release.validate_release_assets([dict(assets[0], id=0)], files)
             assets[-1]["digest"] = "sha256:" + "0" * 64
             with self.assertRaises(release.ReleaseError): release.validate_release_assets(assets, files, complete=True)
             with self.assertRaises(release.ReleaseError):
@@ -324,6 +396,53 @@ class DeliveryTest(unittest.TestCase):
             legacy_dir = folder / "legacy-recovered"
             self.assertEqual(legacy_metadata, apk_delta.build(record, target, 2, legacy_dir, expected=legacy_metadata))
             self.assertEqual(legacy_patch, (legacy_dir / metadata["patchName"]).read_bytes())
+
+    @unittest.skipUnless(sys.platform == "win32", "PowerShell release entry point")
+    def test_release_entry_forwards_verify_without_delta_python(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            wrapper = Path(release.__file__).with_suffix(".ps1")
+            staged_wrapper = folder / wrapper.name
+            staged_wrapper.write_bytes(wrapper.read_bytes())
+            (folder / "codex-env.ps1").write_text("", encoding="utf-8")
+            (folder / "release.py").write_text(
+                "import json, sys; print(json.dumps(sys.argv[1:]))", encoding="utf-8")
+            env = dict(os.environ, PATH=str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"],
+                       STUDYASSISTANT_RELEASE_PYTHON=str(folder / "missing.exe"))
+            result = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                                     staged_wrapper, "verify", "--run", "123"],
+                                    env=env, capture_output=True, text=True, timeout=20)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["verify", "--run", "123"], json.loads(result.stdout))
+
+    def test_release_delta_preparation_requires_classic_only_for_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            base = folder / "base.apk"; base.write_bytes(bytes(range(256)) * 100)
+            signed = folder / "target.apk"; signed.write_bytes(base.read_bytes() + b"signed target")
+            record = dict(path=str(base), baseSha256=sha256(base), baseSize=base.stat().st_size, baseVersionCode=1)
+            manifest = {"versionCode": 2}
+            coordinator = release.Release(folder)
+            coordinator.state = {}
+            with patch.dict(os.environ, STUDYASSISTANT_RELEASE_PYTHON=str(folder / "missing.exe")):
+                coordinator.prepare_deltas(signed, manifest)
+                coordinator.state = {"deltaBases": [record], "legacyDeltaBaseCodes": [1]}
+                with self.assertRaisesRegex(release.ReleaseError, "STUDYASSISTANT_RELEASE_PYTHON"):
+                    coordinator.prepare_deltas(signed, manifest)
+                self.assertNotIn("deltas", coordinator.state)
+                frozen = apk_delta.build(record, signed, 2, folder)
+                coordinator.state["deltas"] = [frozen]
+                path = folder / frozen["patchName"]
+                coordinator.prepare_deltas(signed, manifest)
+                path.write_bytes(b"altered")
+                with self.assertRaisesRegex(release.ReleaseError, "Local delta artifact changed"):
+                    coordinator.prepare_deltas(signed, manifest)
+                self.assertEqual(b"altered", path.read_bytes())
+                path.unlink()
+                with self.assertRaisesRegex(release.ReleaseError, "STUDYASSISTANT_RELEASE_PYTHON"):
+                    coordinator.prepare_deltas(signed, manifest)
+                self.assertFalse(path.exists())
+                self.assertEqual([frozen], coordinator.state["deltas"])
 
     def test_archive_delta_preserves_zip_bytes_and_rejects_invalid_ranges(self):
         import gzip

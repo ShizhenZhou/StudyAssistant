@@ -13,19 +13,26 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.6_Compat（versionCode 148）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.6.2_Compat（versionCode 150）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.6_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.6.2_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本記錄
 
+
+### v0.7.6.2_Compat
+
+- 📖 正式複習和專項練習顯示舊批改記錄的 OCR 題幹。雙圖批改的作答圖在揭曉後顯示。
+- ⭐ 本題重點移到複習詳情頂欄。錯題縮圖改用唯讀查詢，舊記錄繼續分段讀取。
+- 🛠️ 更新 Android 建置工具、Compose、Lifecycle、CameraX 和 PDF 相關依賴。
+- ⬇️ GitHub Releases API 達到速率限制或連線失敗時，相容版可透過官方更新清單找到完整 APK，並繼續驗證雜湊和簽章。
 
 ### v0.7.6_Compat
 

@@ -13,19 +13,26 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.6_Compat(versionCode 148)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.6.2_Compat(versionCode 150)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.6_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [호환 버전 v0.7.6.2_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 버전 기록
 
+
+### v0.7.6.2_Compat
+
+- 📖 일일 복습과 집중 연습에서 이전 채점 기록의 OCR 문제를 표시합니다. 사진 두 장으로 채점한 풀이 사진은 정답을 공개한 후에 표시합니다.
+- ⭐ 복습 상세 화면의 상단 바에 문제 핵심 내용을 배치했습니다. 썸네일은 읽기 전용 쿼리를 사용하며 이전 기록은 나누어 읽습니다.
+- 🛠️ Android 빌드 도구와 Compose, Lifecycle, CameraX, PDF 관련 종속성을 업데이트했습니다.
+- ⬇️ GitHub Releases API의 요청 한도에 도달하거나 연결할 수 없을 때 공식 업데이트 매니페스트에서 전체 APK를 찾습니다. 해시와 서명 검증은 계속 적용됩니다.
 
 ### v0.7.6_Compat
 

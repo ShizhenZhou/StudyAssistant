@@ -175,6 +175,7 @@ class ReliabilityIntegrationTest {
         assertEquals(2, images.size)
         assertArrayEquals(byteArrayOf(1, 2), images[0])
         assertArrayEquals(byteArrayOf(3, 4), images[1])
+        assertEquals(2, db.previewCard(id, "Room 2 fixture").images.size)
         db.getSupportWrapper().query("SELECT identity_hash FROM room_master_table WHERE id=42").use {
             assertTrue(it.moveToFirst())
             assertNotEquals("d66e3125b1edecdae1ee701ddbb0c951", it.getString(0))
@@ -192,6 +193,18 @@ class ReliabilityIntegrationTest {
         assertEquals(id, db.questionDao().allQuestionsOnce().single().id)
         assertEquals("Migrated title", db.questionDao().sessionLightOnce(id)!!.title)
         val sql = db.getSupportWrapper()
+        sql.execSQL("UPDATE questions SET conversationJson=? WHERE id=?", arrayOf(
+            """[{"role":"question","content":"题目 + 我的作答","images":["AQI=","AwQ="],"ocrCorrections":["题干 OCR","作答 OCR"]}]""", id
+        ))
+        val reviewCard = db.previewCard(id, "Room 2 fixture")
+        assertEquals("题干 OCR", reviewCard.questionText)
+        assertArrayEquals(byteArrayOf(1, 2), reviewCard.images.single())
+        sql.execSQL("UPDATE questions SET text=?, conversationJson=? WHERE id=?", arrayOf("题目",
+            """[{"role":"question","content":"题目","images":["AQI="],"ocrCorrections":["单图 OCR"]}]""", id
+        ))
+        val singlePhotoCard = db.previewCard(id, "题目")
+        assertEquals("单图 OCR", singlePhotoCard.questionText)
+        assertArrayEquals(byteArrayOf(1, 2), singlePhotoCard.images.single())
         // DAO writes derive the cache without SQLite JSON extensions. Bak v4 has its own
         // bounded row hydration (covered by archiveRoundTripPreservesFieldsAndGlobalImageDedup).
         val restoredId = QuestionIdentity.create(20000)

@@ -76,7 +76,9 @@ logger.lifecycle(if (hasReleaseSigning) "[Signing] Local debug identity availabl
 
 android {
     namespace = "com.zsz.studyassistant"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
     buildToolsVersion = libs.versions.androidBuildTools.get()
 
     defaultConfig {
@@ -248,6 +250,8 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
 
 dependencies {
     implementation(libs.pdfbox.android)
+    // Keep PDFBox Android's provider, PKIX and utility libraries on the same version.
+    implementation(platform(libs.bouncycastle.bom))
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

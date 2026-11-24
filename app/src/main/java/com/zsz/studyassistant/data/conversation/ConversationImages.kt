@@ -4,8 +4,19 @@ import android.util.JsonReader
 import android.util.JsonToken
 import java.io.Reader
 
-/** Legacy card fallback. Read only the first (question) object with a bounded display-only budget. */
-internal fun legacyPreviewImages(part: (Int, Int) -> String?): List<ByteArray> {
+internal data class LegacyQuestionPreview(
+    val content: String? = null,
+    val gradePart: String? = null,
+    val questionCorrection: String? = null,
+    val imageSlots: List<ByteArray?> = emptyList()
+)
+
+/** Read only the first (question) object with a bounded display-only budget. */
+internal fun legacyQuestionPreview(
+    readImages: Boolean,
+    needsGradingDetails: ((String?) -> Boolean)?,
+    part: (Int, Int) -> String?
+): LegacyQuestionPreview {
     val budget = minOf(16L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 16)
     val reader = object : Reader() {
         private var piece = ""
@@ -29,8 +40,13 @@ internal fun legacyPreviewImages(part: (Int, Int) -> String?): List<ByteArray> {
         }
         override fun close() = Unit
     }
-    val images = mutableListOf<ByteArray>()
+    val images = mutableListOf<ByteArray?>()
     var isQuestion = false
+    var content: String? = null
+    var gradePart: String? = null
+    var correction: String? = null
+    var readGradingDetails = needsGradingDetails != null
+    fun result() = if (isQuestion) LegacyQuestionPreview(content, gradePart, correction, images) else LegacyQuestionPreview()
     try {
         JsonReader(reader).use { json ->
             json.beginArray()
@@ -39,18 +55,33 @@ internal fun legacyPreviewImages(part: (Int, Int) -> String?): List<ByteArray> {
                 when (json.nextName()) {
                     "role" -> {
                         isQuestion = json.nextString() == "question"
-                        if (!isQuestion) return emptyList()
+                        if (!isQuestion) return LegacyQuestionPreview()
                     }
-                    "images" -> if (json.peek() == JsonToken.BEGIN_ARRAY) {
+                    "content" -> if (needsGradingDetails != null && json.peek() == JsonToken.STRING) {
+                        content = json.nextString()
+                        readGradingDetails = needsGradingDetails(content)
+                        if (isQuestion && !readImages && !readGradingDetails) return result()
+                    } else json.skipValue()
+                    "images" -> if (readImages && json.peek() == JsonToken.BEGIN_ARRAY) {
                         json.beginArray()
                         while (json.hasNext() && images.size < MAX_QUESTION_IMAGES) {
-                            val key = json.nextString()
-                            if (key.isNotBlank()) {
-                                try { images.add(android.util.Base64.decode(key, android.util.Base64.NO_WRAP)) }
-                                catch (_: IllegalArgumentException) { /* Skip an invalid legacy image. */ }
-                            }
+                            val bytes = if (json.peek() == JsonToken.STRING) {
+                                val key = json.nextString()
+                                try { key.takeIf { it.isNotBlank() }?.let { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) } }
+                                catch (_: IllegalArgumentException) { null }
+                            } else { json.skipValue(); null }
+                            // Camera grading uses the original position even when a legacy image is unreadable.
+                            images.add(bytes)
                         }
-                        if (isQuestion) return images
+                        if (isQuestion && !readGradingDetails) return result()
+                        while (json.hasNext()) json.skipValue()
+                        json.endArray()
+                    } else json.skipValue()
+                    "gradePart" -> if (readGradingDetails && json.peek() == JsonToken.STRING) gradePart = json.nextString()
+                        else json.skipValue()
+                    "ocrCorrections" -> if (readGradingDetails && json.peek() == JsonToken.BEGIN_ARRAY) {
+                        json.beginArray()
+                        if (json.hasNext() && json.peek() == JsonToken.STRING) correction = json.nextString()
                         while (json.hasNext()) json.skipValue()
                         json.endArray()
                     } else json.skipValue()
@@ -61,7 +92,7 @@ internal fun legacyPreviewImages(part: (Int, Int) -> String?): List<ByteArray> {
     } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
     catch (_: java.io.IOException) { /* Truncated or over the card budget. */ }
     catch (_: IllegalStateException) { /* Unrecognized legacy structure. */ }
-    return if (isQuestion) images else emptyList()
+    return result()
 }
 
 /**

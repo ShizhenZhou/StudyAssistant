@@ -175,8 +175,7 @@ fun SolveScreen(
     val tags by vm.tags.collectAsStateWithLifecycle()
     var categoryDialogFor by remember { mutableStateOf<String?>(null) } // null / "save" / "change"
     // 复习模式：默认先只给题目，自己回忆后再展开解答
-    var answerRevealed by remember { mutableStateOf(false) }
-    LaunchedEffect(vm.savedQuestionId) { answerRevealed = false }
+    var answerRevealed by remember(vm.savedQuestionId, sessionMode) { mutableStateOf(false) }
 
     // 系统相册（开启**有序选择**）：选 1~3 张附到追问消息里，最多保留 3 张（返回顺序 = 勾选顺序）
     val imagePicker = rememberLauncherForActivityResult(
@@ -249,7 +248,6 @@ fun SolveScreen(
     var switching by remember { mutableStateOf(false) }
     LaunchedEffect(sessionMode == SessionMode.REVIEW, vm.savedQuestionId) {
         if (sessionMode == SessionMode.REVIEW) {
-            answerRevealed = false      // 切换题目时自动把答案折叠回去
             resetScrollTick++           // 新题从顶部开始
             switching = true
             try {
@@ -273,8 +271,10 @@ fun SolveScreen(
     //    块外的 key 不变时 remember 直接返回**缓存列表** → 思考增长期间 messages 根本不重算 →
     //    WebView 收到的 JSON 一模一样 → 表现成「思考不流式输出（最后一次性蹦出来）」。必须进 key。
     // Stable bubbles retain their lazy source hashes while only the streaming tail changes.
-    val mappedMessages = remember(vm.chatItems, vm.questionImages, sessionMode == SessionMode.REVIEW, answerRevealed, vm.thinkingEnabled, s) {
-        var items = if (sessionMode == SessionMode.REVIEW && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
+    val review = sessionMode == SessionMode.REVIEW
+    val mappedMessages = remember(vm.chatItems, vm.questionImages, vm.gradeMode, review, answerRevealed, vm.thinkingEnabled, s) {
+        val gradingQuestion = if (review) vm.currentReviewGradingInput() else null
+        var items = if (review && !answerRevealed) vm.chatItems.filter { it.role == "question" } else vm.chatItems
         // ★ 兜底去重：题干项按内容去重（旧数据/不同入口可能塞进重复题干，表现为"题目出现两遍"）
         run {
             val seen = HashSet<String>()
@@ -285,21 +285,28 @@ fun SolveScreen(
         if (items.none { it.role == "question" } && vm.questionImages.isNotEmpty()) {
             items = listOf(com.zsz.studyassistant.ChatItem(-1L, "question", "", vm.questionImages)) + items
         }
+        val question = items.firstOrNull { it.role == "question" }
+        val legacyAnswer = gradingQuestion?.answerImage?.takeIf { answerRevealed && question?.gradePart != "question" }
+        if (legacyAnswer != null) {
+            // Older grading saves attached the handwriting to the question. Give it a display-only bubble.
+            items = items.toMutableList().apply {
+                add(indexOfFirst { it.role == "question" } + 1, ChatItem(-1L, "user", "", listOf(legacyAnswer)))
+            }
+        }
         items.map { c ->
             val isQuestion = c.role == "question"
             val imgs = if (isQuestion) {
-                // 题目/首次提问：优先用 questionImages；重开会话时回退到已保存的附图
-                vm.questionImages.ifEmpty { c.images ?: emptyList() }
+                gradingQuestion?.questionImages ?: vm.questionImages.ifEmpty { c.images.orEmpty() }
             } else {
-                c.images ?: emptyList()
+                c.images.orEmpty()
             }
+            val text = if (isQuestion && gradingQuestion != null) gradingQuestion.questionText.orEmpty() else c.content
             // 复习题干同时显示已保存的转写和原图，其他带图消息沿用复习时的显示规则。
-            val review = sessionMode == SessionMode.REVIEW
-            val hideImageMessageText = review && imgs.isNotEmpty() && (!isQuestion || c.content.trim() == "（图片题）")
+            val hideImageMessageText = review && imgs.isNotEmpty() && (!isQuestion || text.trim() == "（图片题）")
             ChatMsg(
                 role = if (c.role == "assistant") "assistant" else "user",
                 content = if (c.answerPending) s["solve.answerPending"] + "\n\n[[CONTINUE|" + s["solve.continueGen"] + "]]"
-                    else if (hideImageMessageText) "" else c.quote?.question ?: c.content,
+                    else if (hideImageMessageText) "" else c.quote?.question ?: text,
                 sources = if (hideImageMessageText) emptyList() else c.aiContext?.sources().orEmpty(),
                 sourcesLabel = s["ai.web.sources"],
                 quotedText = if (hideImageMessageText) null else c.quote?.text,
@@ -543,6 +550,11 @@ fun SolveScreen(
                     // 2026-10-07 用户要求「默认字号再缩小一些」（14 → 13），同栏里的按钮一起改，避免大小不一。
                     val actionModifier = Modifier.height(actionHeight)
                     if (cfg.showPracticeSimilar) {
+                        TextButton(onClick = { bookmarksOpen = true }, contentPadding = smallPad,
+                            modifier = actionModifier) {
+                            Text("☆ " + s["bookmark.title"], fontSize = BTN_LABEL_SOLVE, maxLines = 2,
+                                overflow = TextOverflow.Ellipsis)
+                        }
                         TextButton(onClick = { vm.startSimilar(); nav.navigate(AppNav.SIMILAR) }, contentPadding = smallPad, modifier = actionModifier) { Text(s["solve.practiceSimilar"], fontSize = BTN_LABEL_SOLVE) }
                     } else if (editMode) {
                         TextButton(onClick = { conversationExport.begin(selectedIndices.sorted().mapNotNull(messages::getOrNull)) },
@@ -927,9 +939,6 @@ fun SolveScreen(
                     }
                 }
             } else {
-                if (sessionMode == SessionMode.REVIEW) TextButton(onClick = { bookmarksOpen = true }) {
-                    Text("☆ " + s["bookmark.title"])
-                }
                 if (activeMatch != null && matchCount > 1) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically) {

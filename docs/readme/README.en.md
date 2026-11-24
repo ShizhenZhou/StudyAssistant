@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.6_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.6.2_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -56,12 +56,18 @@ Selected PDF pages and whole Word/PowerPoint files upload to DeepSeek for parsin
 
 ## Technology
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3** (DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.11.01**) · MVVM · Room **3.0.3** (DB v11) · Retrofit **3.0.0** / OkHttp **5.5.1** (SSE) · kotlinx.serialization **1.13.0** · CameraX **1.7.0** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.1** · WorkManager **2.12.0** (backups and periodic update checks) · AlarmManager · Android Keystore.
 
-AGP **9.5.1**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSdk / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
+AGP **9.5.2**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSdk **37.1** / targetSdk **37**, minSdk **36** (Android **16+**), build-tools **36.0.0**. Bak v4 uses native ZIP / DEFLATE and imports v3 JSON. See [DATA_SCHEMA.md](../DATA_SCHEMA.md).
 
 ## Version history
 
+
+### v0.7.6.2
+
+- 📖 Daily review and focused practice show saved OCR text for older graded questions. With two photos, the answer photo appears after reveal.
+- ⭐ Question bookmarks moved to the review toolbar. Thumbnails use read-only queries, with chunked reads for older records.
+- 🛠️ Updated the Android build tools, Compose, Lifecycle, CameraX and PDF dependencies.
 
 ### v0.7.6.1
 

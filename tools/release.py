@@ -16,7 +16,11 @@ import time
 import uuid
 import io
 import zipfile
+import zlib
 import tempfile
+from http.client import HTTPException
+from urllib.parse import unquote, urlsplit
+from urllib.request import HTTPRedirectHandler, build_opener
 import apk_delta
 import apk_archive_delta
 from distribution_config import source_distribution
@@ -28,6 +32,7 @@ from verification import (make_plan, validate_ci_evidence,
 ROOT = Path(__file__).resolve().parents[1]
 REPO = "ShizhenZhou/StudyAssistant"
 WORKFLOW = "build.yml"
+RELEASE_ASSET_KEYS = ("id", "name", "size", "digest")
 
 class ReleaseError(RuntimeError): pass
 
@@ -52,7 +57,7 @@ def run_description(version, message):
 def published_identity(published):
     """Release and asset identity, excluding counters and mutable presentation fields."""
     value={key:published[key] for key in ('id','tag_name','draft','prerelease')}
-    value['assets']=sorted(({key:asset[key] for key in ('id','name','size','digest')}
+    value['assets']=sorted(({key:asset[key] for key in RELEASE_ASSET_KEYS}
         for asset in published['assets']),key=lambda asset:(asset['id'],asset['name']))
     return value
 
@@ -184,13 +189,102 @@ def frozen_delta_pairs(bases, deltas):
         raise ReleaseError("Every frozen base must retain a delta")
     return result
 
+
+def delta_runtime():
+    version = zlib.ZLIB_RUNTIME_VERSION
+    if sys.version_info >= (3, 11) and not hasattr(zlib, "ZLIBNG_VERSION") and "zlib-ng" not in version.lower():
+        return dict(executable=sys.executable, python=sys.version.split()[0], zlib=version)
+    return None
+
+
+def select_delta_python():
+    override = os.environ.get("STUDYASSISTANT_RELEASE_PYTHON")
+    if override:
+        candidates = [Path(override)]
+    else:
+        names = ("python.exe",) if os.name == "nt" else ("python3", "python")
+        folders = (Path(folder.strip('"') if os.name == "nt" else folder) for folder in os.get_exec_path())
+        candidates = [Path(sys.executable), *(folder / name for folder in folders if folder.is_absolute() for name in names)]
+    flags = ["-E", "-s", "-B", str(Path(__file__).resolve())]
+    for candidate in dict.fromkeys(candidates):
+        if not candidate.is_absolute():
+            continue
+        try:
+            result = subprocess.run([candidate, *flags, "--delta-runtime"], capture_output=True, timeout=10)
+            runtime = json.loads(result.stdout) if result.returncode == 0 else None
+            if runtime and Path(runtime["executable"]).is_absolute():
+                return runtime
+        except (OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired):
+            continue
+    raise ReleaseError("APK delta generation needs classic zlib. Set STUDYASSISTANT_RELEASE_PYTHON to the absolute path of a Python 3.11+ executable using classic zlib.")
+
+
+def run_delta_builder(signed, version_code, allow_same_version, **request):
+    runtime = select_delta_python()
+    print(f"Release delta Python: {runtime['executable']} (Python {runtime['python']}, classic zlib {runtime['zlib']})",
+          file=sys.stderr)
+    result = subprocess.run([runtime["executable"], "-E", "-s", "-B", str(Path(__file__).resolve()), "--delta-worker"],
+        input=json.dumps(dict(signed=str(signed), version_code=version_code,
+                              allow_same_version=allow_same_version, **request)).encode("utf-8"),
+        capture_output=True, timeout=1800)
+    if result.returncode:
+        raise ReleaseError("APK delta generation could not start or finish under the selected Python.")
+    response = json.loads(result.stdout)
+    if "error" in response:
+        raise ReleaseError(response["error"])
+    return response["deltas"]
+
+
+def delta_worker():
+    """Encode patches locally, independently of the release command and its remote state."""
+    try:
+        if not delta_runtime():
+            raise ReleaseError("The selected APK delta Python is missing classic zlib.")
+        request = json.load(sys.stdin)
+        signed = Path(request["signed"])
+        version_code, allow_same = request["version_code"], request["allow_same_version"]
+        if "frozen" in request:
+            deltas = []
+            for base, delta in request["frozen"]:
+                builder = apk_delta if delta["format"] == apk_delta.FORMAT else apk_archive_delta
+                deltas.append(builder.build(base, signed, version_code, signed.parent, expected=delta,
+                                            allow_same_version=allow_same))
+        else:
+            deltas = build_deltas(request["bases"], signed, version_code, allow_same, request["legacy_codes"])
+        result = dict(deltas=deltas)
+    except ReleaseError as error:
+        result = dict(error=str(error))
+    except (OSError, ValueError, KeyError):
+        result = dict(error="APK delta generation failed. Inspect the base, signed APK and any frozen patch SHA-256. "
+                            "For exact recovery, set STUDYASSISTANT_RELEASE_PYTHON to the original classic-zlib interpreter.")
+    print(json.dumps(result))
+
+
+def has_download_identity(object_id, size, digest):
+    return (type(object_id) is int and object_id > 0 and type(size) is int and size > 0 and
+            isinstance(digest, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is not None)
+
+
+def matches_download(data, size, digest):
+    return len(data) == size and ("sha256:" + hashlib.sha256(data).hexdigest()) == digest
+
+
+def release_asset_identity(asset):
+    asset_id, name, size, digest = (asset.get(key) for key in RELEASE_ASSET_KEYS)
+    if (not has_download_identity(asset_id, size, digest) or not isinstance(name, str) or
+            not re.fullmatch(r"[^/\\\x00-\x1f\x7f]+", name)):
+        raise ReleaseError("Invalid public release asset identity.")
+    return asset_id, name, size, digest
+
+
 def validate_release_assets(assets, files, complete=False):
     names = [asset["name"] for asset in assets]
     if len(names) != len(set(names)) or set(names) - set(files) or (complete and set(names) != set(files)):
         raise ReleaseError("Unexpected release assets; nothing was overwritten.")
     for asset in assets:
-        path = files[asset["name"]]
-        if asset.get("digest") != "sha256:" + sha256(path) or asset.get("size") != path.stat().st_size:
+        _, name, size, digest = release_asset_identity(asset)
+        path = files[name]
+        if digest != "sha256:" + sha256(path) or size != path.stat().st_size:
             raise ReleaseError("Uploaded release asset digest or size mismatch.")
 
 def command(args, *, root=ROOT, data=None, log=None, timeout=120, check=True):
@@ -201,6 +295,13 @@ def command(args, *, root=ROOT, data=None, log=None, timeout=120, check=True):
     if check and result.returncode:
         raise ReleaseError(f"{'Local signing' if any(str(a).endswith('sign-release.ps1') for a in args) else Path(str(args[0])).name} failed; local exit code {result.returncode}. Inspect its local log; command arguments are withheld.")
     return result
+
+class HTTPSAssetRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urlsplit(newurl).scheme != "https":
+            raise ReleaseError("Unexpected public asset redirect protocol.")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
 
 class GitHub:
     def __init__(self, root=ROOT):
@@ -220,23 +321,52 @@ class GitHub:
             raise ReleaseError("GitHub request failed; its outcome must be checked before retrying.")
         return json.loads(result.stdout) if result.stdout.strip() else None
     def download(self, path, binary=False):
-        # Public final-asset reads need no token. Keep artifact/authenticated traffic on gh.
-        if binary and re.fullmatch(r"repos/" + re.escape(REPO) + r"/releases/assets/[1-9][0-9]*\?download=1", path):
-            curl = shutil.which("curl.exe") or shutil.which("curl")
-            if curl:
-                args = [curl, "--disable", "--silent", "--show-error", "--http1.1", "--ipv4",
-                    "--fail", "--location", "--connect-timeout", "15", "--max-time", "120",
-                    "--proto", "=https", "--proto-redir", "=https", "-H", "Accept: application/octet-stream"]
-                result = command(args + ["https://api.github.com/" + path], root=self.root, timeout=130, check=False)
-                if result.returncode == 0: return result.stdout
-                # The public API redirect can fail while the release's browser URL works.
-                # Resolve one official alternate; callers still verify exact size and SHA.
-                asset = self.api("releases/assets/" + path.split("/assets/", 1)[1].split("?", 1)[0])
-                url = asset.get("browser_download_url", "")
-                if not re.fullmatch(r"https://github\.com/" + re.escape(REPO) + r"/releases/download/[^/?#]+/[^/?#]+", url):
-                    raise ReleaseError("Unexpected public asset download URL")
-                return command(args + [url], root=self.root, timeout=130).stdout
         return self.call("api", path, "-H", "Accept: " + ("application/octet-stream" if binary else "application/json"))
+
+    def download_release_asset(self, asset):
+        """Verify public bytes against an existing release asset identity."""
+        identity = release_asset_identity(asset)
+        asset_id, name, size, digest = identity
+        asset_path = f"releases/assets/{asset_id}"
+        path = f"repos/{REPO}/{asset_path}?download=1"
+        curl = shutil.which("curl.exe") or shutil.which("curl")
+        args = [curl, "--disable", "--silent", "--show-error", "--http1.1", "--ipv4", "--globoff",
+                "--fail", "--location", "--connect-timeout", "15", "--max-time", "120",
+                "--max-filesize", str(size + 1),
+                "--proto", "=https", "--proto-redir", "=https", "-H", "Accept: application/octet-stream"]
+        try:
+            if curl:
+                result = command(args + ["https://api.github.com/" + path], root=self.root, timeout=130, check=False)
+                data = result.stdout if result.returncode == 0 else b""
+            else:
+                data = self.download(path, binary=True)
+            if matches_download(data, size, digest):
+                return data
+        except (ReleaseError, OSError, subprocess.TimeoutExpired):
+            pass
+
+        url = asset.get("browser_download_url")
+        if not url:
+            current = self.api(asset_path)
+            if not isinstance(current, dict) or release_asset_identity(current) != identity:
+                raise ReleaseError("Public release asset identity changed before the alternate download.")
+            url = current.get("browser_download_url")
+        if (not isinstance(url, str) or
+                not re.fullmatch(r"https://github\.com/" + re.escape(REPO) +
+                                 r"/releases/download/[^/?#\x00-\x20\x7f]+/[^/?#\x00-\x20\x7f]+", url) or
+                unquote(url.rsplit("/", 1)[-1]) != name):
+            raise ReleaseError("Unexpected public asset download URL.")
+        try:
+            if curl:
+                data = command(args + [url], root=self.root, timeout=130).stdout
+            else:
+                with build_opener(HTTPSAssetRedirect()).open(url, timeout=120) as response:
+                    data = response.read(size + 1)
+        except (ReleaseError, OSError, HTTPException, subprocess.TimeoutExpired) as error:
+            raise ReleaseError("Public release asset download failed on the official alternate.") from error
+        if not matches_download(data, size, digest):
+            raise ReleaseError("Public release asset download differs from its expected size or SHA-256.")
+        return data
 
 def update_notes(text):
     marker = "## 更新内容"
@@ -302,29 +432,32 @@ class Release:
         self.github = github or GitHub(self.root)
         self.state = None
         self.path = None
-    def verified_download(self, obj, url, kind, binary=False):
+    def verified_download(self, obj, kind):
         """Cache downloaded bytes only when current remote metadata binds their identity.
 
         Callers must freshly query remote status/expiry and rerun every provenance check.
-        Public post-upload checks intentionally use github.download directly instead.
+        Public post-upload checks intentionally bypass this cache.
         """
-        size = obj.get("size_in_bytes") if kind == "action-artifact" else obj.get("size")
+        release_asset = kind == "release-asset"
+        size = obj.get("size") if release_asset else obj.get("size_in_bytes")
         checksum = obj.get("digest")
-        trusted = (type(obj.get("id")) is int and obj["id"] > 0 and type(size) is int and size > 0 and
-                   isinstance(checksum, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", checksum))
-        def download():
-            return self.github.download(url, binary=True) if binary else self.github.download(url)
-        if not trusted: return download()
+        if release_asset:
+            release_asset_identity(obj)
+        elif not has_download_identity(obj.get("id"), size, checksum):
+            return self.github.download(obj["archive_download_url"])
         key = hashlib.sha256(json.dumps([REPO, kind, obj["id"], size, checksum]).encode()).hexdigest()
         folder = self.root / ".local-notes/release-state/download-cache"
         path = folder / (key + ".bin")
-        def valid(data):
-            return len(data) == size and "sha256:" + hashlib.sha256(data).hexdigest() == checksum
         if path.is_file():
             data = path.read_bytes()
-            if valid(data): return data
-        data = download()
-        if not valid(data): raise ReleaseError("Downloaded bytes differ from current remote object identity")
+            if matches_download(data, size, checksum):
+                return data
+        if release_asset:
+            data = self.github.download_release_asset(obj)
+        else:
+            data = self.github.download(obj["archive_download_url"])
+            if not matches_download(data, size, checksum):
+                raise ReleaseError("Downloaded bytes differ from current remote object identity")
         folder.mkdir(parents=True, exist_ok=True)
         temporary = folder / (key + "-" + uuid.uuid4().hex + ".tmp")
         try:
@@ -333,6 +466,12 @@ class Release:
         finally:
             temporary.unlink(missing_ok=True)
         return data
+
+    def download_uploaded_asset(self, asset, path):
+        data = self.github.download_release_asset(asset)
+        validate_release_assets([asset], {path.name: path})
+        return data
+
     def bind(self, version, commit, distribution="main"):
         suffix = "-compat" if distribution == "compat" else ""
         self.path = self.root / ".local-notes/release-state" / (version + "-" + commit + suffix + "-pending.json")
@@ -360,7 +499,7 @@ class Release:
         old = {a["name"]:a for a in state["oldAssets"]}
         if len(old) != len(state["oldAssets"]): raise ReleaseError("Duplicate original assets")
         def same(a,b):
-            return a is not None and b is not None and all(a.get(k)==b.get(k) for k in ("id","name","digest","size"))
+            return a is not None and b is not None and all(a.get(k)==b.get(k) for k in RELEASE_ASSET_KEYS)
         def refresh():
             current = self.github.api(f"releases/{release['id']}")
             if (current.get("id") != state["releaseId"] or current.get("draft") or
@@ -380,11 +519,6 @@ class Release:
                 if name not in files: raise ReleaseError("Unexpected replacement asset")
                 validate_release_assets([asset], {name:files[name]})
             return assets
-        def check_download(asset):
-            path = files[asset["name"]]
-            data = self.github.download(f"repos/{REPO}/releases/assets/{asset['id']}?download=1", binary=True)
-            if len(data) != path.stat().st_size or hashlib.sha256(data).hexdigest() != sha256(path):
-                raise ReleaseError("Replacement public download mismatch")
         def upload(path):
             self.github.call("release", "upload", state_tag(self.state), str(path), "--repo", REPO)
         apk = next(path for name,path in files.items() if name.endswith(".apk"))
@@ -397,7 +531,7 @@ class Release:
             if name in old and old[name]["digest"] != "sha256:" + sha256(path):
                 raise ReleaseError("Replacement asset name collides with the original")
             if name not in {a["name"] for a in assets}: upload(path); assets=refresh()
-            check_download(next(a for a in assets if a["name"] == name))
+            self.download_uploaded_asset(next(a for a in assets if a["name"] == name), path)
         metadata = files["update-manifest.json"]
         current = next((a for a in assets if a["name"] == metadata.name),None)
         if same(current,old.get(metadata.name)) or current is None:
@@ -411,8 +545,7 @@ class Release:
             if not state.get("switchAttempted"): raise ReleaseError("Update manifest missing without an owned switch")
             upload(metadata); assets=refresh()
             current=next(a for a in assets if a["name"]==metadata.name)
-        validate_release_assets([current],{metadata.name:metadata})
-        check_download(current)
+        self.download_uploaded_asset(current, metadata)
         state["cleanupAttempted"] = True; self.save()
         for name,asset in old.items():
             if name in files: continue
@@ -456,17 +589,17 @@ class Release:
         metadata_assets = [a for a in assets if a["name"] == "update-manifest.json"]
         if len(metadata_assets) != 1: raise ReleaseError("No published source metadata")
         def asset_bytes(asset):
-            if asset.get("size", 0) <= 0 or asset["size"] > 100_000_000:
+            asset_id, _, size, digest = release_asset_identity(asset)
+            if size > 100_000_000:
                 raise ReleaseError("Unexpected public asset size")
             if frozen is not None:
-                record=frozen[str(asset['id'])]
+                record=frozen[str(asset_id)]
                 path=local_artifact(self.root,record['path'])
-                if sha256(path)!=record['sha256']: raise ReleaseError("Original baseline proof file changed")
                 data=path.read_bytes()
+                if "sha256:" + record["sha256"] != digest or not matches_download(data, size, digest):
+                    raise ReleaseError("Original baseline proof file changed")
             else:
-                data = self.verified_download(asset, f"repos/{REPO}/releases/assets/{asset['id']}?download=1", "release-asset", binary=True)
-            if len(data) != asset["size"] or asset.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
-                raise ReleaseError("Public asset digest mismatch")
+                data = self.verified_download(asset, "release-asset")
             if capture is not None:
                 folder=local_artifact(self.root,capture['directory']);folder.mkdir(parents=True,exist_ok=True)
                 path=folder/(str(asset['id'])+'.bin')
@@ -514,7 +647,7 @@ class Release:
         def artifact(name):
             found = [a for a in artifacts if a["name"] == name and not a["expired"]]
             if len(found) != 1: raise ReleaseError("Published CI proof unavailable")
-            return self.verified_download(found[0], found[0]["archive_download_url"], "action-artifact")
+            return self.verified_download(found[0], "action-artifact")
         folder = self.root / ".local-notes/release-state/baseline-proof"
         folder.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=folder) as tmp:
@@ -799,7 +932,7 @@ class Release:
             if not modern: raise ReleaseError("Verification gate is missing")
             evidence_artifacts = [a for a in artifacts if a["name"] == "verification-evidence" and not a["expired"]]
             if len(evidence_artifacts) != 1: raise ReleaseError("Expected one verification artifact")
-            evidence = read_verification_artifact(self.verified_download(evidence_artifacts[0], evidence_artifacts[0]["archive_download_url"], "action-artifact"))
+            evidence = read_verification_artifact(self.verified_download(evidence_artifacts[0], "action-artifact"))
             validate_ci_evidence(evidence, manifest, run_id, run.get("run_attempt", 1))
             self.validate_run_promotion(run, evidence, jobs)
             plan = evidence["plan"]
@@ -848,26 +981,36 @@ class Release:
             self.signed_identity(signed, manifest)
             self.state.update(signedPath=str(signed.relative_to(self.root)), signedSha256=sha256(signed), phase="signed")
             self.save()
-        bases = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
-        if manifest.get("distribution") == "compat": validate_delta_distribution(bases, "compat")
-        if bases:
-            if not self.state.get("deltas"):
-                self.state["deltas"] = build_deltas(bases, signed, manifest["versionCode"],
-                    allow_same_version=bool(self.state.get("replacementRequested")),
-                    legacy_codes=self.state.get("legacyDeltaBaseCodes", []))
-                self.save()
-            paths = delta_files(signed, self.state)
-            for base, delta in frozen_delta_pairs(bases, self.state["deltas"]):
-                path = paths[delta["patchName"]]
-                if not path.exists():
-                    # A recovered signing directory also needs each exact original delta.
-                    builder = apk_delta if delta["format"] == apk_delta.FORMAT else apk_archive_delta
-                    builder.build(base, signed, manifest["versionCode"], signed.parent, expected=delta,
-                        allow_same_version=bool(self.state.get("replacementRequested")))
-                if path.stat().st_size != delta["patchSize"] or sha256(path) != delta["patchSha256"]:
-                    raise ReleaseError("Local delta artifact changed")
+        self.prepare_deltas(signed, manifest)
         return dict(version=manifest["version"], commit=commit, runId=run_id, phase=self.state.get("phase"), apk=signed.name,
             sha256=self.state["signedSha256"], payloadUnchanged=True, published=bool(self.state.get("published")))
+
+    def prepare_deltas(self, signed, manifest):
+        bases = self.state.get("deltaBases", [self.state["deltaBase"]] if self.state.get("deltaBase") else [])
+        if manifest.get("distribution") == "compat": validate_delta_distribution(bases, "compat")
+        if not bases:
+            return
+        allow_same = bool(self.state.get("replacementRequested"))
+        version_code = manifest["versionCode"]
+        deltas = self.state.get("deltas")
+        freeze = not deltas
+        if freeze:
+            deltas = run_delta_builder(signed, version_code, allow_same, bases=bases,
+                                       legacy_codes=self.state.get("legacyDeltaBaseCodes", []))
+        paths = delta_files(signed, {"deltas": deltas})
+        missing = []
+        for base, delta in frozen_delta_pairs(bases, deltas):
+            path = paths[delta["patchName"]]
+            if not freeze and not path.exists() and not path.is_symlink():
+                missing.append((base, delta))
+            elif not path.is_file() or path.stat().st_size != delta["patchSize"] or sha256(path) != delta["patchSha256"]:
+                raise ReleaseError("Local delta artifact changed")
+        if missing:
+            run_delta_builder(signed, version_code, allow_same, frozen=missing)
+        if freeze:
+            self.state["deltas"] = deltas
+            self.save()
+
     def publish(self, run_id, notes=None, replacement=False):
         self.verify(run_id,replacement=True) if replacement else self.verify(run_id)
         manifest = self.state["manifest"]
@@ -981,9 +1124,7 @@ class Release:
         archives = {}
         for asset in assets:
             path = files[asset["name"]]
-            public = self.github.download(f"repos/{REPO}/releases/assets/{asset['id']}?download=1", binary=True)
-            if len(public) != path.stat().st_size or hashlib.sha256(public).hexdigest() != sha256(path):
-                raise ReleaseError("Public download differs from the local release asset.")
+            public = self.download_uploaded_asset(asset, path)
             archive_name = signed.stem + "-update-manifest.json" if path.name == "update-manifest.json" else path.name
             archive = self.root / "history_apk" / archive_name
             archive.parent.mkdir(parents=True, exist_ok=True)
@@ -994,6 +1135,14 @@ class Release:
         return dict(version=version, phase="archived", url=release["html_url"], sha256=self.state["signedSha256"])
 
 def main():
+    if sys.argv[1:] == ["--delta-runtime"]:
+        runtime = delta_runtime()
+        if not runtime: return 1
+        print(json.dumps(runtime))
+        return 0
+    if sys.argv[1:] == ["--delta-worker"]:
+        delta_worker()
+        return 0
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="operation", required=True)
     for operation in ("start", "status"):

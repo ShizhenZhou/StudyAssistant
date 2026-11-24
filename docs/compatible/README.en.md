@@ -13,19 +13,26 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.6_Compat (versionCode 148). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.6.2_Compat (versionCode 150). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.6_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.6.2_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
 
+
+### v0.7.6.2_Compat
+
+- 📖 Daily review and focused practice show saved OCR text for older graded questions. With two photos, the answer photo appears after reveal.
+- ⭐ Question bookmarks moved to the review toolbar. Thumbnails use read-only queries, with chunked reads for older records.
+- 🛠️ Updated the Android build tools, Compose, Lifecycle, CameraX and PDF dependencies.
+- ⬇️ When the GitHub Releases API is rate-limited or unreachable, the compatibility edition can find the full APK through the official update manifest. Hash and signature checks still apply.
 
 ### v0.7.6_Compat
 

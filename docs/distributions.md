@@ -39,6 +39,8 @@ Android Studio 在 Build Variants 中选择 modernDebug 或 compatDebug。不再
 
 每次手动 CI 仅构建所选变体，不跑应用或设备测试。发布工具核对请求身份、对应 profile、APK 版本/系统范围及 distribution.json。相同提交和版本的两个发布状态相互独立；状态查询有歧义时使用 status --version <版本> --run <runId>。
 
+`verify`、`publish` 和 `replace` 可使用 PATH 中常用的 Python 3.11 或以上版本。只有首次生成 APK 差分或恢复缺失的冻结差分时，工具才选择使用经典 zlib 的解释器，并输出实际路径及版本。可用 `STUDYASSISTANT_RELEASE_PYTHON` 为差分指定解释器的绝对路径；未指定时从当前解释器和 PATH 查找。恢复时必须匹配原差分的大小和 SHA-256，已有差分损坏时会停止。公开附件按现有身份核对大小和 SHA-256，API 下载失败或校验不符时尝试一次 GitHub 官方直链。
+
 GitHub Release 标题统一使用 `v<完整版本号>`，例如 `v0.7.5.8_Compat`。主线正式版使用 GitHub Latest。兼容版以独立标签发布，更新范围与差分基准继续隔离。独立发布只更新对应 profile 和版本记录，不要求同时提升另一发行线版本。
 
 五语言 README 为统一入口；兼容版说明与汇总在 docs/compatible/。历史 Compatible 构建和标签保留，只读校验允许旧分支身份；新发布不再接受该分支。无需在两分支间持续合并。
@@ -56,3 +58,9 @@ v0.7.6 发布时，兼容客户端按 `compat_` 前缀识别发行线。它的�
 新兼容版本使用 `config/distributions/compat.properties` 的 `tagPrefix=v`，正式版为 `v<版本>_Compat`，Beta 如 `v<版本>_beta1_Compat`。更新器同时读取短标签和历史前缀，按清单的发行身份、系统范围和附件身份决定是否可安装。主线 Latest 与 v0.7.6 兼容版下载入口各自独立。
 
 v0.7.6 兼容版在原标签上提供同版本的较新签名构建。原版客户端可从应用内发现这个构建，安装后即可检查后续短标签更新。直接分享 APK 时使用原 Release 页面，替换后的附件使用新的构建时间文件名。
+
+### 兼容版更新发现
+
+兼容版先扫描 GitHub Releases 分页，保留跨版本强制更新历史。分页未读完或没有找到兼容正式版时，读取 main 的 [兼容版更新标签](../config/compat-update-hints.json)，按标签查询公开 Release。REST 限流或连接失败时，可直接读取 GitHub Release 上该标签的 `update-manifest.json`。直读清单需匹配标签、发行身份、渠道、Android 9–15 范围及当前 APK 命名规则，只提供可选的完整 APK。下载后仍校验 APK 的 SHA-256、包身份和原签名。通过标签发现的版本只能补充候选，强制更新依据已确认的 Release 历史；历史不完整时保留已确认的强制更新。
+
+在兼容版发布计划中维护这个配置。相应 Release 公开并核验后，通过普通源码更新将 `stableTag` 或 `betaTag` 指向对应渠道的已核验标签。没有可推荐的测试版时可省略 `betaTag`。同标签替换附件时无需改配置。主线正式版仍使用 GitHub Latest。

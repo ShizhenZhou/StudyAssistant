@@ -26,11 +26,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zsz.studyassistant.data.QuestionPreview
+import com.zsz.studyassistant.data.reviewCameraQuestionText
 
 /** Save only layout metadata, never image bytes, in the navigation entry's UI state. */
 @Composable
-internal fun QuestionCardPreview(q: QuestionPreview, description: String, showImageQuestionText: Boolean = false) {
-    val bitmaps = questionCardBitmaps(q, 400)
+internal fun QuestionCardPreview(q: QuestionPreview, description: String, review: Boolean = false) {
+    val preview = questionCardBitmaps(q, 400, review)
+    val bitmaps = preview?.images
+    val text = preview?.questionText ?: if (review) reviewCameraQuestionText(q.text, null, null) else q.text
     var rememberedRatios by rememberSaveable(q.id) { mutableStateOf(floatArrayOf(1.6f)) }
     val ratios = bitmaps?.map { it.width.toFloat() / it.height.coerceAtLeast(1) }?.toFloatArray()
         ?: rememberedRatios
@@ -38,8 +41,8 @@ internal fun QuestionCardPreview(q: QuestionPreview, description: String, showIm
         if (bitmaps != null) rememberedRatios = ratios
     }
     val alpha by animateFloatAsState(if (bitmaps == null) 0f else 1f, tween(140), label = "thumbnail")
-    if (ratios.isEmpty() || (showImageQuestionText && q.text.isNotBlank() && q.text.trim() != "（图片题）")) {
-        Text(TextPretty.oneLine(q.text, 110), maxLines = 2,
+    if (text.isNotBlank() && (ratios.isEmpty() || (review && text.trim() != "（图片题）"))) {
+        Text(TextPretty.oneLine(text, 110), maxLines = 2,
             modifier = Modifier.padding(bottom = if (ratios.isEmpty()) 0.dp else 4.dp),
             overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
     }

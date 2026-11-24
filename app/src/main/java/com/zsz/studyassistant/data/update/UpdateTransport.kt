@@ -48,15 +48,19 @@ object UpdateTransport {
         require(uri.scheme == "https" && uri.userInfo == null && uri.port == -1 && uri.fragment == null)
         require(uri.rawPath == uri.path)
         val repo = UpdateChecker.REPO
+        val releasePath = "/repos/$repo/releases"
+        val tagPath = "$releasePath/tags/"
         when (uri.host) {
-            "api.github.com" -> when (uri.path) {
-                "/repos/$repo/releases" -> uri.rawQuery == null ||
+            "api.github.com" -> when {
+                uri.path == releasePath -> uri.rawQuery == null ||
                     Regex("per_page=100&page=([1-9][0-9]?|100)").matches(uri.rawQuery)
-                "/repos/$repo/releases/latest" -> uri.query == null
+                uri.path == "$releasePath/latest" -> uri.query == null
+                uri.path.startsWith(tagPath) -> uri.query == null &&
+                    UpdateChecker.isCompatHintTag(uri.path.removePrefix(tagPath))
                 else -> uri.query == null &&
-                    Regex("/repos/${Regex.escape(repo)}/releases/assets/[1-9][0-9]*").matches(uri.path)
+                    Regex("${Regex.escape(releasePath)}/assets/[1-9][0-9]*").matches(uri.path)
             }
-            "raw.githubusercontent.com" -> value == AppNoticeStore.URL
+            "raw.githubusercontent.com" -> value == AppNoticeStore.URL || value == UpdateChecker.COMPAT_HINTS_URL
             "github.com" -> uri.query == null &&
                 Regex("/${Regex.escape(repo)}/releases/download/[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*")
                     .matches(uri.path)

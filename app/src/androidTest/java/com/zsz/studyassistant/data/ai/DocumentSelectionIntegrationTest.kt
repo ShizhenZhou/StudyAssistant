@@ -3,10 +3,10 @@ package com.zsz.studyassistant.data
 import android.content.Context
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.text.PDFTextStripper
 import com.zsz.studyassistant.ChatItem
 import java.io.File
 import java.util.UUID
@@ -44,11 +44,9 @@ class DocumentSelectionIntegrationTest {
             assertTrue(thumbnail.width > 0); thumbnail.recycle()
             val selected = File(work, "selected.pdf")
             PdfDocumentSelection.writeSelected(context, original, listOf(0, 2), selected)
-            PdfRenderer(ParcelFileDescriptor.open(selected, ParcelFileDescriptor.MODE_READ_ONLY)).use { pdf ->
-                assertEquals(2, pdf.pageCount)
-                val text = (0 until pdf.pageCount).joinToString("\n") { index ->
-                    pdf.openPage(index).use { page -> page.textContents.joinToString("") { it.text } }
-                }.replace(Regex("\\s+"), "")
+            assertEquals(2, PdfDocumentSelection.pageCount(selected))
+            PDDocument.load(selected).use { pdf ->
+                val text = PDFTextStripper().getText(pdf).replace(Regex("\\s+"), "")
                 assertTrue(text.contains("SELECTED_PAGE_1") && text.contains("SELECTED_PAGE_3"))
                 assertFalse(text.contains("SELECTED_PAGE_2"))
             }

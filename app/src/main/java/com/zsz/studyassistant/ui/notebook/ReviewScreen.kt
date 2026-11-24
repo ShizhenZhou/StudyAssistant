@@ -287,7 +287,7 @@ private fun ReviewCard(q: QuestionPreview, modifier: Modifier = Modifier, onClic
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(Modifier.padding(8.dp)) {
-            QuestionCardPreview(q, s["review.imageDesc"], showImageQuestionText = true)
+            QuestionCardPreview(q, s["review.imageDesc"], review = true)
             Text(
                 TIME_FMT.format(Date(q.createdAt)),
                 modifier = Modifier.padding(top = 6.dp),

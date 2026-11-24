@@ -44,7 +44,9 @@ object UpdateChecker {
     const val REPO = "ShizhenZhou/StudyAssistant"
     const val REPO_URL = "https://github.com/$REPO"
     const val RELEASES_URL = "$REPO_URL/releases"
-    private const val API_LATEST = "https://api.github.com/repos/$REPO/releases/latest"
+    private const val RELEASES_API = "https://api.github.com/repos/$REPO/releases"
+    private const val API_LATEST = "$RELEASES_API/latest"
+    internal const val COMPAT_HINTS_URL = "https://raw.githubusercontent.com/$REPO/main/config/compat-update-hints.json"
 
     /** 本项目 release 包的签名证书 SHA-256（小写十六进制）；换证书时必须同步修改 */
     const val EXPECTED_CERT_SHA256 = "aa5829963eff107cab82e13c555bb9032358b58725548caec7f471a900beb533"
@@ -102,7 +104,12 @@ object UpdateChecker {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    private val shortCompatTag = Regex("""v[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?_Compat""")
+    private const val VERSION_TAG = """v[0-9]+(?:\.[0-9]+){2,3}(?:_beta(?:[1-9][0-9]*)?)?"""
+    private val shortCompatTag = Regex("${VERSION_TAG}_Compat")
+    private val legacyCompatTag = Regex("compat_$VERSION_TAG(?:_Compat)?")
+
+    internal fun isCompatHintTag(tag: String): Boolean =
+        tag.length <= 80 && (shortCompatTag.matches(tag) || legacyCompatTag.matches(tag))
 
     private fun tagDistribution(tag: String): String =
         if (tag.startsWith("compat_") || shortCompatTag.matches(tag)) "compat" else "main"
@@ -130,10 +137,16 @@ object UpdateChecker {
             uri.path.substringAfter("/$REPO/releases/download/$tag/").let { it.isNotEmpty() && '/' !in it }
     }.getOrDefault(false)
 
-    /** Bind compatibility data to the selected signed APK, including its digest when GitHub supplies one. */
-    internal fun withManifest(release: ReleaseInfo, text: String): ReleaseInfo? = runCatching {
+    private fun parseManifest(text: String): JsonObject {
         require(text.toByteArray(Charsets.UTF_8).size <= 65536)
-        val root = json.parseToJsonElement(text.removePrefix("\uFEFF")).jsonObject
+        return json.parseToJsonElement(text.removePrefix("\uFEFF")).jsonObject
+    }
+
+    /** Bind compatibility data to the selected signed APK, including its digest when GitHub supplies one. */
+    internal fun withManifest(release: ReleaseInfo, text: String): ReleaseInfo? =
+        runCatching { parseManifest(text) }.getOrNull()?.let { withManifest(release, it) }
+
+    private fun withManifest(release: ReleaseInfo, root: JsonObject): ReleaseInfo? = runCatching {
         fun value(key: String) = root[key]!!.jsonPrimitive.content
         val distribution = root["distribution"]?.jsonPrimitive?.content ?: "main"
         require(distribution in setOf("main", "compat"))
@@ -252,24 +265,45 @@ object UpdateChecker {
     }
 
     /** One check snapshots settings and remembers failed routes; concurrent checks never share routing state. */
-    private class FetchSession(val config: UpdateTransport.Config, val context: Context? = null) {
+    private class FetchSession(
+        val config: UpdateTransport.Config,
+        val clientFor: (OkHttpClient) -> OkHttpClient,
+        private val rateLimitedApiRoutes: MutableSet<Int> = mutableSetOf()
+    ) {
         private val failedRoutes = mutableSetOf<String>()
         var usedMirror = false
             private set
 
-        fun read(url: String, client: OkHttpClient, limit: Long, accept: String): ManifestFetch {
+        fun fork(): FetchSession = FetchSession(config, clientFor, rateLimitedApiRoutes)
+
+        fun read(url: String, client: OkHttpClient, limit: Long, accept: String,
+                 failureScope: String? = null, officialOnly: Boolean = false,
+                 rejectHttpErrors: Boolean = false): ManifestFetch {
             if (!UpdateTransport.isCanonicalUrl(url)) return ManifestFetch.Invalid
+            val host = java.net.URI(url).host
+            val scope = failureScope ?: host
             for ((index, address) in UpdateTransport.urls(url, config).withIndex()) {
-                val route = "${java.net.URI(url).host}:$index"
+                if (officialOnly && index > 0) break
+                if (host == "api.github.com" && index in rateLimitedApiRoutes) continue
+                val route = "$scope:$index"
                 if (route in failedRoutes) continue
                 try {
                     val request = Request.Builder().url(address)
                         .cacheControl(UpdateHttpCache.revalidate)
                         .header("User-Agent", "StudyAssistant-Update")
                         .header("Accept", accept).header("X-GitHub-Api-Version", "2022-11-28").build()
-                    UpdateHttpCache.client(context, client).newCall(request).execute().use { response ->
+                    clientFor(client).newCall(request).execute().use { response ->
                         val body = response.body
                         if (!response.isSuccessful || body == null) {
+                            val code = response.code
+                            if (host == "api.github.com" && (code == 429 || code == 403 &&
+                                    (response.header("X-RateLimit-Remaining") == "0" ||
+                                     response.header("Retry-After") != null ||
+                                     response.peekBody(4096).string().contains("rate limit", ignoreCase = true)))) {
+                                rateLimitedApiRoutes += index
+                            }
+                            if (rejectHttpErrors && code in 400..499 && code !in listOf(403, 408, 429))
+                                return ManifestFetch.Invalid
                             failedRoutes += route
                             return@use
                         }
@@ -507,8 +541,9 @@ object UpdateChecker {
             distribution = distribution) to assets
     }.getOrNull()
 
-    private fun releaseDocument(url: String, session: FetchSession): JsonElement? {
-        val response = session.read(url, metadataClient, 2_000_000, "application/vnd.github+json")
+    private fun releaseDocument(url: String, session: FetchSession, failureScope: String? = null): JsonElement? {
+        val response = session.read(url, metadataClient, 2_000_000, "application/vnd.github+json",
+            failureScope = failureScope)
         // Syntactically/semantically invalid JSON is not a transport failure: never mask it via a mirror.
         return (response as? ManifestFetch.Body)?.let {
             runCatching { json.parseToJsonElement(it.text) }.getOrNull()
@@ -521,36 +556,105 @@ object UpdateChecker {
     private fun latest(session: FetchSession): ReleaseInfo? =
         (releaseDocument(API_LATEST, session) as? JsonObject)?.let(::parseRelease)?.let { hydrate(it, session) }
 
+    private data class CompatHint(val release: ReleaseInfo, val trusted: Boolean, val directOnly: Boolean = false)
+
+    private fun directCompatManifest(tag: String, channel: Channel, text: String): ReleaseInfo? = runCatching {
+        val root = parseManifest(text)
+        require(root["channel"] == JsonPrimitive(if (channel == Channel.BETA) "beta" else "stable"))
+        val name = root["apkName"]!!.jsonPrimitive.content
+        val size = root["apkSize"]!!.jsonPrimitive.content.toLong()
+        val version = tag.removePrefix("compat_v").removePrefix("v")
+        val exactVersion = Regex.escape(version)
+        val stamp = "[0-9]{12}(?:[0-9]{2})?"
+        val allowedName = if (version.endsWith("_Compat")) "(?:SA|SA-ENF)-$exactVersion-$stamp\\.apk"
+            else "SACompat-$exactVersion-$stamp(?:-ENF)?\\.apk"
+        require(Regex(allowedName).matches(name) && BuildIdentity.assetTime(name, version) > 0)
+        val url = "$RELEASES_URL/download/$tag/$name"
+        require(isReleaseAssetUrl(url, tag))
+        val candidate = ReleaseInfo(tag, normalizeVersion(tag), "", name, url, null, size,
+            channel = channel, distribution = "compat")
+        // The attachment supplies an APK digest, but it has no independently listed patch assets.
+        withManifest(candidate, root)?.copy(mandatory = false, deltas = emptyList())
+    }.getOrNull()
+
+    private fun hintedCompatReleases(listSession: FetchSession, deviceSdk: Int,
+                                     listedTags: Set<String>): Pair<CompatHint?, CompatHint?> {
+        val hintsSession = listSession.fork()
+        val response = hintsSession.read(COMPAT_HINTS_URL, manifestClient, 4096, "application/json")
+        val hints = (response as? ManifestFetch.Body)?.let {
+            runCatching { json.parseToJsonElement(it.text.removePrefix("\uFEFF")) as? JsonObject }.getOrNull()
+        }?.takeIf { it["schema"] == JsonPrimitive(1) } ?: return null to null
+
+        fun discover(key: String, channel: Channel): CompatHint? {
+            val tag = (hints[key] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+            val beta = channel == Channel.BETA
+            if (!isCompatHintTag(tag) || betaSuffix.containsMatchIn(tag.removeSuffix("_Compat")) != beta) return null
+            val session = listSession.fork()
+            val url = "$RELEASES_API/tags/$tag"
+            val accept = "application/vnd.github+json"
+            val official = session.read(url, metadataClient, 2_000_000, accept, url,
+                officialOnly = true, rejectHttpErrors = true)
+            if (official == ManifestFetch.Unavailable && tag !in listedTags) {
+                val manifestUrl = "$RELEASES_URL/download/$tag/update-manifest.json"
+                when (val direct = session.read(manifestUrl, manifestClient, 65536, "application/json", manifestUrl,
+                    officialOnly = true, rejectHttpErrors = true)) {
+                    is ManifestFetch.Body -> return directCompatManifest(tag, channel, direct.text)
+                        ?.takeIf { inCurrentDistribution(it, "compat", deviceSdk) }
+                        ?.let { CompatHint(it, trusted = false, directOnly = true) }
+                    ManifestFetch.Invalid -> return null
+                    ManifestFetch.Unavailable -> Unit
+                }
+            }
+            val rest = if (official == ManifestFetch.Unavailable && session.config.enabled)
+                session.read(url, metadataClient, 2_000_000, accept, url, rejectHttpErrors = true)
+            else official
+            val body = (rest as? ManifestFetch.Body)?.text ?: return null
+            val document = runCatching { json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
+            if (document["tag_name"] != JsonPrimitive(tag) || document["draft"] != JsonPrimitive(false) ||
+                document["prerelease"] != JsonPrimitive(beta)) return null
+            val candidate = parseRelease(document)?.takeIf { it.first.channel == channel } ?: return null
+            return hydrate(candidate, session).takeIf {
+                it.channel == channel && inCurrentDistribution(it, "compat", deviceSdk)
+            }?.let { CompatHint(it, trusted = !hintsSession.usedMirror && !session.usedMirror) }
+        }
+
+        // Each channel can use a different route. A mirrored beta cannot affect stable trust.
+        return discover("stableTag", Channel.STABLE) to discover("betaTag", Channel.BETA)
+    }
+
     /** Stable-only fallback remains compatible with existing published releases. */
     suspend fun fetchLatest(context: Context? = null): ReleaseInfo? = withContext(Dispatchers.IO) {
         if (BuildConfig.DISTRIBUTION == "compat") return@withContext fetchAvailable(context)?.stable
-        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config(), context)
+        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config(),
+            clientFor = { UpdateHttpCache.client(context, it) })
         latest(session)?.takeIf { inCurrentDistribution(it) }?.let { if (session.usedMirror) it.copy(mandatory = false) else it }
     }
 
     /** Attachment metadata may reveal that an apparent stable candidate is actually beta. */
     internal fun resolveAvailable(candidates: List<Pair<ReleaseInfo,List<JsonObject>>>,
         distribution: String = BuildConfig.DISTRIBUTION,
+        deviceSdk: Int = Build.VERSION.SDK_INT,
         hydrateCandidate: (Pair<ReleaseInfo,List<JsonObject>>) -> ReleaseInfo): AvailableReleases {
         val previews=mutableListOf<ReleaseInfo>()
         val order=Comparator<Pair<ReleaseInfo,List<JsonObject>>> { a,b -> compareReleases(b.first,a.first) }
         var stable: ReleaseInfo?=null
         for (candidate in candidates.filter { it.first.channel==Channel.STABLE && it.first.distribution==distribution }.sortedWith(order)) {
             val resolved=hydrateCandidate(candidate)
-            if (!inCurrentDistribution(resolved, distribution)) continue
+            if (!inCurrentDistribution(resolved, distribution, deviceSdk)) continue
             if (resolved.channel==Channel.STABLE) { stable=resolved; break }
             previews+=resolved
         }
         for (candidate in candidates.filter { it.first.channel==Channel.BETA && it.first.distribution==distribution }.sortedWith(order)) {
             val resolved = hydrateCandidate(candidate)
-            if (inCurrentDistribution(resolved, distribution)) { previews += resolved; break }
+            if (inCurrentDistribution(resolved, distribution, deviceSdk)) { previews += resolved; break }
         }
         return AvailableReleases(stable,previews.maxWithOrNull(::compareReleases))
     }
 
-    private fun inCurrentDistribution(release: ReleaseInfo, distribution: String = BuildConfig.DISTRIBUTION): Boolean =
+    private fun inCurrentDistribution(release: ReleaseInfo, distribution: String = BuildConfig.DISTRIBUTION,
+                                      deviceSdk: Int = Build.VERSION.SDK_INT): Boolean =
         release.distribution == distribution &&
-            (distribution != "compat" || compatibilityError(release, distribution = distribution) == null)
+            (distribution != "compat" || compatibilityError(release, deviceSdk, distribution) == null)
 
     /** A missed required release applies to the latest *installable* stable, never to a beta. */
     internal fun stableUpdate(candidates: List<ReleaseInfo>, deviceSdk: Int,
@@ -564,30 +668,59 @@ object UpdateChecker {
     }
 
     suspend fun fetchAvailable(context: Context? = null): AvailableReleases? = withContext(Dispatchers.IO) {
+        val config = context?.let(UpdateTransport::load) ?: UpdateTransport.Config()
+        fetchAvailable(context, BuildConfig.DISTRIBUTION, Build.VERSION.SDK_INT, config) {
+            UpdateHttpCache.client(context, it)
+        }
+    }
+
+    internal suspend fun fetchAvailable(context: Context?, distribution: String, deviceSdk: Int,
+                                        config: UpdateTransport.Config,
+                                        clientFor: (OkHttpClient) -> OkHttpClient): AvailableReleases? {
         // Releases are ordered by creation date, not version. Read every page so an old
         // installation cannot miss an ENF release beyond the first 30/100 entries.
-        val session = FetchSession(context?.let(UpdateTransport::load) ?: UpdateTransport.Config(), context)
+        val session = FetchSession(config, clientFor)
         val parsed = mutableListOf<Pair<ReleaseInfo, List<JsonObject>>>()
+        val listedCompatTags = mutableSetOf<String>()
         var complete = false
+        // Scope Compat list failures to pagination. The API can still serve a manifest attachment.
+        val listFailureScope = RELEASES_API.takeIf { distribution == "compat" }
         for (page in 1..100) {
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            val document = releaseDocument("https://api.github.com/repos/$REPO/releases?per_page=100&page=$page", session) as? JsonArray
+            val document = releaseDocument("$RELEASES_API?per_page=100&page=$page", session, listFailureScope) as? JsonArray
                 ?: break
-            parsed += document.mapNotNull { (it as? JsonObject)?.let(::parseRelease) }
+            parsed += document.mapNotNull {
+                val release = it as? JsonObject ?: return@mapNotNull null
+                if (distribution == "compat") {
+                    (release["tag_name"] as? JsonPrimitive)?.contentOrNull
+                        ?.takeIf(::isCompatHintTag)?.let(listedCompatTags::add)
+                }
+                parseRelease(release)
+            }
             if (document.size < 100) { complete = true; break }
         }
         val resolved = mutableMapOf<String, ReleaseInfo>()
         fun once(candidate: Pair<ReleaseInfo, List<JsonObject>>) =
             resolved.getOrPut(candidate.first.assetUrl) { hydrate(candidate, session) }
-        var result = resolveAvailable(parsed, hydrateCandidate = ::once)
-        if (result.stable == null) latest(session)?.takeIf { inCurrentDistribution(it) }?.let { fallback ->
+        var result = resolveAvailable(parsed, distribution, deviceSdk, ::once)
+        val (stableHint, betaHint) = if (distribution == "compat" && (!complete || result.stable == null))
+            hintedCompatReleases(session, deviceSdk, listedCompatTags) else null to null
+        // Only REST-verified hints can replace a release established by the official listing.
+        val hintedStable = stableHint?.takeIf { it.trusted || result.stable == null }?.release
+        val hintedBeta = betaHint?.takeIf { it.trusted || result.beta == null }?.release
+        if (hintedStable != null || hintedBeta != null) complete = false
+        result = result.copy(
+            stable = listOfNotNull(result.stable, hintedStable).maxWithOrNull(::compareReleases),
+            beta = listOfNotNull(result.beta, hintedBeta).maxWithOrNull(::compareReleases)
+        )
+        if (distribution == "main" && result.stable == null) latest(session)?.takeIf { inCurrentDistribution(it, distribution, deviceSdk) }?.let { fallback ->
             result = if (fallback.channel == Channel.STABLE) result.copy(stable = fallback)
             else result.copy(beta = listOfNotNull(result.beta, fallback).maxWithOrNull(::compareReleases))
         }
         if (context != null) {
             val installed = installedVersion(context)
             val history = parsed.filter { it.first.channel == Channel.STABLE &&
-                it.first.distribution == BuildConfig.DISTRIBUTION }.mapNotNull { candidate ->
+                it.first.distribution == distribution }.mapNotNull { candidate ->
                 // Modern releases carry verified inline metadata: no per-release request.
                 // Older unrelated releases need no attachment fetch. ENF names are a hint
                 // to fetch metadata, never sufficient authority to require an update.
@@ -603,10 +736,10 @@ object UpdateChecker {
                         candidate.first.assetName.startsWith("SA-ENF-") -> once(candidate)
                     else -> null
                 }
-            } + listOfNotNull(result.stable)
+            } + listOfNotNull(result.stable, hintedStable)
             // An unavailable manifest must not revoke a previously confirmed requirement.
             if (history.any { it.compatibilityIssue != null }) complete = false
-            result = result.copy(stable = stableUpdate(history, Build.VERSION.SDK_INT) { hasUpdate(context, it) }
+            result = result.copy(stable = stableUpdate(history, deviceSdk, distribution) { hasUpdate(context, it) }
                 ?: result.stable)
         }
         // Reuse inline manifests from the same release listing; no requests per intermediate version.
@@ -614,22 +747,23 @@ object UpdateChecker {
             resolved[candidate.first.assetUrl] ?: inlineManifest.findAll(candidate.first.notes).toList().singleOrNull()
                 ?.takeIf { Regex(Regex.escape(MANIFEST_MARKER)).findAll(candidate.first.notes).count() == 1 }
                 ?.let { withManifest(candidate.first, it.groupValues[1])?.let { value -> withAvailableDeltas(value, candidate.second) } }
-        }.filter { compatibilityError(it) == null }
-        fun withDeltaHistory(target: ReleaseInfo?) = target?.copy(deltaHistory = deltaReleases
-            .filter { compareReleases(it, target) <= 0 }
-            .flatMap { source -> source.deltas.mapNotNull { delta -> source.assetSha256?.let {
-                UpdateDeltaStep(delta, it, source.assetSize, source.tagName)
-            } } }.distinct())
-        // Mirror JSON is not signed. It can supply optional updates, but cannot establish a new
-        // mandatory lock or revoke a requirement previously confirmed directly with GitHub.
-        // UpdatePromptStore preserves that existing requirement when historyComplete is false.
-        fun transportPolicy(release: ReleaseInfo?) = release?.let {
-            if (session.usedMirror) it.copy(mandatory = false) else it
+        }.plus(listOfNotNull(hintedStable, hintedBeta)).filter { compatibilityError(it, deviceSdk, distribution) == null }
+        fun withDeltaHistory(target: ReleaseInfo?, hint: CompatHint?): ReleaseInfo? {
+            if (target == null || hint?.directOnly == true && hint.release.assetUrl == target.assetUrl) return target
+            return target.copy(deltaHistory = deltaReleases
+                .filter { compareReleases(it, target) <= 0 }
+                .flatMap { source -> source.deltas.mapNotNull { delta -> source.assetSha256?.let {
+                    UpdateDeltaStep(delta, it, source.assetSize, source.tagName)
+                } } }.distinct())
         }
-        result.copy(stable = transportPolicy(withDeltaHistory(result.stable)),
-            beta = transportPolicy(withDeltaHistory(result.beta)),
-            historyComplete = complete && !session.usedMirror,
-            metadataTrusted = !session.usedMirror).takeIf { it.stable != null || it.beta != null }
+        // Mirror JSON and direct-only manifests can supply optional updates. Only verified
+        // release metadata can change a requirement previously confirmed directly with GitHub.
+        // UpdatePromptStore preserves that existing requirement when historyComplete is false.
+        val metadataTrusted = !session.usedMirror && (hintedStable == null || stableHint?.trusted == true)
+        val stable = withDeltaHistory(result.stable, stableHint)?.let { if (metadataTrusted) it else it.copy(mandatory = false) }
+        return result.copy(stable = stable, beta = withDeltaHistory(result.beta, betaHint),
+            historyComplete = complete && metadataTrusted,
+            metadataTrusted = metadataTrusted).takeIf { it.stable != null || it.beta != null }
     }
 
     /** 下载到 [dest]，[onProgress] 回调 0..100（-1 表示总长度未知） */

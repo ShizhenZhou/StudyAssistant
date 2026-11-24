@@ -21,6 +21,7 @@ import com.zsz.studyassistant.data.continuationContext
 import com.zsz.studyassistant.data.messagesForRequest
 import com.zsz.studyassistant.data.DeepSeekMessage
 import com.zsz.studyassistant.data.gradingInput
+import com.zsz.studyassistant.data.reviewGradingInput
 import com.zsz.studyassistant.data.KeyManager
 import com.zsz.studyassistant.data.Question
 import com.zsz.studyassistant.data.SaveSnapshot
@@ -2768,6 +2769,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 复习模式：点进错题查看；详情页底部为 熟悉/模糊/忘记 三按钮 */
     var reviewMode by mutableStateOf(false)
         private set
+    internal fun currentReviewGradingInput() = reviewGradingInput(gradeMode, questionText, chatItems, questionImages)
+
     private var reviewQueue: List<QuestionPreview> = emptyList()
     private var currentReviewQuestion: Question? = null
     val reviewDone: Int get() = dailyReviewPlan.value?.completed ?: 0
@@ -3706,20 +3709,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val grade = dao.sessionLightOnce(id)?.source == "grade"
         val loaded = conversationLoader.readConversation(row.text, row.answer, row.conversationJson, row.imageBytes, grade, id,
             decodeImages = false)
-        // Legacy grading entries can outlive their history row. Match their original
-        // saved labels so the student's answer photo stays hidden until reveal.
-        val original = loaded.messages.firstOrNull { it.role == "question" }?.content
-        val gradeLabel = !grade && loaded.imageKeys.isNotEmpty() && com.zsz.studyassistant.ui.UiLang.entries.any { lang ->
-            val labels = com.zsz.studyassistant.ui.stringsFor(lang)
-            original == labels["grade.label.question"] + " + " + labels["grade.label.answer"] ||
-                original == row.text + "\n" + labels["grade.label.answer"]
-        }
-        val parts = gradingInput(grade || gradeLabel, row.text, loaded.messages, loaded.imageKeys)
+        val parts = reviewGradingInput(grade, row.text, loaded.messages, loaded.imageKeys)
         val images = parts?.questionImages ?: loaded.imageKeys
         // The row's answer may be the latest follow-up, while practice asks the original question.
         val solution = loaded.messages.firstOrNull { it.role == "assistant" && it.content.isNotBlank() }?.content ?: row.answer
         return listOf(
-            com.zsz.studyassistant.ui.ChatMsg("user", row.text, images),
+            com.zsz.studyassistant.ui.ChatMsg("user", parts?.questionText ?: row.text, images),
             com.zsz.studyassistant.ui.ChatMsg("assistant", solution, listOfNotNull(parts?.answerImage))
         )
     }
@@ -3729,8 +3724,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val seq = callSeq
         val previousBinding = sessionRecordBinding
         val epoch = reviewEpoch
+        val historyGrade = historySession?.source == "grade" || keepReview && dao.sessionLightOnce(q.id)?.source == "grade"
         val loaded = conversationLoader.readConversation(q.text, q.answer, q.conversationJson, q.imageBytes,
-            historySession?.source == "grade", q.id)
+            historyGrade, q.id, recognizeLegacyGrading = keepReview)
         val cats = dao.allCategoriesOnce()
         val allTags = dao.getAllTagsOnce()
         val tagIds = dao.tagIdsForQuestion(q.id)

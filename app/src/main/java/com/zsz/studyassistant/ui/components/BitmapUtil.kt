@@ -1,6 +1,6 @@
 package com.zsz.studyassistant.ui
 
-import com.zsz.studyassistant.data.previewImages
+import com.zsz.studyassistant.data.previewCard
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 
@@ -40,16 +40,20 @@ internal fun decodeSampledBitmap(bytes: ByteArray, reqWidth: Int): Bitmap? = try
     null
 }
 
-/** Query and decode images only for composed/visible cards, on IO, rather than in list queries. */
+internal data class QuestionCardBitmaps(val questionText: String?, val images: List<Bitmap>)
+
+/** Query and decode images only for visible cards, on IO. */
 @androidx.compose.runtime.Composable
-internal fun questionCardBitmaps(q: com.zsz.studyassistant.data.QuestionPreview, width: Int): List<android.graphics.Bitmap>? {
+internal fun questionCardBitmaps(q: com.zsz.studyassistant.data.QuestionPreview, width: Int, review: Boolean): QuestionCardBitmaps? {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val state = androidx.compose.runtime.produceState<List<android.graphics.Bitmap>?>(null, q.id, width) {
+    val reviewText = q.text.takeIf { review }
+    val state = androidx.compose.runtime.produceState<QuestionCardBitmaps?>(null, q.id, width, reviewText) {
         value = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val database = com.zsz.studyassistant.data.AppDatabase.get(context)
-            database.previewImages(q.id).mapNotNull { decodeSampledBitmap(it, width) }
+            val preview = database.previewCard(q.id, reviewText)
+            QuestionCardBitmaps(preview.questionText, preview.images.mapNotNull { decodeSampledBitmap(it, width) })
         } } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-        catch (_: Exception) { emptyList() }
+        catch (_: Exception) { QuestionCardBitmaps(null, emptyList()) }
     }
     return state.value
 }

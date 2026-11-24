@@ -19,7 +19,8 @@ internal class ConversationLoader(private val dao: QuestionDao) {
 
     suspend fun readConversation(
         text: String, answer: String, conversation: String?, primary: ByteArray?, grading: Boolean,
-        notebookId: QuestionId? = null, historyImages: String? = null, decodeImages: Boolean = true
+        notebookId: QuestionId? = null, historyImages: String? = null, decodeImages: Boolean = true,
+        recognizeLegacyGrading: Boolean = false
     ): LoadedConversation = withContext(Dispatchers.Default) {
         val parsed = runCatching { json.decodeFromString<List<ChatItem>>(conversation.orEmpty()) }.getOrNull()
         val messages = parsed.orEmpty().ifEmpty { listOf(ChatItem(0, "question", text), ChatItem(1, "assistant", answer)) }
@@ -32,7 +33,8 @@ internal class ConversationLoader(private val dao: QuestionDao) {
             Base64.encodeToString(it.bytes, Base64.NO_WRAP) to it.bytes
         }
         val keys = mergeImageKeys(null, stored.keys.toList() + fallback)
-        val isGrade = gradingInput(grading, text, messages, keys) != null
+        val isGrade = if (recognizeLegacyGrading) reviewGradingInput(grading, text, messages, keys) != null
+            else gradingInput(grading, text, messages, keys) != null
         val bytes = if (isGrade || !decodeImages) emptyList() else keys.mapNotNull { key ->
             stored[key] ?: if (key == primaryKey) primary else if (notebookId == null) Base64.decode(key, Base64.NO_WRAP)
             else runCatching { Base64.decode(key, Base64.NO_WRAP) }.getOrNull()

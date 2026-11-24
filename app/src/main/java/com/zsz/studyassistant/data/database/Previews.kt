@@ -16,6 +16,6 @@ data class SolveSessionPreview(
     val title: String? = null
 )
 
-private fun String.previewText(): String = substring(0, offsetByCodePoints(0, minOf(256, codePointCount(0, length))))
+internal fun String.previewText(): String = substring(0, offsetByCodePoints(0, minOf(256, codePointCount(0, length))))
 fun Question.toPreview() = QuestionPreview(id, text.previewText(), answer.previewText(), createdAt, deleted, categoryId)
 fun SolveSession.toPreview() = SolveSessionPreview(id, createdAt, updatedAt, source, text.previewText(), answer.previewText(), savedQuestionId, title)

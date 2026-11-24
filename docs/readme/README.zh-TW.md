@@ -16,7 +16,7 @@
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.6_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.6.2_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 - [兼容版說明與更新記錄](../compatible/README.zh-TW.md)
 
 本文是兩發行線共用入口；下方技術參數及歷史記錄以主線為準。相容版的系統範圍和獨立更新彙總見上方說明。
@@ -56,12 +56,18 @@ PDF 所選頁面及 Word/PPT 整份檔案在發送提問時上傳至 DeepSeek �
 
 ## 技術棧
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（備份與定期更新檢查）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.11.01**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.7.0** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.1** · WorkManager **2.12.0**（備份與定期更新檢查）· AlarmManager · Android Keystore。
 
-構建使用 AGP **9.5.1**、Gradle wrapper **9.9.2** 和 JDK **25** · KSP **2.3.14**；compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
+構建使用 AGP **9.5.2**、Gradle wrapper **9.9.2** 和 JDK **25** · KSP **2.3.14**；compileSdk **37.1** / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。當前備份格式 Bak v4（原生 ZIP / DEFLATE；支持導入 v3 JSON），數據兼容細節見 [DATA_SCHEMA.md](../DATA_SCHEMA.md)。
 
 ## 版本記錄
 
+
+### v0.7.6.2
+
+- 📖 正式複習和專項練習顯示舊批改記錄的 OCR 題幹。雙圖批改的作答圖在揭曉後顯示。
+- ⭐ 本題重點移到複習詳情頂欄。錯題縮圖改用唯讀查詢，舊記錄繼續分段讀取。
+- 🛠️ 更新 Android 建置工具、Compose、Lifecycle、CameraX 和 PDF 相關依賴。
 
 ### v0.7.6.1
 

@@ -1,3 +1,8 @@
+v0.7.6.2
+· 📖 Daily review and focused practice show saved OCR text for older graded questions. With two photos, the answer photo appears after reveal.
+· ⭐ Question bookmarks moved to the review toolbar. Thumbnails use read-only queries, with chunked reads for older records.
+· 🛠️ Updated the Android build tools, Compose, Lifecycle, CameraX and PDF dependencies.
+
 v0.7.6.1
 · 📖 Review cards show a preview of saved OCR question text. Open a question to read the full text and formulas alongside the original images.
 · ⬇️ Update checks recognize both compatibility tag formats and keep stable and beta candidates on their own distribution.

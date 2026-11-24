@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.6_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/compat_v0.7.6_Compat)
+- **Android 9–15** · [互換版 v0.7.6.2_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -56,12 +56,18 @@ zsz が DeepSeek と GPT の支援で開発。
 
 ## 技術構成
 
-Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.09.00**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.6.2** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.0** · WorkManager **2.12.0**（バックアップと定期更新確認）· AlarmManager · Android Keystore。
+Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.11.01**) · MVVM · Room **3.0.3**（DB v11）· Retrofit **3.0.0** / OkHttp **5.5.1**（SSE）· kotlinx.serialization **1.13.0** · CameraX **1.7.0** · WebView / KaTeX **0.19.1** · Navigation Compose **2.10.2** · Lifecycle **2.11.1** · WorkManager **2.12.0**（バックアップと定期更新確認）· AlarmManager · Android Keystore。
 
-AGP **9.5.1**、Gradle wrapper **9.9.2**、JDK **25** · KSP **2.3.14**、compileSdk / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
+AGP **9.5.2**、Gradle wrapper **9.9.2**、JDK **25** · KSP **2.3.14**、compileSdk **37.1** / targetSdk **37**、minSdk **36**（Android **16+**）、build-tools **36.0.0**。Bak v4はZIP / DEFLATEを使用し、v3 JSONの取込に対応。[DATA_SCHEMA.md](../DATA_SCHEMA.md) を参照してください。
 
 ## バージョン履歴
 
+
+### v0.7.6.2
+
+- 📖 毎日の復習と集中練習で、過去の採点記録に保存した OCR の問題文を表示します。2 枚撮影した場合、解答画像は解答を開いた後に表示します。
+- ⭐ 問題の要点を復習詳細画面のツールバーに移動しました。サムネイルは読み取り専用のクエリを使い、古い記録は分割して読み込みます。
+- 🛠️ Android ビルドツール、Compose、Lifecycle、CameraX、PDF 関連の依存関係を更新しました。
 
 ### v0.7.6.1
 

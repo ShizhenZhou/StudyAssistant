@@ -220,7 +220,8 @@ class UiSmokeTest {
         }
         error("Cannot physically tap: $text\n${uiDiagnostics()}")
     }
-    private fun launch(openBackup: Boolean = false, openUpdate: Boolean = false): ActivityScenario<MainActivity> {
+    private fun launch(openBackup: Boolean = false, openUpdate: Boolean = false,
+                       openReview: Boolean = false): ActivityScenario<MainActivity> {
         check(context.packageName=="com.zsz.studyassistant.integration")
         UiLangStore.save(context,UiLang.EN)
         // These journeys cover navigation, independently of the upgrade-prompt policy tests.
@@ -233,11 +234,13 @@ class UiSmokeTest {
             .putBoolean("backup_failure_permission_asked", true).commit()
         val scenario=ActivityScenario.launch<MainActivity>(android.content.Intent(context, MainActivity::class.java)
             .putExtra(AppNav.OPEN_BACKUP_EXTRA, openBackup)
-            .putExtra(AppNav.OPEN_UPDATE_EXTRA, openUpdate))
+            .putExtra(AppNav.OPEN_UPDATE_EXTRA, openUpdate)
+            .putExtra(AppNav.OPEN_REVIEW_EXTRA, openReview))
         try {
             when {
                 openUpdate -> waitFor(s["update.current"])
                 openBackup -> waitFor(s["data.manualBackup"])
+                openReview -> waitFor(s["review.tab.today"])
                 else -> {
                     // The bottom bar can appear before Home's asynchronous key dialog.
                     waitFor(s["home.key.later"])
@@ -542,6 +545,35 @@ class UiSmokeTest {
                 if (firstId != 0L) dao.deleteCategory(firstId)
                 if (secondId != 0L) dao.deleteCategory(secondId)
                 extraIds.forEach { dao.deleteCategory(it) }
+            }
+        }
+    }
+
+    @Test fun reviewBookmarksOpenFromTopBar() {
+        val dao = com.zsz.studyassistant.data.AppDatabase.get(context).questionDao()
+        val id = com.zsz.studyassistant.data.QuestionIdentity.create(System.currentTimeMillis())
+        val question = "Review toolbar fixture ${id.takeLast(8)}"
+        try {
+            kotlinx.coroutines.runBlocking {
+                dao.insert(com.zsz.studyassistant.data.Question(id, question, "Synthetic answer"))
+                dao.insertReview(com.zsz.studyassistant.data.Review(id, nextReviewAt = 0))
+            }
+            launch(openReview = true).use {
+                tap(question)
+                val label = "☆ " + s["bookmark.title"]
+                val bookmarkBounds = android.graphics.Rect()
+                val similarBounds = android.graphics.Rect()
+                waitFor(label).getBoundsInScreen(bookmarkBounds)
+                waitFor(s["solve.practiceSimilar"]).getBoundsInScreen(similarBounds)
+                assertTrue("Review actions should share the top bar",
+                    bookmarkBounds.top < similarBounds.bottom && similarBounds.top < bookmarkBounds.bottom)
+                tap(label)
+                waitFor(s["bookmark.empty"])
+            }
+        } finally {
+            kotlinx.coroutines.runBlocking {
+                dao.deleteReviewsForQuestions(listOf(id))
+                dao.deleteById(id)
             }
         }
     }

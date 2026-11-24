@@ -2,10 +2,208 @@ package com.zsz.studyassistant.data
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 
 class UpdateCompatibilityTest {
+    @Test fun compatStableAndBetaRecoverAfterReleaseListFailure() = runBlocking {
+        val stableTag = "compat_v0.7.6_Compat"
+        val betaTag = "v0.7.7_beta1_Compat"
+        val result = fetchCompatFixture { endpoint ->
+            when (endpoint) {
+                "releases" -> 503 to ""
+                "compat-update-hints.json" -> 200 to """{"schema":1,"stableTag":"$stableTag","betaTag":"$betaTag"}"""
+                "releases/tags/$stableTag" -> 200 to compatRelease(stableTag, 148, mandatory = true)
+                "releases/tags/$betaTag" -> 200 to compatRelease(betaTag, 149, beta = true, mandatory = true)
+                else -> error("Unexpected endpoint: $endpoint")
+            }
+        }!!
+        assertEquals(stableTag, result.stable?.tagName)
+        assertEquals(148L, result.stable?.versionCode)
+        assertTrue(result.stable!!.mandatory)
+        assertEquals(betaTag, result.beta?.tagName)
+        assertFalse(result.beta!!.mandatory)
+        assertFalse(result.historyComplete)
+        assertTrue(result.metadataTrusted)
+    }
+
+    @Test fun compatReleaseManifestsRecoverAfterRestRateLimit() = runBlocking {
+        val stableTag = "compat_v0.7.6_Compat"
+        val betaTag = "v0.7.7_beta1_Compat"
+        val hints = """{"schema":1,"stableTag":"$stableTag","betaTag":"$betaTag"}"""
+        for ((status, headers) in listOf(403 to mapOf("X-RateLimit-Remaining" to "0"), 429 to emptyMap())) {
+            val result = fetchCompatFixture(listHeaders = headers) { endpoint ->
+                when (endpoint) {
+                    "releases" -> status to ""
+                    "compat-update-hints.json" -> 200 to hints
+                    "download/$stableTag/update-manifest.json" -> 200 to compatManifest(stableTag, 148, mandatory = true)
+                        .dropLast(1) + ""","deltas":[{"format":"apk-gdiff1-gzip",
+                        "baseSha256":"${"b".repeat(64)}","baseSize":10,"patchName":"fixture.gdiff.gz",
+                        "patchSha256":"${"c".repeat(64)}","patchSize":3}]}"""
+                    "download/$betaTag/update-manifest.json" -> 200 to compatManifest(betaTag, 149, beta = true)
+                    else -> error("Unexpected endpoint after REST rate limit: $endpoint")
+                }
+            }!!
+            assertEquals(stableTag, result.stable?.tagName)
+            assertEquals(148L, result.stable?.versionCode)
+            assertEquals(
+                "https://github.com/ShizhenZhou/StudyAssistant/releases/download/$stableTag/SA-0.7.6_Compat-20261122120000.apk",
+                result.stable?.assetUrl
+            )
+            assertEquals("a".repeat(64), result.stable?.assetSha256)
+            assertFalse(result.stable!!.mandatory)
+            assertTrue(result.stable!!.deltas.isEmpty())
+            assertTrue(result.stable!!.deltaHistory.isEmpty())
+            assertEquals(betaTag, result.beta?.tagName)
+            assertFalse(result.historyComplete)
+            assertFalse(result.metadataTrusted)
+        }
+    }
+
+    @Test fun rejectedCompatTagDoesNotFallBackToDirectManifest() = runBlocking {
+        val tag = "compat_v0.7.6_Compat"
+        for (rejected in listOf(404 to "", 422 to "", 200 to "{broken",
+            200 to compatRelease(tag, 148, draft = true), 200 to compatRelease("v0.7.6_Compat", 148),
+            200 to compatRelease(tag, 148, digestMatches = false))) {
+            val result = fetchCompatFixture(UpdateTransport.Config(baseUrl = "https://mirror.example.com")) { endpoint ->
+                when (endpoint) {
+                    "releases" -> 200 to "[]"
+                    "compat-update-hints.json" -> 200 to """{"schema":1,"stableTag":"$tag"}"""
+                    "releases/tags/$tag" -> rejected
+                    else -> error("Rejected tag should not request $endpoint")
+                }
+            }
+            assertNull(result)
+        }
+    }
+
+    @Test fun directCompatManifestMustMatchTagChannelAndApkIdentity() = runBlocking {
+        val tag = "compat_v0.7.6_Compat"
+        val manifest = compatManifest(tag, 148)
+        for (invalid in listOf(
+            manifest.replace("SA-0.7.6_Compat-", "../SA-0.7.6_Compat-"),
+            manifest.replace("SA-0.7.6_Compat-", "SA-0.7.7_Compat-"),
+            manifest.replace("SA-0.7.6_Compat-", "StudyAssistant-0.7.6_Compat-"),
+            manifest.replace("\"version\":\"0.7.6\"", "\"version\":\"0.7.7\""),
+            manifest.replace("\"stable\"", "\"beta\""),
+            manifest.replace("\"compat\"", "\"main\""),
+            manifest.replace("\"minSdk\":28", "\"minSdk\":27"),
+            manifest.replace("\"maxSdk\":35", "\"maxSdk\":36"),
+            manifest.replace("\"versionCode\":148", "\"versionCode\":0"),
+            manifest.replace("\"apkSize\":7", "\"apkSize\":0"),
+            manifest.replace("a".repeat(64), "x".repeat(64))
+        )) {
+            val result = fetchCompatFixture { endpoint ->
+                when (endpoint) {
+                    "releases", "releases/tags/$tag" -> 503 to ""
+                    "compat-update-hints.json" -> 200 to """{"schema":1,"stableTag":"$tag"}"""
+                    "download/$tag/update-manifest.json" -> 200 to invalid
+                    else -> error("Unexpected endpoint: $endpoint")
+                }
+            }
+            assertNull(invalid, result)
+        }
+    }
+
+    @Test fun staleCompatStableHintKeepsPartialHistoryAndIndependentBeta() = runBlocking {
+        val listedTag = "v0.7.7_Compat"
+        val staleTag = "v0.7.5.10_Compat"
+        val betaTag = "v0.7.9_beta1_Compat"
+        for (stale in listOf(404 to "", 200 to compatRelease(staleTag, 150, draft = true),
+            200 to compatRelease(listedTag, 150), 200 to compatRelease(staleTag, 150, digestMatches = false),
+            200 to compatRelease(staleTag, 147))) {
+            val listed = compatRelease(listedTag, 149, mandatory = true)
+            val firstPage = List(99) { "{}" }.plus(listed).joinToString(",", "[", "]")
+            var page = 0
+            val result = fetchCompatFixture { endpoint ->
+                when (endpoint) {
+                    "releases" -> if (++page == 1) 200 to firstPage else 503 to ""
+                    "compat-update-hints.json" -> 200 to """{"schema":1,"stableTag":"$staleTag","betaTag":"$betaTag"}"""
+                    "releases/tags/$staleTag" -> stale
+                    "releases/tags/$betaTag" -> 200 to compatRelease(betaTag, 151, beta = true)
+                    else -> error("Unexpected endpoint: $endpoint")
+                }
+            }!!
+            assertEquals(listedTag, result.stable?.tagName)
+            assertTrue(result.stable!!.mandatory)
+            assertEquals(betaTag, result.beta?.tagName)
+            assertFalse(result.historyComplete)
+        }
+    }
+
+    @Test fun mirroredCompatHintsCannotDisplaceOfficialMandatoryStable() = runBlocking {
+        val listedTag = "v0.7.7_Compat"
+        val mirroredTag = "v0.7.8_Compat"
+        val betaTag = "v0.7.9_beta1_Compat"
+        val listed = compatRelease(listedTag, 149, mandatory = true)
+        val firstPage = List(99) { "{}" }.plus(listed).joinToString(",", "[", "]")
+        var page = 0
+        val result = fetchCompatFixture(UpdateTransport.Config(baseUrl = "https://mirror.example.com")) { endpoint ->
+            when (endpoint) {
+                "releases" -> if (++page == 1) 200 to firstPage else 503 to ""
+                "mirror/releases", "releases/tags/$mirroredTag", "releases/tags/$betaTag",
+                "download/$mirroredTag/update-manifest.json", "download/$betaTag/update-manifest.json" -> 503 to ""
+                "compat-update-hints.json" -> 200 to """{"schema":1,"stableTag":"$mirroredTag","betaTag":"$betaTag"}"""
+                "mirror/releases/tags/$mirroredTag" -> 200 to compatRelease(mirroredTag, 150)
+                "mirror/releases/tags/$betaTag" -> 200 to compatRelease(betaTag, 151, beta = true)
+                else -> error("Unexpected endpoint: $endpoint")
+            }
+        }!!
+        assertEquals(listedTag, result.stable?.tagName)
+        assertTrue(result.stable!!.mandatory)
+        assertTrue(result.metadataTrusted)
+        assertFalse(result.historyComplete)
+        assertEquals(betaTag, result.beta?.tagName)
+        assertFalse(result.beta!!.mandatory)
+    }
+
+    private suspend fun fetchCompatFixture(
+        config: UpdateTransport.Config = UpdateTransport.Config(enabled = false),
+        listHeaders: Map<String, String> = emptyMap(),
+        response: (String) -> Pair<Int, String>
+    ): UpdateChecker.AvailableReleases? {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            val path = request.url.encodedPath
+            val endpoint = path.substringAfter("/repos/ShizhenZhou/StudyAssistant/")
+                .substringAfter("/ShizhenZhou/StudyAssistant/main/config/")
+                .substringAfter("/ShizhenZhou/StudyAssistant/releases/")
+            val prefix = if (request.url.host == "mirror.example.com") "mirror/" else ""
+            val (code, body) = response(prefix + endpoint)
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
+                .code(code).message("fixture").body(body.toResponseBody()).apply {
+                    if (endpoint == "releases") listHeaders.forEach { (name, value) -> header(name, value) }
+                }.build()
+        }.build()
+        return UpdateChecker.fetchAvailable(null, "compat", 35, config) { client }
+    }
+
+    private fun compatManifest(tag: String, code: Int, beta: Boolean = false, mandatory: Boolean = false): String {
+        val version = tag.removePrefix("compat_").removePrefix("v")
+        val name = "SA-$version-20261122120000.apk"
+        return """{"schema":2,"distribution":"compat","version":"${version.substringBefore('_')}",
+            "channel":"${if (beta) "beta" else "stable"}","mandatory":$mandatory,
+            "versionCode":$code,"minSdk":28,"maxSdk":35,"apkName":"$name","apkSize":7,"apkSha256":"${"a".repeat(64)}"}"""
+    }
+
+    private fun compatRelease(tag: String, code: Int, beta: Boolean = false, mandatory: Boolean = false,
+                              draft: Boolean = false, digestMatches: Boolean = true): String {
+        val version = tag.removePrefix("compat_").removePrefix("v")
+        val name = "SA-$version-20261122120000.apk"
+        val publishedDigest = if (digestMatches) "a".repeat(64) else "b".repeat(64)
+        val manifest = compatManifest(tag, code, beta, mandatory)
+        val notes = JsonPrimitive("<!-- studyassistant-update-manifest\n$manifest\n-->")
+        return """{"tag_name":"$tag","draft":$draft,"prerelease":$beta,"body":$notes,"assets":[
+            {"name":"$name","size":7,"digest":"sha256:$publishedDigest",
+            "browser_download_url":"https://github.com/ShizhenZhou/StudyAssistant/releases/download/$tag/$name"}]}"""
+    }
+
     @Test fun mirrorTransportKeepsCanonicalIdentityAndOfficialFirstOrdering() {
         val canonical = "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.7.3/app.apk"
         val config = UpdateTransport.Config(baseUrl = "https://mirror.example.com/proxy")
@@ -15,14 +213,21 @@ class UpdateCompatibilityTest {
         assertEquals(listOf(canonical), updateDownloadUrls(canonical, config.copy(enabled = false), true))
         assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases?per_page=100&page=2"))
         assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases/assets/42"))
+        assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases/tags/compat_v0.7.5"))
+        assertTrue(UpdateTransport.isCanonicalUrl("https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases/tags/v0.7.7_Compat"))
+        assertTrue(UpdateTransport.isCanonicalUrl("https://raw.githubusercontent.com/ShizhenZhou/StudyAssistant/main/config/compat-update-hints.json"))
     }
 
     @Test fun mirrorCannotReceiveOtherRepositoriesCredentialsOrEncodedPaths() {
         val prefix = "https://github.com/ShizhenZhou/StudyAssistant/releases/download/v0.7.3/"
+        val tagApi = "https://api.github.com/repos/ShizhenZhou/StudyAssistant/releases/tags/"
         for (url in listOf(prefix + "%2e%2e/file.apk", prefix + "app.apk?token=secret",
             prefix.replace("ShizhenZhou", "OtherOwner") + "app.apk",
             prefix.replace("github.com", "github.com.evil.test") + "app.apk",
             prefix.replace("https://", "https://user:password@") + "app.apk",
+            tagApi + "v0.7.7", tagApi + "v0.7.7_Compat?token=secret", tagApi + "v0.7.7_%43ompat",
+            tagApi.replace("ShizhenZhou", "OtherOwner") + "v0.7.7_Compat",
+            "https://raw.githubusercontent.com/ShizhenZhou/StudyAssistant/Develop/config/compat-update-hints.json",
             "https://api.github.com/user", "https://raw.githubusercontent.com/Other/Repo/main/key")) {
             assertFalse(url, UpdateTransport.isCanonicalUrl(url))
         }
