@@ -1,3 +1,7 @@
+v0.7.6.3
+· 🌐 Q&A detects connection failures and stalled replies sooner. Continuing generation opens a fresh connection.
+· 🔄 Use Regenerate at the top right of the last completed answer. The previous answer is kept until the new one finishes.
+
 v0.7.6.2
 · 📖 Daily review and focused practice show saved OCR text for older graded questions. With two photos, the answer photo appears after reveal.
 · ⭐ Question bookmarks moved to the review toolbar. Thumbnails use read-only queries, with chunked reads for older records.

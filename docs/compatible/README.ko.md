@@ -13,19 +13,24 @@
 사진·텍스트 질문, AI 풀이, 오답 노트와 복습을 위한 개인용 Android 학습 앱입니다. 계정 시스템이나 개발자 서버는 없습니다.
 zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 
-> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.6.2_Compat(versionCode 150)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
+> 호환 버전은 **Android 9–15(API 28–35)** 용입니다. 현재 버전은 v0.7.6.3_Compat(versionCode 151)입니다. v0.6.7.9에서 처음 업데이트할 때는 전체 APK를 수동 설치해야 하며, 이후에는 호환 버전의 업데이트만 받습니다. 메인 브랜치는 Android 16+를 지원하고 GitHub Latest도 메인용으로 유지합니다.
 
 [Study Assistant · README](../readme/README.ko.md)
 
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.6.2_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
+- **Android 9–15** · [호환 버전 v0.7.6.3_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
 
 [전체 릴리스](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 버전 기록
 
+
+### v0.7.6.3_Compat
+
+- 🌐 질문에 답할 때 연결 실패나 응답 지연을 더 빨리 감지합니다. 생성을 계속하면 새로 연결합니다.
+- 🔄 마지막으로 완료된 답변 오른쪽 위에 ‘다시 생성’을 추가했습니다. 새 답변이 완료되면 이전 답변을 바꿉니다.
 
 ### v0.7.6.2_Compat
 

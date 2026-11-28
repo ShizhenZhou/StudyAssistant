@@ -13,19 +13,24 @@
 A personal Android study assistant for photo/text questions, AI answers, a mistake notebook and review. No account system or developer-operated server.
 Developed by zsz with assistance from DeepSeek and GPT.
 
-> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.6.2_Compat (versionCode 150). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
+> The compatibility edition targets **Android 9–15 (API 28–35)**. The current release is v0.7.6.3_Compat (versionCode 151). Upgrading from v0.6.7.9 requires a manual full-APK installation; subsequent updates stay on the compatibility channel. Main continues to target Android 16+ and retains GitHub Latest.
 
 [Study Assistant · README](../readme/README.en.md)
 
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.6.2_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.6.3_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
 
 [All releases](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## Version history
 
+
+### v0.7.6.3_Compat
+
+- 🌐 Q&A detects connection failures and stalled replies sooner. Continuing generation opens a fresh connection.
+- 🔄 Use Regenerate at the top right of the last completed answer. The previous answer is kept until the new one finishes.
 
 ### v0.7.6.2_Compat
 

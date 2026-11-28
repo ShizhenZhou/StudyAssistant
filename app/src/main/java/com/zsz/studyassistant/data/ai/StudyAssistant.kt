@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
@@ -295,8 +296,8 @@ object StudyAssistant {
      * 流式调用：逐块回调增量文本，返回拼接后的完整文本（供落库/展示）。
      *
      * 实现要点：
-     * - 走 [ApiClient.deepSeekStream]（无整体 callTimeout），手写 SSE 逐行解析，**不引新依赖**；
-     * - 忽略心跳/空行，读取 finish_reason；非正常结束保留部分内容并由用户决定续写。
+     * - 传输起始和首段有效 SSE 有界，已有生成进度后沿用流式读空闲超时。
+     * - 读取 finish_reason；非正常结束保留部分内容并由用户决定续写。
      * - 最后一片带 `usage` 时保存在本次 [StreamOwner]，避免不同请求互相覆盖用量。
      *
      * @param onDelta 每收到一段增量调用一次（调用方负责节流，避免频繁重渲染）
@@ -334,8 +335,25 @@ object StudyAssistant {
             tools = if (webEnabled) listOf(DeepSeekTool("deepseek_web_search"), DeepSeekTool("deepseek_read_url")) else null,
             title = if (requestTitle) ConversationTitleOption(true) else null
         )
-        val body = try {
-            awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(prepared.messages), "Bearer $accountKey"), owner)
+        suspend fun open(input: List<DeepSeekMessage>): Pair<retrofit2.Call<ResponseBody>, ResponseBody> {
+            val sent = CompletableDeferred<Unit>()
+            val call = ApiClient.deepSeekStream.chatStream(request(input), "Bearer $accountKey",
+                Runnable { sent.complete(Unit) })
+            var pendingBody: ResponseBody? = null
+            return try {
+                val body = withStreamStartupDeadline(call::cancel, 20_000, awaitStart = { sent.await() }) { _ ->
+                    awaitStreamBody(call, owner).also { pendingBody = it }
+                }
+                call to body
+            } catch (error: Throwable) {
+                // Connection and header failures occur before the SSE reader takes ownership.
+                pendingBody?.close()
+                owner.finish()
+                throw error
+            }
+        }
+        val (call, body) = try {
+            open(prepared.messages)
         } catch (e: AiRequestException) {
             if (!e.fileReferenceRejected) throw e
             currentCoroutineContext().ensureActive()
@@ -343,7 +361,7 @@ object StudyAssistant {
             try {
                 val references = prepared.references ?: throw e
                 AiImageUploads.cache.invalidate(references)
-                awaitStreamBody(ApiClient.deepSeekStream.chatStream(request(original), "Bearer $accountKey"), owner)
+                open(original)
             } catch (fallback: AiRequestException) {
                 if (fallback.fileReferenceRejected && messages.any { it.localDocuments.isNotEmpty() }) {
                     ConversationDocumentUploads.invalidate(messages, accountKey, requireNotNull(documentStore))
@@ -363,15 +381,7 @@ object StudyAssistant {
         try {
             body.use { b ->
                 val src = b.source()
-                while (true) {
-                    // 支持「中止生成」：协程被取消时在这里抛出，且关闭响应体后阻塞读也会立刻失败
-                    currentCoroutineContext().ensureActive()
-                    val line = readStreamLine(src) ?: break
-                    if (line.isEmpty() || !line.startsWith("data:")) continue
-                    val payload = line.substring(5).trim()
-                    val chunk = completion.accept(payload)
-                    if (completion.done) break
-                    if (chunk == null) continue
+                readStreamChunks(src, completion, call::cancel) { chunk ->
                     chunk.usage?.let { usage = it }
                     val choice = chunk.choices.firstOrNull()
                     choice?.serverToolEvent?.let { event ->
@@ -408,7 +418,7 @@ object StudyAssistant {
 
     private suspend fun awaitStreamBody(call: retrofit2.Call<ResponseBody>, owner: StreamOwner): ResponseBody {
         owner.attach { call.cancel() }
-        return try { kotlinx.coroutines.suspendCancellableCoroutine<ResponseBody> { continuation ->
+        return kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
             continuation.invokeOnCancellation { owner.cancel() }
             if (!continuation.isActive) return@suspendCancellableCoroutine
             call.enqueue(object : retrofit2.Callback<ResponseBody> {
@@ -426,10 +436,6 @@ object StudyAssistant {
                 }
             })
             owner.recordSubmission()
-        } } catch (error: Throwable) {
-            // Header/connection failures happen before the body-reading finally block below.
-            owner.finish()
-            throw error
         }
     }
 

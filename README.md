@@ -16,7 +16,7 @@
 ## 下载 APK
 
 - **Android 16+** · [下载最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下载兼容版 v0.7.6.2_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
+- **Android 9–15** · [下载兼容版 v0.7.6.3_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
 - [兼容版说明与更新记录](docs/compatible/README.md)
 
 本文是两发行线共用入口；下方技术参数及历史记录以主线为准。兼容版的系统范围和独立更新汇总见上方说明。
@@ -62,6 +62,11 @@ Kotlin **2.4.21** · Jetpack Compose / Material3 (BOM **2026.11.01**) · MVVM ·
 
 ## 版本记录
 
+
+### v0.7.6.3
+
+- 🌐 问答更快发现连接失败或迟迟未收到有效回复的情况。点「继续生成」时会重新建立连接。
+- 🔄 在最后一条完整回答的右上角添加「重新生成」。新回答完成后才替换旧回答。
 
 ### v0.7.6.2
 

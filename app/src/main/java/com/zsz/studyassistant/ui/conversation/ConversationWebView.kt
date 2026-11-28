@@ -33,7 +33,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList(), val thinking: String? = null, val thinkingOpen: Boolean = false, val thinkingDone: Boolean = false, val quotedText: String? = null, val messageKey: String? = null, val quoteAnchor: com.zsz.studyassistant.QuoteAnchor? = null,
     val sources: List<com.zsz.studyassistant.data.AiSource> = emptyList(), val sourcesLabel: String = "",
     val documents: List<com.zsz.studyassistant.data.ConversationDocument> = emptyList(),
-    val showImagesInline: Boolean = false) {
+    val showImagesInline: Boolean = false,
+    @kotlinx.serialization.Transient val regenerateLabel: String? = null) {
     internal fun sourceText(scope: String): String? = when (scope) {
         "body" -> content
         "thinking" -> thinking
@@ -76,6 +77,7 @@ fun ConversationWebView(
     onScrollableChange: (Boolean) -> Unit = {},
     /** 点击气泡末尾蓝色「继续生成」时回调 */
     onContinue: () -> Unit = {},
+    onRegenerateLastAnswer: ((String) -> Unit)? = null,
     /** 长按某条消息气泡时回调（参数为界面消息下标）→ 用于进入多选界面 */
     onLongPressMessage: (Int) -> Unit = {},
     /** Available only where a follow-up composer can receive a selection. */
@@ -119,8 +121,17 @@ fun ConversationWebView(
     // 若直接调用 onXxx()，用的就是**首次组合**时的那份闭包（其中的 selectedIndices/lockedIndices 等值永远是旧的），
     // 曾导致「受保护消息（题干/AI 首条）长按仍被算作可选中 → 已选 1 条」。
     // 因此所有回调都必须通过 rememberUpdatedState 取最新值。
-    val currentMessages by rememberUpdatedState(messages)
+    val s = LocalStrings.current
+    val regenerateLabel = if (onRegenerateLastAnswer != null && !selectionMode) s["solve.regen"] else null
+    val renderedMessages = remember(messages, regenerateLabel) {
+        val answer = messages.lastOrNull()
+        if (regenerateLabel != null && answer?.role == "assistant" && !answer.messageKey.isNullOrEmpty()) {
+            messages.dropLast(1) + answer.copy(regenerateLabel = regenerateLabel)
+        } else messages
+    }
+    val currentMessages by rememberUpdatedState(renderedMessages)
     val currentOnContinue by rememberUpdatedState(onContinue)
+    val currentOnRegenerateLastAnswer by rememberUpdatedState(onRegenerateLastAnswer)
     val currentOnLongPress by rememberUpdatedState(onLongPressMessage)
     val currentOnQuote by rememberUpdatedState(onQuoteText)
     val currentOnBookmark by rememberUpdatedState(onBookmarkText)
@@ -154,7 +165,6 @@ fun ConversationWebView(
 
     // 思考块的文案按当前界面语言注入 WebView（繁體由 Strings 内部 s2t 自动转换）
     // ⚠️ 必须进「去重 key」：否则切换界面语言时 JSON 没变 → 不重渲染 → 思考块文案还是旧语言
-    val s = LocalStrings.current
     val mediaLabels = mediaViewerLabels()
     val currentQuoteMissing by rememberUpdatedState(s["solve.quoteUnavailable"])
     fun thinkLabelsJson(): String {
@@ -353,6 +363,17 @@ fun ConversationWebView(
                         @JavascriptInterface
                         fun continueGeneration() {
                             bridgeHandler.post { if (webRef === bridgeView) currentOnContinue() }
+                        }
+
+                        @JavascriptInterface
+                        fun regenerateAnswer(messageKey: String) {
+                            bridgeHandler.post {
+                                if (webRef !== bridgeView || currentSelectionMode) return@post
+                                val answer = currentMessages.lastOrNull() ?: return@post
+                                if (answer.messageKey == messageKey && answer.regenerateLabel != null) {
+                                    currentOnRegenerateLastAnswer?.invoke(messageKey)
+                                }
+                            }
                         }
 
                         /** 长按消息气泡 → 进入原生多选（编辑）界面，并选中被长按的那条 */
@@ -556,6 +577,7 @@ internal fun buildMessagesJson(messages: List<ChatMsg>, revisions: List<String>?
                 put(JSONObject().put("title", source.title).put("url", source.url))
             } })
             .put("messageKey", m.messageKey ?: JSONObject.NULL)
+            .put("regenerateLabel", m.regenerateLabel)
             .put("hashes", JSONObject().apply {
                 listOf("body", "thinking", "quote").forEach { scope -> put(scope, m.sourceHash(scope) ?: JSONObject.NULL) }
             })

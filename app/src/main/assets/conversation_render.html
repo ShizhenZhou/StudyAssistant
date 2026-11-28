@@ -36,6 +36,11 @@
   .bubble{max-width:92%;padding:10px 12px;border-radius:14px;margin:8px 0;font-size:calc(15px * var(--k));line-height:1.6;}
   .bubble.assistant{background:var(--bubble-ai);color:var(--fg);align-self:flex-start;border:1px solid var(--bubble-ai-border);}
   .bubble.user{background:var(--bubble-user);color:var(--fg);align-self:flex-end;border:1px solid var(--bubble-user-border);}
+  .answer-actions{display:flex;justify-content:flex-end;margin:-6px -6px 2px 0;}
+  .regenerate-answer{min-height:44px;padding:4px 8px;border:0;border-radius:8px;background:transparent;
+    color:inherit;font:inherit;font-size:calc(13px * var(--k));cursor:pointer;}
+  .regenerate-answer:active{background:var(--bubble-ai-border);}
+  .answer-actions:empty,body.selmode .answer-actions{display:none;}
   .quoted-text{position:relative;background:var(--quote-bg);color:var(--quote-fg);
     border-radius:8px;padding:24px 20px 22px;margin:2px 0 10px;overflow-wrap:anywhere;}
   .quoted-text::before,.quoted-text::after{position:absolute;color:var(--quote-mark);
@@ -488,7 +493,7 @@ document.addEventListener('touchstart', function(e){
   var el = e.target, bubble = (el && el.closest) ? el.closest('.bubble') : null;
   if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
   if(!bubble || selectionMode || e.touches.length !== 1) return;
-  if(el.closest('.thinkhead,.thinkfold,.continue,summary,.pick')) return;
+  if(el.closest('.thinkhead,.thinkfold,.continue,.regenerate-answer,summary,.pick')) return;
   var point = e.touches[0];
   if(hitsMessageText(point.clientX, point.clientY, bubble)) return;
   var selectedText = window.getSelection();
@@ -606,7 +611,8 @@ function msgKey(m){
   var imageKey = (m.images||[]).map(function(image){return image.indexOf('file:///android_asset/session-image/')===0?image:image.length;}).join(',');
   // ★ 思考流必须进 key：否则思考增长时 content 不变 → key 不变 → 增量渲染跳过该气泡 → 思考块整段不刷新
   return (m.messageKey||'') + '|' + JSON.stringify(m.quoteAnchor||null) + '|' + m.role + '|' + (m.content||'') + '|' + (m.quotedText||'') + '|' + imgs + '|' + imageKey
-       + '|' + JSON.stringify(m.documents||[]) + '|' + JSON.stringify(m.sources||[]) + '|' + (m.sourcesLabel||'') + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0);
+       + '|' + JSON.stringify(m.documents||[]) + '|' + JSON.stringify(m.sources||[]) + '|' + (m.sourcesLabel||'') + '|' + (m.thinking||'') + '|' + (m.thinkingOpen?1:0) + '|' + (m.thinkingDone?1:0)
+       + '|' + (m.regenerateLabel||'');
 }
 // Reconcile against a fresh parse, rather than guessing where a streamed Markdown block is final.
 // Equal subtrees keep their DOM, selection and formula scroll position. Only changed leaves are edited.
@@ -728,8 +734,16 @@ function bubbleHtml(m, idx){
   if(contLabel !== null){
     body += '<div class="continue" onclick="event.stopPropagation();continueGen()">'+esc(contLabel)+'</div>';
   }
+  var actions = '';
+  if(cls === 'assistant' && window.Android && Android.regenerateAnswer){
+    var regenerate = m.regenerateLabel && m.messageKey
+      ? '<button type="button" class="regenerate-answer" data-message-key="' + esc(m.messageKey)
+        + '" onclick="regenerateAnswer(event,this)">' + esc(m.regenerateLabel) + '</button>'
+      : '';
+    actions = '<div class="answer-actions">' + regenerate + '</div>';
+  }
   return '<div class="bubble '+cls+(selectionMode?' selmode':'')+(isSel?' selected':'')+(locked?' locked':'')+'" data-idx="'+idx+'"'
-       + ' onclick="bubbleTap('+idx+')">' + thinkHtml + body + imgHtml
+       + ' onclick="bubbleTap('+idx+')">' + actions + thinkHtml + body + imgHtml
        + (selectionMode ? '<div class="pick">'+(isSel?'✓':'')+'</div>' : '') + '</div>';
 }
 // ── 多选状态与交互（长按进入；点气泡切换；圆圈在右上角，选中显示红框） ──
@@ -763,6 +777,12 @@ function imgTap(e, el, idx){
 }
 function continueGen(){
   try{ if(window.Android && Android.continueGeneration){ Android.continueGeneration(); } }catch(e){}
+}
+function regenerateAnswer(e, button){
+  e.stopPropagation();
+  if(!selectionMode && window.Android && Android.regenerateAnswer){
+    Android.regenerateAnswer(button.getAttribute('data-message-key'));
+  }
 }
 // ── 思考块折叠（JS 自管 + document 级委托） ──────────────────────────────
 // 为什么不能用 <details> / 节点级 onclick：

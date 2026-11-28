@@ -1,6 +1,8 @@
 package com.zsz.studyassistant.data
 
 import kotlinx.serialization.json.Json
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -13,6 +15,7 @@ import retrofit2.http.Streaming
 import retrofit2.http.Multipart
 import retrofit2.http.Part
 import retrofit2.http.Header
+import retrofit2.http.Tag
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import java.util.concurrent.TimeUnit
@@ -35,7 +38,8 @@ interface DeepSeekService {
     @Streaming
     @POST("chat/completions")
     fun chatStream(@Body request: DeepSeekRequest,
-        @Header("Authorization") authorization: String? = null): retrofit2.Call<ResponseBody>
+        @Header("Authorization") authorization: String? = null,
+        @Tag requestSent: Runnable? = null): retrofit2.Call<ResponseBody>
 }
 
 object ApiClient {
@@ -84,12 +88,18 @@ object ApiClient {
         service(client.newBuilder().callTimeout(0, TimeUnit.SECONDS).readTimeout(0, TimeUnit.SECONDS).build())
     }
 
-    /**
-     * 流式专用：**不加整体 callTimeout**——长解答边生成边返回，用总时长上限会中途掐断；
-     * readTimeout 只约束「相邻数据块之间的静默」，120s 足够模型思考。
-     */
+    /** Keep the stream idle timeout. Notify StudyAssistant once the request body has been sent. */
     val deepSeekStream: DeepSeekService by lazy {
         // newBuilder shares the connection pool and dispatcher with ordinary requests.
-        service(client.newBuilder().retryOnConnectionFailure(false).callTimeout(0, TimeUnit.SECONDS).build())
+        service(client.newBuilder().retryOnConnectionFailure(false)
+            .connectTimeout(10, TimeUnit.SECONDS).writeTimeout(30, TimeUnit.SECONDS)
+            .eventListener(object : EventListener() {
+                override fun requestBodyEnd(call: Call, byteCount: Long) {
+                    call.request().tag(Runnable::class.java)?.run()
+                }
+            })
+            .callTimeout(0, TimeUnit.SECONDS).build())
     }
+
+    internal fun evictIdleConnections() = client.connectionPool.evictAll()
 }

@@ -8,6 +8,7 @@ import java.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
@@ -72,12 +73,18 @@ internal class ReusableImageFiles(
         return url.takeIf { it.startsWith("data:image/") && it.contains(";base64,") }
     }
 
-    suspend fun prepare(messages: List<DeepSeekMessage>, accountKey: String, path: File? = null): Prepared {
+    suspend fun prepare(messages: List<DeepSeekMessage>, accountKey: String, path: File? = null,
+                        timeoutMillis: Long = 15_000): Prepared {
         currentCoroutineContext().ensureActive()
         if (messages.none { (it.content as? JsonArray)?.any { part -> inlineImageUrl(part) != null } == true })
             return Prepared(messages)
 
-        return mutex.withLock {
+        // Reusing uploads is optional. A slow reference must not hold up the original question.
+        return withTimeoutOrNull(timeoutMillis) { prepareReferences(messages, accountKey, path) } ?: Prepared(messages)
+    }
+
+    private suspend fun prepareReferences(messages: List<DeepSeekMessage>, accountKey: String, path: File?): Prepared =
+        mutex.withLock {
             val scope = aiAccountScope(accountKey)
             if (scope != account || storage != path) {
                 entries.clear()
@@ -106,8 +113,6 @@ internal class ReusableImageFiles(
                 if (used.isEmpty()) Prepared(messages) else Prepared(prepared, References(scope, path, used))
             } finally { persistChanges() }
         }
-    }
-
     private suspend fun resolve(key: String, url: String, accountKey: String): DeepSeekFile? {
         val old = entries[key]
         if (old == null) {

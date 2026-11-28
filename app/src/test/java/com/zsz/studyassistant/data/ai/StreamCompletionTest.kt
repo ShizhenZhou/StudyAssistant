@@ -5,10 +5,74 @@ import org.junit.Test
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import okio.buffer
 
 class StreamCompletionTest {
+    @Test fun headerBudgetStartsOnlyAfterTheRequestBodyIsSent() = kotlinx.coroutines.runBlocking {
+        val sent = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
+        val result = async {
+            runCatching {
+                withStreamStartupDeadline({ cancelled.complete(Unit) }, 100, awaitStart = { sent.await() }) {
+                    cancelled.await()
+                }
+            }
+        }
+        delay(200)
+        assertFalse(cancelled.isCompleted)
+        sent.complete(Unit)
+        assertTrue(result.await().exceptionOrNull() is java.net.SocketTimeoutException)
+    }
+
+    @Test(timeout = 5_000) fun heartbeatsAndEmptyDeltasCannotKeepAnUnstartedStreamAlive() {
+        val pipe = okio.Pipe(2048)
+        pipe.sink.buffer().apply {
+            writeUtf8(": keep-alive\n\ndata: {\"choices\":[{\"delta\":{}}]}\n\n")
+            flush()
+        }
+        val error = assertThrows(java.net.SocketTimeoutException::class.java) {
+            kotlinx.coroutines.runBlocking {
+                pipe.source.buffer().use { source ->
+                    readStreamChunks(source, StreamCompletion(), pipe::cancel, firstProgressMillis = 100) { }
+                }
+            }
+        }
+        assertTrue(error.isConnectionFailure())
+    }
+
+    @Test fun firstReasoningChunkRemovesStartupDeadline() = kotlinx.coroutines.runBlocking {
+        val source = okio.Buffer().writeUtf8("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"step\"}}]}\n" +
+            "data: {\"choices\":[{\"delta\":{\"content\":\"answer\"},\"finish_reason\":\"stop\"}]}\n")
+        var cancelled = false
+        val completion = StreamCompletion()
+        var answer: String? = null
+        readStreamChunks(source, completion, { cancelled = true }, firstProgressMillis = 250) { chunk ->
+            val delta = chunk.choices.single().delta
+            if (delta?.reasoningContent != null) delay(300)
+            if (delta?.content != null) answer = delta.content
+        }
+        completion.requireComplete()
+        assertEquals("answer", answer)
+        assertFalse(cancelled)
+    }
+
+    @Test fun slowOptionalImageUploadFallsBackToInlineAndKeepsCooldown() = kotlinx.coroutines.runBlocking {
+        var uploads = 0
+        val cache = ReusableImageFiles { _, _, _ ->
+            uploads++
+            kotlinx.coroutines.awaitCancellation()
+        }
+        val parts = Json.parseToJsonElement("""[{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,AQID"}}]""")
+        val original = listOf(DeepSeekMessage("user", parts))
+        assertEquals(original, cache.prepare(original, "synthetic-account").messages)
+        assertEquals(original, cache.prepare(original, "synthetic-account", timeoutMillis = 100).messages)
+        assertEquals(original, cache.prepare(original, "synthetic-account").messages)
+        assertEquals(1, uploads)
+    }
+
     @Test fun cancellingPreparationRetainsRequestWithoutSendingIt() = kotlinx.coroutines.runBlocking {
         val started = kotlinx.coroutines.CompletableDeferred<Unit>()
         val release = kotlinx.coroutines.CompletableDeferred<Unit>()

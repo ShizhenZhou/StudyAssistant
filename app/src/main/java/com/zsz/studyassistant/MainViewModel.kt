@@ -1637,7 +1637,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         streamCall(next.model, context.messagesForRequest(next.webEnabled), context.prefix, next.onDone,
             replyAction = next.action, useWeb = next.webEnabled, webHistory = context.history,
             webAnnotations = context.annotations, prepare = next.prepare,
-            plainBase = context.messages.takeUnless { next.webEnabled || next.prepare != null })
+            plainBase = context.messages.takeUnless { next.webEnabled || next.prepare != null },
+            refreshIdleConnections = true)
     }
 
     private fun runCall(model: String, onDone: (String) -> Unit, prompt: String? = customPromptText()) {
@@ -1664,11 +1665,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             replyAction in setOf("initial", "grade") && prefix.isEmpty() &&
             chatItems.none { it.role == "assistant" || !it.conversationTitle.isNullOrBlank() },
         prepare: (() -> List<DeepSeekMessage>)? = null,
-        plainBase: List<DeepSeekMessage>? = null
+        plainBase: List<DeepSeekMessage>? = null,
+        refreshIdleConnections: Boolean = false
     ) {
         if (dataBusy || (messages.isEmpty() && prepare == null)) return
         generation.start(com.zsz.studyassistant.data.ConversationGeneration.Request(
-            model, messages, prefix, replyAction, useWeb, requestTitle, prepare
+            model, messages, prefix, replyAction, useWeb, requestTitle, prepare, refreshIdleConnections
         )) { owner ->
             val titleBinding = sessionRecordBinding
             val draftId=sessionRecordBinding.id
@@ -1768,7 +1770,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 useWeb, webHistory, webAnnotations, owner.resumableContext),
                             prepare.takeIf { messages.isEmpty() }, onDone
                         )
-                        // 用完整累积文本刷新一次界面（可能是空串 → 界面显示「思考中…」+ 蓝色「继续生成」）
+                        // 空内容也保留中断气泡和继续生成入口。
                         streamingText = partial
                     } else {
                         streamingText = null

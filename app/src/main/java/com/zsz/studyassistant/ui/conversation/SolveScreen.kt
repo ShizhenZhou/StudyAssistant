@@ -329,16 +329,19 @@ fun SolveScreen(
         val rendered = when {
             live == null -> mapped
             // 被中断（网络异常 / 用户中止）：在已生成内容末尾补一行可点的蓝色「继续生成」
-            // 注意要排在「空内容」之前：思考期就被中止时，一个字都没有 → 显示「思考中…」+ 继续生成，气泡不消失
+            // 空内容也显示中断状态和继续生成入口。
             vm.streamInterrupted -> mapped + ChatMsg(
                 role = "assistant",
-                content = (if (live.isEmpty()) s["solve.thinking"] else live) + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]",
+                content = live.ifEmpty { s["solve.generationInterrupted"] } + "\n\n[[CONTINUE|" + s["solve.continue"] + "]]",
                 images = emptyList(),
                 thinking = if (vm.thinkingEnabled) vm.thinkingText else null,
                 thinkingOpen = true,
                 thinkingDone = vm.thinkingDone
             )
-            live.isEmpty() -> mapped + ChatMsg(role = "assistant", content = s["solve.thinking"], images = emptyList(), thinking = if (vm.thinkingEnabled) vm.thinkingText else null, thinkingOpen = true, thinkingDone = vm.thinkingDone)
+            live.isEmpty() -> mapped + ChatMsg(role = "assistant",
+                content = s[if (vm.thinkingText.isNullOrEmpty()) "solve.waitingResponse" else "solve.thinking"],
+                images = emptyList(), thinking = if (vm.thinkingEnabled) vm.thinkingText else null,
+                thinkingOpen = true, thinkingDone = vm.thinkingDone)
             // 流式全程 thinkingOpen=true：思考结束不再自动收起（否则"正文一出思考块就被吞"）
             else -> mapped + ChatMsg(role = "assistant", content = live + "\n\n▍", images = emptyList(), thinking = if (vm.thinkingEnabled) vm.thinkingText else null, thinkingOpen = true, thinkingDone = vm.thinkingDone)
         }
@@ -361,6 +364,14 @@ fun SolveScreen(
     }
     val visibleKeys = remember(mappedMessages) { mappedMessages.map { it.messageKey } }
     var editMode by remember(draft, visibleKeys, virtualTailIndex) { mutableStateOf(false) }
+    fun canRegenerateLastAnswer(messageKey: String): Boolean {
+        if (vm.reviewMode || vm.gradeMode || editMode || switching ||
+            vm.busy || vm.dataBusy || vm.streamingText != null || vm.streamInterrupted ||
+            vm.initialAnswerPending
+        ) return false
+        val answer = vm.chatItems.lastOrNull() ?: return false
+        return answer.role == "assistant" && answer.content.isNotBlank() && answer.messageKey == messageKey
+    }
     val entryMatch = notebookMatch?.takeIf { entryOrigin == AppNav.Origin.NOTEBOOK && it.questionId == vm.savedQuestionId }
     var searchFinished by androidx.compose.runtime.saveable.rememberSaveable(entryMatch) { mutableStateOf(false) }
     LaunchedEffect(vm.busy, editMode) {
@@ -868,9 +879,7 @@ fun SolveScreen(
             // 题目不再单独折叠显示：原题/我的提问已作为浅绿用户气泡显示在对话里
 
             // 多选不再切到缩略列表：仍在原消息界面上操作（气泡右上角圆圈 + 选中红框）
-            // 生成中即使一条消息都还没有，也走 WebView —— 由「流式气泡」显示「思考中…」（用户要求：无内容时要有气泡）
-            // ★ 另外：**被中止**时（busy=false 但 streamingText 还在）也必须走 WebView，
-            //   否则会掉进"正在等待题目…"占位页，把「思考中… + 蓝色继续生成」的气泡弄丢（曾回归）
+            // 保留等待响应与中断时的 WebView 气泡，即使正文还为空。
             val hasLiveBubble = vm.streamingText != null
             // ★ 2026-10-12：清屏占位只在**复习模式**下生效——否则一个残留的 switching 会把普通页面
             //   （错题本/图文提问）永久顶成「下一题」空白页（用户实测）。
@@ -967,6 +976,9 @@ fun SolveScreen(
                         },
                         scrollTopSignal = scrollTopTick,
                         onContinue = { if (vm.initialAnswerPending) vm.generateMissingInitialAnswer() else vm.continueGeneration() },
+                        onRegenerateLastAnswer = if (messages.lastOrNull()?.messageKey?.let(::canRegenerateLastAnswer) == true) {
+                            { key -> if (canRegenerateLastAnswer(key)) vm.regenerate() }
+                        } else null,
                         bookmarkJump = bookmarkJump,
                         bookmarkJumpSignal = bookmarkJumpTick,
                         onBookmarkText = if (!vm.busy && !vm.dataBusy && !vm.streamInterrupted && !editMode) { selection ->

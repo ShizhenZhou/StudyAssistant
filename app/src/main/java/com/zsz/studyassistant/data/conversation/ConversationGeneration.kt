@@ -21,7 +21,8 @@ internal class ConversationGeneration(
         val action: String,
         val webEnabled: Boolean,
         val requestTitle: Boolean,
-        val prepare: (() -> List<DeepSeekMessage>)?
+        val prepare: (() -> List<DeepSeekMessage>)?,
+        val refreshIdleConnections: Boolean
     )
 
     interface Events {
@@ -61,6 +62,7 @@ internal class ConversationGeneration(
                 )
                 if (!current() || messages.isEmpty()) return@launch
                 val reply = withContext(Dispatchers.IO) {
+                    if (request.refreshIdleConnections) ApiClient.evictIdleConnections()
                     StudyAssistant.chatStream(request.model, messages, documentStore = documentStore(),
                         onDelta = delta@{ delta ->
                             body.append(delta)

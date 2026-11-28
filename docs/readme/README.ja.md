@@ -16,7 +16,7 @@ zsz が DeepSeek と GPT の支援で開発。
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.6.2_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
+- **Android 9–15** · [互換版 v0.7.6.3_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
 - [互換版の説明と更新履歴](../compatible/README.ja.md)
 
 この入口は両配布版で共通です。以下の技術情報と履歴はメイン版のものです。互換版の対応範囲と個別の更新履歴は上記の説明をご覧ください。
@@ -62,6 +62,11 @@ AGP **9.5.2**、Gradle wrapper **9.9.2**、JDK **25** · KSP **2.3.14**、compil
 
 ## バージョン履歴
 
+
+### v0.7.6.3
+
+- 🌐 質問への回答時に、接続の失敗や応答の停止をより早く検出します。「生成を続ける」を選ぶと新しい接続を使います。
+- 🔄 最後まで生成した回答の右上に「再生成」を追加しました。新しい回答が完成すると、前の回答が置き換わります。
 
 ### v0.7.6.2
 

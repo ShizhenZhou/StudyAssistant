@@ -1,5 +1,14 @@
 package com.zsz.studyassistant.data
 
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
 /** Fixed, localized reasons only: never include raw server data in exceptions or logs. */
@@ -10,6 +19,61 @@ internal fun Exception.isConnectionFailure(): Boolean {
         this is java.io.InterruptedIOException || this is java.io.EOFException || this is javax.net.ssl.SSLException) return true
     val detail = message.orEmpty().lowercase()
     return listOf("timed out", "timeout", "connect", "unreachable", "socket", "network").any { it in detail }
+}
+
+private enum class StreamStartup { WAITING, FINISHED, TIMED_OUT }
+
+/** Cancel the specific HTTP call on expiry, including when the reader is blocked in socket IO. */
+internal suspend fun <T> withStreamStartupDeadline(
+    cancelCall: () -> Unit,
+    timeoutMillis: Long,
+    awaitStart: suspend () -> Unit = {},
+    operation: suspend (markProgress: () -> Unit) -> T
+): T = coroutineScope {
+    val startup = AtomicReference(StreamStartup.WAITING)
+    val alarm = launch(Dispatchers.Default) {
+        awaitStart()
+        delay(timeoutMillis)
+        if (startup.compareAndSet(StreamStartup.WAITING, StreamStartup.TIMED_OUT)) cancelCall()
+    }
+    fun finishWaiting() {
+        if (startup.compareAndSet(StreamStartup.WAITING, StreamStartup.FINISHED)) alarm.cancel()
+    }
+    val result = try {
+        operation(::finishWaiting)
+    } catch (error: IOException) {
+        finishWaiting()
+        if (startup.get() == StreamStartup.TIMED_OUT)
+            throw SocketTimeoutException("Stream start timeout").apply { initCause(error) }
+        throw error
+    } finally {
+        finishWaiting()
+    }
+    if (startup.get() == StreamStartup.TIMED_OUT) throw SocketTimeoutException("Stream start timeout")
+    result
+}
+
+/** SSE heartbeats, role-only chunks and usage metadata do not count as generation. */
+internal suspend fun readStreamChunks(
+    source: okio.BufferedSource,
+    completion: StreamCompletion,
+    cancelCall: () -> Unit,
+    firstProgressMillis: Long = 45_000,
+    onChunk: suspend (StreamChunk) -> Unit
+): Unit = withStreamStartupDeadline(cancelCall, firstProgressMillis) { markProgress ->
+    while (true) {
+        currentCoroutineContext().ensureActive()
+        val line = readStreamLine(source) ?: break
+        if (!line.startsWith("data:")) continue
+        val chunk = completion.accept(line.substring(5).trim())
+        if (completion.done) break
+        if (chunk == null) continue
+        val choice = chunk.choices.firstOrNull()
+        val delta = choice?.delta
+        if (!delta?.content.isNullOrEmpty() || !delta?.reasoningContent.isNullOrEmpty() ||
+            choice?.serverToolEvent?.let(::toolProgressKey) != null) markProgress()
+        onChunk(chunk)
+    }
 }
 
 /** Pure protocol state shared by production reads and synthetic SSE regression tests. */

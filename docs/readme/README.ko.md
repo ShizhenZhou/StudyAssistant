@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.6.2_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
+- **Android 9–15** · [호환 버전 v0.7.6.3_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -62,6 +62,11 @@ AGP **9.5.2**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSd
 
 ## 버전 기록
 
+
+### v0.7.6.3
+
+- 🌐 질문에 답할 때 연결 실패나 응답 지연을 더 빨리 감지합니다. 생성을 계속하면 새로 연결합니다.
+- 🔄 마지막으로 완료된 답변 오른쪽 위에 ‘다시 생성’을 추가했습니다. 새 답변이 완료되면 이전 답변을 바꿉니다.
 
 ### v0.7.6.2
 

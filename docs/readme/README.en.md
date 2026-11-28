@@ -16,7 +16,7 @@ Developed by zsz with assistance from DeepSeek and GPT.
 ## Download the APK
 
 - **Android 16+** · [Download the latest stable release](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [Download the compatible release (v0.7.6.2_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.2_Compat)
+- **Android 9–15** · [Download the compatible release (v0.7.6.3_Compat)](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
 - [Compatibility notes and history](../compatible/README.en.md)
 
 This entry is shared by both distributions. The technical details and history below describe mainline; see the compatibility notes above for its platform range and separate history.
@@ -62,6 +62,11 @@ AGP **9.5.2**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSd
 
 ## Version history
 
+
+### v0.7.6.3
+
+- 🌐 Q&A detects connection failures and stalled replies sooner. Continuing generation opens a fresh connection.
+- 🔄 Use Regenerate at the top right of the last completed answer. The previous answer is kept until the new one finishes.
 
 ### v0.7.6.2
 
