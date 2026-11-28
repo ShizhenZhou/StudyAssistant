@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": 4,
+  "revision": 5,
   "announcements": [],
   "unstableVersions": [
     {
@@ -8,15 +8,23 @@
       "revision": 1,
       "distributions": ["main", "compat"],
       "channels": ["stable"],
-      "versions": ["0.7.6.3", "0.7.6.3_Compat"],
-      "minVersionCode": 151,
+      "versions": [
+        "0.7.6",
+        "0.7.6.1",
+        "0.7.6.2",
+        "0.7.6.3",
+        "0.7.6_Compat",
+        "0.7.6.2_Compat",
+        "0.7.6.3_Compat"
+      ],
+      "minVersionCode": 148,
       "maxVersionCode": 151,
       "expiresAt": "2027-02-27T16:00:00Z",
       "title": {
-        "zh-CN": "v0.7.6.3 问答等待问题",
-        "en": "Q&A stalls in v0.7.6.3",
-        "ja": "v0.7.6.3 の回答待ちの問題",
-        "ko": "v0.7.6.3의 답변 대기 문제"
+        "zh-CN": "问答等待问题",
+        "en": "Q&A stalls",
+        "ja": "回答待ちの問題",
+        "ko": "답변 대기 문제"
       },
       "body": {
         "zh-CN": "问答可能在发送请求前或回答已结束后长时间停在等待状态。请升级到 v0.7.6.4 或更新版本。",
