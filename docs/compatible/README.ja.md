@@ -13,19 +13,25 @@
 写真・テキスト質問、AI解答、誤答ノートと復習のための個人用Android学習アプリです。アカウント機能や開発者運営のサーバーはありません。
 zsz が DeepSeek と GPT の支援で開発。
 
-> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.6.3_Compat（versionCode 151）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
+> 互換版は **Android 9–15（API 28–35）** 向けです。現在のバージョンは v0.7.6.4_Compat（versionCode 152）です。v0.6.7.9 からの初回更新は完全 APK の手動インストールが必要で、以後は互換版の更新のみを受け取ります。メインは引き続き Android 16+ 向けで、GitHub Latest もメイン用です。
 
 [Study Assistant · README](../readme/README.ja.md)
 
 ## APK のダウンロード
 
 - **Android 16+** · [最新の正式版をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [互換版 v0.7.6.3_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
+- **Android 9–15** · [互換版 v0.7.6.4_Compat をダウンロード](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.4_Compat)
 
 [過去のリリース一覧](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## バージョン履歴
 
+
+### v0.7.6.4_Compat
+
+- 🌐 質問の接続と送信に時間制限を設定しました。サーバーが回答を完了した後は、終了マーカーがなくても速やかに処理を終えます。
+- 🔄 最後の回答の「再生成」を思考過程の見出しと同じ行に配置しました。
+- 📚 今日の復習計画の読み込みを減らし、復習一覧の更新を軽くしました。
 
 ### v0.7.6.3_Compat
 

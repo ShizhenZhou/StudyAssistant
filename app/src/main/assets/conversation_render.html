@@ -37,8 +37,8 @@
   .bubble.assistant{background:var(--bubble-ai);color:var(--fg);align-self:flex-start;border:1px solid var(--bubble-ai-border);}
   .bubble.user{background:var(--bubble-user);color:var(--fg);align-self:flex-end;border:1px solid var(--bubble-user-border);}
   .answer-actions{display:flex;justify-content:flex-end;margin:-6px -6px 2px 0;}
-  .regenerate-answer{min-height:44px;padding:4px 8px;border:0;border-radius:8px;background:transparent;
-    color:inherit;font:inherit;font-size:calc(13px * var(--k));cursor:pointer;}
+  .regenerate-answer{min-width:0;min-height:44px;padding:4px 8px;border:0;border-radius:8px;background:transparent;
+    color:inherit;font:inherit;font-size:calc(13px * var(--k));overflow-wrap:anywhere;cursor:pointer;}
   .regenerate-answer:active{background:var(--bubble-ai-border);}
   .answer-actions:empty,body.selmode .answer-actions{display:none;}
   .quoted-text{position:relative;background:var(--quote-bg);color:var(--quote-fg);
@@ -100,6 +100,9 @@
      <details> 的原生折叠既依赖"按下/抬起落在同一节点"、又依赖 ontoggle 落库，
      两者在重建中都不可靠 → 改为 JS 自管展开态 + document 级事件委托 */
   .think{margin-bottom:6px}
+  .think-header{display:flex;align-items:center;}
+  .think-header .thinkhead{flex:1;min-width:0;}
+  .think-header .answer-actions{min-width:0;max-width:48%;margin:0 -6px 0 8px;}
   .thinkhead{cursor:pointer;font-size:calc(12px * var(--k));color:var(--think-fg);opacity:.9;padding:3px 0;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   .thinkbody{font-size:calc(12px * var(--k));line-height:1.5;color:var(--think-body-fg);white-space:pre-wrap;border-left:2px solid var(--think-body-border);padding:4px 0 4px 8px;margin-top:4px}
@@ -679,6 +682,14 @@ function bubbleHtml(m, idx){
   if(m.role === 'user' && m.quotedText){
     body = '<div class="quoted-text">'+renderMath(m.quotedText)+'</div>' + body;
   }
+  var actions = '';
+  if(cls === 'assistant' && window.Android && Android.regenerateAnswer){
+    var regenerate = m.regenerateLabel && m.messageKey
+      ? '<button type="button" class="regenerate-answer" data-message-key="' + esc(m.messageKey)
+        + '" onclick="regenerateAnswer(event,this)">' + esc(m.regenerateLabel) + '</button>'
+      : '';
+    actions = '<div class="answer-actions">' + regenerate + '</div>';
+  }
   // ★ 思考流：显示在**该气泡的顶端**（浅灰小字、可折叠）
   //   展开态由 JS 自管（window.thinkUserOpen / thinkUserClosed），不用 <details>：
   //   流式重建会把节点换掉，原生折叠既可能丢 click、又可能丢 ontoggle。
@@ -700,7 +711,8 @@ function bubbleHtml(m, idx){
     window.thinkText[idx] = m.thinking;
     window.thinkDone[idx] = tDone;
     thinkHtml = '<div class="think" data-box="' + idx + '">'
-      + '<div class="thinkhead" data-think="' + idx + '">' + esc(TL().title) + esc(thinkLabel(tOpen, tDone)) + '</div>'
+      + '<div class="think-header"><div class="thinkhead" data-think="' + idx + '">'
+      + esc(TL().title) + esc(thinkLabel(tOpen, tDone)) + '</div>' + actions + '</div>'
       + (tOpen ? '<div class="thinkbody">' + esc(m.thinking) + '</div>' : '')
       // 底端蓝色切换行：**展开与收起都在**（展开时=收起、收起时=展开），
       // 思考很长时不用滚回顶部，收起后也不会"什么都不剩"
@@ -734,16 +746,8 @@ function bubbleHtml(m, idx){
   if(contLabel !== null){
     body += '<div class="continue" onclick="event.stopPropagation();continueGen()">'+esc(contLabel)+'</div>';
   }
-  var actions = '';
-  if(cls === 'assistant' && window.Android && Android.regenerateAnswer){
-    var regenerate = m.regenerateLabel && m.messageKey
-      ? '<button type="button" class="regenerate-answer" data-message-key="' + esc(m.messageKey)
-        + '" onclick="regenerateAnswer(event,this)">' + esc(m.regenerateLabel) + '</button>'
-      : '';
-    actions = '<div class="answer-actions">' + regenerate + '</div>';
-  }
   return '<div class="bubble '+cls+(selectionMode?' selmode':'')+(isSel?' selected':'')+(locked?' locked':'')+'" data-idx="'+idx+'"'
-       + ' onclick="bubbleTap('+idx+')">' + actions + thinkHtml + body + imgHtml
+       + ' onclick="bubbleTap('+idx+')">' + (thinkHtml || actions) + body + imgHtml
        + (selectionMode ? '<div class="pick">'+(isSel?'✓':'')+'</div>' : '') + '</div>';
 }
 // ── 多选状态与交互（长按进入；点气泡切换；圆圈在右上角，选中显示红框） ──

@@ -13,19 +13,25 @@
 個人自用安卓學習工具，用於拍照/圖文提問、AI 解答、錯題整理與複習，無賬號體系或自有服務器。
 由 zsz 開發，DeepSeek 與 GPT 輔助編寫。
 
-> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.6.3_Compat（versionCode 151）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
+> 兼容版面向 **Android 9–15（API 28–35）**，目前版本為 v0.7.6.4_Compat（versionCode 152）。首次從 v0.6.7.9 升級需手動安裝完整相容套件；之後只接收相容版更新。主線繼續支援 Android 16+，GitHub Latest 保留給主線。
 
 [Study Assistant · README](../readme/README.zh-TW.md)
 
 ## 下載 APK
 
 - **Android 16+** · [下載最新正式版](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [下載相容版本 v0.7.6.3_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
+- **Android 9–15** · [下載相容版本 v0.7.6.4_Compat](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.4_Compat)
 
 [所有歷史版本](https://github.com/ShizhenZhou/StudyAssistant/releases)
 
 ## 版本記錄
 
+
+### v0.7.6.4_Compat
+
+- 🌐 為問答連線和傳送階段設定等待上限。伺服器已結束回答時，即使缺少結束標記也能及時收尾。
+- 🔄 最後一則回答的「重新生成」與「思考過程」放到同一行。
+- 📚 減少今日複習計畫的重複讀取，加快複習清單更新。
 
 ### v0.7.6.3_Compat
 

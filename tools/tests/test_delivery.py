@@ -185,6 +185,7 @@ class DeliveryTest(unittest.TestCase):
             calls = []
             existing_tags = set()
             class GitHub:
+                def require_authentication(self): pass
                 def api(self, path, value=None, **kwargs):
                     calls.append((path, value))
                     if path.startswith("git/ref/tags/") and path.removeprefix("git/ref/tags/") in existing_tags:
@@ -547,6 +548,7 @@ class DeliveryTest(unittest.TestCase):
             self.source_profile(root, "main", "0.6.8.7")
             calls = []
             class GitHub:
+                def require_authentication(self): pass
                 def api(self, path, value=None, **kwargs):
                     calls.append((path, value))
                     return {"workflow_runs": []} if "runs?" in path else None
@@ -565,6 +567,85 @@ class DeliveryTest(unittest.TestCase):
             self.assertEqual(1, len(dispatches))
             self.assertEqual({"expected_sha", "run_description", "release_channel"}, set(dispatches[0]["inputs"]))
             self.assertEqual("stable", dispatches[0]["inputs"]["release_channel"])
+
+    def dispatch_command(self, auth_results, dispatch_results, calls):
+        def fake_command(args, *, data=None, **kwargs):
+            if args[0] == "git":
+                output = {("status", "--porcelain"): b"", ("branch", "--show-current"): b"main",
+                          ("rev-parse", "HEAD"): b"a" * 40, ("log", "-1", "--format=%s"): b"fix: delivery"}
+                return subprocess.CompletedProcess(args, 0, output[tuple(args[1:])], b"")
+            self.assertEqual("api", args[1])
+            path = args[2].removeprefix(f"repos/{release.REPO}/")
+            if path == "user":
+                calls.append(("auth", None))
+                error = auth_results.pop(0)
+                return subprocess.CompletedProcess(args, bool(error), b"", error)
+            if path.endswith("/dispatches"):
+                calls.append(("dispatch", json.loads(data)))
+                error = dispatch_results.pop(0)
+                if isinstance(error, Exception):
+                    raise error
+                return subprocess.CompletedProcess(args, bool(error), b"", error)
+            if path.startswith("git/ref/heads/"):
+                return subprocess.CompletedProcess(args, 0, json.dumps({"object": {"sha": "a" * 40}}).encode(), b"")
+            if path.startswith("git/ref/tags/"):
+                return subprocess.CompletedProcess(args, 1, b"", b"gh: Not Found (HTTP 404)\n")
+            self.assertIn("/runs?", path)
+            calls.append(("runs", None))
+            return subprocess.CompletedProcess(args, 0, b'{"workflow_runs":[]}', b"")
+        return fake_command
+
+    def test_start_checks_authentication_before_dispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.source_profile(root, "main", "0.7.6.4")
+            calls = []
+            rejected = b"gh: Bad credentials (HTTP 401)\n"
+            with patch.object(release, "command", self.dispatch_command([rejected, b""], [b""], calls)):
+                with self.assertRaisesRegex(release.ReleaseError, "authentication"):
+                    release.Release(root).start("0.7.6.4")
+                self.assertEqual(["auth"], [kind for kind, _ in calls])
+                self.assertIn("not dispatched", release.Release(root).load_status("0.7.6.4")["status"])
+                release.Release(root).start("0.7.6.4")
+            self.assertEqual(["auth", "auth", "dispatch", "runs"], [kind for kind, _ in calls])
+
+    def test_start_retries_confirmed_dispatch_rejection_once_after_run_lookup(self):
+        rejected = b"gh: Bad credentials (HTTP 401)\r\n"
+        for second in (b"", rejected):
+            with self.subTest(second_rejected=bool(second)), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.source_profile(root, "main", "0.7.6.4")
+                calls = []
+                with patch.object(release, "command", self.dispatch_command([b"", b""], [rejected, second], calls)):
+                    with self.assertRaisesRegex(release.ReleaseError, "HTTP 401"):
+                        release.Release(root).start("0.7.6.4", mandatory=True)
+                    with self.assertRaisesRegex(release.ReleaseError, "mandatory"):
+                        release.Release(root).start("0.7.6.4", mandatory=False)
+                    if second:
+                        with self.assertRaisesRegex(release.ReleaseError, "HTTP 401"):
+                            release.Release(root).start("0.7.6.4")
+                    else:
+                        release.Release(root).start("0.7.6.4")
+                    release.Release(root).start("0.7.6.4")
+                kinds = [kind for kind, _ in calls]
+                self.assertEqual(["auth", "dispatch", "runs", "auth", "dispatch"], kinds[:5])
+                dispatches = [value for kind, value in calls if kind == "dispatch"]
+                self.assertEqual(2, len(dispatches))
+                self.assertEqual(dispatches[0], dispatches[1])
+
+    def test_start_never_retries_uncertain_dispatch(self):
+        errors = [b"gh: Bad Gateway (HTTP 502)\n", subprocess.TimeoutExpired("gh", 120)]
+        for problem in errors:
+            with self.subTest(problem=problem), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.source_profile(root, "main", "0.7.6.4")
+                calls = []
+                with patch.object(release, "command", self.dispatch_command([b""], [problem], calls)):
+                    with self.assertRaises((release.ReleaseError, subprocess.TimeoutExpired)):
+                        release.Release(root).start("0.7.6.4")
+                    status = release.Release(root).start("0.7.6.4")
+                self.assertIn("pending", status["status"])
+                self.assertEqual(["auth", "dispatch", "runs"], [kind for kind, _ in calls])
 
 
 if __name__ == "__main__": unittest.main()

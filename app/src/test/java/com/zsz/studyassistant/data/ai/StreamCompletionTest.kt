@@ -5,6 +5,7 @@ import org.junit.Test
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -16,15 +17,51 @@ class StreamCompletionTest {
         val cancelled = CompletableDeferred<Unit>()
         val result = async {
             runCatching {
-                withStreamStartupDeadline({ cancelled.complete(Unit) }, 100, awaitStart = { sent.await() }) {
-                    cancelled.await()
+                awaitStreamHeaders(sent, sendMillis = 2_000, headersMillis = 100) {
+                    try { awaitCancellation() } finally { cancelled.complete(Unit) }
                 }
             }
         }
         delay(200)
         assertFalse(cancelled.isCompleted)
         sent.complete(Unit)
-        assertTrue(result.await().exceptionOrNull() is java.net.SocketTimeoutException)
+        val error = result.await().exceptionOrNull()
+        assertTrue(error is java.net.SocketTimeoutException)
+        assertEquals("Stream response headers timeout", error?.message)
+        assertTrue(cancelled.isCompleted)
+    }
+
+    @Test fun aRequestThatNeverStartsSendingIsCancelled() = kotlinx.coroutines.runBlocking {
+        val cancelled = CompletableDeferred<Unit>()
+        val error = runCatching {
+            awaitStreamHeaders(CompletableDeferred(), sendMillis = 100) {
+                try { awaitCancellation() } finally { cancelled.complete(Unit) }
+            }
+        }.exceptionOrNull()
+        assertTrue(error is java.net.SocketTimeoutException)
+        assertEquals("Stream request send timeout", error?.message)
+        assertTrue(cancelled.isCompleted)
+    }
+
+    @Test(timeout = 5_000) fun terminalAnswerKeepsUsageAndFinishesWithoutDone() = kotlinx.coroutines.runBlocking {
+        val pipe = okio.Pipe(2048)
+        pipe.sink.buffer().apply {
+            writeUtf8("data: {\"choices\":[{\"delta\":{\"content\":\"answer\"},\"finish_reason\":\"stop\"}]}\n")
+            writeUtf8("data: {\"choices\":[],\"usage\":{\"completion_tokens\":23}}\n: keep-alive\n")
+            flush()
+        }
+        val completion = StreamCompletion()
+        var answer: String? = null
+        var usage: DeepSeekUsage? = null
+        pipe.source.buffer().use { source ->
+            readStreamChunks(source, completion, pipe::cancel, firstProgressMillis = 2_000, terminalGraceMillis = 150) { chunk ->
+                chunk.choices.singleOrNull()?.delta?.content?.let { answer = it }
+                chunk.usage?.let { usage = it }
+            }
+        }
+        completion.requireComplete()
+        assertEquals("answer", answer)
+        assertEquals(23, usage?.completionTokens)
     }
 
     @Test(timeout = 5_000) fun heartbeatsAndEmptyDeltasCannotKeepAnUnstartedStreamAlive() {

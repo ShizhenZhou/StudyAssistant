@@ -1,6 +1,7 @@
 package com.zsz.studyassistant.data
 
 import android.content.Context
+import androidx.room3.withReadTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -15,34 +16,48 @@ internal data class DailyReviewPlan(
     val outsidePlan: Set<QuestionId> = emptySet(),
     val rated: Set<QuestionId> = emptySet()
 ) {
-    val completed = planned.count { it in rated }
+    val completed = rated.count { it in planned }
 
-    fun reconcile(rows: List<DailyReviewRow>, day: CalendarDay): DailyReviewPlan {
-        val plannedIds = planned.toMutableSet()
-        val outsideIds = outsidePlan.toMutableSet()
-        val ratedIds = rated.toMutableSet()
+    fun hasClassified(id: QuestionId) = id in planned || id in outsidePlan
+
+    fun reconcile(
+        rows: List<DailyReviewRow>, day: CalendarDay, ratedToday: List<QuestionId> = emptyList()
+    ): DailyReviewPlan {
+        val newPlanned = mutableSetOf<QuestionId>()
+        val newOutside = mutableSetOf<QuestionId>()
+        val newRated = ratedToday.filterNotTo(mutableSetOf()) { it in rated }
         val start = day.start
         val end = day.end
         for (row in rows) {
             val reviewedToday = row.lastReviewedAt != null && row.lastReviewedAt in start..end
-            if (reviewedToday && !row.deleted) ratedIds.add(row.id)
-            if (row.id in planned || row.id in outsidePlan) continue
+            if (reviewedToday && !row.deleted && row.id !in rated) newRated.add(row.id)
+            if (hasClassified(row.id)) continue
             // Classify each permanent notebook ID once, including old, future and hidden rows.
             // createdAt belongs to the original solve and may predate saving to the notebook.
             if (!row.deleted &&
                 (reviewedToday || (row.nextReviewAt != null && row.nextReviewAt <= end))) {
-                plannedIds.add(row.id)
+                newPlanned.add(row.id)
             } else {
-                outsideIds.add(row.id)
+                newOutside.add(row.id)
             }
         }
-        return copy(planned = plannedIds, outsidePlan = outsideIds, rated = ratedIds)
+        if (newPlanned.isEmpty() && newOutside.isEmpty() && newRated.isEmpty()) return this
+        return copy(planned = planned.include(newPlanned), outsidePlan = outsidePlan.include(newOutside),
+            rated = rated.include(newRated))
+    }
+
+    private fun Set<QuestionId>.include(additions: Set<QuestionId>): Set<QuestionId> = when {
+        additions.isEmpty() -> this
+        isEmpty() -> additions
+        else -> this + additions
     }
 }
 
 /** The baseline is local to this installation. Room remains authoritative for a committed rating. */
 internal class DailyReviewStore(context: Context) {
     private val prefs = context.getSharedPreferences("daily_review_v1", Context.MODE_PRIVATE)
+    private val database = AppDatabase.get(context)
+    private val dao = database.questionDao()
     private val lock = Mutex()
     val state = MutableStateFlow<DailyReviewPlan?>(null)
 
@@ -65,26 +80,38 @@ internal class DailyReviewStore(context: Context) {
         state.value = plan
     }
 
-    suspend fun refresh(dao: QuestionDao, onlyIfStarted: Boolean = false) =
+    private suspend fun reconcile(previous: DailyReviewPlan?, day: CalendarDay): DailyReviewPlan {
+        if (previous == null) return DailyReviewPlan(day.date.toString()).reconcile(dao.dailyReviewRows(), day)
+        return database.withReadTransaction {
+            // The primary-key index includes hidden rows and restored IDs from older backups.
+            // Read schedule/deletion state only for IDs the current plan has yet to classify.
+            val newIds = dao.dailyReviewQuestionIds().filterNot(previous::hasClassified)
+            val newRows = buildList {
+                for (ids in newIds.chunked(500)) addAll(dao.dailyReviewRowsByIds(ids))
+            }
+            previous.reconcile(newRows, day, dao.dailyReviewRatedIds(day.start, day.end))
+        }
+    }
+
+    suspend fun refresh(onlyIfStarted: Boolean = false) =
         withContext(Dispatchers.IO) {
             lock.withLock {
                 val day = CalendarDay.now()
                 val previous = read(day)
                 if (previous == null && onlyIfStarted) return@withLock null
-                val plan = (previous ?: DailyReviewPlan(day.date.toString())).reconcile(dao.dailyReviewRows(), day)
+                val plan = reconcile(previous, day)
                 save(previous, plan)
                 plan
             }
         }
 
-    suspend fun rate(dao: QuestionDao, id: QuestionId,
+    suspend fun rate(id: QuestionId,
         commit: suspend (CalendarDay, Boolean) -> Unit) = withContext(Dispatchers.IO) {
         lock.withLock {
             val day = CalendarDay.now()
             val previous = read(day)
-            val plan = if (previous == null || (id !in previous.planned && id !in previous.outsidePlan)) {
-                (previous ?: DailyReviewPlan(day.date.toString())).reconcile(dao.dailyReviewRows(), day)
-                    .also { save(previous, it) }
+            val plan = if (previous == null || !previous.hasClassified(id)) {
+                reconcile(previous, day).also { save(previous, it) }
             } else previous
             commit(day, id in plan.rated)
             save(plan, if (id in plan.rated) plan else plan.copy(rated = plan.rated + id))

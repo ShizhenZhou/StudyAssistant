@@ -157,6 +157,17 @@ interface QuestionDao {
         FROM questions q LEFT JOIN review r ON r.questionId = q.id""")
     suspend fun dailyReviewRows(): List<DailyReviewRow>
 
+    @Query("SELECT id FROM questions")
+    suspend fun dailyReviewQuestionIds(): List<QuestionId>
+
+    @Query("""SELECT q.id, q.deleted, r.nextReviewAt, r.lastReviewedAt
+        FROM questions q LEFT JOIN review r ON r.questionId = q.id WHERE q.id IN (:ids)""")
+    suspend fun dailyReviewRowsByIds(ids: List<QuestionId>): List<DailyReviewRow>
+
+    @Query("""SELECT r.questionId FROM review r WHERE r.lastReviewedAt BETWEEN :start AND :end
+        AND EXISTS (SELECT 1 FROM questions q WHERE q.id = r.questionId AND q.deleted = 0)""")
+    suspend fun dailyReviewRatedIds(start: Long, end: Long): List<QuestionId>
+
     // ---- 复习调度 ----
     /** 到期错题（nextReviewAt <= until），按下次复习时间升序 */
     // ★ 只取轻字段：不要 SELECT q.*（含 imageBytes 大 BLOB 与会话 JSON），

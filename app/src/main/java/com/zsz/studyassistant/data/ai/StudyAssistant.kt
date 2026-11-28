@@ -341,7 +341,7 @@ object StudyAssistant {
                 Runnable { sent.complete(Unit) })
             var pendingBody: ResponseBody? = null
             return try {
-                val body = withStreamStartupDeadline(call::cancel, 20_000, awaitStart = { sent.await() }) { _ ->
+                val body = awaitStreamHeaders(sent) {
                     awaitStreamBody(call, owner).also { pendingBody = it }
                 }
                 call to body

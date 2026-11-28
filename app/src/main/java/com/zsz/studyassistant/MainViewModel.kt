@@ -290,7 +290,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // Capture any new IDs before their last notebook/review rows disappear.
             if (batch.questions.isNotEmpty()) {
                 try {
-                    dailyReviewStore.refresh(dao, onlyIfStarted = true)
+                    dailyReviewStore.refresh(onlyIfStarted = true)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -2733,7 +2733,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val dailyReviewStore = com.zsz.studyassistant.data.DailyReviewStore(app)
     internal val dailyReviewPlan: StateFlow<com.zsz.studyassistant.data.DailyReviewPlan?> = dailyReviewStore.state
     private suspend fun refreshReviewPlan(): com.zsz.studyassistant.data.DailyReviewPlan? = try {
-        dailyReviewStore.refresh(dao)
+        dailyReviewStore.refresh()
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
@@ -2755,7 +2755,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var reviewEpoch = 0L
     private val committedReviewIds = mutableSetOf<QuestionId>()
     private suspend fun commitReview(questionId: QuestionId, level: Int) {
-        dailyReviewStore.rate(dao, questionId) { day, alreadyRated ->
+        dailyReviewStore.rate(questionId) { day, alreadyRated ->
             AppDatabase.get(getApplication()).withWriteTransaction {
                 val question = dao.questionPreviewOnce(questionId) ?: error("Question no longer exists")
                 check(!question.deleted && questionId !in deletionState.value.questionIds)

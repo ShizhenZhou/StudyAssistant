@@ -16,7 +16,7 @@ zsz가 DeepSeek 및 GPT의 도움으로 개발했습니다.
 ## APK 다운로드
 
 - **Android 16+** · [최신 정식 버전 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/latest)
-- **Android 9–15** · [호환 버전 v0.7.6.3_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.3_Compat)
+- **Android 9–15** · [호환 버전 v0.7.6.4_Compat 다운로드](https://github.com/ShizhenZhou/StudyAssistant/releases/tag/v0.7.6.4_Compat)
 - [호환 버전 안내 및 업데이트 기록](../compatible/README.ko.md)
 
 이 안내는 두 배포판이 공유합니다. 아래 기술 정보와 기록은 메인 버전 기준이며, 호환 버전의 지원 범위와 별도 기록은 위 안내를 확인하세요.
@@ -62,6 +62,12 @@ AGP **9.5.2**, Gradle wrapper **9.9.2**, JDK **25** · KSP **2.3.14**; compileSd
 
 ## 버전 기록
 
+
+### v0.7.6.4
+
+- 🌐 질문을 연결하고 전송하는 단계에 제한 시간을 두었습니다. 서버가 답변을 마쳤다면 종료 표시가 없어도 빠르게 마무리합니다.
+- 🔄 마지막 답변의 ‘다시 생성’을 사고 과정 제목과 같은 줄에 배치했습니다.
+- 📚 오늘의 복습 계획을 중복해서 읽는 횟수를 줄였습니다.
 
 ### v0.7.6.3
 

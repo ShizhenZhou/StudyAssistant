@@ -1,3 +1,8 @@
+v0.7.6.4_Compat
+· 🌐 Q&A limits the time spent connecting and sending a request. A finished response can close promptly even when the final marker is missing.
+· 🔄 Regenerate sits beside the Thinking Process heading on the last answer.
+· 📚 The daily review plan avoids redundant reads when the review list refreshes.
+
 v0.7.6.3_Compat
 · 🌐 Q&A detects connection failures and stalled replies sooner. Continuing generation opens a fresh connection.
 · 🔄 Use Regenerate at the top right of the last completed answer. The previous answer is kept until the new one finishes.

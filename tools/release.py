@@ -37,6 +37,12 @@ RELEASE_ASSET_KEYS = ("id", "name", "size", "digest")
 class ReleaseError(RuntimeError): pass
 
 
+class DispatchRejected(ReleaseError):
+    def __init__(self, status):
+        self.status = status
+        super().__init__(f"GitHub rejected workflow dispatch (HTTP {status}).")
+
+
 def atomic_replace(source, target):
     """Keep state atomic while tolerating only brief Windows access/sharing locks."""
     for attempt in range(4):
@@ -309,6 +315,14 @@ class GitHub:
         self.gh = shutil.which("gh") or r"D:\Program Files\GitHub CLI\bin\gh.exe"
     def call(self, *args, data=None):
         return command([self.gh, *args], root=self.root, data=data).stdout
+    def require_authentication(self):
+        try:
+            result = command([self.gh, "api", "user", "--hostname", "github.com"],
+                             root=self.root, timeout=20, check=False)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ReleaseError("GitHub CLI authentication check could not complete. Resolve the cause before running start again.") from error
+        if result.returncode:
+            raise ReleaseError("GitHub CLI authentication check failed. Restore GitHub CLI access before running start again.")
     def api(self, path, value=None, method=None, missing=False):
         args = [self.gh, "api", f"repos/{REPO}/{path}"]
         if value is not None:
@@ -318,6 +332,10 @@ class GitHub:
         result = command(args, root=self.root, data=None if value is None else json.dumps(value).encode(), check=False)
         if result.returncode:
             if missing and b"HTTP 404" in result.stderr: return None
+            if path == f"actions/workflows/{WORKFLOW}/dispatches" and value is not None and method in (None, "POST"):
+                rejection = re.search(rb"(?m)^gh: [^\r\n]+ \(HTTP (401|403|404|422)\)\r?$", result.stderr)
+                if rejection:
+                    raise DispatchRejected(int(rejection[1]))
             raise ReleaseError("GitHub request failed; its outcome must be checked before retrying.")
         return json.loads(result.stdout) if result.stdout.strip() else None
     def download(self, path, binary=False):
@@ -749,7 +767,13 @@ class Release:
             self.state["legacyDeltaBaseCodes"] = legacy_codes
         if self.state.get("replacementRequested") and not replacement:
             raise ReleaseError("Resume this explicitly requested replacement with start --replace")
-        if self.state.get("dispatchAttempted"): return self.status()
+        retrying = self.state.get("dispatchAttempted", False)
+        if retrying:
+            status = self.status()
+            if self.state.get("runId") or not self.state.get("dispatchRejectedStatus") or self.state.get("dispatchAttempts") != 1:
+                return status
+            if self.state["dispatchBranch"] != branch or bool(self.state.get("replacementRequested")) != replacement:
+                raise ReleaseError("Resume the original source branch and replacement choice.")
         tags = release_tags(version, distribution)
         existing = [tag for tag in tags if self.github.api("git/ref/tags/" + tag, missing=True)]
         if existing and not replacement: raise ReleaseError("Tag exists; replacement must be explicitly requested.")
@@ -761,20 +785,40 @@ class Release:
             if not previous or previous.get("draft") or bool(previous.get("prerelease")) != (channel == "beta"):
                 raise ReleaseError("Replacement requires an existing public release in the same channel")
             self.state["replacementRequested"] = True
-        message = self.git("log", "-1", "--format=%s").stdout.decode("utf-8").strip()
-        if not re.match(r"^(feat|fix|build|ci|docs|test|refactor|chore|perf|revert)(?:\([^)]+\))?!?: .+", message):
-            raise ReleaseError("Use a Conventional Commit title for the reviewed main commit.")
-        self.state.update(channel=channel, releaseTag=tag, dispatchBranch=branch, dispatchAttempted=True,
-                          requestedAt=datetime.now(timezone.utc).isoformat())
-        self.save()  # Never blindly dispatch again after an ambiguous network response.
-        description = run_description(version, message) + (" [compat]" if distribution == "compat" else "")
-        self.state["runDescription"] = description
-        self.save()
+        if retrying:
+            if tag != state_tag(self.state):
+                raise ReleaseError("Resume with the original release tag.")
+            description = self.state["runDescription"]
+        else:
+            message = self.git("log", "-1", "--format=%s").stdout.decode("utf-8").strip()
+            if not re.match(r"^(feat|fix|build|ci|docs|test|refactor|chore|perf|revert)(?:\([^)]+\))?!?: .+", message):
+                raise ReleaseError("Use a Conventional Commit title for the reviewed main commit.")
+            description = run_description(version, message) + (" [compat]" if distribution == "compat" else "")
         inputs = {"expected_sha":commit, "run_description":description, "release_channel":channel}
         if branch == "Develop": inputs["release_channel"] = "beta"
         if distribution == "compat": inputs.update(release_channel=channel, release_distribution=distribution)
-        self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":branch, "inputs":inputs})
+
+        self.github.require_authentication()
+        if not retrying:
+            self.state.update(channel=channel, releaseTag=tag, dispatchBranch=branch, runDescription=description,
+                              requestedAt=datetime.now(timezone.utc).isoformat())
+        self.state.update(dispatchAttempted=True, dispatchAttempts=2 if retrying else 1)
+        self.state.pop("dispatchRejectedStatus", None)
+        self.save()  # An interruption or ambiguous response leaves the attempt pending.
+        try:
+            self.github.api(f"actions/workflows/{WORKFLOW}/dispatches", {"ref":branch, "inputs":inputs})
+        except DispatchRejected as error:
+            self.state["dispatchRejectedStatus"] = error.status
+            self.save()
+            raise ReleaseError(self.dispatch_rejection_message()) from error
         return self.status()
+
+    def dispatch_rejection_message(self):
+        message = f"GitHub rejected workflow dispatch (HTTP {self.state['dispatchRejectedStatus']})."
+        if self.state.get("dispatchAttempts") == 1:
+            return message + " Resolve the cause and run start once to check for a matching run before retrying."
+        return message + " The single retry has been used."
+
     def status(self):
         if not self.state.get("runId") and self.state.get("dispatchAttempted"):
             runs = self.github.api(f"actions/workflows/{WORKFLOW}/runs?event=workflow_dispatch&branch={self.state.get('dispatchBranch', 'main')}&per_page=30")["workflow_runs"]
@@ -787,6 +831,10 @@ class Release:
         if self.state.get("runId"):
             run = self.github.api(f"actions/runs/{self.state['runId']}")
             return dict(version=self.state["version"], commit=self.state["commit"], runId=run["id"], status=run["status"], conclusion=run["conclusion"], phase=self.state.get("phase", "ci"))
+        if self.state.get("dispatchRejectedStatus"):
+            return dict(version=self.state["version"], status=self.dispatch_rejection_message())
+        if not self.state.get("dispatchAttempted"):
+            return dict(version=self.state["version"], status="not dispatched; run start after resolving the preflight failure")
         return dict(version=self.state["version"], status="dispatch outcome pending; query status again, do not redispatch")
 
     def load_status(self, version, run_id=None):
@@ -1170,7 +1218,9 @@ def main():
     except ReleaseError as error:
         # ReleaseError messages are controlled templates; never print native stderr, arguments or OS exceptions.
         print("Release step stopped safely: " + str(error), file=sys.stderr)
-        print("Resume the same run after resolving the cause; do not redispatch CI.", file=sys.stderr)
+        if args.operation != "start" or (coordinator.state and coordinator.state.get("dispatchAttempted")
+                                        and not coordinator.state.get("dispatchRejectedStatus")):
+            print("Resume the same run after resolving the cause; do not redispatch CI.", file=sys.stderr)
         return 1
     except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
         category = "timeout" if isinstance(error, subprocess.TimeoutExpired) else type(error).__name__
